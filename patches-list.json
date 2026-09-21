@@ -1,6 +1,6 @@
 {
   "NOTE": "Do NOT manually edit this file. This file is automatically updated when semantic release (release.yml) runs. Manually editing this file can break your releases and break third party tools that use this file.",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "patches": [
     {
       "name": "Clean Authentication",
@@ -32,6 +32,33 @@
     {
       "name": "Disable CodePush OTA Bundles",
       "description": "Always starts the embedded JavaScript bundle instead of a CodePush update.",
+      "default": true,
+      "category": null,
+      "dependencies": [],
+      "compatiblePackages": [
+        {
+          "packageName": "com.sezzle.sezzlemobile",
+          "name": "Sezzle",
+          "description": null,
+          "apkFileType": "APKM",
+          "appIconColor": "#5C2C94",
+          "signatures": null,
+          "targets": [
+            {
+              "version": "5.3.9",
+              "versionCodes": null,
+              "isExperimental": false,
+              "minSdk": 24,
+              "description": null
+            }
+          ]
+        }
+      ],
+      "options": []
+    },
+    {
+      "name": "Hide Sezzle Mobile",
+      "description": "Hides Sezzle Mobile offers and account entry points.",
       "default": true,
       "category": null,
       "dependencies": [],
@@ -141,7 +168,7 @@
     },
     {
       "name": "Replace Shop with Home",
-      "description": "Replaces the Shop bottom navigation tab with Home and removes home feed content.",
+      "description": "Replaces the Shop bottom navigation tab with Home and mounts Spending Power and Payment Streak below the search bar.",
       "default": true,
       "category": null,
       "dependencies": [],

@@ -8,7 +8,7 @@ import app.morphe.patcher.patch.rawResourcePatch
 @Suppress("unused")
 val renameShopToHomePatch = rawResourcePatch(
     name = "Replace Shop with Home",
-    description = "Replaces the Shop bottom navigation tab with Home and removes home feed content.",
+    description = "Replaces the Shop bottom navigation tab with Home and mounts Spending Power and Payment Streak below the search bar.",
     default = true
 ) {
     compatibleWith(COMPATIBILITY_SEZZLE)
@@ -59,48 +59,63 @@ val renameShopToHomePatch = rawResourcePatch(
             throw PatchException("Could not find LoadConstString instruction for navigation.Shop in ProtectedStack")
         }
 
-        // Remove home feed content while preserving header and search navigation:
-        // unmount ScrollListView by setting storeDirectoryContainer children array size to 1
+        // Replace the commercial feed element with PaymentStreakBanner. StoreRoot normally
+        // constructs props for ScrollListView, so provide Spending Power from the live
+        // sezzleUp.credit_limit object instead of retaining the feed props.
         val storeRootOffset = editor.findFunctionOffsetByName("StoreRoot")
             ?: throw PatchException("StoreRoot function not found")
 
-        var feedPatched = false
-        for (i in storeRootOffset until storeRootOffset + 18000) {
-            // DefineOwnInDenseArray: [0x5a, regArr, regFeed, 0x01]
-            // PutOwnBySlotIdx: [0x52, regView, regArr, 0x04]
-            if ((bytes[i].toInt() and 0xFF) == 0x5a &&
-                bytes[i + 3] == 0x01.toByte() &&
-                (bytes[i + 4].toInt() and 0xFF) == 0x52 &&
-                bytes[i + 6] == bytes[i + 1] &&
-                bytes[i + 7] == 0x04.toByte()
-            ) {
-                val regArr = bytes[i + 1]
-                val regFeed = bytes[i + 2]
+        val feedPropsOffset = storeRootOffset + 16_215
+        val expectedFeedProps = byteArrayOf(
+            0x02, 0x55, 0xe3.toByte(), 0x48, 0x00, 0x00, 0x7f, 0x9a.toByte(), 0x09,
+            0x00, 0x52, 0x55, 0x65, 0x00, 0x52, 0x55, 0x64, 0x01, 0x52,
+            0x55, 0x63, 0x02, 0x52, 0x55, 0x62, 0x03, 0xb0.toByte(), 0x07,
+            0x61, 0x3b, 0x60, 0x10, 0x45, 0x52, 0x55, 0x60, 0x04, 0x52,
+            0x55, 0x5f, 0x05, 0x52, 0x55, 0x5e, 0x06, 0x52, 0x55, 0x5d,
+            0x07, 0x52, 0x55, 0x5c, 0x08, 0x52, 0x55, 0x5b, 0x09, 0x52,
+            0x55, 0x5a, 0x0b, 0x52, 0x55, 0x59, 0x0c, 0x52, 0x55, 0x58,
+            0x0d
+        )
+        val paymentStreakProps = byteArrayOf(
+            0x04, 0x55, // NewObject r85
+            0x3b, 0x58, 0x1e, 0x08, // LoadFromEnvironment r88, r30, 8
+            0x45, 0x58, 0x58, 0x68, 0xad.toByte(), 0x90.toByte(),
+            // GetById r88, r88, cache104, stringId37037 (credit_limit)
+            0x4a, 0x55, 0x58, 0x00, 0x53, 0xef.toByte(),
+            // PutByIdLoose r85, r88, cache0, stringId61267 (sezzleUpCreditLimit)
+            0x10, 0x00, 0x00, 0x10, 0x00, 0x00, 0x10, 0x00, 0x00,
+            0x10, 0x00, 0x00, 0x10, 0x00, 0x00, 0x10, 0x00, 0x00,
+            0x10, 0x00, 0x00, 0x10, 0x00, 0x00, 0x10, 0x00, 0x00,
+            0x10, 0x00, 0x00, 0x10, 0x00, 0x00, 0x10, 0x00, 0x00,
+            0x10, 0x00, 0x00, 0x10, 0x00, 0x00, 0x10, 0x00, 0x00,
+            0x10, 0x00, 0x00, 0x10, 0x00, 0x00
+        )
+        if (!editor.matchesBytes(feedPropsOffset, expectedFeedProps)) {
+            throw PatchException("Unexpected StoreRoot feed props instructions")
+        }
+        editor.patchBytesIfMatches(feedPropsOffset, expectedFeedProps, paymentStreakProps)
 
-                // Replace DefineOwnInDenseArray with LoadConstUndefined regFeed twice
-                bytes[i] = 0x93.toByte()
-                bytes[i + 1] = regFeed
-                bytes[i + 2] = 0x93.toByte()
-                bytes[i + 3] = regFeed
 
-                // Scan backwards for NewArray <regArr, 2> to change array size from 2 to 1
-                for (j in i - 1 downTo i - 200) {
-                    if ((bytes[j].toInt() and 0xFF) == 0x08 &&
-                        bytes[j + 1] == regArr &&
-                        bytes[j + 2] == 0x02.toByte() &&
-                        bytes[j + 3] == 0x00.toByte()
-                    ) {
-                        bytes[j + 2] = 0x01.toByte()
-                        feedPatched = true
-                        break
-                    }
-                }
+        val depPattern = byteArrayOf(
+            0xe6.toByte(), 0x05, 0x00, 0x00, // dep[15] = 1510
+            0x56, 0x0d, 0x00, 0x00, // dep[16] = 3414
+            0x66, 0x2e, 0x00, 0x00, // dep[17] = 11878 (ScrollListView)
+            0x69, 0x2e, 0x00, 0x00 // dep[18] = 11881
+        )
+        var depOffset = -1
+        for (i in 0..(bytes.size - depPattern.size)) {
+            if (depPattern.indices.all { j -> bytes[i + j] == depPattern[j] }) {
+                depOffset = i
                 break
             }
         }
-        if (!feedPatched) {
-            throw PatchException("Could not find storeDirectoryContainer children instructions in StoreRoot")
+        if (depOffset == -1) {
+            throw PatchException("Could not find StoreRoot dependency pattern for ScrollListView")
         }
+        bytes[depOffset + 8] = 0x29 // dep[17] = 8489 (PaymentStreakBanner)
+        bytes[depOffset + 9] = 0x21
+        bytes[depOffset + 10] = 0x00
+        bytes[depOffset + 11] = 0x00
         editor.updateFooterHash()
         bundleFile.writeBytes(editor.toByteArray())
     }

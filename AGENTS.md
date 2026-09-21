@@ -119,7 +119,7 @@ python3 .github/scripts/generate_patches_readme.py <owner/repo> <branch> patches
 ```bash
 # Apply compiled patches to a base APK using Morphe Desktop CLI
 java -jar morphe-desktop.jar patch \
-  --patches patches/build/libs/patches-1.0.0.mpp \
+  --patches patches/build/libs/patches-X.X.X.mpp \
   --out sezzle-patched.apk \
   base.apk
 ```

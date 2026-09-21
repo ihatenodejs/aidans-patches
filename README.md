@@ -4,7 +4,7 @@ My [Morphe](https://morphe.software) patches
 
 ![WTFPL Badge](https://www.wtfpl.net/wp-content/uploads/2012/12/wtfpl-badge-4.png)
 
-![Add to Morphe badge](https://github.com/ihatenodejs/aidans-patches/blob/main/assets/add-to-morphe.png?raw=true)
+[![Add to Morphe badge](https://github.com/ihatenodejs/aidans-patches/blob/main/assets/add-to-morphe.png?raw=true)](https://morphe.software/add-source?github=ihatenodejs/aidans-patches)
 
 ## 📱 Supported Applications & Patches
 
