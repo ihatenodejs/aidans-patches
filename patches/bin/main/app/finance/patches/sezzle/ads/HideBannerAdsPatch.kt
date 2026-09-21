@@ -165,6 +165,10 @@ val removeAdsAndTrackingPatch = bytecodePatch(
             "setLastKnownLocation",
             "requestLocationInitialization"
         )
+        disableVoidMethods(
+            "Lcom/braze/ui/inappmessage/BrazeInAppMessageManager;",
+            "registerInAppMessageManager"
+        )
         disableVoidMethods("Lcom/braze/reactbridge/BrazeBannerManager;", "setPlacementID")
 
         // 9. mParticle (Customer Data Platform & Event Tracking)
