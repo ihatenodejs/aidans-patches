@@ -6,10 +6,10 @@
 |---|---|
 | **Application Name** | Navigate360 Student |
 | **Package Name** | `com.eab.se` |
-| **Analyzed Version** | `26.19.22` |
-| **Version Code** | `26190220` |
-| **Minimum SDK** | `31` |
-| **Distribution** | APKM; base APK plus language and density splits |
+| **Supported Version** | `26.19.22` (Morphe Compatibility: `26.19.22`, `minSdk` 31) |
+| **Analyzed Version Code** | `26190220` (Derived from APK analysis; Constants specifies version string) |
+| **Minimum SDK** | `31` (Android 12) |
+| **Distribution Format** | APKM (`ApkFileType.APKM`); base APK plus language and density splits |
 | **Package Signing SHA-256** | `7253620866df0a00048e7c1f43976992330e2fdb06f094d47fbf20045f56ec4b` |
 | **Primary Icon Color** | `#0071CE` |
 

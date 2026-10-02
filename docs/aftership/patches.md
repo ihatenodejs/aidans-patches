@@ -11,9 +11,10 @@ This document describes the Morphe bytecode and resource patches available for *
 | **Custom Google Maps API Key** | `resourcePatch` | `false` | Replaces the embedded Google Maps API key with a personal Google Cloud API key so native Google Maps renders on re-signed builds. Note: To use native Google Maps, disable the OpenStreetMap Drop-in Replacement patch. |
 | **Full AMOLED Theme** | `resourcePatch` | `true` | Themes AfterShip in pure AMOLED black by removing dark gray backgrounds from the bottom navigation bar, account items, cards, and windows. |
 | **Hide Broken Tracking Map** | `bytecodePatch` | `false` | Suppresses the unauthenticated blank white Google Maps view when neither a custom Google Maps API key nor OpenStreetMap is used. |
-| **OpenStreetMap Drop-in Replacement** | `bytecodePatch` | `true` | Replaces the broken Google Maps view with a free, self-contained OpenStreetMap (Leaflet) engine that renders routes, checkpoints, and dark/light styled tiles without requiring an API key. |
+| **OpenStreetMap Drop-in Replacement** | `bytecodePatch` | `true` | Replaces the broken Google Maps view with a Leaflet/OpenStreetMap engine that renders routes, checkpoints, and day/night styled tiles without requiring an API key. |
 | **Remove Ads and Tracking** | `bytecodePatch` | `true` | Neutralizes in-app advertisements (Disco Network SDK shopping/cashback ads and list placements), removes the 'Leave us a 5-star review' in-app rating prompt dialogs, zeros the Google Play Advertising ID (AAID), disables first-party behavioral and impression analytics (StatisticsCenter, AbsListImpEventHelper, AutoUploadManager), and blocks diagnostic telemetry (Firebase Analytics, Crashlytics, Logan logging). |
 | **Remove AfterShip Account Page Links** | `bytecodePatch` | `true` | Removes About the app, Share the app, and Feedback links from the Account screen. |
+| **Remove Feedback** | `bytecodePatch` | `true` | Removes feedback prompts, Feedback buttons, and star rating component on shipments. |
 | **Remove Login** | `bytecodePatch` | `true` | Forces permanent guest mode, removes login carousels and buttons, and suppresses login prompts. |
 | **Remove Shipment Sync** | `bytecodePatch` | `true` | Removes email shipment synchronization features, including prompts, banners, dialogs, empty state sync cards, and account settings. |
 ---
@@ -76,17 +77,15 @@ The patch injects `app.aidan.extension.aftership.CopyTrackingBridge` into the Da
 
 When AfterShip is patched and re-signed by Morphe, the embedded Google Maps API key fails authorization with Google Play Services (`ApiTokenService`), leaving the map on a permanent unrendered white canvas. While the `Custom Google Maps API Key` patch allows users to supply their own Google Cloud API key, most users do not want the friction of setting up a Google Cloud billing account, enabling the Maps SDK, and generating API keys.
 
-The **OpenStreetMap Drop-in Replacement** patch provides a zero-configuration, native-looking map engine:
-- **Zero API Keys Required:** Uses open CartoDB tile layers rendered inside an injected `android.webkit.WebView` running Leaflet.js.
+- **Zero API Keys Required:** Renders an injected `android.webkit.WebView` running Leaflet 1.9.4 and standard OpenStreetMap raster tiles (`https://tile.openstreetmap.org/{z}/{x}/{y}.png`).
 - **Visual Parity with Native Google Maps:**
-  - **Dark Mode:** Automatically uses CartoDB Dark Matter tiles (`https://{s}.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}{r}.png`) with `#333333` landmasses and dark gray road geometries matching AfterShip's native night theme.
-  - **Light Mode:** Uses CartoDB Positron tiles (`https://{s}.basemaps.cartocdn.com/rastertiles/light_all/{z}/{x}/{y}{r}.png`).
+  - **Dark Mode:** Automatically applies high-contrast dark CSS tile filtering (`brightness(0.6) invert(1) contrast(2.5) hue-rotate(190deg) saturate(0.25) brightness(0.85);`) with `#121212` backgrounds, matching AfterShip's native night theme.
+  - **Light Mode:** Applies clean light CSS tile filtering (`brightness(1.02) contrast(1.05) saturate(0.85);`) with `#f5f5f5` backgrounds.
 - **Dynamic Accent Polylines:** Renders the shipment route connecting all carrier checkpoints using the parcel's status color (`a3().e()`, e.g. `#53BD77` for delivered, `#FD5B26` for in-transit).
 - **Custom Pulse & Checkpoint Markers:**
   - Active/latest delivery location renders a smooth CSS `@keyframes pulse-anim` halo and solid center marker.
   - Intermediate checkpoints render clean circular waypoint dots (`#9E9E9E`).
 - **Smart Camera Bounds:** Automatically centers and bounds the viewport around all checkpoints with top and bottom offsets (`SlidingUpPanelLayout` clearance).
-
 ### 2. Configuration Option
 
 | Option Key | Type | Default | Description |
@@ -104,9 +103,7 @@ const/4 v0, 0x0 # or 0x1 if addZoomButtons is enabled
 invoke-static {p0, v0}, Lapp/aidan/extension/aftership/OsmMapBridge;->updateMap(Ljava/lang/Object;Z)V
 return-void
 ```
-
-`OsmMapBridge` inspects the fragment's ViewModel (`G6.i` via `a3()`), extracts coordinate pairs from `geoList` (`b.f28411G.f28441a`, `b.f28411G.f28442b`), and injects or updates `OsmMapView` inside `tracking_map_container` (`0x7f0a0512`). If no coordinates are available, it displays AfterShip's native fallback card (`tracking_map_default_img` / `tracking_map_tips_tv`).
-
+`OsmMapBridge` inspects the fragment's ViewModel (`G6.i` via `a3()`), extracts coordinate pairs from `geoList` (or nested coordinate fields in `f()`), and injects or updates `OsmMapView` inside `tracking_map_container` (`0x7f0a0512`). The embedded WebView enables JavaScript, DOM storage, database, and cache. If no coordinates are available, it displays AfterShip's native fallback card (`tracking_map_default_img` / `tracking_map_tips_tv`).
 ---
 
 ## Patch: Full AMOLED Theme
@@ -152,6 +149,41 @@ The patch opens `res/values-night/colors.xml` and mutates the text content of ma
 Text resources (`color_base_text0` -> `#ffffff`, `color_base_text4` -> `#52ffffff`, `color_99000000` -> `#99ffffff`, `black` -> `#ffffff`) and dividers (`color_divider` -> `#1fffffff`, `outline_primary_color` -> `#1fffffff`) in `res/values-night/colors.xml` are already tuned for dark/black surfaces in the base APK and remain untouched.
 
 ---
+## Patch: Bypass Native Signature Check
+
+- **Name:** Bypass Native Signature Check
+- **Target Package:** `com.aftership.AfterShip`
+- **Supported Versions:** `5.25.8` (VersionCode: `52580`+)
+- **Default State:** `true` (Enabled by default)
+- **Type:** Raw Binary / Asset Patch (`rawResourcePatch`)
+- **Dependencies:** None
+
+### 1. Motivation & Purpose
+
+AfterShip's backend requires HMAC-SHA256 request signature headers generated by `libandroidsig-lib.so` (`SigEntity.nativeGenerateSignature`). In unpatched binaries, the native C++ function `_Z11checkApkShaP7_JNIEnvP8_jobjectS2_h` queries the Android `PackageManager` for package signatures and verifies that the app's signing certificate matches AfterShip's official production keystore (`SHA-256: 425c56b57ac5ff3e1e7f7b49e246dfa350db1a8d7403e2638e9d4f85c134449f`).
+
+When an APK is patched and re-signed by Morphe with custom or debug keys, `checkApkSha` fails, causing all signed API requests (including guest token generation `/guest/generate-token`) to be rejected by AfterShip's API gateway.
+
+The **Bypass Native Signature Check** patch neutralizes `checkApkSha` across all supported native architectures so API requests succeed on custom-signed builds, and reconfigures Morphe packaging for 16 KB page-size compatibility.
+
+### 2. Technical Implementation & Binary Modifications
+
+#### Binary Patch Sites (`libandroidsig-lib.so`)
+The patch overrides the prologue of `checkApkSha` in both arm64-v8a and armeabi-v7a to immediately return `true` (`1`):
+
+1. **`lib/arm64-v8a/libandroidsig-lib.so` (Offset `0x48dd8`):**
+   - **Expected Bytes:** `ff 43 02 d1 f7 2b 00 f9` (`sub sp, sp, #0x90; str x23, [sp, #0x28]`)
+   - **Replacement Bytes:** `20 00 80 52 c0 03 5f d6` (`mov w0, #1; ret`)
+2. **`lib/armeabi-v7a/libandroidsig-lib.so` (Offset `0x3d54c`):**
+   - **Expected Bytes:** `f0 b5 03 af` (`push {r4-r7, lr}; sub sp, ...`)
+   - **Replacement Bytes:** `01 20 70 47` (`movs r0, #1; bx lr`)
+
+The patch enforces byte verification: if the target binary is already patched, it succeeds idempotently; if byte patterns do not match expected opcodes, it fails fast by throwing `PatchException`.
+
+#### 16 KB Page Size Alignment (`ensure16KbPageAlignment`)
+Android 15+ devices running 16 KB page kernels require uncompressed `.so` libraries mapped from APKs to have ZIP entry data offsets aligned to 16 KB (16,384 bytes). The patch reflectively accesses Morphe's `ApkUtils.zFileOptions` and composes `AlignmentRules.constantForSuffix(".so", 16384)` with `AlignmentRules.constant(4)`, ensuring output binaries pass 16 KB APK alignment checks.
+
+---
 
 ## Patch: Remove Login
 
@@ -159,7 +191,8 @@ Text resources (`color_base_text0` -> `#ffffff`, `color_base_text4` -> `#52fffff
 - **Target Package:** `com.aftership.AfterShip`
 - **Supported Versions:** `5.25.8` (VersionCode: `52580`+)
 - **Default State:** `true` (Enabled by default)
-- **Type:** Dalvik Bytecode Patch (`bytecodePatch`) with optional Native Resource Patch (`rawResourcePatch`)
+- **Type:** Dalvik Bytecode Patch (`bytecodePatch`)
+- **Dependencies:** `Bypass Native Signature Check`
 
 ### 1. Motivation & Purpose
 
@@ -238,21 +271,21 @@ return-void
 - `c1702p.f31261f.f5507b`: `View` root of `layout_account` ("Account" menu row).
 
 #### Patched Behavior:
-Injects bytecode immediately after `super.onViewCreated` (instruction index 1) to set both components to `View.GONE` (`0x8`):
+Injects bytecode after `super.onViewCreated` (fallback instruction index 3) to set both components to `View.GONE` (`0x8`):
 ```smali
-iget-object v0, p0, LN5/k;->p:Lz2/p;
-if-eqz v0, :cond_skip_account_patch
-const/16 v1, 0x8
-iget-object v2, v0, Lz2/p;->d:Landroid/widget/LinearLayout;
+const/16 v0, 0x8
+iget-object v1, p0, LN5/k;->p:Lz2/p;
+if-eqz v1, :cond_skip_account_patch
+iget-object v2, v1, Lz2/p;->d:Landroid/widget/LinearLayout;
 if-eqz v2, :cond_skip_header
-invoke-virtual {v2, v1}, Landroid/view/View;->setVisibility(I)V
+invoke-virtual {v2, v0}, Landroid/view/View;->setVisibility(I)V
 :cond_skip_header
-iget-object v0, v0, Lz2/p;->f:LM0/d;
-if-eqz v0, :cond_skip_account_patch
-iget-object v0, v0, LM0/d;->b:Ljava/lang/Object;
-if-eqz v0, :cond_skip_account_patch
-check-cast v0, Landroid/view/View;
-invoke-virtual {v0, v1}, Landroid/view/View;->setVisibility(I)V
+iget-object v1, v1, Lz2/p;->f:LM0/d;
+if-eqz v1, :cond_skip_account_patch
+iget-object v1, v1, LM0/d;->b:Ljava/lang/Object;
+check-cast v1, Landroid/view/View;
+if-eqz v1, :cond_skip_account_patch
+invoke-virtual {v1, v0}, Landroid/view/View;->setVisibility(I)V
 :cond_skip_account_patch
 ```
 
@@ -267,39 +300,9 @@ invoke-virtual {v0, v1}, Landroid/view/View;->setVisibility(I)V
 
 #### B. Anonymous Guide Login Modal Dialog
 - **Class:** `LM5/e;` (`com.aftership.shopper.views.dialog.AnonymousGuideLoginDialogFragment`)
-- **Method:** `onStart()V`
-- **Action:** Prepends `invoke-virtual {p0}, Landroidx/fragment/app/DialogFragment;->dismiss()V` followed by `return-void`. Guarantees that even if instantiated via edge-case navigation (such as copy-tracking triggers), the modal dismisses immediately.
-
----
-
-### Modification 4: Bypass Native APK Signature Verification (`checkApkSha`)
-- **Target Files:**
-  - `lib/arm64-v8a/libandroidsig-lib.so`
-  - `lib/armeabi-v7a/libandroidsig-lib.so`
-- **Symbol:** `_Z11checkApkShaP7_JNIEnvP8_jobjectS2_h`
-
-#### Technical Reason:
-AfterShip's backend requires HMAC-SHA256 signature headers generated by `libandroidsig-lib.so` (`SigEntity.nativeGenerateSignature`). In unpatched binaries, `checkApkSha` compares the app's signing certificate against the official production certificate (`SHA-256: 425c56b57ac5ff3e1e7f7b49e246dfa350db1a8d7403e2638e9d4f85c134449f`). When an APK is patched and re-signed by Morphe with custom/debug keys, `checkApkSha` returns `false`, causing all signed API requests (including `/guest/generate-token`) to fail.
-
-#### Patch Strategy:
-Overrides the prologue of `checkApkSha` in both architectures to immediately return `true` (`1`):
-- **arm64-v8a (`0x48dd8`):**
-  - Expected: `d1 02 43 ff f9 00 2b f7` (`sub sp, sp, #0x90; str x23, [sp, #0x28]`)
-  - Replacement: `20 00 80 52 c0 03 5f d6` (`mov w0, #1; ret`)
-- **armeabi-v7a (`0x3d54c`):**
-  - Expected: `f0 b5 03 af` (`push {r4-r7, lr}; sub sp, ...`)
-  - Replacement: `01 20 70 47` (`movs r0, #1; bx lr`)
-
-Additionally, in `ASSignatureInterceptor.renewSignedRequest`, any `Throwable` is caught gracefully to prevent crashes if native libraries are missing from split-extracted APKs.
-
-### Modification 5: 16 KB Page Size Alignment Enforcement (`ensure16KbPageAlignment`)
-- **Target Context:** Morphe Patcher APK packaging pipeline (`ApkUtils.zFileOptions`)
-- **Technical Reason:**
-  Android 15+ devices running on 16 KB page-size kernels (or page-size compatible mode) require uncompressed shared libraries loaded via direct memory mapping (`mmap`) to have their ZIP entry data offsets aligned to 16 KB (16384 bytes) boundaries.
-  By default, Morphe Patcher configures `apkzlib` with `AlignmentRules.constantForSuffix(".so", 4096)`. When `libandroidsig-lib.so` was modified in-place, Morphe realigned it to a 4 KB boundary (`7696384 % 4096 == 0`), which broke 16 KB alignment (`7696384 % 16384 == 12288`). At runtime, Android's package manager detected that `libandroidsig-lib.so` was unaligned and triggered an **"Android App Compatibility: This app isn't 16 KB compatible. APK alignment check failed"** warning dialog.
-- **Patch Strategy:**
-  During patch execution, `ensure16KbPageAlignment()` dynamically reconfigures Morphe's internal `ApkUtils.zFileOptions` using reflection to set `.so` alignment to 16384 bytes (`AlignmentRules.constantForSuffix(".so", 16384)`). When Morphe's `ZFile.realign()` executes prior to APK signing, all uncompressed `.so` files are properly aligned to 16 KB boundaries (`offset % 16384 == 0`), passing `zipalign -c -P 16 -v 4` and eliminating the compatibility warning.
-
+- **Methods:**
+  - `onStart()V`: Prepends `invoke-virtual {p0}, Landroidx/fragment/app/DialogFragment;->dismissAllowingStateLoss()V` followed by `return-void`. Guarantees that if the dialog is instantiated through any edge-case navigation, it immediately dismisses without crashing on state loss.
+  - `onCreateView(Landroid/view/LayoutInflater;Landroid/view/ViewGroup;Landroid/os/Bundle;)Landroid/view/View;`: Prepends `const/4 v0, 0x0 \n return-object v0`, preventing view hierarchy construction.
 ---
 
 ## Patch: Remove AfterShip Account Page Links
@@ -358,6 +361,51 @@ invoke-virtual {v1, v0}, Landroid/view/View;->setVisibility(I)V
 
 ---
 
+## Patch: Remove Feedback
+
+- **Name:** Remove Feedback
+- **Target Package:** `com.aftership.AfterShip`
+- **Supported Versions:** `5.25.8` (VersionCode: `52580`+)
+- **Default State:** `true` (Enabled by default)
+- **Type:** Dalvik Bytecode Patch (`bytecodePatch`)
+- **Dependencies:** `Bypass Native Signature Check`
+
+### 1. Motivation & Purpose
+
+On shipment tracking detail views, AfterShip displays several user feedback and review mechanisms:
+1. A floating feedback container (`floating_container_ll` in `layout_tracking_detail`) containing a "Feedback" button (`panel_up_report`) and interactive star ratings (`panel_up_review`) over the map.
+2. A fallback "Report issue" / Feedback button (`report_issue_rl`) shown when no map is visible.
+3. Interactive dialogs launching `FeedbackIssueActivity` and `ReviewDetailSheetFragment`.
+
+The **Remove Feedback** patch eliminates all feedback prompts, buttons, star ratings, and review sheets from shipment detail screens.
+
+### 2. Technical Implementation & Bytecode Modifications
+
+1. **`TrackingDetailPresenter` helper (`LZ6/l;`):**
+   - **Method:** `g(Lcom/aftership/shopper/views/shipment/adapter/ReviewEntity;Z)V`
+   - **Action:** Injects bytecode setting `floating_container_ll` (`Lz2/x;->b:Landroid/widget/LinearLayout;`) and `report_issue_rl` (`Lz2/x;->p:Lz2/y;->c:Landroid/widget/RelativeLayout;`) to `View.GONE` (`0x8`) and returns immediately before review exposure telemetry is reported:
+   ```smali
+   const/16 v0, 0x8
+   iget-object v1, p0, LZ6/l;->b:Lz2/x;
+   if-eqz v1, :cond_skip_g
+   iget-object v2, v1, Lz2/x;->b:Landroid/widget/LinearLayout;
+   if-eqz v2, :cond_skip_floating_g
+   invoke-virtual {v2, v0}, Landroid/view/View;->setVisibility(I)V
+   :cond_skip_floating_g
+   iget-object v1, v1, Lz2/x;->p:Lz2/y;
+   if-eqz v1, :cond_skip_g
+   iget-object v1, v1, Lz2/y;->c:Landroid/widget/RelativeLayout;
+   if-eqz v1, :cond_skip_g
+   invoke-virtual {v1, v0}, Landroid/view/View;->setVisibility(I)V
+   :cond_skip_g
+   return-void
+   ```
+2. **`TrackingDetailFragment` (`LA6/X;`):**
+   - `k3()V` (starts `FeedbackIssueActivity`): Injects `return-void` at instruction index 0.
+   - `l3(I)V` (opens `ReviewDetailSheetFragment`): Injects `return-void` at instruction index 0.
+
+---
+
 ## Patch: Remove Shipment Sync
 
 - **Name:** Remove Shipment Sync
@@ -379,6 +427,28 @@ By default, AfterShip aggressively pushes users to connect their personal email 
 
 The **Remove Shipment Sync** patch completely strips all email synchronization features, banners, guide cards, account options, and dialog prompts across the entire app.
 
+### 2. Technical Implementation & Bytecode Modifications
+
+1. **Account Screen Sync Entrypoint (`LN5/k;`):**
+   - In `onViewCreated`, injects bytecode after the super call hiding `Lz2/p;->p` ("Add orders automatically" layout) by setting its root View to `View.GONE` (`0x8`).
+2. **Shipments Toolbar Banner (`LY6/i;`):**
+   - In `m3()V`, injects `return-void` at index 0, preventing toolbar sync banner inflation.
+3. **Empty Packages Guide Card (`LZ6/o;`):**
+   - In `e(Z)Ljava/util/ArrayList;`, forces argument `p1` to `false` (`const/4 p1, 0x0`), ensuring the "Sync shipment" guide card is omitted and "Add shipment" is styled as the lone empty card.
+4. **Recurring Enable Email Sync Popup (`LY6/b;`):**
+   - In `G1()V`, injects `return-void` at index 0.
+5. **Background Grant Polling (`NewTrackingListPresenter`):**
+   - In `checkEmailGrantAuth(Z)V`, injects `return-void` at index 0.
+6. **Authorization Failure & Duplicate Dialogs (`LP4/i;`):**
+   - In `r()V` (auth failure dialog) and `s()V` (duplicate account dialog), injects `return-void` at index 0.
+7. **Dialog Handlers in Activities:**
+   - `HomeActivity.x(I)V`: Injects `return-void` at index 0.
+   - `OrderDetailsActivity.x(I)V`: Injects `return-void` at index 0.
+8. **Activity Neutralization:**
+   - `EmailGrantGuideActivity.onCreate`: Invokes `BaseActivity.onCreate`, then immediately invokes `finish()` and `return-void`.
+   - `EmailActivity.onCreate`: Invokes `BaseMvpActivity.onCreate`, then immediately invokes `finish()` and `return-void`.
+9. **Manual Tracking Add Entrypoint (`TrackingAddActivity`):**
+   - In `onResume()V`, after `super.onResume`, injects bytecode setting `Lz2/w;->b` ("Copy tracking numbers from email") to `View.GONE` (`0x8`).
 ---
 
 ## Patch: Remove Ads and Tracking
@@ -477,6 +547,53 @@ The **Custom Google Maps API Key** patch allows users to supply their own person
 
 ### 1. Motivation & Purpose
 
-For users who do not use the OpenStreetMap replacement and do not provide a custom Google Maps API key, the native Google Maps view renders as a glaring, unauthenticated white rectangular box across the top half of the shipment tracking detail screen.
+For users who do not use the OpenStreetMap replacement and do not provide a custom Google Maps API key, the native Google Maps view renders as an unauthenticated white canvas across the shipment tracking detail screen.
 
 The **Hide Broken Tracking Map** patch suppresses Google Map fragment attachment in `TrackingMapFragment` (`LA6/c0;->b3()V`) and instead renders AfterShip's native fallback illustration card (`ic_no_location_detail`) and label (`R.string.tracking_map_no_location_tips`).
+
+### 2. Technical Implementation & Bytecode Modifications
+
+- **Class:** `LA6/c0;` (`TrackingMapFragment`)
+- **Method:** `b3()V`
+- **Patched Behavior:**
+  Prepends bytecode at instruction index 0 to force execution of the fallback illustration branch, remove any child `SupportMapFragment`, and return immediately:
+  ```smali
+  const/4 v0, 0x1
+  const-string v5, "tracking-map"
+  const-string v1, "showNotLocationView"
+  invoke-static {v1, v5}, LD2/a;->c(Ljava/lang/Object;Ljava/lang/String;)V
+  iget-object v0, p0, LA6/c0;->p:Lg3/b;
+  if-eqz v0, :cond_skip_all
+  const/4 v1, 0x0
+  iget-object v2, v0, Lg3/b;->b:Ljava/lang/Object;
+  check-cast v2, Landroid/widget/ImageView;
+  if-eqz v2, :cond_skip_img
+  invoke-virtual {v2, v1}, Landroid/widget/ImageView;->setVisibility(I)V
+  :cond_skip_img
+  iget-object v0, v0, Lg3/b;->c:Ljava/lang/Object;
+  check-cast v0, Landroid/widget/TextView;
+  if-eqz v0, :cond_skip_txt
+  invoke-virtual {v0, v1}, Landroid/view/View;->setVisibility(I)V
+  :cond_skip_txt
+  invoke-virtual {p0}, Landroidx/fragment/app/Fragment;->getChildFragmentManager()Landroidx/fragment/app/FragmentManager;
+  move-result-object v0
+  const-string v1, "tag_google_map_fragment"
+  invoke-virtual {v0, v1}, Landroidx/fragment/app/FragmentManager;->E(Ljava/lang/String;)Landroidx/fragment/app/Fragment;
+  move-result-object v0
+  instance-of v1, v0, LS9/d;
+  if-eqz v1, :cond_skip_all
+  invoke-virtual {p0}, Landroidx/fragment/app/Fragment;->getChildFragmentManager()Landroidx/fragment/app/FragmentManager;
+  move-result-object v1
+  new-instance v2, Landroidx/fragment/app/a;
+  invoke-direct {v2, v1}, Landroidx/fragment/app/a;-><init>(Landroidx/fragment/app/FragmentManager;)V
+  invoke-virtual {v2, v0}, Landroidx/fragment/app/a;->k(Landroidx/fragment/app/Fragment;)Landroidx/fragment/app/a;
+  const/4 v0, 0x0
+  invoke-virtual {v2, v0}, Landroidx/fragment/app/a;->j(Z)I
+  :cond_skip_all
+  return-void
+  ```
+
+> **Map Selection Note:** Because `OpenStreetMap Drop-in Replacement`, `Hide Broken Tracking Map`, and `Custom Google Maps API Key` all target the map setup method in `LA6/c0;->b3()V`, only one map strategy should be used at a time:
+> - **OpenStreetMap (Default):** Leave `OpenStreetMap Drop-in Replacement` enabled (`true`).
+> - **Native Google Maps:** Disable `OpenStreetMap Drop-in Replacement` (`false`) and provide your API key in `Custom Google Maps API Key`.
+> - **No Maps:** Disable `OpenStreetMap Drop-in Replacement` (`false`) and enable `Hide Broken Tracking Map` (`true`).

@@ -24,15 +24,15 @@ SidelineSwap tracks comprehensive user behavior—from items viewed, search term
 - In `addClient(AnalyticsClient)AnalyticsLogger`: prepends `return-object p0`, preventing clients from being registered in the dispatcher.
 
 #### 2. First-Party Telemetry
-- In `com.sidelineswap.android.analytics.SidelineSwapClient`: injects `return-void` into `logEvent`.
+- In `com.sidelineswap.android.analytics.SidelineSwapClient`: injects `return-void` into `logEvent` and `access$logEvent`.
 - In `com.sidelineswap.android.repo.LogRepo`: injects `const/4 v0, 0x0 \n return-object v0` into `trackEvent`, eliminating HTTP `POST` requests to `platform-tools/analytics/v1/track/event`.
 
 #### 3. Amplitude Analytics
-- In `com.sidelineswap.android.analytics.AmplitudeClient`: injects `return-void` into `logEvent`.
-- In minified Amplitude SDK `Lj1/d;`: injects `return-void` into event logging (`d`) and initialization (`a`).
+- In `com.sidelineswap.android.analytics.AmplitudeClient`: injects `return-void` into `logEvent` and `access$logEvent`.
+- In minified Amplitude SDK `Lp073j1/d;`: injects `return-void` into event logging method `d`.
 
 #### 4. Firebase Analytics & Performance
-- In `com.sidelineswap.android.analytics.FirebaseClient`: injects `return-void` into `logEvent`.
+- In `com.sidelineswap.android.analytics.FirebaseClient`: injects `return-void` into `logEvent` and `access$logEvent`.
 - In `com.google.firebase.analytics.FirebaseAnalytics`: injects `return-void` into `logEvent`, `setAnalyticsCollectionEnabled`, `setUserProperty`, and `setDefaultEventParameters`.
 - In `com.google.firebase.perf.FirebasePerformance`: injects `return-void` into `setPerformanceCollectionEnabled`.
 
@@ -41,21 +41,21 @@ SidelineSwap tracks comprehensive user behavior—from items viewed, search term
 - In `com.google.firebase.crashlytics.FirebaseCrashlytics`: injects `return-void` into `log`, `recordException`, and `setCrashlyticsCollectionEnabled`.
 
 #### 6. Facebook Core SDK & App Events
-- In `com.facebook.internal.FacebookInitProvider`: injects `const/4 v0, 0x0 \n return v0` into `onCreate`, returning `false` prior to `FacebookSdk.sdkInitialize` execution.
-- In `com.sidelineswap.android.analytics.FacebookClient`: injects `return-void` into checkout and purchase event handlers.
-- In `p057h2/h` (`AppEventsLogger`): injects `return-void` into `a`.
+- In `Lp173v2/y;`: injects `return-void` into validation and event logging methods `e`, `f`, `g`, `h`, `i`, `j`, `k`, and `l`.
+- In `com.sidelineswap.android.analytics.FacebookClient`: injects `return-void` into all seven checkout and interaction methods: `completedCheckout`, `initiatedCheckout`, `joined`, `newMadeOffer`, `newMadePurchase`, `visitedItem`, and `visitedResults`.
+- In `Lp057h2/h;`: injects `return-void` into `a`.
 
 #### 7. Iterable In-App Telemetry
 - In `com.sidelineswap.android.analytics.IterableClient`: injects `return-void` into `visitedLocker`.
 - In `p159t5/C1123h` (`IterableApi`): injects `return-void` into `d` (`trackInAppClick`), `e` (`trackInAppClose`), `f` (`trackInAppOpen`), and `g` (`trackInAppDelivery`).
 
 #### 8. Braintree / PayPal FPTI Telemetry
-- In `AnalyticsUploadWorker` and `AnalyticsWriteToDbWorker`: injects an early return of `new-instance v0, Landroidx/work/ListenableWorker$a$c;` (WorkManager `Result.success()`). This immediately halts background network transmissions to `b.stats.paypal.com` without causing WorkManager retry loops.
+- In `AnalyticsUploadWorker` and `AnalyticsWriteToDbWorker`: injects an early return of `new-instance v0, Landroidx/work/ListenableWorker$a$c; \n invoke-direct {v0}, Landroidx/work/ListenableWorker$a$c;-><init>()V \n return-object v0` into every implemented method named `g`. This constructs WorkManager `Result.success()` directly to halt background network transmissions to `b.stats.paypal.com` without causing retry loops.
 - In `BraintreeClient` (`com.braintreepayments.api.L`): injects `return-void` into analytics dispatch methods `b` and `c`.
 
-#### 9. Google Play Advertising ID (AAID) Zeroing
-- In minified `AdvertisingIdClient` (`LY2/a;->a(Landroid/content/Context;)LY2/a$a;`): instantiates and returns a dummy `Info` object with GUID `"00000000-0000-0000-0000-000000000000"` and limit ad tracking set to `true`.
-
+#### 9. Google Play Advertising ID (AAID) Zeroing & Opt-Out
+- In minified `AdvertisingIdClient` (`LY2/a;`): patches method `a` to instantiate and return a dummy `LY2/a$a` with GUID `"00000000-0000-0000-0000-000000000000"` and limit ad tracking set to `true`.
+- In `com.google.android.gms.ads.identifier.AdvertisingIdClient$Info`: injects `const-string v0, "00000000-0000-0000-0000-000000000000" \n return-object v0` into `getId()`, and injects `const/4 v0, 0x1 \n return v0` into `isLimitAdTrackingEnabled()`.
 ---
 
 ## Change Brand Color

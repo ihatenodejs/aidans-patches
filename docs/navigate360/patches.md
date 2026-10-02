@@ -51,5 +51,5 @@ Each replacement is exact and mandatory. A missing expected asset sequence cause
 1. Build with `./gradlew :patches:buildAndroid clean --no-daemon`.
 2. Run `./gradlew generatePatchesList`; verify both entries are registered for `com.eab.se` version `26.19.22`.
 3. Apply the bundle to the Navigate360 APKM and verify compatibility succeeds.
-4. Inspect the output: no Sentry script/init block or Sentry CSP endpoint remains, the Gainsight Cordova module contains no `promiseExec` calls, and the listed native methods return immediately.
+4. Inspect the output: no Sentry script/init block or Sentry CSP endpoint remains, the Gainsight Cordova module's `attach`, `getDiagnostics`, and `getApiKey` methods return resolved inert promises without invoking `promiseExec`, and the listed native methods return immediately.
 5. On device, exercise normal navigation and push registration. Confirm no requests target `esp-mobile.aptrinsic.com` or `sentry.devops.eab.com`.

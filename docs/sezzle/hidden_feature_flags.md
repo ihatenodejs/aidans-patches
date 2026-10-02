@@ -347,4 +347,21 @@ Because all React hooks compile to distinct functions in `assets/index.android.b
 *Always invoke `editor.updateFooterHash()` after byte modification to recalculate the 20-byte SHA-1 footer digest.*
 
 ### Strategy B: Unlocking the On-Device Cohort Debugger
-To unlock the built-in Cohort Debugger without server-side permission, patch the predicate `isInDGCohort` or `checkIfUserIsInAnyOfCohorts` in Hermes bytecode to return `true`. This mounts the `CohortDebuggerContent` panel in the app settings, allowing any catalog cohort (e.g. `gameshow_cohort`, `sezzle_mobile_plan`, `cash_advance_v2`, `webbank_cohort`, `ai_shopping_assistant`) to be activated interactively on device.
+To unlock the built-in Cohort Debugger without server-side permission, the predicate `isInDGCohort` or `checkIfUserIsInAnyOfCohorts` can be patched in Hermes bytecode to return `true`. This mounts the `CohortDebuggerContent` panel in the app settings, allowing catalog cohorts (e.g. `gameshow_cohort`, `sezzle_mobile_plan`, `cash_advance_v2`, `webbank_cohort`, `ai_shopping_assistant`) to be activated interactively on device.
+
+---
+
+## Shipped Patch Cross-Reference
+
+The Morphe patches developed in this repository directly target several of the feature gates cataloged above:
+
+| Feature Area / Hook | Gating Mechanism | Shipped Morphe Patch | Patch File |
+|---|---|---|---|
+| **Development Settings** | `isInternalUser` / `eventAlerts` | [Unlock Developer Settings](patches.md#patch-unlock-developer-settings) | `patches/.../dev/UnlockDevSettingsPatch.kt` |
+| **Receipt Scanner V2** | `useIsUpsideReceiptScanningEnabled` | [Unlock Receipt Scanner](patches.md#patch-unlock-receipt-scanner) | `patches/.../features/UnlockReceiptScannerPatch.kt` |
+| **Launcher App Icons** | `userShouldSeeChangeAppIcon` | [Unlock Custom App Icons](patches.md#patch-unlock-custom-app-icons) | `patches/.../customization/UnlockCustomAppIconsPatch.kt` |
+| **Non-AI Products Tab** | `useDiscoverTab` / `resolveShouldRenderProductsTab` | [Replace AI Discover with Products](patches.md#patch-replace-ai-discover-with-products) | `patches/.../navigation/ReplaceAiDiscoverWithProductsPatch.kt` |
+| **Sezzle Mobile Cellular** | `useIsSezzleMobilePlanEnabled` | [Hide Sezzle Mobile](patches.md#patch-hide-sezzle-mobile) | `patches/.../navigation/HideSezzleMobilePatch.kt` |
+| **Deals & Popovers** | `useSelectPopupOffers` / `useRoktGiveawaysEnabled` | [Remove Promos & Giveaways](patches.md#patch-remove-promos--giveaways) | `patches/.../navigation/RemovePromosAndGiveawaysPatch.kt` |
+| **Rewards Navigation** | `useIsShowEarnTabEnabled` | [Remove Rewards](patches.md#patch-remove-rewards) | `patches/.../navigation/RemoveRewardsPatch.kt` |
+| **Personal Finance Dashboard** | `StoreRoot` children composition | [Replace Shop with Home](patches.md#patch-replace-shop-with-home) | `patches/.../navigation/ReplaceShopWithHomePatch.kt` |

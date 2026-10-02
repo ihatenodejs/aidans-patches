@@ -4,13 +4,15 @@
 
 - **Application Name:** AfterShip: Package Tracker
 - **Package Name:** `com.aftership.AfterShip`
-- **Analyzed Version:** `5.25.8` (Version Code: `52580`)
+- **Target Version:** `5.25.8` (Morphe Compatibility: `5.25.8`, `minSdk` 23)
+- **Analyzed Version Code:** `52580` (Derived from APK analysis; Constants specifies version string)
 - **Target SDK:** 35 (Android 15)
 - **Minimum SDK:** 23 (Android 6.0)
-- **Technology Stack:** Native Android (Kotlin & Java), Material Components / Material 3, ViewBinding, Architecture Components (LiveData, ViewModel, Lifecycle), RxJava4, Kotlin Coroutines, Retrofit 2, OkHttp 3, OpenID AppAuth, and C++ native libraries (`libandroidsig-lib.so`, `liblogan.so`, `libsqlcipher.so`).
+- **Distribution Format:** Standalone APK (`ApkFileType.APK`) / Split APK
+- **Supported Native ABIs:** `arm64-v8a`, `armeabi-v7a`
+- **Technology Stack:** Native Android (Kotlin & Java), Material Components / Material 3, ViewBinding, Architecture Components (LiveData, ViewModel, Lifecycle), RxJava, Kotlin Coroutines, Retrofit 2, OkHttp 3, OpenID AppAuth, C++ native libraries (`libandroidsig-lib.so`, `liblogan.so`, `libsqlcipher.so`), and Morphe Java extensions (`CopyTrackingBridge`, `OsmMapBridge`, `OsmMapView`).
 
-Unlike hybrid React Native or Flutter applications, AfterShip is built entirely as a native Android app compiled to Dalvik Executable (DEX) bytecode across multiple DEX files (`classes.dex`, `classes2.dex`, `classes3.dex`) with auxiliary native C++ runtime libraries.
-
+AfterShip is built primarily as a native Android application compiled to Dalvik Executable (DEX) bytecode across multiple DEX files (`classes.dex` through `classes4.dex`) with auxiliary native C++ runtime libraries. Patched builds integrate lightweight Morphe Java extensions to provide custom UI and an embedded OpenStreetMap WebView layer.
 ---
 
 ## 2. Technology Stack & Key Libraries
@@ -35,36 +37,50 @@ Unlike hybrid React Native or Flutter applications, AfterShip is built entirely 
 - **`liblogan.so`:** Tencent Logan mobile logging engine for encrypted local and remote diagnostic recording.
 - **`libsqlcipher.so`:** SQLCipher native engine for encrypted database storage.
 
-### Analytics & Telemetry
-- **Google Firebase:** Firebase Analytics, Firebase Crashlytics, Firebase Remote Config, Firebase In-App Messaging (FIAM), and Firebase Cloud Messaging (FCM).
-- **Sensors Analytics / Custom Trackers:** Custom business trace tracking (`x3.i`, `as-business-trace-id`, `as-action-id`).
+### Analytics, Advertising & Telemetry Systems
+- **Disco Network SDK:** Ad network providing inline sponsored products and cashback deals (`com.disconetwork.discosdk.Disco`, `DiscoInlinePlacement`, `DiscoAdAdapter`).
+- **Google Play Advertising ID (AAID):** Tracks device advertising identifier via `com.google.android.gms.ads.identifier.AdvertisingIdClient`.
+- **First-Party Analytics & Event Dispatchers:**
+  - `FirebaseStatisticsManage` (`Lx3/d;`): Centralized Firebase statistics forwarder.
+  - `StatisticsCenter` (`Lx3/i;`): Internal business event telemetry, tracking parcel states, clicks, and navigation flows.
+  - `UploadStatisticsHelper` (`Lx3/k;`) & `AbsUploadStrategy` (`Lo4/a;`, `Lo4/b;`, `Lo4/d;`): Background and immediate HTTP upload mechanisms.
+  - `AbsListImpEventHelper`: RecyclerView item exposure and impression analytics.
+- **Diagnostics & Crash Reporting:**
+  - **Tencent Logan:** `liblogan.so` and `com.dianping.logan.a` encrypted mobile logging.
+  - **Firebase Crashlytics & Analytics:** Diagnostic crash reporting and screen-view telemetry (`FirebaseCrashlytics`, `FirebaseAnalytics.setCurrentScreen`).
+- **In-App Review Rating Prompts:** Multiple strategies (`HomePresenter`, `TrackingListTabPresenter`, `HomeActivity`) driving automated 5-star Google Play Store review dialogs.
 
+### Injected Morphe Extension Architecture
+- **`CopyTrackingBridge` (`app.aidan.extension.aftership.CopyTrackingBridge`):** Java reflection bridge injected into `HomeActivity.S2`. Dynamically inflates a "Copy" button into the multi-selection bottom action bar, extracts tracking numbers from selected `ShipmentItemEntity` instances, copies deduplicated newline-separated numbers to `ClipboardManager`, and displays confirmation toasts.
+- **`OsmMapBridge` & `OsmMapView` (`app.aidan.extension.aftership`):** FrameLayout container wrapping a hardware-accelerated `WebView`. Loads Leaflet 1.9.4 and OpenStreetMap raster tiles, automatically styled with day/night CSS filters to match AfterShip's theme. Reflectively reads parcel coordinates from ViewModel (`G6.i` via `a3()`), computes geodesic polyline curves, and renders pulsing origin/destination markers without requiring Google Play Services or API keys.
 ---
 
 ## 3. Application Lifecycle & Navigation Architecture
 
-```
                   [ SplashActivity ]
                           |
-             Has agreement && is unauthed?
-                    (h.Y() == true)
-                          |
-         +----------------+----------------+
-         |                                 |
-         v (Yes)                           v (No)
-[ LoginRegisterStateActivity ]      [ HomeActivity ]
- - Carousels                        - Tracking List Tab (f0)
- - Google Login Button              - Account / Settings Tab
- - Outlook Login Button
- - Email Login Button
- - "Continue as guest" (login_register_skip)
-```
+       +------------------+------------------+
+       |                  |                 |
+       v                  v                 v
+ [ h.Y() == true ]  [ h.Y() == false,   [ h.Y() == false,
+                     deactivate_account   deactivate_account
+                     _locked == false ]   _locked == true ]
+       |                  |                 |
+       v                  v                 v
+ [ LoginRegister   [ HomeActivity ]   [ LoginRegister
+   StateActivity ] - Tracking List Tab   StateActivity ]
+ - Carousels       - Account / Settings  - Locked-account
+ - Google Login      Tab                  login/register flow
+ - Outlook Login
+ - Email Login
+ - "Continue as guest"
+   (login_register_skip)
 
 ### 1. Launch Entry Point (`SplashActivity`)
 - Declared in `AndroidManifest.xml` with intent filter `android.intent.action.MAIN` and `android.intent.category.LAUNCHER`.
 - In `SplashActivity.onCreate`:
   - Validates initial setup conditions via `p286t4.a.a()`.
-  - Evaluates authentication state via `B4.h.Y()`:
+  - Evaluates authentication state via `B4.h.Y()` and the `deactivate_account_locked` preference:
     ```java
     boolean zY = h.Y();
     boolean zF = l.f("AFTERSHIP_INFO", "deactivate_account_locked", false);
@@ -75,7 +91,8 @@ Unlike hybrid React Native or Flutter applications, AfterShip is built entirely 
     }
     ```
   - If `h.Y()` is `true` (user has neither an account token nor a guest token), `LoginRegisterStateActivity` is launched.
-  - If `h.Y()` is `false` (user is signed in OR in guest mode), `HomeActivity` is launched immediately.
+  - If `h.Y()` is `false` and `deactivate_account_locked` is `true`, `LoginRegisterStateActivity` is launched for the locked-account flow.
+  - If `h.Y()` is `false` and `deactivate_account_locked` is `false`, `HomeActivity` is launched immediately.
 
 ### 2. Login & Registration Gate (`LoginRegisterStateActivity`)
 - Displays onboarding carousels and authentication entry points:
@@ -140,7 +157,6 @@ It computes the SHA-256 digest of the certificate and compares it against the ha
 - If verification fails, it emits: `E AutomizelySig: the apk hash is invalid, Do you use the aftership keystore to sign the apk?` and aborts request signature generation.
 - Because AfterShip's backend rejects unsigned requests, any custom-signed APK fails network requests (including `/guest/generate-token`) unless `checkApkSha` is neutralized.
 
-### 2. Google Play Split Requirements
+### 2. Google Play Split Architecture (Packaging Note)
 - Google Play App Bundles emit `com.android.vending.splits.required=true` and `android:requiredSplitTypes="base__abi,base__density"`.
-- When installed on Android 12+ without the split set, `PackageManager` rejects the installation with `INSTALL_FAILED_MISSING_SPLIT`.
-- Removing these attributes from `AndroidManifest.xml` permits single-APK installation.
+- When installing multi-split APKs on Android 12+, `PackageManager` requires installation via split-install sessions (`adb install-multiple`) or repackaging into a unified standalone APK. No patch modifications are made directly to split manifest attributes.
