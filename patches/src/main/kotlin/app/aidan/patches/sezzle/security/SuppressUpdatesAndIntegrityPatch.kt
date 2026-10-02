@@ -16,7 +16,7 @@ import com.android.tools.smali.dexlib2.iface.reference.MethodReference
 private const val MAIN_APPLICATION = "Lcom/sezzle/sezzlemobile/MainApplication;"
 private const val CODE_PUSH = "Lcom/microsoft/codepush/react/CodePush;"
 private const val ROOT_BEER = "Lcom/scottyab/rootbeer/RootBeer;"
-private const val JAIL_MONKEY_MODULE = "Lcom/gantix/JailMonkey/JailMonkeyModule;"
+private const val JAIL_MONKEY_ROOTED_CHECK = "Lcom/gantix/JailMonkey/Rooted/RootedCheck;"
 
 // Hermes bytecode replacement constants
 private val EXPECTED_SELECT_SHOULD_FORCE_UPDATE_BYTES = byteArrayOf(
@@ -295,7 +295,7 @@ val suppressUpdatesAndIntegrityPatch = bytecodePatch(
             )
 
             returnBoolean(
-                JAIL_MONKEY_MODULE,
+                JAIL_MONKEY_ROOTED_CHECK,
                 "isJailBroken",
                 false
             )
@@ -304,14 +304,27 @@ val suppressUpdatesAndIntegrityPatch = bytecodePatch(
 }
 
 /**
- * Makes the first method named [methodName] return [value]. The caller must select
- * a boolean-returning method; signatures are not checked. Missing classes, missing
- * methods, or a first match without an implementation are skipped.
+ * Makes every eligible boolean method named [methodName] return [value].
+ *
+ * Eligible methods return primitive `Z`, have an implementation, and reserve at least one
+ * register for the injected `v0`. Fails when the target class or no eligible method is found.
  */
 private fun BytecodePatchContext.returnBoolean(classDescriptor: String, methodName: String, value: Boolean) {
-    val classDef = mutableClassDefByOrNull(classDescriptor) ?: return
-    val method = classDef.methods.firstOrNull { it.name == methodName } ?: return
-    val implementation = method.implementation ?: return
+    val classDef = mutableClassDefByOrNull(classDescriptor)
+        ?: throw PatchException("Target class not found: $classDescriptor")
+    val methods = classDef.methods.filter { method ->
+        val implementation = method.implementation
+        method.name == methodName &&
+            method.returnType == "Z" &&
+            implementation != null &&
+            implementation.registerCount >= 1
+    }
+    if (methods.isEmpty()) {
+        throw PatchException("No patchable boolean method named $methodName in $classDescriptor")
+    }
+
     val constInstruction = if (value) "const/4 v0, 0x1" else "const/4 v0, 0x0"
-    method.addInstructions(0, "$constInstruction\nreturn v0")
+    methods.forEach { method ->
+        method.addInstructions(0, "$constInstruction\nreturn v0")
+    }
 }

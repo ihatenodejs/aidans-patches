@@ -28,7 +28,7 @@ Sezzle is a hybrid financial services application that facilitates "Buy Now, Pay
 [ Dalvik / Smali ]  [ Hermes HBC v98 ]          [ Native Extension ]   [ XML Resource ]
   bytecodePatch       rawResourcePatch            extendWith             resourcePatch
   Dexlib2 AST         Bytecode & string editing   Java DEX injection     Android DOM XML
-  (Ads, RootBeer)     (Shop, Promos, Auth, Icons) (ConsentGate.java)     (Manifest, 16 KB)
+  (Ads, RootBeer)     (Shop, Promos, Auth, Icons) (ConsentGate.java)     (Manifest)
        |                   |                           |                    |
        +-------------------+-------------+-------------+--------------------+
                                          |
@@ -44,7 +44,7 @@ Sezzle is a hybrid financial services application that facilitates "Buy Now, Pay
 - **Over-The-Air (OTA) Updates:** Microsoft CodePush (`com.microsoft.codepush.react.CodePush`). In stock code, `MainApplication` supplies `CodePush.getJSBundleFile()` to `DefaultReactHost`. Downloaded CodePush updates take precedence over `assets/index.android.bundle`.
 - **Integrity & Security SDKs:**
   - `RootBeer` (`com.scottyab.rootbeer.RootBeer`): Checks for su binaries, root management apps, test-keys, and dangerous system properties.
-  - `JailMonkey` (`com.gantix.JailMonkey.JailMonkeyModule`): Checks for jailbreak/root, hook detection (Frida, Substrate, Xposed), and mock locations.
+  - `JailMonkey` (`com.gantix.JailMonkey.JailMonkeyModule`): Publishes root, hook detection (Frida, Substrate, Xposed), and mock-location values through `getConstants()`; `Rooted.RootedCheck.isJailBroken()` supplies its root result.
 
 ### 2.2 JavaScript / Hermes Bytecode Layer (`assets/index.android.bundle`)
 - **Bytecode Standard:** Hermes v98 (`0x62`), Magic: `c6 1f bc 03 c1 03 19 1f`.
@@ -102,4 +102,3 @@ See [Sezzle Patch Specifications](patches.md) for full technical implementation 
 13. **`Patch Consent Screen` (`bytecodePatch`):** Injects native `ConsentGate` modal dialog into `MainActivity.onCreate`.
 14. **`Suppress In-App Updates and Rating Prompts` (`rawResourcePatch`):** Neutralizes Hermes update sagas, update modals, store URLs, trustFall checks, and rating prompts.
 15. **`Suppress Updates and Integrity Checks` (`bytecodePatch`):** Disables CodePush OTA downloads and stubs RootBeer / JailMonkey.
-16. **`Enable 16 KB Page Size Compatibility` (`resourcePatch`):** Injects manifest flags and enforces 16 KB `.so` alignment.
