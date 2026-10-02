@@ -2,63 +2,71 @@
 
 ## Project Overview
 
-This repository develops binary bytecode and asset patches for Android applications using the **Morphe Patching Framework** (`app.morphe.patches` Gradle plugin v1.3.4, Morphe Patcher v1.14.0).
+This repository develops binary bytecode, resource, and asset patches for Android applications using the **Morphe Patching Framework** (`app.morphe.patches` Gradle plugin v1.3.4, Morphe Patcher v1.14.0).
 
-The primary target application is **Sezzle: Buy Now, Pay Later** (`com.sezzle.sezzlemobile`), a hybrid Android application built with React Native Fabric and compiled to **Hermes Bytecode v98**. The patch suite produces a Morphe Patch Package (`.mpp`) bundle designed to:
-- **Lock Down Integrity & Security**: Disable Microsoft CodePush OTA updates so the app cannot override patched local assets, and inject a mandatory native consent gate (`ConsentGate.java`) on first launch.
-- **Eliminate Ads & Telemetry**: Neutralize 13 commercial ad networks, survey providers, and telemetry SDKs at the Dalvik bytecode level while zeroing the Google Play Advertising ID (AAID).
-- **Streamline UI**: Unmount the commercial store feed, rename the "Shop" bottom tab to "Home", unmount the Rewards (`EarnTab`) feature, and remove phone login controls in favor of Google authentication.
+The project patches four Android applications:
+1. **Sezzle: Buy Now, Pay Later** (`com.sezzle.sezzlemobile`, target `5.3.9`): Hybrid React Native Fabric application compiled to **Hermes Bytecode v98**. Patches eliminate ads and tracking SDKs, suppress CodePush OTA updates and root/tamper checks, sanitize authentication (Google SSO only, native `ConsentGate` modal), restructure navigation (replace Shop with Home, remove Rewards, customize shortcuts, replace AI Discover), unblock features (receipt scanner, custom launcher icons), expose internal developer settings, and ensure 16 KB page size compatibility on Android 15+.
+2. **SidelineSwap: Buy & Sell Gear** (`com.sidelineswap.android`, target `1.52.0`): Native Android (Kotlin/Java) marketplace app. Patches eliminate first-party and third-party tracking/analytics (Amplitude, Firebase Analytics, Crashlytics, Facebook App Events, Iterable, Braintree FPTI) and customize the primary brand accent color via Android XML resource modification.
+3. **AfterShip: Package Tracker** (`com.aftership.AfterShip`, target `5.25.8`): Native Android (Kotlin/Java) tracking app with native C++ libraries (`libandroidsig-lib.so`). Patches neutralize native APK signature verification (`checkApkSha`) and remove login barriers (forcing permanent guest mode).
+4. **Canvas Student** (`com.instructure.candroid`, target `8.10.0`): Native Android (Kotlin/Java) learning-management client. Patches remove Pendo behavioral tracking, Instructure Pandata pageview surveillance, first-party analytics, Firebase Crashlytics reporting, and Play Store rating redirects.
 
 ---
 
-## Architecture & Data Flow
+## Architecture & Patching Layers
 
-Patches operate across three distinct architectural layers to modify the target APK:
-
+Patches operate across five distinct architectural layers depending on target application requirements:
 ```
-                               Target: base.apk
-                                      |
-       +------------------------------+------------------------------+
-       |                              |                              |
-       v                              v                              v
-[ Dalvik / Smali Layer ]   [ Hermes Bytecode Layer ]      [ Native Extension Layer ]
-Dexlib2 AST Rewriting      HBC v98 Binary Manipulation    Java Bytecode Merging
-- DisableCodePushOta       - RenameShopToHome             - ConsentGate.java
-- PatchConsentScreen       - RemoveRewards                  (compiled to
-- RemoveAdsAndTracking     - CleanAuthentication            extension.mpe)
-       |                              |                              |
-       +------------------------------+------------------------------+
-                                      |
-                                      v
-                             sezzle-patched.apk
+                                      Target APK / XAPK / APKM
+                                                 |
+       +-------------------+---------------------+--------------------+--------------------+
+       |                   |                     |                    |                    |
+       v                   v                     v                    v                    v
+[ Dalvik / Smali ]  [ Hermes HBC v98 ]   [ Native Extension ]   [ XML Resource ]    [ Raw Binary/SO ]
+  bytecodePatch      rawResourcePatch        extendWith           resourcePatch      rawResourcePatch
+  Dexlib2 AST        Bytecode & string   Java DEX injection     Android DOM XML      ELF / SO patching
+  rewriting          manipulation        (ConsentGate.java)     (colors, manifest)   (checkApkSha)
+       |                   |                     |                    |                    |
+       +-------------------+---------------------+--------------------+--------------------+
+                                                 |
+                                                 v
+                                        Patched Output APK
 ```
 
-### 1. Hermes Bytecode Layer (HBC v98)
-- **Editor**: `patches/src/main/kotlin/app/finance/patches/sezzle/shared/HermesBundleEditor.kt`.
-- **Target Asset**: `assets/index.android.bundle` (Hermes Bytecode v98, magic bytes `c6 1f bc 03 c1 03 19 1f`).
+### 1. Hermes Bytecode Layer (`rawResourcePatch` on HBC v98)
+- **App**: Sezzle (`assets/index.android.bundle`, Hermes v98, magic `c6 1f bc 03 c1 03 19 1f`).
+- **Editor**: `patches/src/main/kotlin/app/aidan/patches/sezzle/shared/HermesBundleEditor.kt`.
 - **Mechanism**:
-  - Direct opcode substitution (e.g., replacing `useIsShowEarnTabEnabled` with `LoadConstFalse r1` [`0x96 0x01`] and `Ret r1` [`0x76 0x01`]).
-  - Array mutation and component unmounting (resizing container children arrays and setting promotional components to `LoadConstUndefined` [`0x93`]).
-  - String table operand redirection (pointing `LoadConstString` to alternate localization keys).
-  - **Donor String Recycling**: Hermes bundles cannot expand string storage without corrupting cross-section offsets. New text replaces unused donor strings (e.g., storybook debug strings) of equal or greater length, zero-padding remainder bytes.
-  - **Integrity Digest**: The Hermes engine verifies a trailing 20-byte SHA-1 digest. `editor.updateFooterHash()` recalculates this hash after any byte modifications.
+  - Direct opcode substitution (e.g., replacing function bodies with `LoadConstFalse r1` [`0x96 0x01`] / `Ret r1` [`0x76 0x01`]).
+  - Array mutation and component unmounting (resizing container children arrays and setting promotional elements to `LoadConstUndefined` [`0x93`]).
+  - Donor string recycling: Hermes cannot expand string tables without corrupting cross-section offsets. New text replaces unused donor strings (e.g. storybook debug strings) of equal or greater length, zero-padding remainder bytes.
+  - Trailing SHA-1 digest recalculation via `editor.updateFooterHash()`.
 
 ### 2. Dalvik / Smali Bytecode Layer (`bytecodePatch`)
-- **Engine**: Dexlib2 AST manipulation through Morphe DSL (`mutableClassDefBy`, `addInstructions`).
+- **Apps**: Sezzle, SidelineSwap, AfterShip.
+- **Engine**: Dexlib2 AST manipulation via Morphe DSL (`mutableClassDefBy`, `addInstructions`).
 - **Mechanism**:
-  - Entrypoint method neutralization: prepends early exits (`return-void`, `const/4 v0, 0x0 \n return v0`, or dummy string returns) to prevent ad/tracker initialization without breaking React Native's `NativeModule` registry.
-  - Call interception: replaces the return register of `CodePush.getJSBundleFile()` in `MainApplication` with `null` (`const/4 vX, 0x0`), forcing React Native's `DefaultReactHost` to fall back to the embedded `assets/index.android.bundle`.
-  - Lifecycle hooking: injects static calls to native extension methods in `MainActivity.onCreate` before `return-void`.
+  - Neutralizes entrypoints by injecting early returns (`return-void`, `const/4 v0, 0x0 \n return v0`, dummy objects).
+  - Intercepts method return values (e.g., overriding `CodePush.getJSBundleFile()` to return `null`, forcing fallback to embedded Hermes bundle).
+  - Hooks lifecycles (e.g., injecting `ConsentGate.maybeShow(this)` into `MainActivity.onCreate`).
 
-### 3. Native Extension Layer (`extensions/extension.mpe`)
+### 3. XML Resource Layer (`resourcePatch`)
+- **Apps**: SidelineSwap (`res/values/colors.xml`, `res/values-night/colors.xml`), Sezzle (`AndroidManifest.xml`).
+- **Engine**: Morphe `document(...)` XML DOM manipulation.
+- **Mechanism**: Edits color element hex values based on patch options (`primaryColor`, `primaryDarkColor`) or sets manifest attributes like `android:debuggable="true"`.
+
+### 4. Native Extension Layer (`extensions/extension.mpe`)
 - **Module**: `:extensions:extension` compiles Java classes into a Morphe Patch Extension (`.mpe`).
-- **Component**: `app.finance.extension.sezzle.ConsentGate` presents an un-cancelable `AlertDialog` tracking acknowledgment in `SharedPreferences`.
-- **Packaging**: Merged into patch bundles via `extendWith("extensions/extension.mpe")` and injected into the target APK's DEX.
+- **Component**: `app.aidan.extension.sezzle.ConsentGate` presents an un-cancelable `AlertDialog` tracking acknowledgment in `SharedPreferences`.
+- **Packaging**: Merged via `extendWith("extensions/extension.mpe")` and injected into the target APK's DEX.
+
+### 5. Native Binary / Library Layer (`rawResourcePatch`)
+- **App**: AfterShip (`lib/arm64-v8a/libandroidsig-lib.so`, `lib/armeabi-v7a/libandroidsig-lib.so`).
+- **Mechanism**: Directly patches machine code instructions in shared ELF libraries (e.g., neutralizing `_Z11checkApkShaP7_JNIEnvP8_jobjectS2_h` so APK signature checks return success on custom-signed builds).
 
 ### Data Flow
 1. **Build Time**: Gradle builds `:extensions:extension` into `.mpe`, compiles Kotlin patch definitions into `.mpp`, and executes `PatchListGeneratorKt` to emit `patches-list.json`.
-2. **Patch Time (Morphe CLI / Desktop)**: Morphe unzips the target APK, validates package/version compatibility, modifies Dalvik classes, merges `.mpe` classes into DEX, parses and edits `index.android.bundle`, recalculates the SHA-1 footer, and repacks/signs the APK.
-3. **Runtime**: `MainActivity.onCreate` triggers `ConsentGate.maybeShow()`. `MainApplication` returns `null` for CodePush bundle paths, executing the patched embedded Hermes bundle. Ad and analytics calls hit instant return opcodes.
+2. **Patch Time (Morphe CLI / Desktop)**: Morphe unzips the target APK/APKM/XAPK, validates package/version compatibility, modifies Dalvik bytecode, merges `.mpe` classes into DEX, applies XML DOM edits, edits raw resources/ELF binaries/Hermes bundles, updates hashes, and repacks/signs the output APK.
+3. **Runtime**: Patched classes, resources, native libraries, and Hermes bundles execute with tracking neutralized, security/integrity bypassed, and custom navigation/theming active.
 
 ---
 
@@ -69,22 +77,35 @@ Dexlib2 AST Rewriting      HBC v98 Binary Manipulation    Java Bytecode Merging
 ├── patches/                               # Core Morphe patch definitions module
 │   ├── build.gradle.kts                   # Patch bundle metadata & task configuration
 │   └── src/main/kotlin/
-│       ├── app/finance/patches/sezzle/    # Sezzle patch implementations
-│       │   ├── ads/                       # Ad and tracker removal (13 SDKs neutralized)
-│       │   ├── auth/                      # Authentication flow sanitization
-│       │   ├── navigation/                # Bottom tab renaming and UI de-bloat
-│       │   ├── security/                  # CodePush OTA lock and consent dialog hook
-│       │   └── shared/                    # Constants, compatibility, HermesBundleEditor
+│       ├── app/aidan/patches/
+│       │   ├── aftership/                 # AfterShip patch implementations
+│       │   │   ├── auth/                  # Bypass native signature check, remove login
+│       │   │   └── shared/                # AfterShip constants & compatibility
+│       │   ├── sezzle/                    # Sezzle patch implementations
+│       │   │   ├── ads/                   # HideBannerAdsPatch (13 SDKs neutralized)
+│       │   │   ├── auth/                  # CleanAuthenticationPatch
+│       │   │   ├── customization/         # UnlockCustomAppIconsPatch
+│       │   │   ├── dev/                   # EnableAppDebuggingPatch, UnlockDevSettingsPatch
+│       │   │   ├── features/              # UnlockReceiptScannerPatch
+│       │   │   ├── navigation/            # ReplaceShopWithHome, RemoveRewards, ConfigureShortcuts, etc.
+│       │   │   ├── security/              # SuppressUpdatesAndIntegrityPatch, PatchConsentScreenPatch
+│       │   │   └── shared/                # Constants, compatibility, HermesBundleEditor
+│       │   └── sidelineswap/              # SidelineSwap patch implementations
+│       │       ├── customization/         # ChangeBrandColorPatch
+│       │       ├── tracking/              # BlockTrackingAndTelemetryPatch
+│       │       └── shared/                # SidelineSwap constants & compatibility
 │       └── util/                          # Build-time utilities (PatchListGenerator.kt)
 ├── extensions/extension/                  # Native Android extension module
 │   ├── build.gradle.kts                   # Compiles Java sources to extension.mpe
 │   └── src/main/
 │       ├── AndroidManifest.xml            # Minimal extension manifest
-│       └── java/app/finance/extension/    # Native Java code (ConsentGate.java)
+│       └── java/app/aidan/extension/      # Native Java code (ConsentGate.java)
 ├── docs/                                  # Reverse engineering specs & deep dive docs
+│   ├── aftership/                         # Architecture & patch specifications for AfterShip
+│   ├── sezzle/                            # Architecture, patch guide & hidden feature flags for Sezzle
+│   └── sidelineswap/                      # Architecture & patch specifications for SidelineSwap
 ├── gradle/                                # Gradle wrapper and libs.versions.toml
 └── .github/                               # CI/CD workflows, issue templates, release scripts
-```
 
 ---
 
@@ -137,41 +158,53 @@ npx semantic-release --dry-run
 
 ## Code Conventions & Common Patterns
 
-### 1. Modern Morphe Kotlin DSL
-Do not use legacy `@Patch` or `@CompatiblePackage` annotations. Define patches as top-level Kotlin values using `bytecodePatch` or `rawResourcePatch`:
+Do not use legacy `@Patch` or `@CompatiblePackage` annotations. Define patches as top-level Kotlin values using `bytecodePatch`, `rawResourcePatch`, or `resourcePatch`:
 
 ```kotlin
-val samplePatch = bytecodePatch(
+// Dalvik bytecode patch
+val sampleBytecodePatch = bytecodePatch(
     name = "Patch Display Name",
     description = "Concise description of the modifications.",
     default = true
 ) {
-    compatibleWith(COMPATIBILITY_SEZZLE)
+    compatibleWith(COMPATIBILITY_OBJECT)
     extendWith("extensions/extension.mpe") // Optional: include native extension
+    dependsOn(anotherPatch)               // Optional: dependencies
 
     execute {
-        // Dalvik bytecode manipulation
+        // Dalvik bytecode manipulation via Dexlib2 AST
     }
 }
-```
 
-For raw asset modifications:
-```kotlin
-val sampleResourcePatch = rawResourcePatch(
+// Raw binary / asset patch (Hermes bundle, ELF shared library)
+val sampleRawResourcePatch = rawResourcePatch(
     name = "Asset Patch Name",
-    description = "Modifies embedded Hermes JS bundle.",
+    description = "Modifies embedded asset or binary.",
     default = true
 ) {
-    compatibleWith(COMPATIBILITY_SEZZLE)
+    compatibleWith(COMPATIBILITY_OBJECT)
 
     execute {
-        val editor = HermesBundleEditor(get("assets/index.android.bundle"))
-        // Apply edits
-        editor.updateFooterHash()
+        val file = get("assets/index.android.bundle") // or "lib/arm64-v8a/libfoo.so"
+        // In-place byte modifications
+    }
+}
+
+// Android XML resource patch
+val sampleResourcePatch = resourcePatch(
+    name = "Resource Patch Name",
+    description = "Modifies XML resources or manifest.",
+    default = true
+) {
+    compatibleWith(COMPATIBILITY_OBJECT)
+
+    execute {
+        document("res/values/colors.xml").use { doc ->
+            // DOM manipulation
+        }
     }
 }
 ```
-
 ### 2. Dalvik Bytecode Helpers
 Keep bytecode injection logic reusable and safe:
 - Always check that the target method has an implementation (`method.implementation != null`) before injecting instructions.
@@ -201,18 +234,36 @@ Keep bytecode injection logic reusable and safe:
 
 | File Path | Description |
 | --- | --- |
-| `patches/src/main/kotlin/app/finance/patches/sezzle/shared/Constants.kt` | Target package name (`com.sezzle.sezzlemobile`), version codes, and Morphe `Compatibility` object. |
-| `patches/src/main/kotlin/app/finance/patches/sezzle/shared/HermesBundleEditor.kt` | Binary parser and in-place bytecode/string editor for Hermes Bytecode (HBC v98+). |
-| `patches/src/main/kotlin/app/finance/patches/sezzle/security/DisableCodePushOtaPatch.kt` | Dalvik patch forcing `CodePush.getJSBundleFile()` to return `null`. |
-| `patches/src/main/kotlin/app/finance/patches/sezzle/security/PatchConsentScreenPatch.kt` | Dalvik patch injecting `ConsentGate.maybeShow(this)` into `MainActivity.onCreate`. |
-| `extensions/extension/src/main/java/app/finance/extension/sezzle/ConsentGate.java` | Native Android Java component rendering the user consent modal dialog. |
+| `patches/src/main/kotlin/app/aidan/patches/sezzle/shared/Constants.kt` | Sezzle package name (`com.sezzle.sezzlemobile`), version codes, and Morphe `Compatibility` object. |
+| `patches/src/main/kotlin/app/aidan/patches/sezzle/shared/HermesBundleEditor.kt` | Binary parser and in-place bytecode/string editor for Hermes Bytecode (HBC v98+). |
+| `patches/src/main/kotlin/app/aidan/patches/sezzle/security/SuppressUpdatesAndIntegrityPatch.kt` | Security patches suppressing CodePush OTA updates, RootBeer/JailMonkey, Hermes update sagas, and Play Store redirects. |
+| `patches/src/main/kotlin/app/aidan/patches/sezzle/security/PatchConsentScreenPatch.kt` | Dalvik patch injecting `ConsentGate.maybeShow(this)` into `MainActivity.onCreate`. |
+| `patches/src/main/kotlin/app/aidan/patches/sezzle/compatibility/PageSizeCompatibilityPatch.kt` | Resource patch enabling 16 KB page size compatibility, native library extraction, and 16 KB ZIP alignment in Sezzle. |
+| `patches/src/main/kotlin/app/aidan/patches/sidelineswap/shared/Constants.kt` | SidelineSwap package name (`com.sidelineswap.android`), signatures, and Morphe `Compatibility` object. |
+| `patches/src/main/kotlin/app/aidan/patches/sidelineswap/tracking/BlockTrackingAndTelemetryPatch.kt` | Dalvik patch neutralizing all analytics, tracking, telemetry, and AAID in SidelineSwap. |
+| `patches/src/main/kotlin/app/aidan/patches/sidelineswap/customization/ChangeBrandColorPatch.kt` | XML resource patch customizing SidelineSwap brand colors. |
+| `patches/src/main/kotlin/app/aidan/patches/aftership/shared/Constants.kt` | AfterShip package name (`com.aftership.AfterShip`) and Morphe `Compatibility` object. |
+| `patches/src/main/kotlin/app/aidan/patches/aftership/auth/RemoveLoginPatch.kt` | Patches bypassing native signature check in `libandroidsig-lib.so` and enforcing permanent guest mode. |
+| `patches/src/main/kotlin/app/aidan/patches/aftership/account/RemoveAfterShipAccountPageLinksPatch.kt` | Dalvik patch removing About the app, Share the app, and Feedback links from the Account screen. |
+| `patches/src/main/kotlin/app/aidan/patches/aftership/feedback/RemoveFeedbackPatch.kt` | Dalvik patch removing feedback prompts, Feedback buttons, and star rating component on shipments. |
+| `patches/src/main/kotlin/app/aidan/patches/aftership/sync/RemoveShipmentSyncPatch.kt` | Dalvik patch removing email shipment synchronization, prompts, banners, dialogs, and entry points. |
+| `patches/src/main/kotlin/app/aidan/patches/canvas/shared/Constants.kt` | Canvas Student package name (`com.instructure.candroid`), signature, APKM type, and Morphe `Compatibility` object. |
+| `patches/src/main/kotlin/app/aidan/patches/canvas/tracking/RemoveTrackingAndAnalyticsPatch.kt` | Dalvik patch neutralizing Pendo, Pandata, first-party analytics, Crashlytics, and rating redirects in Canvas Student. |
+| `extensions/extension/src/main/java/app/aidan/extension/sezzle/ConsentGate.java` | Native Android Java component rendering the user consent modal dialog. |
 | `patches/src/main/kotlin/util/PatchListGenerator.kt` | JavaExec reflection utility generating `patches-list.json` from `.mpp` archives. |
 | `settings.gradle.kts` | Multi-project setup, plugin management, and GitHub Packages repository declarations. |
 | `patches/build.gradle.kts` | Patch metadata, gson classpath setup, and `generatePatchesList` task definition. |
 | `gradle/libs.versions.toml` | Version catalog for `morphe-patcher` (1.14.0), `smali`, and `gson`. |
 | `.releaserc` | Semantic-release configuration managing version bumps, changelog bundling, and backmerges. |
 | `.github/workflows/release.yml` | CI/CD release workflow with Java 21, build provenance attestation, and fallback build checks. |
-| `docs/sezzle_architecture_and_patches.md` | Reverse engineering specification for Sezzle v5.3.9 Hermes bytecode and Dalvik structures. |
+| `docs/sezzle/architecture_and_patches.md` | Reverse engineering specification for Sezzle v5.3.9 Hermes bytecode and Dalvik structures. |
+| `docs/sezzle/hidden_feature_flags.md` | Catalog of Sezzle hidden feature flags, cohorts, and debugger hooks. |
+| `docs/sidelineswap/architecture.md` | Reverse engineering specification for SidelineSwap architecture and telemetry. |
+| `docs/sidelineswap/patches.md` | Patch specification for SidelineSwap tracking neutralization and brand color customization. |
+| `docs/aftership/architecture.md` | Reverse engineering specification for AfterShip architecture, native libs, and auth. |
+| `docs/aftership/patches.md` | Patch specification for AfterShip signature bypass and login removal. |
+| `docs/canvas/architecture.md` | Reverse engineering specification for Canvas Student telemetry architecture. |
+| `docs/canvas/patches.md` | Patch specification for Canvas Student tracking and analytics removal. |
 
 ---
 
