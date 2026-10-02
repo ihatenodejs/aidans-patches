@@ -20,6 +20,10 @@ public final class ChipBalanceDialog {
     private ChipBalanceDialog() {
     }
 
+    /**
+     * Shows the chip-balance editor on Unity's activity UI thread. Does nothing if
+     * the activity cannot be resolved or is finishing.
+     */
     public static void show() {
         final Activity activity = getCurrentActivity();
         if (activity == null || activity.isFinishing()) {
@@ -38,6 +42,9 @@ public final class ChipBalanceDialog {
         });
     }
 
+    /**
+     * Returns Unity's current activity, or null if reflection or access fails.
+     */
     private static Activity getCurrentActivity() {
         try {
             Class<?> unityPlayerClass = Class.forName("com.unity3d.player.UnityPlayer");
@@ -49,6 +56,11 @@ public final class ChipBalanceDialog {
         }
     }
 
+    /**
+     * Shows a balance editor initialized from saved player data; call on the UI thread.
+     * Confirmation removes commas and spaces, ignores empty or invalid long values,
+     * and clamps negative amounts to zero before sending the Unity update.
+     */
     private static void showOnMainThread(final Activity activity) {
         long currentChips = loadCurrentChips(activity);
 
@@ -94,6 +106,11 @@ public final class ChipBalanceDialog {
                 .show();
     }
 
+    /**
+     * Reads Credit from the first readable player-data candidate in external or internal
+     * app storage. Missing files and failures while reading or parsing are skipped;
+     * returns zero if no candidate succeeds.
+     */
     private static long loadCurrentChips(Activity activity) {
         File[] candidates = new File[] {
                 new File(activity.getExternalFilesDir(null), "SimpleStorage/PlayerData.json"),
@@ -125,6 +142,10 @@ public final class ChipBalanceDialog {
         return 0L;
     }
 
+    /**
+     * Sends the desired absolute chip balance to the patched Unity message handler.
+     * Reflection and invocation failures are suppressed; delivery is not confirmed.
+     */
     private static void setChips(long amount) {
         try {
             Log.i(TAG, "Setting chips to " + amount);

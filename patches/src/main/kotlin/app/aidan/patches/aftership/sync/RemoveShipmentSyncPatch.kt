@@ -50,6 +50,8 @@ val removeShipmentSyncPatch = bytecodePatch(
 
 /**
  * Hides "Add orders automatically" (`layout_email`, field `p` in `Lz2/p;`) on the Account screen.
+ *
+ * @throws PatchException if the target class or required implemented onViewCreated method is missing.
  */
 private fun BytecodePatchContext.patchAccountFragment() {
     val classDef = classDefByOrNull(ACCOUNT_FRAGMENT)
@@ -84,6 +86,8 @@ private fun BytecodePatchContext.patchAccountFragment() {
  * Neutralizes `m3()V` in `TrackingListTabFragment` (`LY6/i;`), preventing the
  * "Enable email sync in order to add shipments automatically from your inbox." toolbar
  * banner from ever being added or shown on the shipments screen.
+ *
+ * @throws PatchException if the target class or required implemented m3 method is missing.
  */
 private fun BytecodePatchContext.patchTrackingListTabFragment() {
     val classDef = classDefByOrNull(TRACKING_LIST_TAB_FRAGMENT)
@@ -100,6 +104,8 @@ private fun BytecodePatchContext.patchTrackingListTabFragment() {
  * In `TrackingListEmptyGuideHelper.e(boolean)` (`LZ6/o;`), forces the boolean parameter
  * to false (`const/4 p1, 0x0`), ensuring the "Sync shipment" guide card is never added
  * and "Add shipment" is styled as the sole card on the empty packages screen.
+ *
+ * @throws PatchException if the target class or required implemented e method is missing.
  */
 private fun BytecodePatchContext.patchTrackingListEmptyGuide() {
     val classDef = classDefByOrNull(TRACKING_LIST_EMPTY_GUIDE)
@@ -115,6 +121,8 @@ private fun BytecodePatchContext.patchTrackingListEmptyGuide() {
 /**
  * Neutralizes `G1()V` in `TrackingListFragment` (`LY6/b;`), eliminating the recurring
  * popup dialog prompting users to enable email sync ("ENABLE EMAIL SYNC: Add shipments automatically from your inbox.").
+ *
+ * @throws PatchException if the target class or required implemented G1 method is missing.
  */
 private fun BytecodePatchContext.patchTrackingListFragment() {
     val classDef = classDefByOrNull(TRACKING_LIST_FRAGMENT)
@@ -130,6 +138,8 @@ private fun BytecodePatchContext.patchTrackingListFragment() {
 /**
  * Neutralizes `checkEmailGrantAuth(boolean)` in `NewTrackingListPresenter`, disabling
  * background email grant polling and preventing triggered sync dialogs or banners.
+ *
+ * @throws PatchException if the target class or required implemented checkEmailGrantAuth method is missing.
  */
 private fun BytecodePatchContext.patchNewTrackingListPresenter() {
     val classDef = classDefByOrNull(NEW_TRACKING_LIST_PRESENTER)
@@ -145,6 +155,8 @@ private fun BytecodePatchContext.patchNewTrackingListPresenter() {
 /**
  * Neutralizes email authorization failure (`r`) and duplicate account (`s`) dialogs
  * in `EmailGrantHelper` (`LP4/i;`).
+ *
+ * @throws PatchException if the target class or required implemented r or s method is missing.
  */
 private fun BytecodePatchContext.patchEmailGrantHelper() {
     val classDef = classDefByOrNull(EMAIL_GRANT_HELPER)
@@ -164,6 +176,8 @@ private fun BytecodePatchContext.patchEmailGrantHelper() {
 
 /**
  * Neutralizes email authorization failure / expiry dialogs (`x(int)`) in `HomeActivity`.
+ *
+ * @throws PatchException if the target class or required implemented x method is missing.
  */
 private fun BytecodePatchContext.patchHomeActivity() {
     val classDef = classDefByOrNull(HOME_ACTIVITY)
@@ -178,6 +192,8 @@ private fun BytecodePatchContext.patchHomeActivity() {
 
 /**
  * Neutralizes email re-authorization expiry dialogs (`x(int)`) in `OrderDetailsActivity`.
+ *
+ * @throws PatchException if the target class or required implemented x method is missing.
  */
 private fun BytecodePatchContext.patchOrderDetailsActivity() {
     val classDef = classDefByOrNull(ORDER_DETAILS_ACTIVITY)
@@ -192,6 +208,8 @@ private fun BytecodePatchContext.patchOrderDetailsActivity() {
 
 /**
  * Neutralizes `EmailGrantGuideActivity`, ensuring it immediately finishes if launched.
+ *
+ * @throws PatchException if the target class or required implemented onCreate method is missing.
  */
 private fun BytecodePatchContext.patchEmailGrantGuideActivity() {
     val classDef = classDefByOrNull(EMAIL_GRANT_GUIDE_ACTIVITY)
@@ -213,6 +231,8 @@ private fun BytecodePatchContext.patchEmailGrantGuideActivity() {
 
 /**
  * Neutralizes `EmailActivity`, ensuring it immediately finishes if launched.
+ *
+ * @throws PatchException if the target class or required implemented onCreate method is missing.
  */
 private fun BytecodePatchContext.patchEmailActivity() {
     val classDef = classDefByOrNull(EMAIL_ACTIVITY)
@@ -235,6 +255,8 @@ private fun BytecodePatchContext.patchEmailActivity() {
 /**
  * Hides "Copy tracking numbers from email" (`copy_tracking_number_ll`, field `b` in `Lz2/w;`)
  * on the Add Shipment screen.
+ *
+ * @throws PatchException if the target class or required implemented onResume method is missing.
  */
 private fun BytecodePatchContext.patchTrackingAddActivity() {
     val classDef = classDefByOrNull(TRACKING_ADD_ACTIVITY)

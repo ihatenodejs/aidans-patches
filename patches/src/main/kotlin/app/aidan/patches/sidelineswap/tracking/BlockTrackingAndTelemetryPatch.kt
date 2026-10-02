@@ -110,6 +110,10 @@ val blockTrackingAndTelemetryPatch = bytecodePatch(
     }
 }
 
+/**
+ * Makes all implemented void overloads with the requested names return immediately.
+ * Absent classes or matches are skipped.
+ */
 private fun BytecodePatchContext.disableVoidMethods(
     classDescriptor: String,
     vararg methodNames: String
@@ -124,6 +128,10 @@ private fun BytecodePatchContext.disableVoidMethods(
     }
 }
 
+/**
+ * Makes all implemented boolean overloads with [methodName] return [value].
+ * Absent classes or matches are skipped.
+ */
 private fun BytecodePatchContext.returnBoolean(
     classDescriptor: String,
     methodName: String,
@@ -145,6 +153,10 @@ private fun BytecodePatchContext.returnBoolean(
     }
 }
 
+/**
+ * Makes all implemented String overloads with [methodName] return [value].
+ * The value must be safe to embed in a Smali string literal. Absent classes or matches are skipped.
+ */
 private fun BytecodePatchContext.returnConstString(
     classDescriptor: String,
     methodName: String,
@@ -165,6 +177,11 @@ private fun BytecodePatchContext.returnConstString(
     }
 }
 
+/**
+ * Makes all implemented overloads with [methodName] and a class return type return null.
+ * Array return types are excluded.
+ * Absent classes or matches are skipped.
+ */
 private fun BytecodePatchContext.returnNullObject(
     classDescriptor: String,
     methodName: String
@@ -184,6 +201,11 @@ private fun BytecodePatchContext.returnNullObject(
     }
 }
 
+/**
+ * Makes implemented overloads with [methodName] return their receiver. Targets must
+ * be instance methods returning an object with only single-register parameters;
+ * these assumptions are not validated. Absent classes or matches are skipped.
+ */
 private fun BytecodePatchContext.returnThis(
     classDescriptor: String,
     methodName: String
@@ -205,6 +227,11 @@ private fun BytecodePatchContext.returnThis(
     }
 }
 
+/**
+ * Makes implemented overloads with [methodName] return a new WorkManager success
+ * result without running their original bodies. Return types are not checked;
+ * absent classes or matches are skipped.
+ */
 private fun BytecodePatchContext.returnWorkerSuccess(
     classDescriptor: String,
     methodName: String = "g"
@@ -225,6 +252,11 @@ private fun BytecodePatchContext.returnWorkerSuccess(
     }
 }
 
+/**
+ * Makes implemented one-parameter methods named a return an AdvertisingIdClient
+ * info object with a zeroed AAID and limit-ad-tracking enabled. Absent classes or
+ * matches are skipped; parameter and return types are not checked.
+ */
 private fun BytecodePatchContext.spoofMinifiedAdvertisingId(
     classDescriptor: String = "LY2/a;"
 ) {

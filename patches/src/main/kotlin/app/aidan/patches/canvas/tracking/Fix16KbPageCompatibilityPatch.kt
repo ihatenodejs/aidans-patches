@@ -23,6 +23,12 @@ val fix16KbPageCompatibilityPatch = rawResourcePatch(
     compatibleWith(COMPATIBILITY_CANVAS)
 
     execute {
+        /**
+         * Rewrites an extracted library with its incompatible GNU RELRO segment disabled.
+         *
+         * @throws PatchException if the library is missing or fails RELRO validation.
+         * @throws java.io.IOException if reading or writing the library fails.
+         */
         fun patchLibrary(path: String) {
             val library = get(path)
             if (!library.exists()) {
@@ -38,6 +44,15 @@ val fix16KbPageCompatibilityPatch = rawResourcePatch(
     }
 }
 
+/**
+ * Disables GNU RELRO segments whose virtual end address is not aligned to 16,384
+ * bytes in a little-endian ELF64 image. Mutates and returns the same [bytes] array;
+ * [path] is used only in error messages.
+ *
+ * @throws PatchException if the ELF header or program-header table is invalid, or
+ * exactly one incompatible segment is not found. Segment changes made before the
+ * final count check remain in [bytes] even when that check fails.
+ */
 private fun removeIncompatibleRelro(path: String, bytes: ByteArray): ByteArray {
     if (bytes.size < ELF64_HEADER_SIZE || !bytes.copyOfRange(0, 4).contentEquals(byteArrayOf(0x7f, 0x45, 0x4c, 0x46))) {
         throw PatchException("$path is not an ELF file")
@@ -79,6 +94,12 @@ private fun removeIncompatibleRelro(path: String, bytes: ByteArray): ByteArray {
     return bytes
 }
 
+/**
+ * Sets Morphe's shared APK writer alignment to 16,384 bytes for .so entries
+ * and 4 bytes otherwise.
+ *
+ * @throws PatchException if writer options are missing or alignment configuration fails.
+ */
 private fun ensure16KbPageAlignment() {
     try {
         val apkUtilsClass = Class.forName("app.morphe.patcher.apk.ApkUtils")

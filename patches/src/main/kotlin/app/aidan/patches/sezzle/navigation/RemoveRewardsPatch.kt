@@ -41,6 +41,13 @@ private val P2P_POINTS_NAVIGATION_BYTES = byteArrayOf(
     0xaf.toByte(), 0x9c.toByte(), 0x00, 0x00, 0x00
 )
 
+/**
+ * Returns the byte offset of the sole occurrence of [sequence], counting overlapping
+ * matches. An empty sequence matches every boundary, including the end of [bytes].
+ * [description] identifies the sequence in errors.
+ *
+ * @throws PatchException if there are zero or multiple matches.
+ */
 private fun findUniqueSequence(bytes: ByteArray, sequence: ByteArray, description: String): Int {
     val matches = mutableListOf<Int>()
     for (offset in 0..(bytes.size - sequence.size)) {

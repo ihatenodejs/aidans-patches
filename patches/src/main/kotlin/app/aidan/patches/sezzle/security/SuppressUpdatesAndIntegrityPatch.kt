@@ -303,6 +303,11 @@ val suppressUpdatesAndIntegrityPatch = bytecodePatch(
     }
 }
 
+/**
+ * Makes the first method named [methodName] return [value]. The caller must select
+ * a boolean-returning method; signatures are not checked. Missing classes, missing
+ * methods, or a first match without an implementation are skipped.
+ */
 private fun BytecodePatchContext.returnBoolean(classDescriptor: String, methodName: String, value: Boolean) {
     val classDef = mutableClassDefByOrNull(classDescriptor) ?: return
     val method = classDef.methods.firstOrNull { it.name == methodName } ?: return

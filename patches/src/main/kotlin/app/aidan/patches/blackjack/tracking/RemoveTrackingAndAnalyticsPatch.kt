@@ -18,6 +18,14 @@ val removeTrackingAndAnalyticsPatch = rawResourcePatch(
         val library = get("lib/arm64-v8a/libil2cpp.so")
         if (!library.exists()) throw PatchException("Missing arm64 IL2CPP library")
         val bytes = library.readBytes()
+        /**
+         * Writes an ARM64 return at byte [offset] in the in-memory library after checking
+         * [expected], or does nothing if already patched. [target] identifies errors;
+         * this helper does not write the file.
+         *
+         * @throws PatchException if the return extends past the library or expected bytes differ.
+         * @throws IndexOutOfBoundsException if an unchecked negative offset or expected range is invalid.
+         */
         fun disable(offset: Int, expected: ByteArray, target: String) {
             if (bytes.size < offset + ARM64_RETURN.size) throw PatchException("$target is outside libil2cpp.so")
             if (ARM64_RETURN.indices.all { bytes[offset + it] == ARM64_RETURN[it] }) return

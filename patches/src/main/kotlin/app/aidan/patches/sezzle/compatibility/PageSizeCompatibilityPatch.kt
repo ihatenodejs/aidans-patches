@@ -28,6 +28,12 @@ val enable16KbPageSizeCompatibilityPatch = resourcePatch(
     }
 }
 
+/**
+ * Sets Morphe's shared APK writer alignment to 16,384 bytes for .so entries
+ * and 4 bytes otherwise.
+ *
+ * @throws PatchException if writer options are missing or alignment configuration fails.
+ */
 private fun ensure16KbPageAlignment() {
     try {
         val apkUtilsClass = Class.forName("app.morphe.patcher.apk.ApkUtils")

@@ -46,6 +46,12 @@ val removeTrackingAndTelemetryPatch = bytecodePatch(
     }
 }
 
+/**
+ * Makes all implemented void overloads with the requested names return immediately.
+ *
+ * @throws PatchException if the class is absent or any requested name has no matching
+ * method. Other matches may already have been patched when a missing name is detected.
+ */
 private fun BytecodePatchContext.disableVoidMethods(
     classDescriptor: String,
     vararg methodNames: String
@@ -68,6 +74,11 @@ private fun BytecodePatchContext.disableVoidMethods(
     }
 }
 
+/**
+ * Makes the unique implemented boolean method with [methodName] return [value].
+ *
+ * @throws PatchException if the class is absent or there is not exactly one match.
+ */
 private fun BytecodePatchContext.returnBoolean(
     classDescriptor: String,
     methodName: String,
@@ -89,6 +100,12 @@ private fun BytecodePatchContext.returnBoolean(
     )
 }
 
+/**
+ * Makes the unique implemented method with [methodName] and a class return type
+ * return null. Array return types are excluded.
+ *
+ * @throws PatchException if the class is absent or there is not exactly one match.
+ */
 private fun BytecodePatchContext.returnNullObject(
     classDescriptor: String,
     methodName: String

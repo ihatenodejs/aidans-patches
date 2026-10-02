@@ -55,6 +55,11 @@ private val RETURN_TRUE = byteArrayOf(
     0x01
 )
 
+/**
+ * Returns the byte offset of the unique Receipt Scanner V2 visibility-selector sequence.
+ *
+ * @throws PatchException if the sequence is absent or occurs more than once.
+ */
 private fun HermesBundleEditor.findReceiptScannerV2VisibilitySelector(): Int {
     val bundle = toByteArray()
     var selectorOffset = -1

@@ -25,6 +25,14 @@ val removeAdsPatch = rawResourcePatch(
         val library = get("lib/arm64-v8a/libil2cpp.so")
         if (!library.exists()) throw PatchException("Missing arm64 IL2CPP library")
         val bytes = library.readBytes()
+        /**
+         * Writes [replacement] into the in-memory library at byte [offset] after checking
+         * [expected], or does nothing if the replacement is already present. [target]
+         * identifies the patch in errors; this helper does not write the file.
+         *
+         * @throws PatchException if the replacement extends past the library or expected bytes differ.
+         * @throws IndexOutOfBoundsException if an unchecked negative offset or expected range is invalid.
+         */
         fun patch(offset: Int, expected: ByteArray, replacement: ByteArray, target: String) {
             if (bytes.size < offset + replacement.size) throw PatchException("$target is outside libil2cpp.so")
             if (replacement.indices.all { bytes[offset + it] == replacement[it] }) return

@@ -84,6 +84,8 @@ val bypassSignatureCheckResourcePatch = rawResourcePatch(
  * On Android 15+ devices using 16 KB page size mode, uncompressed native libraries loaded
  * via mmap from the APK must have zip data offsets aligned to 16 KB boundaries, otherwise
  * Android's package manager displays an "APK alignment check failed" compatibility warning.
+ *
+ * Missing writer options and failures while configuring alignment are silently ignored.
  */
 private fun ensure16KbPageAlignment() {
     try {
@@ -144,6 +146,11 @@ val removeLoginPatch = bytecodePatch(
     }
 }
 
+/**
+ * Routes login activity creation through guest mode, opening Home for an existing
+ * guest or requesting an anonymous token.
+ * Missing targets are skipped and patching exceptions are suppressed.
+ */
 private fun BytecodePatchContext.patchLoginRegisterStateActivity() {
     try {
         val classDef = classDefByOrNull(LOGIN_REGISTER_ACTIVITY) ?: return
@@ -185,6 +192,10 @@ private fun BytecodePatchContext.patchLoginRegisterStateActivity() {
     }
 }
 
+/**
+ * Hides the login card and account menu item when the Account view is created.
+ * Missing targets are skipped and patching exceptions are suppressed.
+ */
 private fun BytecodePatchContext.patchAccountFragment() {
     try {
         val classDef = classDefByOrNull(ACCOUNT_FRAGMENT) ?: return
@@ -211,6 +222,10 @@ private fun BytecodePatchContext.patchAccountFragment() {
     }
 }
 
+/**
+ * Disables the login prompt before adding two shipments.
+ * Missing targets are skipped and patching exceptions are suppressed.
+ */
 private fun BytecodePatchContext.patchHomePresenter() {
     try {
         val classDef = classDefByOrNull(HOME_PRESENTER) ?: return
@@ -223,6 +238,10 @@ private fun BytecodePatchContext.patchHomePresenter() {
     } catch (_: Exception) {
     }
 }
+/**
+ * Makes the anonymous-login guide return no view and dismiss itself on start.
+ * Missing targets are skipped and patching exceptions are suppressed.
+ */
 private fun BytecodePatchContext.patchAnonymousGuideDialog() {
     try {
         val classDef = classDefByOrNull(ANONYMOUS_GUIDE_DIALOG) ?: return

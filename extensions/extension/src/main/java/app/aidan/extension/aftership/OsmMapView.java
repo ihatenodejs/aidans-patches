@@ -24,6 +24,9 @@ public class OsmMapView extends FrameLayout {
     private String pendingScript = null;
     private boolean showZoomButtons = false;
 
+    /**
+     * Creates a map WebView and starts loading Leaflet from unpkg and OpenStreetMap tiles.
+     */
     @SuppressLint("SetJavaScriptEnabled")
     public OsmMapView(Context context) {
         super(context);
@@ -62,21 +65,44 @@ public class OsmMapView extends FrameLayout {
         loadMap();
     }
 
+    /**
+     * Returns whether the current resource configuration explicitly enables night mode.
+     */
     private boolean isNightMode() {
         int nightMask = getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK;
         return nightMask == Configuration.UI_MODE_NIGHT_YES;
     }
 
+    /**
+     * Sets zoom-button visibility for the next {@link #loadMap()} call.
+     * The currently displayed page is not updated.
+     */
     public void setZoomButtonsEnabled(boolean enabled) {
         this.showZoomButtons = enabled;
     }
 
+    /**
+     * Loads a new map page using the current night mode and stored zoom-button setting.
+     * The page fetches Leaflet resources and OpenStreetMap tiles over the network.
+     */
     public void loadMap() {
         boolean night = isNightMode();
         String html = generateMapHtml(night, showZoomButtons);
         webView.loadDataWithBaseURL("https://tile.openstreetmap.org", html, "text/html", "UTF-8", null);
     }
 
+    /**
+     * Replaces the displayed route, or retains only the latest pending update until
+     * page loading finishes. An empty coordinate list clears route markers and lines.
+     * Exceptions while preparing or submitting the update are suppressed.
+     *
+     * @param coordinates latitude/longitude pairs in degrees, newest checkpoint first
+     * @param colorInt route color; only the low 24 RGB bits are used
+     * @param topOffsetCssPx top clearance in CSS pixels, clamped to at least 110
+     * @param bottomOffsetPx bottom clearance, passed as CSS pixels without density
+     *     conversion and clamped to at least 100
+     * @param showZoom whether to show zoom buttons; also stored for later page loads
+     */
     public void renderRoute(List<double[]> coordinates, int colorInt, int topOffsetCssPx, int bottomOffsetPx, boolean showZoom) {
         this.showZoomButtons = showZoom;
         try {
@@ -107,6 +133,11 @@ public class OsmMapView extends FrameLayout {
         }
     }
 
+    /**
+     * Returns a Leaflet map page using remote OpenStreetMap tiles, with the requested
+     * dark styling and initial zoom-button visibility. The page exposes a route renderer
+     * that reverses checkpoint order and coalesces consecutive near-identical locations.
+     */
     private static String generateMapHtml(boolean isDark, boolean showZoom) {
         String tileUrl = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
         String bgColor = isDark ? "#121212" : "#f5f5f5";

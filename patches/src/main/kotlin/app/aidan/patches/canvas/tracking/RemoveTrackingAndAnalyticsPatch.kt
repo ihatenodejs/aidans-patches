@@ -112,6 +112,10 @@ val removeTrackingAndAnalyticsPatch = bytecodePatch(
     }
 }
 
+/**
+ * Makes all implemented void overloads with the requested names return immediately.
+ * Absent classes or matches are skipped.
+ */
 private fun BytecodePatchContext.disableVoidMethods(
     classDescriptor: String,
     vararg methodNames: String
@@ -126,6 +130,10 @@ private fun BytecodePatchContext.disableVoidMethods(
     }
 }
 
+/**
+ * Makes all implemented boolean overloads with [methodName] return [value].
+ * Absent classes or matches are skipped.
+ */
 private fun BytecodePatchContext.returnBoolean(
     classDescriptor: String,
     methodName: String,
@@ -141,6 +149,11 @@ private fun BytecodePatchContext.returnBoolean(
     }
 }
 
+/**
+ * Makes all implemented overloads with [methodName] and a class return type return null.
+ * Array return types are excluded.
+ * Absent classes or matches are skipped.
+ */
 private fun BytecodePatchContext.returnNullObject(
     classDescriptor: String,
     methodName: String
@@ -155,6 +168,10 @@ private fun BytecodePatchContext.returnNullObject(
 }
 
 
+/**
+ * Makes implemented doWork overloads returning Object return a new WorkManager success
+ * result without executing their original bodies. Absent classes or matches are skipped.
+ */
 private fun BytecodePatchContext.returnWorkerSuccess(classDescriptor: String) {
     val mutableClass = mutableClassDefByOrNull(classDescriptor) ?: return
 
