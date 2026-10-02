@@ -124,10 +124,11 @@ public final class ChipBalanceDialog {
                 continue;
             }
             try {
-                FileInputStream fis = new FileInputStream(file);
                 byte[] data = new byte[(int) file.length()];
-                int read = fis.read(data);
-                fis.close();
+                int read;
+                try (FileInputStream fis = new FileInputStream(file)) {
+                    read = fis.read(data);
+                }
                 if (read <= 0) {
                     continue;
                 }
