@@ -112,23 +112,25 @@ public final class OsmMapBridge {
 
             int color = resolveColor(viewModel);
             int bottomOffset = resolveBottomOffset(viewModel);
-            int topOffsetCss = resolveTopOffsetCss(rootView);
+            int topOffsetCss = resolveTopOffsetCss(rootView, container);
+            int leftOffsetCss = resolveLeftOffsetCss(rootView, container);
 
             final OsmMapView osmMapView = getOrCreateOsmMapView(container, context);
             osmMapView.setVisibility(View.VISIBLE);
-            osmMapView.renderRoute(coordinates, color, topOffsetCss, bottomOffset, showZoomButtons);
+            osmMapView.renderRoute(coordinates, color, topOffsetCss, leftOffsetCss, bottomOffset, showZoomButtons);
 
             // Re-measure after layout in case toolbar measurements were still pending
             rootView.post(new Runnable() {
                 @Override
                 public void run() {
-                    int updatedTopOffsetCss = resolveTopOffsetCss(rootView);
+                    int updatedTopOffsetCss = resolveTopOffsetCss(rootView, container);
+                    int updatedLeftOffsetCss = resolveLeftOffsetCss(rootView, container);
                     Object vm = resolveViewModel(fragmentObj);
                     if (vm != null) {
                         List<double[]> coords = extractCoordinatesFromViewModel(vm);
                         int c = resolveColor(vm);
                         int b = resolveBottomOffset(vm);
-                        osmMapView.renderRoute(coords, c, updatedTopOffsetCss, b, showZoomButtons);
+                        osmMapView.renderRoute(coords, c, updatedTopOffsetCss, updatedLeftOffsetCss, b, showZoomButtons);
                     }
                 }
             });
@@ -143,7 +145,7 @@ public final class OsmMapBridge {
      * below the toolbar. Falls back to status-bar and action-bar heights when the
      * toolbar is unmeasured, or to 120 for a null root.
      */
-    private static int resolveTopOffsetCss(View rootView) {
+    private static int resolveTopOffsetCss(View rootView, ViewGroup container) {
         if (rootView == null) return 120;
         Resources res = rootView.getResources();
         float density = res.getDisplayMetrics().density;
@@ -151,9 +153,12 @@ public final class OsmMapBridge {
 
         int topOffsetPx = 0;
 
-        // 1. Try finding the actual toolbar in the window hierarchy
+        // 1. Try finding the actual toolbar background card or toolbar in the window hierarchy
         View root = rootView.getRootView();
-        View toolbar = findViewByIdName(root, "tracking_detail_toolbar_rl");
+        View toolbar = findViewByIdName(root, "tracking_detail_toolbar_bg_view");
+        if (toolbar == null) {
+            toolbar = findViewByIdName(root, "tracking_detail_toolbar_rl");
+        }
         if (toolbar == null) {
             toolbar = findViewByIdName(root, "tracking_detail_toolbar");
         }
@@ -164,7 +169,16 @@ public final class OsmMapBridge {
         if (toolbar != null && toolbar.getHeight() > 0) {
             int[] loc = new int[2];
             toolbar.getLocationOnScreen(loc);
-            topOffsetPx = loc[1] + toolbar.getHeight();
+            int containerTop = 0;
+            if (container != null) {
+                int[] cLoc = new int[2];
+                container.getLocationOnScreen(cLoc);
+                containerTop = cLoc[1];
+            }
+            int relBottomPx = (loc[1] - containerTop) + toolbar.getHeight();
+            if (relBottomPx > 0) {
+                topOffsetPx = relBottomPx;
+            }
         }
 
         // 2. Fallback: derive from status bar height + 56dp action bar
@@ -192,6 +206,47 @@ public final class OsmMapBridge {
         topOffsetPx += (int) (16 * density);
 
         return (int) (topOffsetPx / density);
+    }
+
+    /**
+     * Returns left clearance in CSS pixels matching the black title bar
+     * (tracking_detail_toolbar_bg_view), relative to the tracking map container.
+     * Falls back to 16 density-independent pixels.
+     */
+    private static int resolveLeftOffsetCss(View rootView, ViewGroup container) {
+        if (rootView == null) return 16;
+        Resources res = rootView.getResources();
+        float density = res.getDisplayMetrics().density;
+        if (density <= 0) density = 1.0f;
+
+        View root = rootView.getRootView();
+        View titleBar = findViewByIdName(root, "tracking_detail_toolbar_bg_view");
+        if (titleBar == null) {
+            titleBar = findViewByIdName(root, "tracking_detail_back_view");
+        }
+        if (titleBar == null) {
+            titleBar = findViewByIdName(root, "tracking_detail_toolbar_rl");
+        }
+        if (titleBar == null) {
+            titleBar = findViewByIdName(root, "tracking_detail_toolbar");
+        }
+
+        if (titleBar != null && titleBar.getWidth() > 0) {
+            int[] barLoc = new int[2];
+            titleBar.getLocationOnScreen(barLoc);
+            int containerLeft = 0;
+            if (container != null) {
+                int[] cLoc = new int[2];
+                container.getLocationOnScreen(cLoc);
+                containerLeft = cLoc[0];
+            }
+            int relLeftPx = barLoc[0] - containerLeft;
+            if (relLeftPx > 0) {
+                return Math.round(relLeftPx / density);
+            }
+        }
+
+        return 16;
     }
 
     /**

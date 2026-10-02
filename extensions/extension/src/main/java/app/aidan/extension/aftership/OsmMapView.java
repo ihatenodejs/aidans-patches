@@ -104,6 +104,20 @@ public class OsmMapView extends FrameLayout {
      * @param showZoom whether to show zoom buttons; also stored for later page loads
      */
     public void renderRoute(List<double[]> coordinates, int colorInt, int topOffsetCssPx, int bottomOffsetPx, boolean showZoom) {
+        renderRoute(coordinates, colorInt, topOffsetCssPx, 16, bottomOffsetPx, showZoom);
+    }
+
+    /**
+     * Replaces the displayed route, with custom top and left clearances for control alignment.
+     *
+     * @param coordinates latitude/longitude pairs in degrees, newest checkpoint first
+     * @param colorInt route color; only the low 24 RGB bits are used
+     * @param topOffsetCssPx top clearance in CSS pixels, clamped to at least 110
+     * @param leftOffsetCssPx left clearance in CSS pixels for top-left controls, clamped to at least 0
+     * @param bottomOffsetPx bottom clearance, passed as CSS pixels without density conversion and clamped to at least 100
+     * @param showZoom whether to show zoom buttons; also stored for later page loads
+     */
+    public void renderRoute(List<double[]> coordinates, int colorInt, int topOffsetCssPx, int leftOffsetCssPx, int bottomOffsetPx, boolean showZoom) {
         this.showZoomButtons = showZoom;
         try {
             JSONArray jsonCoords = new JSONArray();
@@ -118,8 +132,9 @@ public class OsmMapView extends FrameLayout {
             JSONObject data = new JSONObject();
             data.put("coords", jsonCoords);
             data.put("color", hexColor);
-            data.put("topOffset", Math.max(topOffsetCssPx, 110));
+            data.put("topOffset", Math.max(topOffsetCssPx, 0));
             data.put("bottomOffset", Math.max(bottomOffsetPx, 100));
+            data.put("leftOffset", Math.max(leftOffsetCssPx, 0));
             data.put("showZoom", showZoom);
 
             String script = "if (window.renderAfterShipRoute) { window.renderAfterShipRoute(" + data.toString() + "); }";
@@ -173,9 +188,28 @@ public class OsmMapView extends FrameLayout {
                 "    .leaflet-tile {\n" +
                 "      " + tileFilterCss + "\n" +
                 "    }\n" +
-                "    .leaflet-control-container .leaflet-top,\n" +
+                "    .leaflet-control-container .leaflet-top.leaflet-left {\n" +
+                "      top: 110px;\n" +
+                "      left: 16px;\n" +
+                "      transition: top 0.2s ease, left 0.2s ease;\n" +
+                "    }\n" +
+                "    .leaflet-control-container .leaflet-top.leaflet-left .leaflet-control {\n" +
+                "      margin: 0 !important;\n" +
+                "    }\n" +
                 "    .leaflet-control-container .leaflet-bottom {\n" +
                 "      display: none !important;\n" +
+                "    }\n" +
+                "    .leaflet-control-attribution {\n" +
+                "      background-color: " + (isDark ? "rgba(36, 36, 36, 0.85)" : "rgba(255, 255, 255, 0.85)") + " !important;\n" +
+                "      color: " + (isDark ? "#cccccc" : "#333333") + " !important;\n" +
+                "      border: 1px solid " + controlBorder + " !important;\n" +
+                "      border-radius: 6px !important;\n" +
+                "      box-shadow: 0 2px 6px " + controlShadow + " !important;\n" +
+                "      padding: 2px 6px !important;\n" +
+                "      font-size: 11px !important;\n" +
+                "    }\n" +
+                "    .leaflet-control-attribution a {\n" +
+                "      color: " + (isDark ? "#8ab4f8" : "#0078A8") + " !important;\n" +
                 "    }\n" +
                 "    #zoom-controls {\n" +
                 "      position: absolute;\n" +
@@ -282,13 +316,19 @@ public class OsmMapView extends FrameLayout {
                 "      zoomAnimation: true\n" +
                 "    }).setView([37.7749, -122.4194], 4);\n" +
                 "\n" +
+                "    L.control.attribution({\n" +
+                "      position: 'topleft'\n" +
+                "    }).addTo(map);\n" +
+                "\n" +
                 "    L.tileLayer('" + tileUrl + "', {\n" +
-                "      maxZoom: 18\n" +
+                "      maxZoom: 18,\n" +
+                "      attribution: '&copy; <a href=\"https://www.openstreetmap.org/copyright\">OpenStreetMap</a> contributors'\n" +
                 "    }).addTo(map);\n" +
                 "\n" +
                 "    var zoomContainer = document.getElementById('zoom-controls');\n" +
                 "    L.DomEvent.disableClickPropagation(zoomContainer);\n" +
                 "    L.DomEvent.disableScrollPropagation(zoomContainer);\n" +
+                "    var topContainer = document.querySelector('.leaflet-control-container .leaflet-top.leaflet-left');\n" +
                 "\n" +
                 "    function attachZoom(btnId, fn) {\n" +
                 "      var btn = document.getElementById(btnId);\n" +
@@ -351,12 +391,18 @@ public class OsmMapView extends FrameLayout {
                 "      var rawCoords = data.coords;\n" +
                 "      var color = data.color || '#5B7BFE';\n" +
                 "      var topOffset = data.topOffset || 110;\n" +
+                "      var leftOffset = (typeof data.leftOffset === 'number') ? data.leftOffset : 16;\n" +
                 "      var bottomOffset = data.bottomOffset || 120;\n" +
                 "      var showZoom = (data.showZoom === true);\n" +
                 "\n" +
                 "      if (zoomContainer) {\n" +
                 "        zoomContainer.style.top = topOffset + 'px';\n" +
                 "        zoomContainer.style.display = showZoom ? 'flex' : 'none';\n" +
+                "      }\n" +
+                "\n" +
+                "      if (topContainer) {\n" +
+                "        topContainer.style.top = topOffset + 'px';\n" +
+                "        topContainer.style.left = leftOffset + 'px';\n" +
                 "      }\n" +
                 "\n" +
                 "      if (!rawCoords || rawCoords.length === 0) return;\n" +
