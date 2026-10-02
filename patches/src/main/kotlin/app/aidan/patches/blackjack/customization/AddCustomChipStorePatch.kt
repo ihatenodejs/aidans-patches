@@ -6,6 +6,9 @@ import app.morphe.patcher.patch.PatchException
 import app.morphe.patcher.patch.bytecodePatch
 import app.morphe.patcher.patch.rawResourcePatch
 
+import java.util.logging.Level
+import java.util.logging.Logger
+
 private val OPEN_SHOP_PROLOGUE = byteArrayOf(
     0xfe.toByte(), 0x0f, 0x1a, 0xf8.toByte(),
     0xfc.toByte(), 0x6f, 0x01, 0xa9.toByte(),
@@ -104,6 +107,8 @@ internal val UNIFIED_APP_HOOK = byteArrayOf(
 private const val OPEN_SHOP_OFFSET = 0x1fbb1b4
 private const val CHECK_UPDATE_OFFSET = 0x1fbc330
 private const val NATIVE_POPUPS_MANAGER = "Lcom/mnp/popups/NativePopupsManager;"
+private val LOGGER = Logger.getLogger("app.aidan.patches.blackjack.customization.AddCustomChipStorePatch")
+
 
 @Suppress("unused")
 val patchChipStoreResourcePatch = rawResourcePatch(
@@ -181,7 +186,7 @@ val addCustomChipStorePatch = bytecodePatch(
 
 /**
  * Attempts to set Morphe's shared APK writer alignment to 16,384 bytes for .so
- * entries and 4 bytes otherwise. Missing options and configuration failures are ignored.
+ * entries and 4 bytes otherwise. Missing options and configuration failures are logged and ignored.
  */
 private fun ensure16KbPageAlignment() {
     try {
@@ -215,6 +220,7 @@ private fun ensure16KbPageAlignment() {
 
         val setAlignmentRuleMethod = zFileOptions.javaClass.getMethod("setAlignmentRule", alignmentRuleClass)
         setAlignmentRuleMethod.invoke(zFileOptions, composedRule)
-    } catch (_: Throwable) {
+    } catch (failure: Throwable) {
+        LOGGER.log(Level.WARNING, "Unable to configure 16 KB APK page alignment", failure)
     }
 }
