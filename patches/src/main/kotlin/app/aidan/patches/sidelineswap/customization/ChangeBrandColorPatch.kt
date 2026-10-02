@@ -1,9 +1,12 @@
 package app.aidan.patches.sidelineswap.customization
 
 import app.aidan.patches.sidelineswap.shared.COMPATIBILITY_SIDELINESWAP
+import app.morphe.patcher.patch.PatchException
 import app.morphe.patcher.patch.resourcePatch
 import app.morphe.patcher.patch.stringOption
 import org.w3c.dom.Element
+
+private val HEX_COLOR_REGEX = Regex("^#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$")
 
 val changeBrandColorPatch = resourcePatch(
     name = "Change Brand Color",
@@ -30,6 +33,9 @@ val changeBrandColorPatch = resourcePatch(
         val primary = primaryColor.value ?: "#1E88E5"
         val primaryDark = primaryDarkColor.value ?: "#1565C0"
 
+        validateHexColor("primaryColor", primary)
+        validateHexColor("primaryDarkColor", primaryDark)
+
         val colorFiles = listOf("res/values/colors.xml", "res/values-night/colors.xml")
 
         for (filePath in colorFiles) {
@@ -54,5 +60,17 @@ val changeBrandColorPatch = resourcePatch(
                 }
             }
         }
+    }
+}
+
+/**
+ * Validates that [value] is a valid hex color string format accepted by Android XML resources
+ * (#RGB, #ARGB, #RRGGBB, or #AARRGGBB).
+ *
+ * @throws PatchException if the value is not a valid hex color.
+ */
+private fun validateHexColor(optionName: String, value: String) {
+    if (!HEX_COLOR_REGEX.matches(value)) {
+        throw PatchException("Invalid $optionName: '$value'. Expected a valid hex color (e.g. #RRGGBB, #AARRGGBB, #RGB, or #ARGB).")
     }
 }
