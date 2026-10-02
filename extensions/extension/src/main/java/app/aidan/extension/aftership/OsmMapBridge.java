@@ -24,10 +24,20 @@ public final class OsmMapBridge {
     private OsmMapBridge() {
     }
 
+    /**
+     * Updates the shipment map with zoom buttons hidden; see {@link #updateMap(Object, boolean)}.
+     */
     public static void updateMap(final Object fragmentObj) {
         updateMap(fragmentObj, false);
     }
 
+    /**
+     * Updates the map from an AfterShip tracking fragment, ignoring a null fragment.
+     * Call on the UI thread: an existing root view is updated immediately; if the root
+     * is unavailable, one attempt is posted to the main thread.
+     *
+     * @param showZoomButtons whether to display the map's plus and minus controls
+     */
     public static void updateMap(final Object fragmentObj, final boolean showZoomButtons) {
         if (fragmentObj == null) {
             return;
@@ -47,6 +57,12 @@ public final class OsmMapBridge {
         updateMapInternal(fragmentObj, showZoomButtons);
     }
 
+    /**
+     * Renders available checkpoints and schedules a second render after layout.
+     * An empty route hides the map and shows the native placeholders; missing views
+     * or a missing view model leave the UI as is. Exceptions during the immediate
+     * update are suppressed; exceptions from the posted render are not caught here.
+     */
     private static void updateMapInternal(final Object fragmentObj, final boolean showZoomButtons) {
         try {
             final View rootView = resolveRootView(fragmentObj);
@@ -122,6 +138,11 @@ public final class OsmMapBridge {
         }
     }
 
+    /**
+     * Returns top clearance in CSS pixels, including 16 density-independent pixels
+     * below the toolbar. Falls back to status-bar and action-bar heights when the
+     * toolbar is unmeasured, or to 120 for a null root.
+     */
     private static int resolveTopOffsetCss(View rootView) {
         if (rootView == null) return 120;
         Resources res = rootView.getResources();
@@ -173,6 +194,11 @@ public final class OsmMapBridge {
         return (int) (topOffsetPx / density);
     }
 
+    /**
+     * Returns the fragment's view, falling back to a View found in its declared fields
+     * or one level of nested fields. Returns null for a null fragment or no readable
+     * view; exceptions while invoking or reading individual candidates are ignored.
+     */
     private static View resolveRootView(Object fragmentObj) {
         if (fragmentObj == null) return null;
         try {
@@ -206,6 +232,10 @@ public final class OsmMapBridge {
         return null;
     }
 
+    /**
+     * Finds the tracking map container by resource name, falling back to a descendant
+     * FrameLayout search. Returns null if no matching container exists.
+     */
     private static ViewGroup findTrackingMapContainer(View root) {
         View v = findViewByIdName(root, "tracking_map_container");
         if (v instanceof ViewGroup) {
@@ -217,6 +247,10 @@ public final class OsmMapBridge {
         return null;
     }
 
+    /**
+     * Returns the first descendant FrameLayout named tracking_map_container in depth-first
+     * order, or null. Unresolvable resource names are ignored.
+     */
     private static ViewGroup findViewGroupByCriteria(ViewGroup root) {
         for (int i = 0; i < root.getChildCount(); i++) {
             View child = root.getChildAt(i);
@@ -242,6 +276,10 @@ public final class OsmMapBridge {
         return null;
     }
 
+    /**
+     * Finds a view by its resource entry name, including the root and its descendants.
+     * Returns null for a null root or no match; resource lookup failures are ignored.
+     */
     private static View findViewByIdName(View root, String name) {
         if (root == null) return null;
         try {
@@ -272,6 +310,11 @@ public final class OsmMapBridge {
         return null;
     }
 
+    /**
+     * Returns the result of the fragment's a3 method, or tries declared no-argument
+     * methods returning a TrackingMapViewModel if that call fails. Returns null if no
+     * candidate succeeds; invocation exceptions are ignored.
+     */
     private static Object resolveViewModel(Object fragmentObj) {
         try {
             Method m = fragmentObj.getClass().getMethod("a3");
@@ -291,6 +334,9 @@ public final class OsmMapBridge {
         return null;
     }
 
+    /**
+     * Returns the view model's route color, or RGB 0x5B7BFE if retrieval fails.
+     */
     private static int resolveColor(Object viewModel) {
         try {
             Method eMethod = viewModel.getClass().getMethod("e");
@@ -300,6 +346,10 @@ public final class OsmMapBridge {
         return 0x5B7BFE;
     }
 
+    /**
+     * Returns the first readable declared int field between 1 and 1999, or 120.
+     * The map treats this heuristic bottom clearance as CSS pixels without conversion.
+     */
     private static int resolveBottomOffset(Object viewModel) {
         for (Field f : viewModel.getClass().getDeclaredFields()) {
             if (f.getType() == int.class) {
@@ -316,6 +366,9 @@ public final class OsmMapBridge {
         return 120;
     }
 
+    /**
+     * Returns the first direct OsmMapView child, or null if absent.
+     */
     private static OsmMapView findOsmMapView(ViewGroup container) {
         for (int i = 0; i < container.getChildCount(); i++) {
             View child = container.getChildAt(i);
@@ -326,6 +379,10 @@ public final class OsmMapBridge {
         return null;
     }
 
+    /**
+     * Reuses the first direct map child or adds a new map sized to fill the container.
+     * Creating a map starts loading its web content.
+     */
     private static OsmMapView getOrCreateOsmMapView(ViewGroup container, Context context) {
         OsmMapView osmMapView = findOsmMapView(container);
         if (osmMapView != null) {
@@ -339,6 +396,11 @@ public final class OsmMapBridge {
         return osmMapView;
     }
 
+    /**
+     * Returns readable latitude/longitude pairs in checkpoint-list order, skipping
+     * null or unrecognized checkpoints. Extraction exceptions return the points
+     * accumulated so far, which may be an empty list.
+     */
     private static List<double[]> extractCoordinatesFromViewModel(Object viewModel) {
         List<double[]> result = new ArrayList<>();
         try {
@@ -359,6 +421,12 @@ public final class OsmMapBridge {
         return result;
     }
 
+    /**
+     * Returns a latitude/longitude pair in degrees inferred from string fields of a
+     * nested object, or null if none is found. Numeric strings fill an unset latitude
+     * if in [-90, 90]; otherwise they fill an unset longitude if in [-180, 180],
+     * using declared-field order. Unreadable fields and unparsable strings are skipped.
+     */
     private static double[] extractPointFromCheckpoint(Object checkpoint) {
         for (Field f : checkpoint.getClass().getDeclaredFields()) {
             try {

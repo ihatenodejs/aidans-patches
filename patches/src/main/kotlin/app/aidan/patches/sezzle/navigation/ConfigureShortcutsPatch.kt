@@ -36,6 +36,13 @@ private data class ShortcutItemConfig(
     val stringId: Int
 )
 
+/**
+ * Builds a Hermes shortcut filter excluding [items], padded to exactly [capacity]
+ * bytes. String IDs must fit the width selected by isLongIndex.
+ *
+ * @throws IllegalArgumentException if the predicate exceeds capacity, a comparison
+ * jump is outside 1..255 bytes, or the generated exit offset is inconsistent.
+ */
 private fun assembleShortcutPredicate(items: List<ShortcutItemConfig>, capacity: Int): ByteArray {
     val totalComparisonLength = items.sumOf { (if (it.isLongIndex) 6 else 4) + 4 }
     val preambleSize = 14
@@ -178,6 +185,11 @@ val configureShortcutsPatch = rawResourcePatch(
         // Build list of active shortcut exclusions
         val excludedItems = mutableListOf<ShortcutItemConfig>()
 
+        /**
+         * Adds a shortcut exclusion if its name exists in the bundle and fits the donor's
+         * byte capacity. Duplicate names, missing strings, and entries that do not fit are skipped.
+         * Malformed string-table errors from the editor propagate.
+         */
         fun tryExclude(name: String) {
             if (excludedItems.any { it.name == name }) return
             val sid = editor.findStringId(name) ?: return

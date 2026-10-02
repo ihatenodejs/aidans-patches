@@ -128,6 +128,12 @@ val removeWebTrackingAndTelemetryPatch = rawResourcePatch(
     }
 }
 
+/**
+ * Replaces every literal occurrence of [expected] in this UTF-8 file and overwrites it.
+ *
+ * @throws PatchException if [expected] is absent.
+ * @throws java.io.IOException if reading or writing the file fails.
+ */
 private fun File.replaceRequired(expected: String, replacement: String) {
     val contents = readText()
     if (!contents.contains(expected)) {

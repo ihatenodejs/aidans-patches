@@ -28,6 +28,8 @@ val addCopyTrackingNumberOptionPatch = bytecodePatch(
 /**
  * In `HomeActivity` (`Lcom/aftership/shopper/views/home/HomeActivity;`), hooks `S2(ZZZZ)V`
  * to invoke `CopyTrackingBridge.onUpdateButtons(this, isDeleteVisible, isDeleteEnabled)`.
+ *
+ * @throws PatchException if the HomeActivity class or implemented four-parameter S2 method is missing.
  */
 private fun BytecodePatchContext.patchHomeActivity() {
     val classDef = classDefByOrNull(HOME_ACTIVITY)

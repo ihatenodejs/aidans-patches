@@ -37,6 +37,8 @@ val openStreetMapPatch = bytecodePatch(
 /**
  * In `TrackingMapFragment` (`LA6/c0;`), patches `b3()V` to delegate map rendering
  * to `OsmMapBridge.updateMap(this, showZoomButtons)`.
+ *
+ * @throws PatchException if the fragment class or implemented b3 method is missing.
  */
 private fun BytecodePatchContext.patchTrackingMapFragment(showZoomButtons: Boolean) {
     val classDef = classDefByOrNull(TRACKING_MAP_FRAGMENT)

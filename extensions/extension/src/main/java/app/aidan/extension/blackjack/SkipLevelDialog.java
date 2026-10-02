@@ -20,6 +20,12 @@ public final class SkipLevelDialog {
     private SkipLevelDialog() {
     }
 
+    /**
+     * Installs a window callback on the UI thread to intercept taps on the level indicator.
+     * Unhandled events are forwarded to the previous callback. A null activity, missing
+     * window or callback, and failures during installation are ignored. Repeated calls
+     * wrap the current callback again.
+     */
     public static void install(final Activity activity) {
         if (activity == null) {
             return;
@@ -42,6 +48,12 @@ public final class SkipLevelDialog {
                     }
 
                     InvocationHandler handler = new InvocationHandler() {
+                        /**
+                         * Consumes handled level-indicator taps and forwards all other calls to the original
+                         * window callback, returning its result.
+                         *
+                         * @throws Throwable if touch handling or reflective callback invocation fails
+                         */
                         @Override
                         public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
                             if ("dispatchTouchEvent".equals(method.getName()) && args != null && args.length == 1) {
@@ -68,6 +80,14 @@ public final class SkipLevelDialog {
         });
     }
 
+    /**
+     * Requests a skip-level dialog for ACTION_UP within the inclusive display-relative
+     * rectangle x = 74–88%, y = 4–14%. Requests are throttled to one per 1,500 ms
+     * across activities. Returns true for a matching request, otherwise false,
+     * including for null events or nonpositive display dimensions.
+     *
+     * @param activity non-null activity supplying display dimensions and the dialog
+     */
     public static boolean handleTouch(Activity activity, MotionEvent event) {
         if (event == null || event.getAction() != MotionEvent.ACTION_UP) {
             return false;
@@ -98,6 +118,11 @@ public final class SkipLevelDialog {
         return false;
     }
 
+    /**
+     * Shows a confirmation on the UI thread for the saved level plus one. Confirming
+     * sends the skip-level command to Unity. Does nothing if the activity is null or
+     * already finishing when called.
+     */
     public static void show(final Activity activity) {
         if (activity == null || activity.isFinishing()) {
             return;
@@ -124,6 +149,11 @@ public final class SkipLevelDialog {
         });
     }
 
+    /**
+     * Reads Level from the first readable player-data candidate, trying the fixed
+     * external path before app-specific external and internal storage. Missing files
+     * and failures while reading or parsing are skipped; defaults to level 1.
+     */
     private static int loadCurrentLevel(Activity activity) {
         File[] candidates = new File[]{
                 new File("/sdcard/Android/data/com.tripledot.blackjack/files/SimpleStorage/PlayerData.json"),
@@ -151,6 +181,10 @@ public final class SkipLevelDialog {
         return 1;
     }
 
+    /**
+     * Sends the skip-level command to the patched Unity message handler.
+     * Reflection and invocation failures are suppressed; delivery is not confirmed.
+     */
     private static void skipLevel() {
         try {
             Log.i(TAG, "Sending Unity message to skip level");

@@ -24,6 +24,11 @@ val removeAfterShipAccountPageLinksPatch = bytecodePatch(
     }
 }
 
+/**
+ * Hides the About, Share, and Feedback rows when the Account view is created.
+ *
+ * @throws PatchException if the Account class or implemented onViewCreated method is missing.
+ */
 private fun BytecodePatchContext.patchAccountFragment() {
     val classDef = classDefByOrNull(ACCOUNT_FRAGMENT)
         ?: throw PatchException("Class $ACCOUNT_FRAGMENT not found")

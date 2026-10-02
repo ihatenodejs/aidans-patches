@@ -33,6 +33,8 @@ val removeFeedbackPatch = bytecodePatch(
  * (fallback Feedback button when no map is shown), and reports review exposure events.
  *
  * Forces `floating_container_ll` and `report_issue_rl` to `View.GONE` (`0x8`) and returns immediately.
+ *
+ * @throws PatchException if the presenter class or implemented g method is missing.
  */
 private fun BytecodePatchContext.patchTrackingDetailPresenter() {
     val classDef = classDefByOrNull(TRACKING_DETAIL_PRESENTER)
@@ -68,6 +70,8 @@ private fun BytecodePatchContext.patchTrackingDetailPresenter() {
  * In `LA6/X;` (`TrackingDetailFragment`):
  * 1. Neutralizes `k3()V` (starts `FeedbackIssueActivity`) with an early `return-void`.
  * 2. Neutralizes `l3(I)V` (opens `ReviewDetailSheetFragment`) with an early `return-void`.
+ *
+ * @throws PatchException if the fragment class or either implemented k3/l3 method is missing.
  */
 private fun BytecodePatchContext.patchTrackingDetailFragment() {
     val classDef = classDefByOrNull(TRACKING_DETAIL_FRAGMENT)

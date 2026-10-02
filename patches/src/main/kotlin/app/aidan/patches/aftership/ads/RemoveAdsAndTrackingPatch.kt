@@ -151,6 +151,8 @@ val removeAdsAndTrackingPatch = bytecodePatch(
 
 /**
  * Neutralizes all matched void-returning methods by injecting an immediate `return-void` at index 0.
+ *
+ * All matching implemented overloads are patched; absent classes or matches are skipped.
  */
 private fun BytecodePatchContext.disableVoidMethods(
     classDescriptor: String,
@@ -168,6 +170,8 @@ private fun BytecodePatchContext.disableVoidMethods(
 
 /**
  * Stubs a method to immediately return a constant boolean value.
+ *
+ * All matching implemented overloads are patched; absent classes or matches are skipped.
  */
 private fun BytecodePatchContext.returnBoolean(
     classDescriptor: String,
@@ -191,7 +195,9 @@ private fun BytecodePatchContext.returnBoolean(
 }
 
 /**
- * Stubs a method to immediately return a constant integer value.
+ * Stubs matching integer-returning methods to immediately return zero.
+ *
+ * All matching implemented overloads are patched; absent classes or matches are skipped.
  */
 private fun BytecodePatchContext.returnZeroInt(
     classDescriptor: String,
@@ -214,6 +220,10 @@ private fun BytecodePatchContext.returnZeroInt(
 
 /**
  * Stubs a method to immediately return a constant string.
+ *
+ * All matching implemented overloads are patched; absent classes or matches are skipped.
+ *
+ * [value] must be safe to embed in a Smali string literal.
  */
 private fun BytecodePatchContext.returnConstString(
     classDescriptor: String,
@@ -237,6 +247,11 @@ private fun BytecodePatchContext.returnConstString(
 
 /**
  * Stubs an instance method to immediately return its first argument (p1).
+ *
+ * All matching implemented overloads are patched; absent classes or matches are skipped.
+ *
+ * Targets must be instance methods returning an object with only single-register
+ * parameters; static methods, return types, and parameter widths are not validated.
  */
 private fun BytecodePatchContext.returnFirstParameter(
     classDescriptor: String,
@@ -263,6 +278,8 @@ private fun BytecodePatchContext.returnFirstParameter(
 
 /**
  * Forces DiscoInlinePlacement to status COLLAPSED immediately.
+ *
+ * All matching implemented overloads are patched; absent classes or matches are skipped.
  */
 private fun BytecodePatchContext.forceCollapseDiscoInlinePlacement(
     classDescriptor: String = "Ls4/d;"
@@ -288,6 +305,8 @@ private fun BytecodePatchContext.forceCollapseDiscoInlinePlacement(
 
 /**
  * Spoofs minified AdvertisingIdClient.a(Context) to return a zeroed AAID with limitAdTracking=true.
+ *
+ * All matching implemented overloads are patched; absent classes or matches are skipped.
  */
 private fun BytecodePatchContext.spoofMinifiedAdvertisingId(
     classDescriptor: String = "Lm9/a;"

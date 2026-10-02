@@ -24,15 +24,11 @@ val hideBrokenTrackingMapPatch = bytecodePatch(
 }
 
 /**
- * In `TrackingMapFragment` (`LA6/c0;`), patches `b3()V` by prepending an unconditional
- * branch into the `showNotLocationView` path.
+ * Makes TrackingMapFragment.b3 show the native fallback image and text, remove an
+ * existing Google Maps child fragment when the binding is available, and return
+ * before the original map-rendering code runs.
  *
- * In the original bytecode of `b3()V`, `a3().f().isEmpty()` is evaluated and stored in `v0`.
- * If `v0` is non-zero (`if-eqz v0, :cond_show_map`), it enters `showNotLocationView`.
- * If `v0` is zero (`false`), it branches to `:cond_show_map` to inflate and bind Google Maps.
- *
- * Prepends `const/4 v0, 0x1` before the branch instruction in `b3()V`, forcing `b3()V`
- * to always execute the native fallback illustration branch and remove any map fragment.
+ * @throws PatchException if the fragment class or implemented b3 method is missing.
  */
 private fun BytecodePatchContext.patchTrackingMapFragment() {
     val classDef = classDefByOrNull(TRACKING_MAP_FRAGMENT)

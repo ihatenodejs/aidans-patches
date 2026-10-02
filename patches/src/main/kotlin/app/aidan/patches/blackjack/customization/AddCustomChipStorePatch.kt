@@ -179,6 +179,10 @@ val addCustomChipStorePatch = bytecodePatch(
     }
 }
 
+/**
+ * Attempts to set Morphe's shared APK writer alignment to 16,384 bytes for .so
+ * entries and 4 bytes otherwise. Missing options and configuration failures are ignored.
+ */
 private fun ensure16KbPageAlignment() {
     try {
         val apkUtilsClass = Class.forName("app.morphe.patcher.apk.ApkUtils")

@@ -33,6 +33,11 @@ public final class CopyTrackingBridge {
 
     private CopyTrackingBridge() {}
 
+    /**
+     * Adds or updates the multi-selection Copy button to mirror the delete button's
+     * visibility and enabled state. Call on the UI thread. A null activity or missing
+     * container is ignored, and failures while updating the controls are suppressed.
+     */
     public static void onUpdateButtons(Activity activity, boolean isDeleteVisible, boolean isDeleteEnabled) {
         if (activity == null) {
             return;
@@ -119,6 +124,12 @@ public final class CopyTrackingBridge {
         }
     }
 
+    /**
+     * Copies trimmed, distinct selected tracking numbers in selection order, separated
+     * by newlines, when a clipboard service is available. With at least one number,
+     * shows a confirmation and attempts to exit selection mode. Missing selection data
+     * and reflection or clipboard failures are suppressed.
+     */
     private static void copySelectedTrackingNumbers(Activity activity) {
         try {
             // 1. Resolve TrackingListFragment: field 'd' on HomeActivity (LY6/b;)
@@ -223,6 +234,11 @@ public final class CopyTrackingBridge {
         }
     }
 
+    /**
+     * Returns the tracking-number field if nonblank, falling back to the title/number
+     * field, without trimming the result. Returns null if neither yields a nonblank
+     * string; field access failures are ignored.
+     */
     private static String extractTrackingNumber(Object item) {
         // Ll6/d; (ShipmentItemEntity) -> field 'f24646p' or 'p' (tracking number), fallback to 'f24642c' or 'c' (title/number)
         try {
@@ -252,6 +268,13 @@ public final class CopyTrackingBridge {
         return null;
     }
 
+    /**
+     * Finds a candidate field in the nearest declaring class, excluding Object.
+     * Exact names take priority within each class, followed by names ending in a dot
+     * or dollar sign plus a candidate name. Returns null if no field matches.
+     *
+     * @throws SecurityException if reflection access is denied
+     */
     private static Field findFieldInHierarchy(Class<?> clazz, String... candidateNames) {
         Class<?> current = clazz;
         while (current != null && current != Object.class) {
@@ -275,6 +298,12 @@ public final class CopyTrackingBridge {
         return null;
     }
 
+    /**
+     * Returns the first method with the given name in the nearest declaring class,
+     * excluding Object, or null if absent. Parameter types are not checked.
+     *
+     * @throws SecurityException if reflection access is denied
+     */
     private static Method findMethodInHierarchy(Class<?> clazz, String methodName) {
         Class<?> current = clazz;
         while (current != null && current != Object.class) {

@@ -151,6 +151,14 @@ class HermesBundleEditor(private val data: ByteArray) {
         reverseStringCache[replacement] = targetId
     }
 
+    /**
+     * Reads the indexed function's code offset, name ID, and overflow-header metadata.
+     * Offsets are absolute byte offsets in the bundle. Bytecode size is read for v98+
+     * and reported as zero for older versions; largeHeaderOffset is zero for small headers.
+     *
+     * @throws IllegalArgumentException if [funcIndex] is outside 0 until [functionCount].
+     * @throws IndexOutOfBoundsException if the bundle's header data is out of bounds.
+     */
     fun getFunctionHeader(funcIndex: Int): FunctionHeaderInfo {
         require(funcIndex in 0 until functionCount) { "Function index $funcIndex out of bounds" }
         val headerOffset = funcHeadersOffset + funcIndex * funcHeaderSize
@@ -195,9 +203,16 @@ class HermesBundleEditor(private val data: ByteArray) {
     }
 
     /**
-     * Redirects a function header to a new code offset and bytecode size in HBC v98 bundles.
+     * Redirects a function header to a new code offset and bytecode size in HBC v98+ bundles.
      * Updates either the small header fields or the large header fields as appropriate,
-     * preserving all other metadata.
+     * preserving all other metadata. Offsets are absolute byte offsets in the bundle;
+     * sizes are in bytes. This does not move code, validate the new code range against
+     * the bundle size, or update the footer hash.
+     *
+     * @throws IllegalArgumentException if the version is below 98, the function index
+     * is out of range, the new offset is outside 0..0x01FFFFFF, the size is outside
+     * 0..0x3FFF, or the resolved large-header range is invalid.
+     * @throws IndexOutOfBoundsException if reading the small header exceeds the bundle.
      */
     fun redirectFunctionHeader(funcIndex: Int, newCodeOffset: Int, newBytecodeSize: Int) {
         require(version >= 98) { "Header redirection only supported for HBC v98+" }
