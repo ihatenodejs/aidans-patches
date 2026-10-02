@@ -103,8 +103,8 @@ Patches for Blackjack introduce two native Java extension dialogs packaged into 
    - Installed in `UnityPlayerActivity.onCreate`.
    - Wraps `activity.getWindow().getCallback()` with a dynamic `java.lang.reflect.Proxy`.
    - Monitors `dispatchTouchEvent` for `ACTION_UP` gestures within normalized screen coordinates:
-     - `x`: `0.74` to `0.88`
-     - `y`: `0.04` to `0.14`
+     - `x`: `0.70` to `0.84`
+     - `y`: `0.01` to `0.05`
    - These coordinates define the portrait level progress badge in the main menu HUD.
    - Applies a 1,500 ms debounce filter. When tapped, reads `PlayerData.json` to calculate current level + 1, displays a confirmation dialog, and on confirmation sends `UnitySendMessage("BlackjackApplication", "CheckUpdateToVersion", "skip_level")`.
 

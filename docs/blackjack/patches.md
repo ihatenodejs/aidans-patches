@@ -135,8 +135,8 @@ Advancing levels in Blackjack normally requires grinding hundreds of hands to ac
 1. Replaces the activity's `Window.Callback` with a dynamic `java.lang.reflect.Proxy`.
 2. Inspects `dispatchTouchEvent` events for `MotionEvent.ACTION_UP`.
 3. Validates normalized touch coordinates against the portrait level indicator HUD:
-   - `x`: `0.74 <= (rawX / screenWidth) <= 0.88`
-   - `y`: `0.04 <= (rawY / screenHeight) <= 0.14`
+   - `x`: `0.70 <= (rawX / screenWidth) <= 0.84`
+   - `y`: `0.01 <= (rawY / screenHeight) <= 0.05`
 4. Debounces taps within 1,500 ms to prevent duplicate dialogs.
 5. Reads `value.Level` from `PlayerData.json`.
 6. Displays an `AlertDialog` prompting: `"Do you want to skip to Level {currentLevel + 1}?"`.

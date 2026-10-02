@@ -5,6 +5,7 @@ import android.app.AlertDialog;
 import android.content.DialogInterface;
 import android.util.Log;
 import android.view.MotionEvent;
+import android.view.View;
 import android.view.Window;
 import java.io.File;
 import java.io.FileInputStream;
@@ -81,12 +82,12 @@ public final class SkipLevelDialog {
     }
 
     /**
-     * Requests a skip-level dialog for ACTION_UP within the inclusive display-relative
-     * rectangle x = 74–88%, y = 4–14%. Requests are throttled to one per 1,500 ms
+     * Requests a skip-level dialog for ACTION_UP within the inclusive window-relative
+     * rectangle x = 70–84%, y = 1–5%. Requests are throttled to one per 1,500 ms
      * across activities. Returns true for a matching request, otherwise false,
-     * including for null events or nonpositive display dimensions.
+     * including for null events or nonpositive decor-view dimensions.
      *
-     * @param activity non-null activity supplying display dimensions and the dialog
+     * @param activity non-null activity supplying the window and dialog
      */
     public static boolean handleTouch(Activity activity, MotionEvent event) {
         if (event == null || event.getAction() != MotionEvent.ACTION_UP) {
@@ -98,8 +99,9 @@ public final class SkipLevelDialog {
             return false;
         }
 
-        int w = activity.getResources().getDisplayMetrics().widthPixels;
-        int h = activity.getResources().getDisplayMetrics().heightPixels;
+        View decorView = activity.getWindow().getDecorView();
+        int w = decorView.getWidth();
+        int h = decorView.getHeight();
         if (w <= 0 || h <= 0) {
             return false;
         }
@@ -108,8 +110,8 @@ public final class SkipLevelDialog {
         float normY = event.getY() / (float) h;
 
         // Next level circle in portrait mode:
-        // Center is located at approximately X = 80.1%, Y = 8.1% of display.
-        if (normX >= 0.74f && normX <= 0.88f && normY >= 0.04f && normY <= 0.14f) {
+        // Center is located at approximately X = 76.2%, Y = 2.8% of window.
+        if (normX >= 0.70f && normX <= 0.84f && normY >= 0.01f && normY <= 0.05f) {
             lastDialogTime = now;
             show(activity);
             return true;
