@@ -17,10 +17,10 @@ private val EXPECTED_DISCOVER_TAB_GATE_BYTES = byteArrayOf(0x34, 0x01, 0x00, 0x3
 private val HIDDEN_DISCOVER_TAB_GATE_BYTES = byteArrayOf(0x96.toByte(), 0x01, 0x76.toByte(), 0x01)
 
 private val EXPECTED_SEZZLE_AI_BANNER_BYTES = byteArrayOf(0x34, 0x06, 0x00, 0x41)
-private val HIDDEN_SEZZLE_AI_BANNER_BYTES = byteArrayOf(0x92.toByte(), 0x00, 0x76.toByte(), 0x00)
+private val HIDDEN_SEZZLE_AI_BANNER_BYTES = byteArrayOf(0x94.toByte(), 0x00, 0x76.toByte(), 0x00)
 
 private val EXPECTED_SEZZLE_AI_PILL_BYTES = byteArrayOf(0x34, 0x05, 0x00, 0x89.toByte())
-private val HIDDEN_SEZZLE_AI_PILL_BYTES = byteArrayOf(0x92.toByte(), 0x00, 0x76.toByte(), 0x00)
+private val HIDDEN_SEZZLE_AI_PILL_BYTES = byteArrayOf(0x94.toByte(), 0x00, 0x76.toByte(), 0x00)
 
 private val EXPECTED_RESOLVE_PRODUCTS_TAB_BYTES = byteArrayOf(0x89.toByte(), 0x02, 0x01, 0x45)
 private val HIDDEN_RESOLVE_PRODUCTS_TAB_BYTES = byteArrayOf(0x96.toByte(), 0x01, 0x76.toByte(), 0x01)
