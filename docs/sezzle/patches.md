@@ -85,7 +85,7 @@ Unlocks premium launcher app icons (Arctic, Peach, Glass, Rainbow, Sand, and Cla
 
 #### 2. Technical Implementation & Injection Points
 Modifies `assets/index.android.bundle`:
-1. `userShouldSeeChangeAppIcon`: Replaces 4-byte prologue `34 01 00 89` with `LoadConstTrue r1; Ret r1` (`97 01 76 01`).
+1. `userShouldSeeChangeAppIcon`: Replaces 4-byte prologue `34 01 00 89` with `LoadConstZero r1; Ret r1` (`97 01 76 01`).
 2. `getAppIconNavigationStatus`: Replaces prologue `34 01 00 89 07 01` with `90 01 7c 11 76 01` (continue-return).
 3. `AppearanceView` (offset `+0x95`): Replaces `45 06 02 09 37 50` with `96 06 93 00 93 00` to remove the lock icon overlay.
 4. Recomputes Hermes footer hash.

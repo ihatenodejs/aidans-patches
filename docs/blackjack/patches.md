@@ -39,7 +39,7 @@ The **Custom Chip Store Binary Hook** patch provides the foundational native ARM
 
 1. **`BlackjackApplication.OpenShop` (Offset `0x1fbb1b4`):**
    - **Expected Prologue:** `fe 0f 1a f8 fc 6f 01 a9 fa 67 02 a9 f8 5f 03 a9 f6 57 04 a9` (or previous legacy grant bytes)
-   - **Replacement Hook (20 bytes):**
+- **Replacement Hook (32 bytes):**
      ```arm64
      str x30, [sp, #-0x10]!
      mov x0, xzr

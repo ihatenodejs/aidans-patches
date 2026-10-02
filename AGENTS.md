@@ -89,7 +89,7 @@ Patches operate across six distinct architectural layers depending on target app
 │   ├── build.gradle.kts                   # Patch bundle metadata & task configuration
 │   └── src/main/kotlin/
 │       ├── app/aidan/patches/
-│       │   ├── aftership/                 # AfterShip patch implementations (11 patches)
+│       │   ├── aftership/                 # AfterShip patch implementations (12 patches)
 │       │   │   ├── account/               # RemoveAfterShipAccountPageLinksPatch
 │       │   │   ├── ads/                   # RemoveAdsAndTrackingPatch
 │       │   │   ├── auth/                  # Bypass native signature check, remove login
@@ -102,13 +102,13 @@ Patches operate across six distinct architectural layers depending on target app
 │       │   │   ├── customization/         # Custom chip store, skip to next level
 │       │   │   ├── shared/                # Blackjack constants & compatibility
 │       │   │   └── tracking/              # RemoveTrackingAndAnalyticsPatch
-│       │   ├── canvas/                    # Canvas Student patch implementations (2 patches)
+│       │   ├── canvas/                    # Canvas Student patch implementations (1 patch)
 │       │   │   ├── shared/                # Canvas constants & compatibility
 │       │   │   └── tracking/              # RemoveTrackingAndAnalyticsPatch, Fix16KbPageCompatibilityPatch
 │       │   ├── navigate360/               # Navigate360 Student patch implementations (2 patches)
 │       │   │   ├── shared/                # Navigate360 constants & compatibility
 │       │   │   └── tracking/              # RemoveTrackingAndTelemetryPatch, RemoveWebTrackingAndTelemetryPatch
-│       │   ├── sezzle/                    # Sezzle patch implementations (16 patches)
+│       │   ├── sezzle/                    # Sezzle patch implementations (14 patches)
 │       │   │   ├── ads/                   # HideBannerAdsPatch (13 SDKs neutralized)
 │       │   │   ├── auth/                  # CleanAuthenticationPatch
 │       │   │   ├── compatibility/         # PageSizeCompatibilityPatch

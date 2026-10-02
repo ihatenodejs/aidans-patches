@@ -5,7 +5,7 @@ import app.aidan.patches.sezzle.shared.HermesBundleEditor
 import app.morphe.patcher.patch.PatchException
 import app.morphe.patcher.patch.rawResourcePatch
 
-private val returnTrueBytes = byteArrayOf(0x97.toByte(), 0x01, 0x76.toByte(), 0x01)
+private val returnZeroBytes = byteArrayOf(0x97.toByte(), 0x01, 0x76.toByte(), 0x01)
 private val returnContinueBytes = byteArrayOf(0x90.toByte(), 0x01, 0x7c, 0x11, 0x76.toByte(), 0x01)
 private val hideAppearanceLockBytes = byteArrayOf(0x96.toByte(), 0x06, 0x93.toByte(), 0x00, 0x93.toByte(), 0x00)
 
@@ -30,7 +30,7 @@ val unlockCustomAppIconsPatch = rawResourcePatch(
         editor.patchBytesIfMatches(
             userShouldSeeChangeAppIconOffset,
             byteArrayOf(0x34, 0x01, 0x00, 0x89.toByte()),
-            returnTrueBytes
+            returnZeroBytes
         )
 
         val appIconNavigationStatusOffset = editor.findFunctionOffsetByName("getAppIconNavigationStatus")
