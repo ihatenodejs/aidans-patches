@@ -16,6 +16,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 public final class OsmMapBridge {
     private static final String TAG = "AfterShipOsmBridge";
@@ -477,46 +478,342 @@ public final class OsmMapBridge {
     }
 
     /**
-     * Returns a latitude/longitude pair in degrees inferred from string fields of a
-     * nested object, or null if none is found. Numeric strings fill an unset latitude
-     * if in [-90, 90]; otherwise they fill an unset longitude if in [-180, 180],
-     * using declared-field order. Unreadable fields and unparsable strings are skipped.
+     * Resolves a latitude/longitude pair in degrees from a checkpoint or its nested
+     * coordinate object using field identity and accessor methods, or returns null
+     * if none is found. The returned array preserves the coordinate order as
+     * latitude followed by longitude.
      */
     private static double[] extractPointFromCheckpoint(Object checkpoint) {
-        for (Field f : checkpoint.getClass().getDeclaredFields()) {
-            try {
-                f.setAccessible(true);
-                Object geoObj = f.get(checkpoint);
-                if (geoObj == null || geoObj.getClass().isPrimitive() || geoObj instanceof String || geoObj instanceof Number) {
-                    continue;
-                }
+        if (checkpoint == null) {
+            return null;
+        }
 
-                String latStr = null;
-                String lngStr = null;
-                for (Field gf : geoObj.getClass().getDeclaredFields()) {
-                    gf.setAccessible(true);
-                    Object gval = gf.get(geoObj);
-                    if (gval instanceof String) {
-                        String s = ((String) gval).trim();
-                        if (s.isEmpty()) continue;
+        // 1. Direct resolution on checkpoint object
+        double[] direct = extractPointFromObject(checkpoint);
+        if (direct != null) {
+            return direct;
+        }
+
+        // 2. Direct field lookup for AfterShip CheckPointEntity.G (geoEntity)
+        try {
+            Field gField = findFieldInHierarchy(checkpoint.getClass(), "G", "geoEntity", "geo", "coordinate", "location");
+            if (gField != null) {
+                gField.setAccessible(true);
+                Object geoObj = gField.get(checkpoint);
+                if (geoObj != null && geoObj != checkpoint) {
+                    double[] pt = extractPointFromObject(geoObj);
+                    if (pt != null) {
+                        return pt;
+                    }
+                }
+            }
+        } catch (Throwable ignored) {
+        }
+
+        // 3. Resolution on nested coordinate/location objects via accessors
+        Class<?> current = checkpoint.getClass();
+        while (current != null && current != Object.class) {
+            for (Method method : current.getDeclaredMethods()) {
+                if (method.getParameterTypes().length == 0 && !method.getReturnType().isPrimitive()
+                        && method.getReturnType() != void.class) {
+                    String name = method.getName().toLowerCase(Locale.ROOT);
+                    if (name.contains("coord") || name.contains("geo") || name.contains("location") || name.contains("point")) {
                         try {
-                            double d = Double.parseDouble(s);
-                            if (latStr == null && d >= -90.0 && d <= 90.0) {
-                                latStr = s;
-                            } else if (lngStr == null && d >= -180.0 && d <= 180.0) {
-                                lngStr = s;
+                            method.setAccessible(true);
+                            Object nested = method.invoke(checkpoint);
+                            if (nested != null && nested != checkpoint) {
+                                double[] pt = extractPointFromObject(nested);
+                                if (pt != null) {
+                                    return pt;
+                                }
                             }
-                        } catch (NumberFormatException ignored) {
+                        } catch (Throwable ignored) {
                         }
                     }
                 }
+            }
+            current = current.getSuperclass();
+        }
 
-                if (latStr != null && lngStr != null) {
-                    return new double[]{Double.parseDouble(latStr), Double.parseDouble(lngStr)};
+        // 4. Resolution on nested candidate fields prioritized by naming
+        current = checkpoint.getClass();
+        while (current != null && current != Object.class) {
+            for (Field field : current.getDeclaredFields()) {
+                String name = field.getName().toLowerCase(Locale.ROOT);
+                if (name.equals("g") || name.contains("coord") || name.contains("geo") || name.contains("location") || name.contains("point")) {
+                    try {
+                        field.setAccessible(true);
+                        Object nested = field.get(checkpoint);
+                        if (nested != null && nested != checkpoint && !nested.getClass().isPrimitive()
+                                && !(nested instanceof String) && !(nested instanceof Number) && !(nested instanceof Boolean)) {
+                            double[] pt = extractPointFromObject(nested);
+                            if (pt != null) {
+                                return pt;
+                            }
+                        }
+                    } catch (Throwable ignored) {
+                    }
                 }
-            } catch (Exception ignored) {
+            }
+            current = current.getSuperclass();
+        }
+
+        // 5. Fallback: inspect any remaining non-primitive declared fields
+        current = checkpoint.getClass();
+        while (current != null && current != Object.class) {
+            for (Field field : current.getDeclaredFields()) {
+                try {
+                    field.setAccessible(true);
+                    Object nested = field.get(checkpoint);
+                    if (nested == null || nested == checkpoint || nested.getClass().isPrimitive()
+                            || nested instanceof String || nested instanceof Number || nested instanceof Boolean) {
+                        continue;
+                    }
+                    double[] pt = extractPointFromObject(nested);
+                    if (pt != null) {
+                        return pt;
+                    }
+                } catch (Throwable ignored) {
+                }
+            }
+            current = current.getSuperclass();
+        }
+
+        // 6. Fallback: parse embedded GeoEntity from checkpoint.toString()
+        try {
+            double[] pt = extractPointFromToString(checkpoint.toString());
+            if (pt != null) {
+                return pt;
+            }
+        } catch (Throwable ignored) {
+        }
+
+        return null;
+    }
+
+    /**
+     * Extracts a latitude/longitude pair directly from the given object's fields
+     * or accessors matching latitude and longitude identities. Returns null if
+     * either coordinate component cannot be resolved or is invalid.
+     */
+    private static double[] extractPointFromObject(Object obj) {
+        if (obj == null || obj.getClass().isPrimitive() || obj instanceof String || obj instanceof Number || obj instanceof Boolean) {
+            return null;
+        }
+
+        Double lat = resolveCoordinate(obj, true);
+        Double lng = resolveCoordinate(obj, false);
+
+        if (lat != null && lng != null) {
+            return new double[]{lat, lng};
+        }
+
+        // Resolve AfterShip GeoEntity (e.g. Lu6/d where field a is latitude and b is longitude)
+        if (isGeoEntity(obj)) {
+            try {
+                Field aField = findFieldInHierarchy(obj.getClass(), "a", "latitude", "lat");
+                Field bField = findFieldInHierarchy(obj.getClass(), "b", "longitude", "lng");
+                if (aField != null && bField != null) {
+                    aField.setAccessible(true);
+                    bField.setAccessible(true);
+                    Double aVal = toDouble(aField.get(obj));
+                    Double bVal = toDouble(bField.get(obj));
+                    if (aVal != null && bVal != null && isValidCoordinate(aVal, true) && isValidCoordinate(bVal, false)) {
+                        return new double[]{aVal, bVal};
+                    }
+                }
+            } catch (Throwable ignored) {
+            }
+
+            double[] fromString = extractPointFromToString(obj.toString());
+            if (fromString != null) {
+                return fromString;
+            }
+        }
+
+        return null;
+    }
+
+    private static boolean isGeoEntity(Object obj) {
+        if (obj == null) return false;
+        String name = obj.getClass().getName();
+        if ("u6.d".equals(name) || name.endsWith(".GeoEntity") || "GeoEntity".equals(name)) {
+            return true;
+        }
+        String str = obj.toString();
+        return str.startsWith("GeoEntity(") || (str.contains("latitude=") && str.contains("longitude="));
+    }
+
+    private static double[] extractPointFromToString(String str) {
+        if (str == null) return null;
+        int latKey = str.indexOf("latitude=");
+        if (latKey < 0) latKey = str.indexOf("lat=");
+        int lngKey = str.indexOf("longitude=");
+        if (lngKey < 0) lngKey = str.indexOf("lng=");
+        if (lngKey < 0) lngKey = str.indexOf("lon=");
+
+        if (latKey >= 0 && lngKey >= 0) {
+            int latStart = str.indexOf('=', latKey) + 1;
+            int latEnd = str.indexOf(',', latStart);
+            if (latEnd < 0) latEnd = str.indexOf(')', latStart);
+
+            int lngStart = str.indexOf('=', lngKey) + 1;
+            int lngEnd = str.indexOf(',', lngStart);
+            if (lngEnd < 0) lngEnd = str.indexOf(')', lngStart);
+
+            if (latEnd > latStart && lngEnd > lngStart) {
+                String latStr = str.substring(latStart, latEnd).trim();
+                String lngStr = str.substring(lngStart, lngEnd).trim();
+                Double lat = toDouble(latStr);
+                Double lng = toDouble(lngStr);
+                if (lat != null && lng != null && isValidCoordinate(lat, true) && isValidCoordinate(lng, false)) {
+                    return new double[]{lat, lng};
+                }
             }
         }
         return null;
+    }
+
+    private static Field findFieldInHierarchy(Class<?> clazz, String... candidateNames) {
+        Class<?> current = clazz;
+        while (current != null && current != Object.class) {
+            for (String name : candidateNames) {
+                try {
+                    return current.getDeclaredField(name);
+                } catch (NoSuchFieldException ignored) {
+                }
+            }
+            current = current.getSuperclass();
+        }
+        return null;
+    }
+
+    /**
+     * Resolves a single latitude or longitude coordinate value from the target object
+     * using matching accessor methods followed by fields across its class hierarchy.
+     */
+    private static Double resolveCoordinate(Object target, boolean isLatitude) {
+        if (target == null) {
+            return null;
+        }
+
+        // 1. Try accessor methods in class hierarchy
+        Class<?> current = target.getClass();
+        while (current != null && current != Object.class) {
+            for (Method method : current.getDeclaredMethods()) {
+                if (method.getParameterTypes().length == 0 && method.getReturnType() != void.class) {
+                    boolean matches = isLatitude ? isLatitudeMethodName(method.getName()) : isLongitudeMethodName(method.getName());
+                    if (matches) {
+                        try {
+                            method.setAccessible(true);
+                            Object val = method.invoke(target);
+                            Double d = toDouble(val);
+                            if (d != null && isValidCoordinate(d, isLatitude)) {
+                                return d;
+                            }
+                        } catch (Throwable ignored) {
+                        }
+                    }
+                }
+            }
+            current = current.getSuperclass();
+        }
+
+        // 2. Try fields in class hierarchy
+        current = target.getClass();
+        while (current != null && current != Object.class) {
+            for (Field field : current.getDeclaredFields()) {
+                boolean matches = isLatitude ? isLatitudeFieldName(field.getName()) : isLongitudeFieldName(field.getName());
+                if (matches) {
+                    try {
+                        field.setAccessible(true);
+                        Object val = field.get(target);
+                        Double d = toDouble(val);
+                        if (d != null && isValidCoordinate(d, isLatitude)) {
+                            return d;
+                        }
+                    } catch (Throwable ignored) {
+                    }
+                }
+            }
+            current = current.getSuperclass();
+        }
+
+        return null;
+    }
+
+    private static boolean isLatitudeMethodName(String name) {
+        if (name == null) return false;
+        String lower = name.toLowerCase(Locale.ROOT);
+        return lower.endsWith("latitude")
+                || lower.equals("lat")
+                || lower.equals("getlat")
+                || lower.endsWith("_lat")
+                || lower.endsWith("coordlat")
+                || lower.endsWith("coordinatelat");
+    }
+
+    private static boolean isLongitudeMethodName(String name) {
+        if (name == null) return false;
+        String lower = name.toLowerCase(Locale.ROOT);
+        return lower.endsWith("longitude")
+                || lower.endsWith("lng")
+                || lower.equals("lon")
+                || lower.equals("getlon")
+                || lower.endsWith("_lon")
+                || lower.endsWith("coordlon")
+                || lower.endsWith("coordinatelon");
+    }
+
+    private static boolean isLatitudeFieldName(String name) {
+        if (name == null) return false;
+        String lower = name.toLowerCase(Locale.ROOT);
+        return lower.equals("lat")
+                || lower.equals("mlat")
+                || lower.endsWith("_lat")
+                || lower.endsWith("$lat")
+                || lower.endsWith(".lat")
+                || lower.endsWith("coordlat")
+                || lower.endsWith("coordinatelat")
+                || lower.endsWith("latitude");
+    }
+
+    private static boolean isLongitudeFieldName(String name) {
+        if (name == null) return false;
+        String lower = name.toLowerCase(Locale.ROOT);
+        return lower.endsWith("longitude")
+                || lower.endsWith("lng")
+                || lower.equals("lon")
+                || lower.equals("mlon")
+                || lower.endsWith("_lon")
+                || lower.endsWith("$lon")
+                || lower.endsWith(".lon")
+                || lower.endsWith("coordlon")
+                || lower.endsWith("coordinatelon");
+    }
+
+    private static Double toDouble(Object value) {
+        if (value instanceof Number) {
+            double d = ((Number) value).doubleValue();
+            return (!Double.isNaN(d) && !Double.isInfinite(d)) ? d : null;
+        }
+        if (value instanceof CharSequence) {
+            String s = value.toString().trim();
+            if (!s.isEmpty()) {
+                try {
+                    double d = Double.parseDouble(s);
+                    return (!Double.isNaN(d) && !Double.isInfinite(d)) ? d : null;
+                } catch (NumberFormatException ignored) {
+                }
+            }
+        }
+        return null;
+    }
+
+    private static boolean isValidCoordinate(double val, boolean isLatitude) {
+        if (Double.isNaN(val) || Double.isInfinite(val)) {
+            return false;
+        }
+        return isLatitude ? (val >= -90.0 && val <= 90.0) : (val >= -180.0 && val <= 180.0);
     }
 }
