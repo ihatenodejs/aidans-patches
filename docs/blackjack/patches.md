@@ -32,7 +32,6 @@ The **Custom Chip Store Binary Hook** patch provides the foundational native ARM
 2. **Unified Command Dispatcher:** Replaces `BlackjackApplication.CheckUpdateToVersion` with a custom 192-byte ARM64 assembly routine (`UNIFIED_APP_HOOK`). When messages arrive from Java via `UnityPlayer.UnitySendMessage("BlackjackApplication", "CheckUpdateToVersion", message)`:
    - If the message parses as an integer: updates player chips. If the new balance is less than or equal to current chips, it calls `PlayerProfile.SetDebugCredit`. If greater, it calls `BlackjackApplication.AddChips` with the delta and plays chip reward animations.
    - If the message equals `"skip_level"`: reads `PlayerProfile.LevelData.XPPerLevel`, sets `PlayerData.XP` to the target threshold, calls `PlayerProfile.EarnXp(bet = 1)` to trigger level-up routines, and re-enters the table via `BlackjackApplication.GoToLastPlayedTable`.
-3. **16 KB Page Alignment:** Configures Morphe packaging options to align uncompressed `.so` libraries to 16 KB boundaries for Android 15+ kernel compatibility.
 
 ### 2. Technical Implementation & Binary Modifications
 
@@ -134,9 +133,10 @@ Advancing levels in Blackjack normally requires grinding hundreds of hands to ac
 #### Touch Proxy & Dialog Flow (`SkipLevelDialog.java`):
 1. Replaces the activity's `Window.Callback` with a dynamic `java.lang.reflect.Proxy`.
 2. Inspects `dispatchTouchEvent` events for `MotionEvent.ACTION_UP`.
-3. Validates normalized touch coordinates against the portrait level indicator HUD:
-   - `x`: `0.70 <= (rawX / screenWidth) <= 0.84`
-   - `y`: `0.01 <= (rawY / screenHeight) <= 0.05`
+3. Validates coordinates against a safe-area-relative next-level badge rectangle:
+   - `0.75 <= (rawX / screenWidth) <= 0.85`
+   - `-0.02 <= ((rawY - topSystemInset) / safeAreaHeight) <= 0.05`
+   - The badge is anchored at the top of Unity's safe area, which accounts for display cutouts and differing status-bar heights without making the entire top HUD interactive.
 4. Debounces taps within 1,500 ms to prevent duplicate dialogs.
 5. Reads `value.Level` from `PlayerData.json`.
 6. Displays an `AlertDialog` prompting: `"Do you want to skip to Level {currentLevel + 1}?"`.

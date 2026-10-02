@@ -102,10 +102,10 @@ Patches for Blackjack introduce two native Java extension dialogs packaged into 
 2. **`SkipLevelDialog` (`app.aidan.extension.blackjack.SkipLevelDialog`):**
    - Installed in `UnityPlayerActivity.onCreate`.
    - Wraps `activity.getWindow().getCallback()` with a dynamic `java.lang.reflect.Proxy`.
-   - Monitors `dispatchTouchEvent` for `ACTION_UP` gestures within normalized screen coordinates:
-     - `x`: `0.70` to `0.84`
-     - `y`: `0.01` to `0.05`
-   - These coordinates define the portrait level progress badge in the main menu HUD.
+   - Monitors `dispatchTouchEvent` for `ACTION_UP` gestures within a safe-area-relative next-level badge rectangle:
+     - `x`: `0.75` to `0.85` of the window width
+     - `y`: `-0.02` to `0.05` of the height between the top and bottom system insets
+   - Unity anchors the badge at the top of its safe-area layout. This accounts for a display cutout or a different status-bar height without expanding the hit target through the top HUD.
    - Applies a 1,500 ms debounce filter. When tapped, reads `PlayerData.json` to calculate current level + 1, displays a confirmation dialog, and on confirmation sends `UnitySendMessage("BlackjackApplication", "CheckUpdateToVersion", "skip_level")`.
 
 ---

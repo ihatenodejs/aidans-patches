@@ -7,6 +7,7 @@ import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.Window;
+import android.view.WindowInsets;
 import java.io.File;
 import java.io.FileInputStream;
 import java.lang.reflect.InvocationHandler;
@@ -82,10 +83,12 @@ public final class SkipLevelDialog {
     }
 
     /**
-     * Requests a skip-level dialog for ACTION_UP within the inclusive window-relative
-     * rectangle x = 70–84%, y = 1–5%. Requests are throttled to one per 1,500 ms
-     * across activities. Returns true for a matching request, otherwise false,
-     * including for null events or nonpositive decor-view dimensions.
+     * Requests a skip-level dialog for ACTION_UP within the inclusive safe-area-relative
+     * next-level badge rectangle x = 75–85%, y = -2–5%. Unity anchors the HUD below
+     * the top system inset, which varies with a device's status bar and display cutout.
+     * Requests are throttled to one per 1,500 ms across activities. Returns true for a
+     * matching request, otherwise false, including for null events or nonpositive
+     * decor-view dimensions.
      *
      * @param activity non-null activity supplying the window and dialog
      */
@@ -102,16 +105,19 @@ public final class SkipLevelDialog {
         View decorView = activity.getWindow().getDecorView();
         int w = decorView.getWidth();
         int h = decorView.getHeight();
-        if (w <= 0 || h <= 0) {
+        WindowInsets insets = decorView.getRootWindowInsets();
+        int topInset = insets == null ? 0 : insets.getSystemWindowInsetTop();
+        int bottomInset = insets == null ? 0 : insets.getSystemWindowInsetBottom();
+        int contentHeight = h - topInset - bottomInset;
+        if (w <= 0 || contentHeight <= 0) {
             return false;
         }
 
         float normX = event.getX() / (float) w;
-        float normY = event.getY() / (float) h;
+        float safeAreaY = (event.getY() - topInset) / (float) contentHeight;
 
-        // Next level circle in portrait mode:
-        // Center is located at approximately X = 76.2%, Y = 2.8% of window.
-        if (normX >= 0.70f && normX <= 0.84f && normY >= 0.01f && normY <= 0.05f) {
+        // The level badge is anchored at the top of Unity's safe-area layout.
+        if (normX >= 0.75f && normX <= 0.85f && safeAreaY >= -0.02f && safeAreaY <= 0.05f) {
             lastDialogTime = now;
             show(activity);
             return true;
