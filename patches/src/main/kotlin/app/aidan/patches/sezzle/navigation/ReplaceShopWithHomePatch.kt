@@ -180,7 +180,10 @@ val renameShopToHomePatch = rawResourcePatch(
         val ordersListHeaderOffset = editor.findFunctionOffsetByName("OrdersListHeader")
             ?: throw PatchException("OrdersListHeader function not found")
 
-        // 4a. Conditionally pass navigation: if status (r17) is falsy (Home), pass undefined navigation to TotalOwedSectionV2.
+        // 4a. Preserve the original nullish total_in_cents fallback, then conditionally pass navigation:
+        // - total_in_cents nullish: pass zero to TotalOwedSectionV2.
+        // - Home (status r17 falsy): pass undefined navigation to TotalOwedSectionV2.
+        // - Orders (status r17 truthy): preserve the original navigation.
         val ordersListHeaderNavOffset = ordersListHeaderOffset + 0x05d6
         val ordersListHeaderNavExpected = byteArrayOf(
             0x94.toByte(), 0x04, 0x16, 0x05, 0x13, 0x04, 0x93.toByte(), 0x17, 0xb0.toByte(), 0x09, 0x05, 0x45, 0x17, 0x13, 0x18, 0xe3.toByte(),
@@ -189,15 +192,16 @@ val renameShopToHomePatch = rawResourcePatch(
             0x0c, 0x12, 0x03, 0x0f, 0x09
         )
         val ordersListHeaderNavReplacement = byteArrayOf(
-            0x97.toByte(), 0x17,                                            // 05d6: LoadConstZero r23
-            0xb2.toByte(), 0x09, 0x13,                                      // 05d8: JmpFalse +9, r19 -> 05e1
-            0x45, 0x17, 0x13, 0x18, 0xe3.toByte(), 0x6f,                   // 05db: GetById r23, r19, 24, stringId 28643 (total_in_cents)
-            0xb0.toByte(), 0x05, 0x11,                                      // 05e1: JmpTrue +5, r17 -> 05e6 (Orders: skip LoadConstNull r22!)
-            0x93.toByte(), 0x16,                                            // 05e4: LoadConstUndefined r22 (Home: r22 = undefined!)
-            0x7e, 0x7e, 0x7e, 0x7e, 0x7e, 0x7e, 0x7e,                       // 05e6: AsyncBreakCheck * 7 (padding)
+            0x94.toByte(), 0x04,                                            // 05d6: LoadConstNull r4
+            0xcf.toByte(), 0x0e, 0x13, 0x04,                                // 05d8: JEqual +14, r19, r4 -> 05e6
+            0x45, 0x17, 0x13, 0x18, 0xe3.toByte(), 0x6f,                    // 05dc: GetById r23, r19, 24, stringId 28643 (total_in_cents)
+            0xd1.toByte(), 0x06, 0x17, 0x04,                                // 05e2: JNotEqual +6, r23, r4 -> 05e8
+            0x97.toByte(), 0x17,                                            // 05e6: LoadConstZero r23
+            0xb0.toByte(), 0x05, 0x11,                                      // 05e8: JmpTrue +5, r17 -> 05ed (Orders: preserve navigation)
+            0x93.toByte(), 0x16,                                            // 05eb: LoadConstUndefined r22 (Home navigation)
             0x01, 0x13, 0x06, 0x45, 0xe7.toByte(), 0xfe.toByte(),           // 05ed: NewObjectWithBuffer r19
             0x52, 0x13, 0x17, 0x00,                                         // 05f3: PutOwnBySlotIdx r19, r23, 0
-            0x52, 0x13, 0x16, 0x01,                                         // 05f7: PutOwnBySlotIdx r19, r22, 1 (puts r22 = null on Home, nav on Orders!)
+            0x52, 0x13, 0x16, 0x01,                                         // 05f7: PutOwnBySlotIdx r19, r22, 1 (Home undefined; Orders navigation)
             0x6f, 0x13, 0x15, 0x03, 0x14, 0x13,                             // 05fb: Call3 r19, r21, r3, r20, r19
             0x52, 0x09, 0x13, 0x01,                                         // 0601: PutOwnBySlotIdx r9, r19, 1
             0x6f, 0x0c, 0x12, 0x03, 0x0f, 0x09                              // 0605: Call3 r12, r18, r3, r15, r9
