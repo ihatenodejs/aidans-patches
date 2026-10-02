@@ -4,6 +4,7 @@ import app.aidan.patches.sidelineswap.shared.COMPATIBILITY_SIDELINESWAP
 import app.morphe.patcher.extensions.InstructionExtensions.addInstructions
 import app.morphe.patcher.patch.BytecodePatchContext
 import app.morphe.patcher.patch.bytecodePatch
+import com.android.tools.smali.dexlib2.AccessFlags
 
 val blockTrackingAndTelemetryPatch = bytecodePatch(
     name = "Block Tracking and Telemetry",
@@ -202,9 +203,10 @@ private fun BytecodePatchContext.returnNullObject(
 }
 
 /**
- * Makes implemented overloads with [methodName] return their receiver. Targets must
- * be instance methods returning an object with only single-register parameters;
- * these assumptions are not validated. Absent classes or matches are skipped.
+ * Makes implemented non-static overloads with [methodName] whose return type matches
+ * [classDescriptor] return their receiver (`this`). Parameter register widths are taken
+ * into account (long and double count as two registers). Absent classes or non-matching
+ * overloads are skipped.
  */
 private fun BytecodePatchContext.returnThis(
     classDescriptor: String,
@@ -213,10 +215,17 @@ private fun BytecodePatchContext.returnThis(
     val mutableClass = mutableClassDefByOrNull(classDescriptor) ?: return
 
     for (method in mutableClass.methods) {
-        if (method.name == methodName && method.implementation != null) {
+        if (
+            method.name == methodName &&
+            method.returnType == classDescriptor &&
+            method.implementation != null &&
+            !AccessFlags.STATIC.isSet(method.accessFlags)
+        ) {
             val registerCount = method.implementation!!.registerCount
-            val paramCount = method.parameterTypes.size
-            val thisRegister = registerCount - 1 - paramCount
+            val paramRegisterCount = method.parameterTypes.sumOf { type ->
+                if (type == "J" || type == "D") 2 else 1
+            }
+            val thisRegister = registerCount - 1 - paramRegisterCount
             method.addInstructions(
                 0,
                 """
@@ -228,9 +237,9 @@ private fun BytecodePatchContext.returnThis(
 }
 
 /**
- * Makes implemented overloads with [methodName] return a new WorkManager success
- * result without running their original bodies. Return types are not checked;
- * absent classes or matches are skipped.
+ * Makes implemented, parameterless overloads with [methodName] and return type
+ * `Landroidx/work/ListenableWorker$a;` return a new WorkManager success result
+ * without running their original bodies. Absent classes or non-matching overloads are skipped.
  */
 private fun BytecodePatchContext.returnWorkerSuccess(
     classDescriptor: String,
@@ -239,7 +248,12 @@ private fun BytecodePatchContext.returnWorkerSuccess(
     val mutableClass = mutableClassDefByOrNull(classDescriptor) ?: return
 
     for (method in mutableClass.methods) {
-        if (method.name == methodName && method.implementation != null) {
+        if (
+            method.name == methodName &&
+            method.returnType == "Landroidx/work/ListenableWorker\$a;" &&
+            method.parameterTypes.isEmpty() &&
+            method.implementation != null
+        ) {
             method.addInstructions(
                 0,
                 """
