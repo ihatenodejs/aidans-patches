@@ -8,7 +8,7 @@
       "default": true,
       "category": null,
       "dependencies": [
-        "RawResourcePatch"
+        "Bypass Native Signature Check"
       ],
       "compatiblePackages": [
         {
@@ -37,7 +37,7 @@
       "default": true,
       "category": null,
       "dependencies": [
-        "RawResourcePatch"
+        "Custom Chip Store Binary Hook"
       ],
       "compatiblePackages": [
         {
@@ -311,7 +311,7 @@
       "default": false,
       "category": null,
       "dependencies": [
-        "RawResourcePatch"
+        "Bypass Native Signature Check"
       ],
       "compatiblePackages": [
         {
@@ -433,7 +433,7 @@
       "default": true,
       "category": null,
       "dependencies": [
-        "RawResourcePatch"
+        "Bypass Native Signature Check"
       ],
       "compatiblePackages": [
         {
@@ -462,7 +462,7 @@
       "default": false,
       "category": null,
       "dependencies": [
-        "RawResourcePatch"
+        "Bypass Native Signature Check"
       ],
       "compatiblePackages": [
         {
@@ -518,7 +518,7 @@
       "default": true,
       "category": null,
       "dependencies": [
-        "RawResourcePatch"
+        "Bypass Native Signature Check"
       ],
       "compatiblePackages": [
         {
@@ -557,7 +557,7 @@
       "default": true,
       "category": null,
       "dependencies": [
-        "RawResourcePatch"
+        "Clean Authentication"
       ],
       "compatiblePackages": [
         {
@@ -615,7 +615,7 @@
       "default": true,
       "category": null,
       "dependencies": [
-        "RawResourcePatch"
+        "Bypass Native Signature Check"
       ],
       "compatiblePackages": [
         {
@@ -671,7 +671,7 @@
       "default": true,
       "category": null,
       "dependencies": [
-        "RawResourcePatch"
+        "Bypass Native Signature Check"
       ],
       "compatiblePackages": [
         {
@@ -700,7 +700,7 @@
       "default": true,
       "category": null,
       "dependencies": [
-        "RawResourcePatch"
+        "Bypass Native Signature Check"
       ],
       "compatiblePackages": [
         {
@@ -729,7 +729,7 @@
       "default": true,
       "category": null,
       "dependencies": [
-        "RawResourcePatch"
+        "Bypass Native Signature Check"
       ],
       "compatiblePackages": [
         {
@@ -876,7 +876,7 @@
       "default": true,
       "category": null,
       "dependencies": [
-        "RawResourcePatch"
+        "Bypass Native Signature Check"
       ],
       "compatiblePackages": [
         {
@@ -934,7 +934,7 @@
       "default": true,
       "category": null,
       "dependencies": [
-        "RawResourcePatch"
+        "Fix 16 KB Page Compatibility"
       ],
       "compatiblePackages": [
         {
@@ -1087,7 +1087,7 @@
       "default": true,
       "category": null,
       "dependencies": [
-        "BytecodePatch"
+        "Add Custom Chip Store"
       ],
       "compatiblePackages": [
         {
@@ -1173,7 +1173,7 @@
       "default": true,
       "category": null,
       "dependencies": [
-        "RawResourcePatch"
+        "Suppress In-App Updates and Rating Prompts"
       ],
       "compatiblePackages": [
         {
@@ -1275,7 +1275,7 @@
       "default": false,
       "category": null,
       "dependencies": [
-        "RawResourcePatch"
+        "Unlock Developer Settings"
       ],
       "compatiblePackages": [
         {
