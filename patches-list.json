@@ -345,33 +345,6 @@
       ]
     },
     {
-      "name": "Enable 16 KB Page Size Compatibility",
-      "description": "Enables 16 KB page size compatibility mode, forces native library extraction, and aligns native libraries to 16 KB boundaries to suppress the 'APK alignment check failed' warning dialog on Android 15+ devices and emulators.",
-      "default": true,
-      "category": null,
-      "dependencies": [],
-      "compatiblePackages": [
-        {
-          "packageName": "com.sezzle.sezzlemobile",
-          "name": "Sezzle",
-          "description": null,
-          "apkFileType": "APKM",
-          "appIconColor": "#5C2C94",
-          "signatures": null,
-          "targets": [
-            {
-              "version": "5.3.9",
-              "versionCodes": null,
-              "isExperimental": false,
-              "minSdk": 24,
-              "description": null
-            }
-          ]
-        }
-      ],
-      "options": []
-    },
-    {
       "name": "Enable App Debugging",
       "description": "Marks the app debuggable so patch developers can use ADB run-as after reinstalling.",
       "default": false,
@@ -391,35 +364,6 @@
               "versionCodes": null,
               "isExperimental": false,
               "minSdk": 24,
-              "description": null
-            }
-          ]
-        }
-      ],
-      "options": []
-    },
-    {
-      "name": "Fix 16 KB Page Compatibility",
-      "description": "Repairs Canvas's native-library packaging and disables incompatible GNU RELRO segments so Android 15+ does not show its 16 KB compatibility warning.",
-      "default": true,
-      "category": null,
-      "dependencies": [],
-      "compatiblePackages": [
-        {
-          "packageName": "com.instructure.candroid",
-          "name": "Canvas Student",
-          "description": null,
-          "apkFileType": "APKM",
-          "appIconColor": "#E62725",
-          "signatures": [
-            "abfe1362d84c5234c174c2c03d405a480405e361162f7b28dad6bec825ba02b3"
-          ],
-          "targets": [
-            {
-              "version": "8.10.0",
-              "versionCodes": null,
-              "isExperimental": false,
-              "minSdk": 28,
               "description": null
             }
           ]
@@ -933,9 +877,7 @@
       "description": "Neutralizes behavioral tracking (Pendo SDK session recordings, guides, and click tracking), student surveillance telemetry (Pandata pageview recording, time-spent counters, and background upload worker), first-party app analytics (ScreenView processors, offline analytics, token logging), crash reporting (Firebase Crashlytics), and in-app rating prompts.",
       "default": true,
       "category": null,
-      "dependencies": [
-        "Fix 16 KB Page Compatibility"
-      ],
+      "dependencies": [],
       "compatiblePackages": [
         {
           "packageName": "com.instructure.candroid",

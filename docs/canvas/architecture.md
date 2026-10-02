@@ -24,17 +24,6 @@ Canvas Student is Instructure's Android learning-management client. The APK incl
 - **Persistence and background work**: Room persists `PageViewEvent` records; WorkManager runs `PageViewUploadWorker`.
 - **Document viewing**: Nutrient/PSPDFKit renders course documents. Its bundled analytics API is an event interface; the inspected app has no `AnalyticsClient` implementation.
 
-### Native Runtime & 16 KB Page Compatibility (`lib/arm64-v8a/`)
-Canvas Student packages three prebuilt native shared libraries for arm64-v8a:
-- `libandroidx.graphics.path.so`: AndroidX graphics path rendering helper.
-- `libdatastore_shared_counter.so`: Jetpack DataStore native counter mechanism.
-- `libpspdfkit.so`: Nutrient/PSPDFKit native document rendering core.
-
-On Android 15+ running in 16 KB page-size mode, the dynamic linker (`linker64`) enforces two strict constraints:
-1. **16 KB ZIP Alignment:** Uncompressed `.so` entries in the APK must have their file data offsets aligned to 16,384 bytes (`offset % 16384 == 0`).
-2. **Segment Alignment:** In ELF program headers, GNU RELRO (`PT_GNU_RELRO`) segments must satisfy `(p_vaddr + p_memsz) % 16384 == 0`.
-
-In the official Canvas Student 8.10.0 APK, all three libraries have `PT_GNU_RELRO` segments that violate the segment alignment check. Even when the APK is 16 KB ZIP aligned, Android displays a system dialog warning that the application is not 16 KB page-size compatible.
 ## Telemetry Architecture
 
 ### Pendo Behavioral Tracking
@@ -77,5 +66,4 @@ flowchart LR
 
 ## Patch Targets
 
-1. **`Fix16KbPageCompatibilityPatch.kt` (`rawResourcePatch`):** Configures Morphe packaging for 16 KB ZIP alignment and edits the ELF program headers of `libandroidx.graphics.path.so`, `libdatastore_shared_counter.so`, and `libpspdfkit.so` in-place, changing non-aligned `PT_GNU_RELRO` headers to `PT_NULL` (0).
-2. **`RemoveTrackingAndAnalyticsPatch.kt` (`bytecodePatch`, depends on `Fix16KbPageCompatibilityPatch`):** Preserves Pendo activity and Canvas startup lifecycles plus authenticated Pandata token retrieval, while neutralizing the Pendo core API, Pendo consent callbacks, first-party analytics and token reporting, Pandata pageview persistence/uploading, offline telemetry, Firebase Crashlytics reporting, the Help rating redirect, and `Logger.canLogUserDetails`.
+1. **`RemoveTrackingAndAnalyticsPatch.kt` (`bytecodePatch`):** Preserves Pendo activity and Canvas startup lifecycles plus authenticated Pandata token retrieval, while neutralizing the Pendo core API, Pendo consent callbacks, first-party analytics and token reporting, Pandata pageview persistence/uploading, offline telemetry, Firebase Crashlytics reporting, the Help rating redirect, and `Logger.canLogUserDetails`.

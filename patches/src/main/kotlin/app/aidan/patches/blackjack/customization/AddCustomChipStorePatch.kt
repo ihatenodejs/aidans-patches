@@ -6,9 +6,6 @@ import app.morphe.patcher.patch.PatchException
 import app.morphe.patcher.patch.bytecodePatch
 import app.morphe.patcher.patch.rawResourcePatch
 
-import java.util.logging.Level
-import java.util.logging.Logger
-
 private val OPEN_SHOP_PROLOGUE = byteArrayOf(
     0xfe.toByte(), 0x0f, 0x1a, 0xf8.toByte(),
     0xfc.toByte(), 0x6f, 0x01, 0xa9.toByte(),
@@ -107,8 +104,6 @@ internal val UNIFIED_APP_HOOK = byteArrayOf(
 private const val OPEN_SHOP_OFFSET = 0x1fbb1b4
 private const val CHECK_UPDATE_OFFSET = 0x1fbc330
 private const val NATIVE_POPUPS_MANAGER = "Lcom/mnp/popups/NativePopupsManager;"
-private val LOGGER = Logger.getLogger("app.aidan.patches.blackjack.customization.AddCustomChipStorePatch")
-
 
 @Suppress("unused")
 val patchChipStoreResourcePatch = rawResourcePatch(
@@ -119,7 +114,6 @@ val patchChipStoreResourcePatch = rawResourcePatch(
     compatibleWith(COMPATIBILITY_BLACKJACK)
 
     execute {
-        ensure16KbPageAlignment()
 
         val library = get("lib/arm64-v8a/libil2cpp.so")
         if (!library.exists()) throw PatchException("Missing arm64 IL2CPP library")
@@ -184,43 +178,3 @@ val addCustomChipStorePatch = bytecodePatch(
     }
 }
 
-/**
- * Attempts to set Morphe's shared APK writer alignment to 16,384 bytes for .so
- * entries and 4 bytes otherwise. Missing options and configuration failures are logged and ignored.
- */
-private fun ensure16KbPageAlignment() {
-    try {
-        val apkUtilsClass = Class.forName("app.morphe.patcher.apk.ApkUtils")
-        val zFileOptionsField = apkUtilsClass.getDeclaredField("zFileOptions")
-        zFileOptionsField.isAccessible = true
-        val zFileOptions = zFileOptionsField.get(null) ?: return
-
-        val alignmentRuleClass = Class.forName("com.android.tools.build.apkzlib.zfile.AlignmentRule")
-        val alignmentRulesClass = Class.forName("com.android.tools.build.apkzlib.zfile.AlignmentRules")
-        val constantForSuffixMethod = alignmentRulesClass.getMethod(
-            "constantForSuffix",
-            String::class.java,
-            Int::class.javaPrimitiveType
-        )
-        val constantMethod = alignmentRulesClass.getMethod(
-            "constant",
-            Int::class.javaPrimitiveType
-        )
-        val composeMethod = alignmentRulesClass.getMethod(
-            "compose",
-            java.lang.reflect.Array.newInstance(alignmentRuleClass, 0).javaClass
-        )
-
-        val soRule = constantForSuffixMethod.invoke(null, ".so", 16384)
-        val defaultRule = constantMethod.invoke(null, 4)
-        val rulesArray = java.lang.reflect.Array.newInstance(alignmentRuleClass, 2)
-        java.lang.reflect.Array.set(rulesArray, 0, soRule)
-        java.lang.reflect.Array.set(rulesArray, 1, defaultRule)
-        val composedRule = composeMethod.invoke(null, rulesArray)
-
-        val setAlignmentRuleMethod = zFileOptions.javaClass.getMethod("setAlignmentRule", alignmentRuleClass)
-        setAlignmentRuleMethod.invoke(zFileOptions, composedRule)
-    } catch (failure: Throwable) {
-        LOGGER.log(Level.WARNING, "Unable to configure 16 KB APK page alignment", failure)
-    }
-}

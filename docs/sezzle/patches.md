@@ -21,7 +21,6 @@ This document details the binary bytecode, asset, and resource patches available
 | [Patch Consent Screen](#patch-patch-consent-screen) | `security/PatchConsentScreenPatch.kt` | `bytecodePatch` | `true` | `Clean Authentication`, `ConsentGate.java` | None | Injects native `ConsentGate` modal dialog into `MainActivity.onCreate` before auth. |
 | [Suppress In-App Updates and Rating Prompts](#patch-suppress-in-app-updates-and-rating-prompts) | `security/SuppressUpdatesAndIntegrityPatch.kt` | `rawResourcePatch` | `true` | None | 3 boolean options (default: `true`) | Neutralizes Hermes update selectors/sagas, update modal, store URLs, trustFall, and rating prompts. |
 | [Suppress Updates and Integrity Checks](#patch-suppress-updates-and-integrity-checks) | `security/SuppressUpdatesAndIntegrityPatch.kt` | `bytecodePatch` | `true` | `Suppress In-App Updates and Rating Prompts` | None | Disables CodePush OTA updates (returns `null` in host) and stubs RootBeer / JailMonkey. |
-| [Enable 16 KB Page Size Compatibility](#patch-enable-16-kb-page-size-compatibility) | `compatibility/PageSizeCompatibilityPatch.kt` | `resourcePatch` | `true` | None | None | Injects `android:pageSizeCompat="enabled"` and extracts native libs with 16 KB alignment. |
 
 ---
 
@@ -356,22 +355,7 @@ Prevents Microsoft CodePush from downloading remote OTA bundles that would overw
 #### 2. Technical Implementation & Injection Points
 1. In `MainApplication`, intercepts `CodePush.getJSBundleFile()` and forces it to return `null`, ensuring the React Native host always boots from the patched embedded asset bundle (`assets/index.android.bundle`).
 2. Stubs all root and environment check methods in `RootBeer` (`isRooted`, `isRootedWithoutBusyBoxCheck`, etc.) to return `false`.
-3. Stubs all detection methods in `JailMonkeyModule` (`isJailBroken`, `hookDetected`, `canMockLocation`) to return `false`.
+3. Stubs `RootedCheck.isJailBroken()`—the value that `JailMonkeyModule.getConstants()` publishes as `isJailBroken`—to return `false`.
 
 ---
 
-### Patch: Enable 16 KB Page Size Compatibility
-
-- **Name:** Enable 16 KB Page Size Compatibility
-- **Target Package:** `com.sezzle.sezzlemobile`
-- **Supported Versions:** `5.3.9`
-- **Default State:** `true` (Enabled by default)
-- **Type:** Android XML Resource Patch (`resourcePatch`)
-- **Dependencies:** None
-
-#### 1. Motivation & Purpose
-Suppresses Android 15+ "APK alignment check failed" dialogs and ensures native library extraction.
-
-#### 2. Technical Implementation
-1. Injects `android:pageSizeCompat="enabled"` and `android:extractNativeLibs="true"` into `<application>` in `AndroidManifest.xml`.
-2. Reflectively reconfigures Morphe packaging alignment rules to enforce 16 KB alignment on all `.so` files in the output APKM.

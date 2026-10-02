@@ -21,7 +21,6 @@ val bypassSignatureCheckResourcePatch = rawResourcePatch(
     compatibleWith(COMPATIBILITY_AFTERSHIP)
 
     execute {
-        ensure16KbPageAlignment()
 
         // Patch arm64-v8a checkApkSha
         val arm64So = get("lib/arm64-v8a/libandroidsig-lib.so")
@@ -74,51 +73,6 @@ val bypassSignatureCheckResourcePatch = rawResourcePatch(
                 armV7So.writeBytes(bytes)
             }
         }
-    }
-}
-
-/**
- * Configures Morphe's internal ApkUtils zFileOptions to align uncompressed `.so` files
- * to 16 KB (16384 bytes) instead of 4 KB (4096 bytes).
- *
- * On Android 15+ devices using 16 KB page size mode, uncompressed native libraries loaded
- * via mmap from the APK must have zip data offsets aligned to 16 KB boundaries, otherwise
- * Android's package manager displays an "APK alignment check failed" compatibility warning.
- *
- * Missing writer options and failures while configuring alignment are silently ignored.
- */
-private fun ensure16KbPageAlignment() {
-    try {
-        val apkUtilsClass = Class.forName("app.morphe.patcher.apk.ApkUtils")
-        val zFileOptionsField = apkUtilsClass.getDeclaredField("zFileOptions").apply { isAccessible = true }
-        val zFileOptions = zFileOptionsField.get(null) ?: return
-
-        val alignmentRulesClass = Class.forName("com.android.tools.build.apkzlib.zip.AlignmentRules")
-        val alignmentRuleClass = Class.forName("com.android.tools.build.apkzlib.zip.AlignmentRule")
-        val constantForSuffixMethod = alignmentRulesClass.getMethod(
-            "constantForSuffix",
-            String::class.java,
-            Int::class.javaPrimitiveType
-        )
-        val constantMethod = alignmentRulesClass.getMethod(
-            "constant",
-            Int::class.javaPrimitiveType
-        )
-        val composeMethod = alignmentRulesClass.getMethod(
-            "compose",
-            java.lang.reflect.Array.newInstance(alignmentRuleClass, 0).javaClass
-        )
-
-        val soRule = constantForSuffixMethod.invoke(null, ".so", 16384)
-        val defaultRule = constantMethod.invoke(null, 4)
-        val rulesArray = java.lang.reflect.Array.newInstance(alignmentRuleClass, 2)
-        java.lang.reflect.Array.set(rulesArray, 0, soRule)
-        java.lang.reflect.Array.set(rulesArray, 1, defaultRule)
-        val composedRule = composeMethod.invoke(null, rulesArray)
-
-        val setAlignmentRuleMethod = zFileOptions.javaClass.getMethod("setAlignmentRule", alignmentRuleClass)
-        setAlignmentRuleMethod.invoke(zFileOptions, composedRule)
-    } catch (_: Throwable) {
     }
 }
 

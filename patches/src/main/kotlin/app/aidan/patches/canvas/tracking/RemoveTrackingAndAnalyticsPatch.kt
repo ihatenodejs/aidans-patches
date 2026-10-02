@@ -11,7 +11,6 @@ val removeTrackingAndAnalyticsPatch = bytecodePatch(
     default = true
 ) {
     compatibleWith(COMPATIBILITY_CANVAS)
-    dependsOn(fix16KbPageCompatibilityPatch)
     execute {
         // Layer 1: Pendo SDK behavioral tracking, visitor identity, guides, and click analytics.
         disableVoidMethods(

@@ -36,7 +36,7 @@ My [Morphe](https://morphe.software) patches
 ## 📱 Supported Applications & Patches
 
 <!-- PATCHES_START EXPANDED -->
-> **[v1.1.0](https://github.com/ihatenodejs/aidans-patches/releases/tag/v1.1.0)**&nbsp;&nbsp;•&nbsp;&nbsp;`main`&nbsp;&nbsp;•&nbsp;&nbsp;38 patches total
+> **[v1.1.0](https://github.com/ihatenodejs/aidans-patches/releases/tag/v1.1.0)**&nbsp;&nbsp;•&nbsp;&nbsp;`main`&nbsp;&nbsp;•&nbsp;&nbsp;36 patches total
 <details open>
 <summary>📦 AfterShip&nbsp;&nbsp;•&nbsp;&nbsp;11 patches</summary>
 <br>
@@ -98,7 +98,7 @@ My [Morphe](https://morphe.software) patches
 </details>
 
 <details open>
-<summary>📦 Sezzle&nbsp;&nbsp;•&nbsp;&nbsp;16 patches</summary>
+<summary>📦 Sezzle&nbsp;&nbsp;•&nbsp;&nbsp;15 patches</summary>
 <br>
 
 **🎯 Supported versions:**
@@ -110,7 +110,6 @@ My [Morphe](https://morphe.software) patches
 |----------|----------------|-----------|
 | [Clean Authentication](#clean-authentication) | Shows Google sign-in only and removes the unavailable phone sign-in controls. | • Inject patch warning |
 | [Configure Shortcuts](#configure-shortcuts) | Customizes items displayed in the Your Shortcuts carousel. | • Hide Refer a Friend<br>• Hide Giveaway<br>• Hide Offers<br>• Hide Rewards<br>• Hide Sezzle Mobile |
-| [Enable 16 KB Page Size Compatibility](#enable-16-kb-page-size-compatibility) | Enables 16 KB page size compatibility mode, forces native library extraction, and aligns native libraries to 16 KB boundaries to suppress the 'APK alignment check failed' warning dialog on Android 15+ devices and emulators. |  |
 | [Enable App Debugging](#enable-app-debugging) | Marks the app debuggable so patch developers can use ADB run-as after reinstalling. |  |
 | [Hide Sezzle Mobile](#hide-sezzle-mobile) | Hides Sezzle Mobile offers and account entry points. |  |
 | [Patch Consent Screen](#patch-consent-screen) | Requires consent to a patched-app warning before opening Sezzle authentication. |  |
@@ -128,7 +127,7 @@ My [Morphe](https://morphe.software) patches
 </details>
 
 <details open>
-<summary>📦 Canvas Student&nbsp;&nbsp;•&nbsp;&nbsp;2 patches</summary>
+<summary>📦 Canvas Student&nbsp;&nbsp;•&nbsp;&nbsp;1 patch</summary>
 <br>
 
 **🎯 Supported versions:**
@@ -138,7 +137,6 @@ My [Morphe](https://morphe.software) patches
 
 | 💊&nbsp;Patch | 📜&nbsp;Description | ⚙️&nbsp;Options |
 |----------|----------------|-----------|
-| [Fix 16 KB Page Compatibility](#fix-16-kb-page-compatibility) | Repairs Canvas's native-library packaging and disables incompatible GNU RELRO segments so Android 15+ does not show its 16 KB compatibility warning. |  |
 | [Remove Tracking and Analytics](#remove-tracking-and-analytics) | Neutralizes behavioral tracking (Pendo SDK session recordings, guides, and click tracking), student surveillance telemetry (Pandata pageview recording, time-spent counters, and background upload worker), first-party app analytics (ScreenView processors, offline analytics, token logging), crash reporting (Firebase Crashlytics), and in-app rating prompts. |  |
 
 </details>
