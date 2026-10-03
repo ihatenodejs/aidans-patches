@@ -1,7 +1,7 @@
 {
-  "created_at": "2026-10-03T05:35:02",
-  "description": "## [1.2.0-dev.1](https://github.com/ihatenodejs/aidans-patches/compare/v1.1.0...v1.2.0-dev.1) (2026-10-03)\n\n### ✨ New Features\n\n* **adobe-scan:** added patch suite and documentation for adobe scan ([89eae8e](https://github.com/ihatenodejs/aidans-patches/commit/89eae8e7e9bfc36784f5c90798ba36fb4dd36bfe))\n* **blackjack:** added internet and notification permission removal patches ([2f23c54](https://github.com/ihatenodejs/aidans-patches/commit/2f23c541fa089abf3fbc1f52f620b1e0a1457ba0))\n* **fizz:** added patch suite and documentation for fizz ([1ecfacf](https://github.com/ihatenodejs/aidans-patches/commit/1ecfacffb6af05ac285dd006c0b18f353d00867e))",
-  "download_url": "https://github.com/ihatenodejs/aidans-patches/releases/download/v1.2.0-dev.1/patches-1.2.0-dev.1.mpp",
+  "created_at": "2026-10-03T07:07:14",
+  "description": "## [1.2.0-dev.2](https://github.com/ihatenodejs/aidans-patches/compare/v1.2.0-dev.1...v1.2.0-dev.2) (2026-10-03)\n\n### ✨ New Features\n\n* **fizz:** added ios emoji font replacement patch and dynamic build pipeline ([0bf8157](https://github.com/ihatenodejs/aidans-patches/commit/0bf81570512fc4db0ff731d9b6b5e113236ed870))",
+  "download_url": "https://github.com/ihatenodejs/aidans-patches/releases/download/v1.2.0-dev.2/patches-1.2.0-dev.2.mpp",
   "signature_download_url": "",
-  "version": "1.2.0-dev.1"
+  "version": "1.2.0-dev.2"
 }

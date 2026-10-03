@@ -1,3 +1,9 @@
+## [1.2.0-dev.2](https://github.com/ihatenodejs/aidans-patches/compare/v1.2.0-dev.1...v1.2.0-dev.2) (2026-10-03)
+
+### ✨ New Features
+
+* **fizz:** added ios emoji font replacement patch and dynamic build pipeline ([0bf8157](https://github.com/ihatenodejs/aidans-patches/commit/0bf81570512fc4db0ff731d9b6b5e113236ed870))
+
 ## [1.2.0-dev.1](https://github.com/ihatenodejs/aidans-patches/compare/v1.1.0...v1.2.0-dev.1) (2026-10-03)
 
 ### ✨ New Features
