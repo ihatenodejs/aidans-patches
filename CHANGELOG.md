@@ -1,3 +1,9 @@
+## [1.2.0-dev.3](https://github.com/ihatenodejs/aidans-patches/compare/v1.2.0-dev.2...v1.2.0-dev.3) (2026-10-03)
+
+### ✨ New Features
+
+* **fizz:** added developer settings mod menu patch ([aee93d8](https://github.com/ihatenodejs/aidans-patches/commit/aee93d8e05aa66e620b8d25cfbd498439dbcc8e1))
+
 ## [1.2.0-dev.2](https://github.com/ihatenodejs/aidans-patches/compare/v1.2.0-dev.1...v1.2.0-dev.2) (2026-10-03)
 
 ### ✨ New Features
