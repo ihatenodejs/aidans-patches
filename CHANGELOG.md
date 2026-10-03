@@ -1,3 +1,9 @@
+## [1.2.0-dev.4](https://github.com/ihatenodejs/aidans-patches/compare/v1.2.0-dev.3...v1.2.0-dev.4) (2026-10-03)
+
+### 🐛 Bug Fixes
+
+* **fizz:** fixed developer button visibility on single-feed layouts ([0bc1f31](https://github.com/ihatenodejs/aidans-patches/commit/0bc1f31358350260a0b437eb5ab8151255574f71))
+
 ## [1.2.0-dev.3](https://github.com/ihatenodejs/aidans-patches/compare/v1.2.0-dev.2...v1.2.0-dev.3) (2026-10-03)
 
 ### ✨ New Features

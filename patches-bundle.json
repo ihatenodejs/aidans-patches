@@ -1,7 +1,7 @@
 {
-  "created_at": "2026-10-03T08:16:35",
-  "description": "## [1.2.0-dev.3](https://github.com/ihatenodejs/aidans-patches/compare/v1.2.0-dev.2...v1.2.0-dev.3) (2026-10-03)\n\n### ✨ New Features\n\n* **fizz:** added developer settings mod menu patch ([aee93d8](https://github.com/ihatenodejs/aidans-patches/commit/aee93d8e05aa66e620b8d25cfbd498439dbcc8e1))",
-  "download_url": "https://github.com/ihatenodejs/aidans-patches/releases/download/v1.2.0-dev.3/patches-1.2.0-dev.3.mpp",
+  "created_at": "2026-10-03T09:37:55",
+  "description": "## [1.2.0-dev.4](https://github.com/ihatenodejs/aidans-patches/compare/v1.2.0-dev.3...v1.2.0-dev.4) (2026-10-03)\n\n### 🐛 Bug Fixes\n\n* **fizz:** fixed developer button visibility on single-feed layouts ([0bc1f31](https://github.com/ihatenodejs/aidans-patches/commit/0bc1f31358350260a0b437eb5ab8151255574f71))",
+  "download_url": "https://github.com/ihatenodejs/aidans-patches/releases/download/v1.2.0-dev.4/patches-1.2.0-dev.4.mpp",
   "signature_download_url": "",
-  "version": "1.2.0-dev.3"
+  "version": "1.2.0-dev.4"
 }
