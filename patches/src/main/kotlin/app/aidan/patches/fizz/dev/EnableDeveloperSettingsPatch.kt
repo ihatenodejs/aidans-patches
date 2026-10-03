@@ -2,11 +2,16 @@ package app.aidan.patches.fizz.dev
 
 import app.aidan.patches.fizz.shared.COMPATIBILITY_FIZZ
 import app.morphe.patcher.extensions.InstructionExtensions.addInstructions
+import app.morphe.patcher.extensions.InstructionExtensions.replaceInstruction
 import app.morphe.patcher.patch.BytecodePatchContext
 import app.morphe.patcher.patch.PatchException
 import app.morphe.patcher.patch.booleanOption
 import app.morphe.patcher.patch.bytecodePatch
 import com.android.tools.smali.dexlib2.Opcode
+import com.android.tools.smali.dexlib2.builder.BuilderOffsetInstruction
+import com.android.tools.smali.dexlib2.builder.instruction.BuilderInstruction10t
+import com.android.tools.smali.dexlib2.builder.instruction.BuilderInstruction20t
+import com.android.tools.smali.dexlib2.builder.instruction.BuilderInstruction30t
 import com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction
 import com.android.tools.smali.dexlib2.iface.reference.FieldReference
 import com.android.tools.smali.dexlib2.iface.reference.StringReference
@@ -23,7 +28,7 @@ private const val SPOOF_USER_CLASS = "Lcom/fizzsocial/fizz/data/local/x6;"
 @Suppress("unused")
 val enableDeveloperSettingsPatch = bytecodePatch(
     name = "Enable Developer Settings",
-    description = "Adds an in-app developer mod menu accessible via a top-bar header button, with controls for Mobile Studio and real-time visual diagnostics.",
+    description = "Adds an in-app developer mod menu accessible via a top-bar header button, with controls for Mobile Studio.",
     default = false
 ) {
     compatibleWith(COMPATIBILITY_FIZZ)
@@ -35,18 +40,9 @@ val enableDeveloperSettingsPatch = bytecodePatch(
         title = "Mobile Studio",
         description = "Includes Mobile Studio trigger in the developer settings menu and permanently unlocks Mobile Studio access."
     )
-
-    val enableFeedDebugging = booleanOption(
-        key = "feedDebugging",
-        default = false,
-        title = "Feed & App Debugging",
-        description = "Includes visual diagnostics, FPS counter, layout debug lines, and feed debug overlay toggles in the developer settings menu."
-    )
-
     execute {
         patchMainActivityLifecycle(
-            mobileStudio = enableMobileStudio.value ?: true,
-            feedDebugging = enableFeedDebugging.value ?: false
+            mobileStudio = enableMobileStudio.value ?: true
         )
 
         patchHomeTopBarComposable()
@@ -58,12 +54,11 @@ val enableDeveloperSettingsPatch = bytecodePatch(
 }
 
 /**
- * Injects DeveloperMenuBridge.init(this, mobileStudio, feedDebugging)
+ * Injects DeveloperMenuBridge.init(this, mobileStudio)
  * immediately after super.onCreate in MainActivity.onCreate.
  */
 private fun BytecodePatchContext.patchMainActivityLifecycle(
-    mobileStudio: Boolean,
-    feedDebugging: Boolean
+    mobileStudio: Boolean
 ) {
     val activityClass = mutableClassDefByOrNull(MAIN_ACTIVITY)
         ?: throw PatchException("MainActivity class $MAIN_ACTIVITY not found")
@@ -81,14 +76,12 @@ private fun BytecodePatchContext.patchMainActivityLifecycle(
     val targetIndex = if (superOnCreateIndex >= 0) superOnCreateIndex + 1 else 0
 
     val studioHex = if (mobileStudio) "0x1" else "0x0"
-    val debugHex = if (feedDebugging) "0x1" else "0x0"
 
     onCreateMethod.addInstructions(
         targetIndex,
         """
         const/4 v0, $studioHex
-        const/4 v1, $debugHex
-        invoke-static {p0, v0, v1}, $DEVELOPER_MENU_BRIDGE->init(Landroid/app/Activity;ZZ)V
+        invoke-static {p0, v0}, $DEVELOPER_MENU_BRIDGE->init(Landroid/app/Activity;Z)V
         """.trimIndent()
     )
 }
@@ -105,8 +98,9 @@ private fun BytecodePatchContext.patchHomeTopBarComposable() {
         it.name == "a" && it.returnType == "V" && it.implementation != null
     } ?: throw PatchException("Method a(...) not found in $HOME_TOP_BAR_CLASS")
 
-    val instructions = topBarMethod.implementation?.instructions
+    val impl = topBarMethod.implementation
         ?: throw PatchException("Missing instructions in $HOME_TOP_BAR_CLASS.a")
+    val instructions = impl.instructions
 
     // Find "feed-activity-button" tag on the notification bell
     val activityButtonIndex = instructions.indexOfFirst { instruction ->
@@ -135,6 +129,12 @@ private fun BytecodePatchContext.patchHomeTopBarComposable() {
     if (centerEndAnchor < 0) {
         throw PatchException("Could not locate Alignment.CenterEnd anchor before notification button in $HOME_TOP_BAR_CLASS.a")
     }
+
+    // Identify incoming branch (goto from single-feed title) that targets centerEndAnchor
+    val branchIndex = (0 until centerEndAnchor).firstOrNull { i ->
+        val insn = instructions[i]
+        insn is BuilderOffsetInstruction && insn.target.location.index == centerEndAnchor
+    } ?: -1
 
     // Inject Developer Settings button layout & composable invocation
     topBarMethod.addInstructions(
@@ -197,6 +197,19 @@ private fun BytecodePatchContext.patchHomeTopBarComposable() {
         # --- End Injected Developer Settings Button ---
         """.trimIndent()
     )
+
+    // Retarget incoming branch from single-feed title to jump to the developer button instead of skipping it
+    if (branchIndex >= 0) {
+        val newTargetLabel = impl.newLabelForIndex(centerEndAnchor)
+        val branchInsn = impl.instructions[branchIndex] as BuilderOffsetInstruction
+        val retargeted = when (branchInsn) {
+            is BuilderInstruction10t -> BuilderInstruction10t(branchInsn.opcode, newTargetLabel)
+            is BuilderInstruction20t -> BuilderInstruction20t(branchInsn.opcode, newTargetLabel)
+            is BuilderInstruction30t -> BuilderInstruction30t(branchInsn.opcode, newTargetLabel)
+            else -> throw PatchException("Unsupported branch opcode: ${branchInsn.opcode}")
+        }
+        impl.replaceInstruction(branchIndex, retargeted)
+    }
 }
 
 /**

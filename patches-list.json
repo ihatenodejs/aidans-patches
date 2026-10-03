@@ -373,7 +373,7 @@
     },
     {
       "name": "Enable Developer Settings",
-      "description": "Adds an in-app developer mod menu accessible via a top-bar header button, with controls for Mobile Studio and real-time visual diagnostics.",
+      "description": "Adds an in-app developer mod menu accessible via a top-bar header button, with controls for Mobile Studio.",
       "default": false,
       "category": null,
       "dependencies": [],
@@ -406,15 +406,6 @@
           "required": false,
           "type": "kotlin.Boolean",
           "default": true,
-          "values": null
-        },
-        {
-          "key": "feedDebugging",
-          "title": "Feed & App Debugging",
-          "description": "Includes visual diagnostics, FPS counter, layout debug lines, and feed debug overlay toggles in the developer settings menu.",
-          "required": false,
-          "type": "kotlin.Boolean",
-          "default": false,
           "values": null
         }
       ]

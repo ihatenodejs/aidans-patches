@@ -139,7 +139,7 @@ My [Morphe](https://morphe.software) patches
 
 | 💊&nbsp;Patch | 📜&nbsp;Description | ⚙️&nbsp;Options |
 |----------|----------------|-----------|
-| [Enable Developer Settings](#enable-developer-settings) | Adds an in-app developer mod menu accessible via a top-bar header button, with controls for Mobile Studio and real-time visual diagnostics. | • Mobile Studio<br>• Feed & App Debugging |
+| [Enable Developer Settings](#enable-developer-settings) | Adds an in-app developer mod menu accessible via a top-bar header button, with controls for Mobile Studio. | • Mobile Studio |
 | [Remove Tracking and Analytics](#remove-tracking-and-analytics) | Neutralizes first-party client event tracking, Mixpanel analytics, Airbridge and Adjust attribution SDKs, Google Advertising ID (AAID) collection, and bypasses PairIP Play Integrity verification, with options for silent DM screenshots and Sentry telemetry removal. | • Silent Screenshots<br>• Disable Crash Reporting |
 | [Replace Emoji Font with iOS](#replace-emoji-font-with-ios) | Replaces Android system emoji with iOS Apple Color Emoji across Compose UI, posts, comments, and direct messages. |  |
 | [Replace Emoji Font with iOS Asset](#replace-emoji-font-with-ios-asset) | Copies the packaged Apple Color Emoji font into the target APK assets. |  |

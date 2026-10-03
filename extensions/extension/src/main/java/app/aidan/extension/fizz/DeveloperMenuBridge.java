@@ -18,20 +18,16 @@ public final class DeveloperMenuBridge {
 
     private static WeakReference<Activity> sCurrentActivity = new WeakReference<>(null);
     private static boolean sMobileStudioEnabled = true;
-    private static boolean sFeedDebuggingEnabled = false;
-
     private DeveloperMenuBridge() {
     }
 
     /**
      * Initializes the bridge with the active activity and patch configuration options.
      */
-    public static void init(Activity activity, boolean mobileStudio, boolean feedDebugging) {
+    public static void init(Activity activity, boolean mobileStudio) {
         sCurrentActivity = new WeakReference<>(activity);
         sMobileStudioEnabled = mobileStudio;
-        sFeedDebuggingEnabled = feedDebugging;
-        Log.i(TAG, "Initialized DeveloperMenuBridge (mobileStudio=" + mobileStudio +
-                ", feedDebugging=" + feedDebugging + ")");
+        Log.i(TAG, "Initialized DeveloperMenuBridge (mobileStudio=" + mobileStudio + ")");
     }
 
     /**
@@ -90,7 +86,7 @@ public final class DeveloperMenuBridge {
                 if (activity.isFinishing()) {
                     return;
                 }
-                DeveloperMenuDialog.show(activity, sMobileStudioEnabled, sFeedDebuggingEnabled);
+                DeveloperMenuDialog.show(activity, sMobileStudioEnabled);
             }
         });
     }
