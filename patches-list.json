@@ -1084,6 +1084,54 @@
       "options": []
     },
     {
+      "name": "Remove Tracking and Analytics",
+      "description": "Neutralizes first-party client event tracking, Mixpanel analytics, Airbridge and Adjust attribution SDKs, Google Advertising ID (AAID) collection, and bypasses PairIP Play Integrity verification, with options for silent DM screenshots and Sentry telemetry removal.",
+      "default": true,
+      "category": null,
+      "dependencies": [],
+      "compatiblePackages": [
+        {
+          "packageName": "com.ashtoncofer.Buzz",
+          "name": "Fizz",
+          "description": null,
+          "apkFileType": "APKM",
+          "appIconColor": "#7F00FF",
+          "signatures": [
+            "622850867847ccb7a1371bc42c865b1137fa51bd19987dc81b53815c9a9817bf"
+          ],
+          "targets": [
+            {
+              "version": "1.53.0",
+              "versionCodes": null,
+              "isExperimental": false,
+              "minSdk": 23,
+              "description": null
+            }
+          ]
+        }
+      ],
+      "options": [
+        {
+          "key": "silentScreenshots",
+          "title": "Silent Screenshots",
+          "description": "Suppresses screenshot notification dispatches to chat counterparts in direct message conversations.",
+          "required": false,
+          "type": "kotlin.Boolean",
+          "default": true,
+          "values": null
+        },
+        {
+          "key": "disableCrashReporting",
+          "title": "Disable Crash Reporting",
+          "description": "Neutralizes Sentry crash reporting, performance tracing, and operational session telemetry.",
+          "required": false,
+          "type": "kotlin.Boolean",
+          "default": true,
+          "values": null
+        }
+      ]
+    },
+    {
       "name": "Remove Tracking and Telemetry",
       "description": "Neutralizes Gainsight PX behavioral analytics (session tracking, screen views, custom events, user identification) and disables the Cordova Gainsight native plugin.",
       "default": true,
