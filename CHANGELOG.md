@@ -1,3 +1,11 @@
+## [1.2.0-dev.1](https://github.com/ihatenodejs/aidans-patches/compare/v1.1.0...v1.2.0-dev.1) (2026-10-03)
+
+### ✨ New Features
+
+* **adobe-scan:** added patch suite and documentation for adobe scan ([89eae8e](https://github.com/ihatenodejs/aidans-patches/commit/89eae8e7e9bfc36784f5c90798ba36fb4dd36bfe))
+* **blackjack:** added internet and notification permission removal patches ([2f23c54](https://github.com/ihatenodejs/aidans-patches/commit/2f23c541fa089abf3fbc1f52f620b1e0a1457ba0))
+* **fizz:** added patch suite and documentation for fizz ([1ecfacf](https://github.com/ihatenodejs/aidans-patches/commit/1ecfacffb6af05ac285dd006c0b18f353d00867e))
+
 ## [1.1.0](https://github.com/ihatenodejs/aidans-patches/compare/v1.0.0...v1.1.0) (2026-10-02)
 
 ### 🐛 Bug Fixes
