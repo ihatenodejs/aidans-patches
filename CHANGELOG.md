@@ -1,3 +1,9 @@
+## [1.2.0-dev.5](https://github.com/ihatenodejs/aidans-patches/compare/v1.2.0-dev.4...v1.2.0-dev.5) (2026-10-03)
+
+### 🐛 Bug Fixes
+
+* **fizz:** preserved 2048 UPM metrics for Apple Color Emoji ([cbd6f86](https://github.com/ihatenodejs/aidans-patches/commit/cbd6f86735c84fabe381ffc61e19c53567a4f684))
+
 ## [1.2.0-dev.4](https://github.com/ihatenodejs/aidans-patches/compare/v1.2.0-dev.3...v1.2.0-dev.4) (2026-10-03)
 
 ### 🐛 Bug Fixes
