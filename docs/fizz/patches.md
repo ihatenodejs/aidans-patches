@@ -145,3 +145,75 @@ This patch neutralizes these surveillance, attribution, and anti-tamper mechanis
    ```
 4. **Bytecode Verification**:
    - Inspect patched APK using `jadx` or `baksmali` to confirm `checkLicense`, `ra.da`, `jc.i0`, `dk.u`, `sa.n`, `sa.b`, `AdvertisingIdClient`, `ec.b1`, and `rd.b2` contain injected instructions.
+
+---
+
+## Patch: Replace Emoji Font with iOS
+
+- **Name:** Replace Emoji Font with iOS
+- **Target Package:** `com.ashtoncofer.Buzz`
+- **Supported Versions:** `1.53.0`
+- **Default State:** `true` (Enabled by default)
+- **Type:** Dalvik Bytecode Patch (`bytecodePatch`) with dependent Asset Patch (`rawResourcePatch`)
+- **Dependencies:** `Replace Emoji Font with iOS Asset`
+- **Extensions:** `extensions/extension.mpe` (`app.aidan.extension.emoji.EmojiFontBridge`)
+
+### 1. Motivation & Purpose
+
+Fizz defaults to Android system / Google Noto emoji styling for all user content (feed posts, comments, reactions, and direct messages). This patch bundles Apple Color Emoji (iOS 18+ CBDT/CBLC bitmap font) and injects it into Android's native text fallback chain, presenting native Apple emojis across all screens without requiring root or device-level font modifications.
+
+---
+
+### 2. Technical Implementation & Injection Points
+
+#### Layer 1: Asset Packaging (`Replace Emoji Font with iOS Asset`)
+- **Target File:** `assets/fonts/AppleColorEmoji.ttf`
+- **Source:** Generated at build time by `.github/scripts/prepare_emoji_font.py` (downloaded from upstream release, rescaled to 1000 UPM, injected with `cmap` Format 14, and pruned to 96x96 strike) and packaged in patch bundle resources (`fonts/AppleColorEmoji.ttf`).
+- **Effect:** Extracts and packages the single-strike 96x96 (36.6 MB) Apple Color Emoji font file directly into the APK's assets directory.
+
+#### Layer 2: EmojiCompat Neutralization
+- **Target:** `Landroidx/emoji2/text/EmojiCompatInitializer;`
+- **Method:** `b(Landroid/content/Context;)Ljava/lang/Object;`
+- **Injection:** Injects at index 0:
+  ```smali
+  sget-object v0, Ljava/lang/Boolean;->FALSE:Ljava/lang/Boolean;
+  return-object v0
+  ```
+- **Effect:** Prevents `EmojiCompat` from configuring and registering Google Play Services downloadable fonts. Compose UI (`q4.c`) treats emojis as standard characters and renders them through `Typeface` directly.
+
+#### Layer 3: Compose Resource Font Wrapping (`nunito_variable`)
+- **Target:** `Ln4/a;` (`AndroidFontLoader`)
+- **Method:** `b(Ln4/w;)Landroid/graphics/Typeface;`
+- **Injection:** After `ResourcesCompat.getFont` / `d5.n.b` result:
+  ```smali
+  const v1, 0x7f090000
+  invoke-static {v2, v0, v1}, Lapp/aidan/extension/emoji/EmojiFontBridge;->wrapTypeface(Landroid/content/Context;Landroid/graphics/Typeface;I)Landroid/graphics/Typeface;
+  move-result-object v0
+  ```
+- **Effect:** Replaces the loaded Nunito typeface with a composite typeface created via `Typeface.CustomFallbackBuilder` with `AppleColorEmoji.ttf` as its custom fallback.
+
+#### Layer 4: Compose Platform Typeface Wrapping
+- **Target:** `Luj/a;`
+- **Method:** `v(Ljava/lang/String;Ln4/s;I)Landroid/graphics/Typeface;`
+- **Injection:** Wraps both return branches (default font and styled font) through:
+  ```smali
+  invoke-static {v2, v3, v0}, Lapp/aidan/extension/emoji/EmojiFontBridge;->wrapPlatformTypeface(Landroid/graphics/Typeface;IZ)Landroid/graphics/Typeface;
+  move-result-object v2
+  ```
+- **Effect:** Ensures system and generic fallback typefaces in Compose also include Apple Color Emoji in their fallback hierarchy.
+
+---
+
+### 3. Preconditions & Verification
+
+1. **Build Verification**:
+   ```bash
+   ./gradlew :extensions:extension:assembleRelease
+   ./gradlew :patches:buildAndroid clean --no-daemon
+   ```
+2. **Metadata Verification**:
+   ```bash
+   ./gradlew generatePatchesList
+   ```
+3. **Runtime Smoke Test**:
+   - Verify in-app emojis on `emulator-5554` render using iOS Apple Color Emoji graphics across posts, comments, and direct message threads.

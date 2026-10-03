@@ -97,6 +97,39 @@ flowchart LR
 
 ---
 
+## Typography & Emoji Subsystem
+
+Fizz constructs its user interface exclusively using Jetpack Compose (`androidx.compose.ui.text`). Typography styling defaults to `Nunito` (`res/font/nunito_variable.ttf`), loaded at runtime via Compose's `AndroidFontLoader` (`n4.a`) and resolved through `FontFamilyResolverImpl` (`n4.k`).
+
+### 1. EmojiCompat Integration
+
+The application registers `androidx.emoji2.text.EmojiCompatInitializer` with `androidx.startup.InitializationProvider`. When enabled:
+1. `EmojiCompatInitializer.b` creates a `FontRequestEmojiCompatConfig` backed by Google Play Services downloadable fonts.
+2. `AndroidParagraphIntrinsics` (`q4.c`) checks `EmojiCompat.isConfigured()` (`x5.i.c()`).
+3. If initialized, `EmojiCompat.process(...)` scans incoming text and wraps emoji sequences in `TypefaceEmojiSpan` (`x5.u`), enforcing Google Noto emoji rendering.
+
+```mermaid
+flowchart TD
+    A[Compose Text Component] --> B[AndroidParagraphIntrinsics]
+    B --> C{EmojiCompat.isConfigured?}
+    C -->|Yes / Default| D[EmojiCompat.process -> TypefaceEmojiSpan Google Noto]
+    C -->|No / Patched| E[Raw Text -> Canvas.drawText with Custom Typeface]
+    E --> F[Minikin Font Fallback Chain]
+    F --> G[AppleColorEmoji.ttf iOS Emojis]
+```
+
+### 2. Custom Fallback Typeface Pipeline
+
+When `EmojiCompat` is neutralized:
+1. `EmojiCompatInitializer.b` immediately returns `Boolean.FALSE`, preventing `EmojiCompat` registration.
+2. Compose leaves emojis as untransformed characters.
+3. `n4.a.b` (`AndroidFontLoader.load`) intercepts `nunito_variable` resolution and delegates to `EmojiFontBridge.wrapTypeface`.
+4. `EmojiFontBridge` instantiates `Typeface.CustomFallbackBuilder` with `Nunito` as the primary family and `assets/fonts/AppleColorEmoji.ttf` as the custom fallback.
+5. `uj.a.v` (PlatformTypefaces) intercepts generic and platform font resolution, routing to `EmojiFontBridge.wrapPlatformTypeface`.
+6. Minikin renders all emoji codepoints using the high-resolution CBDT/CBLC bitmap glyphs from `AppleColorEmoji.ttf`.
+
+---
+
 ## Patch Targets
 
 1. **`RemoveTrackingAndAnalyticsPatch.kt` (`bytecodePatch`)**:
@@ -108,3 +141,7 @@ flowchart LR
    - Zeroes the Google Advertising ID (`00000000-0000-0000-0000-000000000000`) and limits ad tracking (`AdvertisingIdClient`, `sa.k`).
    - Configurable option `disableCrashReporting`: Disables Sentry initialization and reporting (`ec.b1`, `q1`).
    - Configurable option `silentScreenshots`: Disables screenshot detection alerts to chat counterparts (`rd.b2`, `jc.l2.q`).
+2. **`ReplaceEmojiFontWithIosPatch.kt` (`rawResourcePatch` & `bytecodePatch`)**:
+   - Bundles `AppleColorEmoji.ttf` into `assets/fonts/AppleColorEmoji.ttf` in target APK (`rawResourcePatch`).
+   - Stubs `EmojiCompatInitializer.b` to return `Boolean.FALSE`, disabling Google Noto emoji replacement (`bytecodePatch`).
+   - Wraps Compose font loader `n4.a.b` and platform font resolver `uj.a.v` with `EmojiFontBridge` custom fallback builder (`bytecodePatch`).

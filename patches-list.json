@@ -1320,6 +1320,66 @@
       ]
     },
     {
+      "name": "Replace Emoji Font with iOS",
+      "description": "Replaces Android system emoji with iOS Apple Color Emoji across Compose UI, posts, comments, and direct messages.",
+      "default": true,
+      "category": null,
+      "dependencies": [
+        "Replace Emoji Font with iOS Asset"
+      ],
+      "compatiblePackages": [
+        {
+          "packageName": "com.ashtoncofer.Buzz",
+          "name": "Fizz",
+          "description": null,
+          "apkFileType": "APKM",
+          "appIconColor": "#7F00FF",
+          "signatures": [
+            "622850867847ccb7a1371bc42c865b1137fa51bd19987dc81b53815c9a9817bf"
+          ],
+          "targets": [
+            {
+              "version": "1.53.0",
+              "versionCodes": null,
+              "isExperimental": false,
+              "minSdk": 23,
+              "description": null
+            }
+          ]
+        }
+      ],
+      "options": []
+    },
+    {
+      "name": "Replace Emoji Font with iOS Asset",
+      "description": "Copies the packaged Apple Color Emoji font into the target APK assets.",
+      "default": true,
+      "category": null,
+      "dependencies": [],
+      "compatiblePackages": [
+        {
+          "packageName": "com.ashtoncofer.Buzz",
+          "name": "Fizz",
+          "description": null,
+          "apkFileType": "APKM",
+          "appIconColor": "#7F00FF",
+          "signatures": [
+            "622850867847ccb7a1371bc42c865b1137fa51bd19987dc81b53815c9a9817bf"
+          ],
+          "targets": [
+            {
+              "version": "1.53.0",
+              "versionCodes": null,
+              "isExperimental": false,
+              "minSdk": 23,
+              "description": null
+            }
+          ]
+        }
+      ],
+      "options": []
+    },
+    {
       "name": "Replace Shop with Home",
       "description": "Replaces the Shop bottom navigation tab with Home, a custom screen to replace the overly-commercial Shop screen.",
       "default": true,
