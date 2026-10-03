@@ -217,3 +217,69 @@ Fizz defaults to Android system / Google Noto emoji styling for all user content
    ```
 3. **Runtime Smoke Test**:
    - Verify in-app emojis on `emulator-5554` render using iOS Apple Color Emoji graphics across posts, comments, and direct message threads.
+
+---
+
+## Patch: Enable Developer Settings
+
+- **Name:** Enable Developer Settings
+- **Target Package:** `com.ashtoncofer.Buzz`
+- **Supported Versions:** `1.53.0`
+- **Default State:** `false` (Disabled by default)
+- **Type:** Dalvik Bytecode Patch (`bytecodePatch`)
+- **Extensions:** `extensions/extension.mpe` (`app.aidan.extension.fizz.DeveloperMenuBridge`, `DeveloperMenuDialog`)
+- **Dependencies:** None
+
+### 1. Motivation & Purpose
+
+Fizz contains extensive diagnostic systems, a hidden on-device developer suite (Mobile Studio), and real-time visual overlays (FPS counter, feed ingestion debuggers, Compose layout debug lines, viewport tracking rects) that are normally inaccessible in production release builds.
+
+This patch adds a dedicated Developer Settings button into the Home Screen top navigation bar directly to the left of the notification bell, opening a native dark-themed developer mod menu (`DeveloperMenuDialog`) with controls for 1-tap Mobile Studio launching and diagnostic overlay toggles. User role property overrides (`isSuperAdmin`, `isAdmin`, `isModerator`, `isBankAdmin`, etc.) can be directly controlled with one tap inside Mobile Studio's built-in "User Property Overrides" menu.
+
+---
+
+### 2. Options Breakdown
+
+- **`mobileStudio` (Boolean, Default: `true`)**:
+  - *Title:* Mobile Studio
+  - *Description:* Adds a 1-tap "Launch Mobile Studio" action into the developer mod menu and permanently unlocks Mobile Studio drawer access.
+- **`feedDebugging` (Boolean, Default: `false`)**:
+  - *Title:* Feed & App Debugging
+  - *Description:* Adds toggle switches for visual diagnostics: Real-Time FPS counter (`SHOW_FRAME_RATE`), Feed Ingestion Debugger (`SHOW_FEED_DEBUG_OVERLAY`), Layout Debug Lines (`SHOW_VIEW_DEBUG_LINES`), Viewport Tracking Debugger (`SHOW_VIEW_TRACKING_DEBUGGER`), Unmasked Superadmin Names (`SHOW_SUPER_ADMIN_NAMES`), and Meme Template Tags (`SHOW_MEME_NAME`).
+
+---
+
+### 3. Technical Implementation & Injection Points
+
+#### Layer 1: Bridge Lifecycle Initialization (`MainActivity.onCreate`)
+- **Target:** `Lcom/fizzsocial/fizz/MainActivity;`
+- **Method:** `onCreate(Landroid/os/Bundle;)V`
+- **Injection:** Injects initializer call immediately after `super.onCreate`:
+  ```smali
+  const/4 v0, $mobileStudioVal
+  const/4 v1, $feedDebuggingVal
+  invoke-static {p0, v0, v1}, Lapp/aidan/extension/fizz/DeveloperMenuBridge;->init(Landroid/app/Activity;ZZ)V
+  ```
+- **Effect:** Binds the active activity reference and configuration flags for menu presentation and Mobile Studio dispatch before any Compose UI rendering begins.
+
+#### Layer 2: Home TopBar Icon Composable Injection (`sd.w.a`)
+- **Target:** `Lsd/w;`
+- **Method:** `a(...)V`
+- **Insertion Anchor:** Immediately before the `sget-object v3, La3/b;->f:La3/i` instruction preceding `feed-activity-button`.
+- **Layout Specifications:**
+  - Container Scope: `androidx.compose.foundation.layout.b` (`BoxScope`)
+  - Alignment: `a3.b.f` (`Alignment.CenterEnd`)
+  - Right Margin: `56.dp` (`0x42600000`, positioned `4.dp` to the left of the `44.dp` notification bell with `8.dp` right margin)
+  - Touch Target: `44.dp x 44.dp` (`0x42300000`)
+  - Inner Padding: `10.dp` all around (centers the `24.dp` vector inside the `44.dp` touch target)
+  - Semantics Tag: `feed-developer-button`
+  - Icon Vector: `ne.t.a` (`Outlined.Settings` gear icon)
+  - Dynamic Tint: `cVar4.f46557z` (`we.c.z`, inherits campus theme color)
+  - Click Listener: Calls `DeveloperMenuBridge.getClickListener()` (dynamic Kotlin `Function0<Unit>` proxy).
+
+#### Layer 3: Mobile Studio Hardware & Flow Dispatch (`DeveloperMenuBridge`)
+- **Primary Mechanism:** Reflects onto `MainActivity.m0` (`ce.j1`) and emits `il.z.a` directly into `m0.f4616a.r(Unit)`.
+- **Fallback Mechanism:** Dispatches alternating `KEYCODE_VOLUME_UP` and `KEYCODE_VOLUME_DOWN` key events within 1,200 ms via `activity.dispatchKeyEvent(...)`.
+
+#### Layer 4: Mobile Studio Drawer Gating Bypass (`ce.w1.invokeSuspend`)
+- When `mobileStudio == true`, patches case 1 of `ce.w1.invokeSuspend` to return `Boolean.TRUE`, ensuring the root Compose drawer (`ce.i1`) mounts and animates on all user accounts.

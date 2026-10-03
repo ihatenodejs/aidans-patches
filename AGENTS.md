@@ -108,7 +108,9 @@ Patches operate across six distinct architectural layers depending on target app
 │       │   ├── canvas/                    # Canvas Student patch implementations (1 patch)
 │       │   │   ├── shared/                # Canvas constants & compatibility
 │       │   │   └── tracking/              # RemoveTrackingAndAnalyticsPatch, Fix16KbPageCompatibilityPatch
-│       │   ├── fizz/                      # Fizz patch implementations (1 patch)
+│       │   ├── fizz/                      # Fizz patch implementations (3 patches)
+│       │   │   ├── customization/         # ReplaceEmojiFontWithIosPatch
+│       │   │   ├── dev/                   # EnableDeveloperSettingsPatch
 │       │   │   ├── shared/                # Fizz constants & compatibility
 │       │   │   └── tracking/              # RemoveTrackingAndAnalyticsPatch
 │       │   ├── navigate360/               # Navigate360 Student patch implementations (2 patches)
@@ -343,6 +345,9 @@ Keep bytecode injection logic reusable and safe:
 | `extensions/extension/src/main/java/app/aidan/extension/emoji/EmojiFontBridge.java` | Native Android extension creating and caching `CustomFallbackBuilder` typefaces with Apple Color Emoji. |
 | `docs/fizz/architecture.md` | Reverse engineering specification for Fizz social architecture, PairIP protection, and telemetry pipelines. |
 | `docs/fizz/patches.md` | Patch specifications for Fizz tracking removal, PairIP bypass, and silent screenshots. |
+| `patches/src/main/kotlin/app/aidan/patches/fizz/dev/EnableDeveloperSettingsPatch.kt` | Dalvik patch injecting top-bar developer mod menu icon with Mobile Studio trigger and diagnostic overlays. |
+| `extensions/extension/src/main/java/app/aidan/extension/fizz/DeveloperMenuBridge.java` | Native Android bridge handling menu invocation, Mobile Studio flow trigger, and app restart. |
+| `extensions/extension/src/main/java/app/aidan/extension/fizz/DeveloperMenuDialog.java` | Native Android modal dialog presenting developer mod menu with Mobile Studio launcher and visual diagnostics toggles. |
 ---
 
 ## Runtime/Tooling Preferences

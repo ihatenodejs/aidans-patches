@@ -372,6 +372,54 @@
       "options": []
     },
     {
+      "name": "Enable Developer Settings",
+      "description": "Adds an in-app developer mod menu accessible via a top-bar header button, with controls for Mobile Studio and real-time visual diagnostics.",
+      "default": false,
+      "category": null,
+      "dependencies": [],
+      "compatiblePackages": [
+        {
+          "packageName": "com.ashtoncofer.Buzz",
+          "name": "Fizz",
+          "description": null,
+          "apkFileType": "APKM",
+          "appIconColor": "#7F00FF",
+          "signatures": [
+            "622850867847ccb7a1371bc42c865b1137fa51bd19987dc81b53815c9a9817bf"
+          ],
+          "targets": [
+            {
+              "version": "1.53.0",
+              "versionCodes": null,
+              "isExperimental": false,
+              "minSdk": 23,
+              "description": null
+            }
+          ]
+        }
+      ],
+      "options": [
+        {
+          "key": "mobileStudio",
+          "title": "Mobile Studio",
+          "description": "Includes Mobile Studio trigger in the developer settings menu and permanently unlocks Mobile Studio access.",
+          "required": false,
+          "type": "kotlin.Boolean",
+          "default": true,
+          "values": null
+        },
+        {
+          "key": "feedDebugging",
+          "title": "Feed & App Debugging",
+          "description": "Includes visual diagnostics, FPS counter, layout debug lines, and feed debug overlay toggles in the developer settings menu.",
+          "required": false,
+          "type": "kotlin.Boolean",
+          "default": false,
+          "values": null
+        }
+      ]
+    },
+    {
       "name": "Full AMOLED Theme",
       "description": "Themes AfterShip in pure AMOLED black by removing dark gray backgrounds from the bottom navigation bar, account items, cards, and windows.",
       "default": true,
