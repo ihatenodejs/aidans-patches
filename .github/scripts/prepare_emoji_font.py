@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Downloads, transforms, and caches Apple Color Emoji for Fizz.
-Prunes redundant strikes down to a single 96x96 strike, rescales metrics to 1000 UPM,
+Prunes redundant strikes down to a single 96x96 strike, preserves 2048 UPM metrics,
 injects the cmap Format 14 Unicode Variation Sequences subtable, and recomputes OpenType checksums.
 """
 
@@ -20,6 +20,7 @@ DEFAULT_URL = (
 )
 EXPECTED_RAW_SHA256 = "e37c7af6265ac4a0af6d57bc65e86109a776d9966e8343334557f63da482516f"
 EXPECTED_PROCESSED_SIZE = 38369120
+EXPECTED_PROCESSED_SHA256 = "c75b8bb062f4001ecacfd62ec843918096e1dcd12a0260be9e13168021fa2208"
 OPENTYPE_CHECKSUM_MAGIC = 0xB1B0AFBA
 
 # 757-byte Format 14 (Unicode Variation Sequences) subtable for \uFE0F emoji presentation
@@ -54,6 +55,8 @@ def verify_processed_font(path: str) -> bool:
     try:
         with open(path, "rb") as f:
             data = f.read()
+        if hashlib.sha256(data).hexdigest() != EXPECTED_PROCESSED_SHA256:
+            return False
         total_chk = sum(struct.unpack(f">{len(data)//4}I", data)) & 0xFFFFFFFF
         return total_chk == OPENTYPE_CHECKSUM_MAGIC
     except Exception:
@@ -108,22 +111,22 @@ def transform_linux_ttf(input_path: str, output_path: str) -> None:
             "data": bytearray(font_data[offset : offset + length])
         }
 
-    # 1. Update head table: unitsPerEm = 1000, checkSumAdjustment = 0
+    # 1. Update head table: unitsPerEm = 2048, checkSumAdjustment = 0
     head = tables["head"]["data"]
     struct.pack_into(">I", head, 8, 0)
-    struct.pack_into(">H", head, 18, 1000)
+    struct.pack_into(">H", head, 18, 2048)
 
-    # 2. Update hhea table: ascender = 1000, descender = -312
+    # 2. Update hhea table: ascender = 2048, descender = -640
     hhea = tables["hhea"]["data"]
-    struct.pack_into(">h", hhea, 4, 1000)
-    struct.pack_into(">h", hhea, 6, -312)
+    struct.pack_into(">h", hhea, 4, 2048)
+    struct.pack_into(">h", hhea, 6, -640)
 
-    # 3. Update OS/2 table: sTypoAscender = 938, sTypoDescender = -312, usWinAscent = 1000, usWinDescent = 312
+    # 3. Update OS/2 table: sTypoAscender = 1920, sTypoDescender = -640, usWinAscent = 2048, usWinDescent = 640
     os2 = tables["OS/2"]["data"]
-    struct.pack_into(">h", os2, 68, 938)
-    struct.pack_into(">h", os2, 70, -312)
-    struct.pack_into(">H", os2, 74, 1000)
-    struct.pack_into(">H", os2, 76, 312)
+    struct.pack_into(">h", os2, 68, 1920)
+    struct.pack_into(">h", os2, 70, -640)
+    struct.pack_into(">H", os2, 74, 2048)
+    struct.pack_into(">H", os2, 76, 640)
 
     # 4. Transform cmap table: inject Format 14 Unicode Variation Sequences subtable
     old_cmap = tables["cmap"]["data"]

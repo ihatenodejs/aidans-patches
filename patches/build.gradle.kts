@@ -31,7 +31,7 @@ val prepareEmojiFont = tasks.register<Exec>("prepareEmojiFont") {
     val scriptFile = rootProject.file(".github/scripts/prepare_emoji_font.py")
 
     inputs.file(scriptFile)
-    inputs.property("scriptVersion", "1.0.0")
+    inputs.property("scriptVersion", "1.0.1")
 
     workingDir = rootDir
     doFirst {

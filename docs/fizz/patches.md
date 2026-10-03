@@ -168,7 +168,7 @@ Fizz defaults to Android system / Google Noto emoji styling for all user content
 
 #### Layer 1: Asset Packaging (`Replace Emoji Font with iOS Asset`)
 - **Target File:** `assets/fonts/AppleColorEmoji.ttf`
-- **Source:** Generated at build time by `.github/scripts/prepare_emoji_font.py` (downloaded from upstream release, rescaled to 1000 UPM, injected with `cmap` Format 14, and pruned to 96x96 strike) and packaged in patch bundle resources (`fonts/AppleColorEmoji.ttf`).
+- **Source:** Generated at build time by `.github/scripts/prepare_emoji_font.py` (downloaded from upstream release, preserved at native 2048 UPM matching hmtx advance widths, injected with `cmap` Format 14, and pruned to 96x96 strike) and packaged in patch bundle resources (`fonts/AppleColorEmoji.ttf`).
 - **Effect:** Extracts and packages the single-strike 96x96 (36.6 MB) Apple Color Emoji font file directly into the APK's assets directory.
 
 #### Layer 2: EmojiCompat Neutralization
