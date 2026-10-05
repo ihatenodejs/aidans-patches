@@ -30,7 +30,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
         with:
-          ref: dev
+          persist-credentials: false
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -71,7 +71,7 @@ jobs:
           git checkout -B "$SOURCE_BRANCH"
           git add site/public/icons/ site/src/data/icons.ts
           git commit -m "chore(icons): sync application icons from Google Play"
-          git push --force origin "$SOURCE_BRANCH"
+          git push --force "https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git" "$SOURCE_BRANCH"
 
           if gh pr list --base "$TARGET_BRANCH" --head "$SOURCE_BRANCH" --json number | jq -e '. | length > 0' >/dev/null; then
             echo "Pull request already exists; pushed updated commit to $SOURCE_BRANCH."
