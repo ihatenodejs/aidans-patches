@@ -99,7 +99,7 @@ async function performVersionCheck(
     if (scraped.rawError) {
       appsRecord[app.packageName] = {
         appName: app.name,
-        playVersion: null,
+        playVersion: priorRecord?.playVersion || null,
         iconUrl: priorRecord?.iconUrl || null,
         updatedAt: priorRecord?.updatedAt || null,
         updatedOn: priorRecord?.updatedOn || null,

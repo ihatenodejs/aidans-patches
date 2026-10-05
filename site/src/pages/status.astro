@@ -533,7 +533,7 @@ function formatRelativeTime(dateStr: string): string {
             }
           }
 
-          const endpoint = (typeof workerUrl !== 'undefined' && workerUrl) ? `${workerUrl}/api/status` : 'https://worker.patch.p0ntus.com/api/status';
+          const endpoint = (typeof workerUrl !== 'undefined' && workerUrl) ? new URL('/api/status', workerUrl).toString() : 'https://worker.patch.p0ntus.com/api/status';
           const response = await fetch(endpoint);
           if (!response.ok) return;
 

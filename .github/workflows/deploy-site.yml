@@ -17,7 +17,7 @@ jobs:
     name: Build & Verify Website
     runs-on: ubuntu-latest
     env:
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      DEPLOY_ENABLED: ${{ secrets.CLOUDFLARE_API_TOKEN != '' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -48,7 +48,7 @@ jobs:
         run: bun run check
 
       - name: Deploy to Cloudflare Pages (Production)
-        if: env.CLOUDFLARE_API_TOKEN != ''
+        if: env.DEPLOY_ENABLED == 'true'
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -57,7 +57,7 @@ jobs:
           command: pages deploy dist --project-name=aidans-patches
 
       - name: Deploy Cloudflare Worker (Version Freshness Cron)
-        if: env.CLOUDFLARE_API_TOKEN != ''
+        if: env.DEPLOY_ENABLED == 'true'
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}

@@ -7,10 +7,10 @@ import BentoCard from '../components/BentoCard.astro';
 import MockConfig from '../components/MockConfig.astro';
 import PatchCodeViewer from '../components/PatchCodeViewer.astro';
 import GridLine from '../components/GridLine.astro';
-import { getApps, getLatestRelease, getInitialVersionStatuses } from '../data/repo';
+import { getApps, getLatestRelease, getInitialVersionStatuses, getRepositoryStats } from '../data/repo';
 
 const apps = getApps();
-const totalPatches = apps.reduce((sum, a) => sum + a.patchCount, 0);
+const totalPatches = getRepositoryStats().totalPatchesCount;
 const latestRelease = getLatestRelease();
 const versionStatuses = getInitialVersionStatuses().slice(0, 4);
 const workerUrl = import.meta.env.PUBLIC_WORKER_URL || 'https://worker.patch.p0ntus.com';
@@ -74,7 +74,7 @@ const workerUrl = import.meta.env.PUBLIC_WORKER_URL || 'https://worker.patch.p0n
         <h2 class="font-sans text-xl font-bold tracking-tight text-white">Find your new favorite</h2>
       </div>
       <a href="/patches" class="font-mono text-xs text-zinc-400 hover:text-white transition-colors">
-        Browse {apps.reduce((sum, a) => sum + a.patchCount, 0)} patches &rarr;
+        Browse {totalPatches} patches &rarr;
       </a>
     </div>
 
@@ -561,7 +561,7 @@ const workerUrl = import.meta.env.PUBLIC_WORKER_URL || 'https://worker.patch.p0n
             }
           }
 
-          const endpoint = (typeof workerUrl !== 'undefined' && workerUrl) ? `${workerUrl}/api/status` : 'https://worker.patch.p0ntus.com/api/status';
+          const endpoint = (typeof workerUrl !== 'undefined' && workerUrl) ? new URL('/api/status', workerUrl).toString() : 'https://worker.patch.p0ntus.com/api/status';
           const response = await fetch(endpoint);
           if (!response.ok) return;
 

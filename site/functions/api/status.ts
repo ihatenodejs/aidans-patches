@@ -3,12 +3,13 @@ interface Env {
 }
 
 export async function onRequestGet(context: { env: Env }): Promise<Response> {
-  const workerUrl =
-    context.env?.WORKER_URL ||
-    'https://worker.patch.p0ntus.com';
+  const workerUrl = context.env?.WORKER_URL;
+  const endpoint = workerUrl
+    ? new URL('/api/status', workerUrl).toString()
+    : 'https://worker.patch.p0ntus.com/api/status';
 
   try {
-    const upstreamResponse = await fetch(`${workerUrl}/api/status`, {
+    const upstreamResponse = await fetch(endpoint, {
       headers: {
         Accept: 'application/json',
       },
