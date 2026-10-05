@@ -62,6 +62,9 @@ out/
 # Node
 node_modules/
 
+# Astro
+.astro/
+
 # Mac
 .DS_Store
 
