@@ -96,21 +96,26 @@ async function performVersionCheck(
       continue;
     }
 
-    if (scraped.rawError && priorRecord) {
-      // Preserve prior successful value if current network check failed
+    if (scraped.rawError) {
       appsRecord[app.packageName] = {
-        ...priorRecord,
         appName: app.name,
+        playVersion: null,
+        iconUrl: priorRecord?.iconUrl || null,
+        updatedAt: priorRecord?.updatedAt || null,
+        updatedOn: priorRecord?.updatedOn || null,
         checkedAt: now,
+        status: 'check-failed',
+        supportedVersions: app.supportedVersions,
+        latestSupportedVersion: app.latestSupportedVersion,
       };
       continue;
     }
 
     const versionToCompare =
-      scraped.playVersion || priorRecord?.playVersion || app.latestSupportedVersion;
+      scraped.playVersion || priorRecord?.playVersion || null;
     const status = compareAppVersions(
       app.latestSupportedVersion,
-      scraped.playVersion
+      versionToCompare
     );
 
     appsRecord[app.packageName] = {
@@ -200,14 +205,12 @@ export default {
 
     // On-demand refresh endpoint
     if (url.pathname === '/api/refresh' && request.method === 'POST') {
-      if (env.REFRESH_SECRET) {
-        const auth = request.headers.get('Authorization');
-        if (auth !== `Bearer ${env.REFRESH_SECRET}`) {
-          return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-            status: 401,
-            headers: CORS_HEADERS,
-          });
-        }
+      const auth = request.headers.get('Authorization');
+      if (!env.REFRESH_SECRET || auth !== `Bearer ${env.REFRESH_SECRET}`) {
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+          status: 401,
+          headers: CORS_HEADERS,
+        });
       }
 
       let existingData: KVVersionPayload | null = null;
