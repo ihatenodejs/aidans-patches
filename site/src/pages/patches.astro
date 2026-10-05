@@ -5,6 +5,7 @@ import PatchRow from '../components/PatchRow.astro';
 import { getApps, getPatches } from '../data/repo';
 const apps = getApps();
 const allPatches = getPatches();
+const totalPatches = allPatches.length;
 
 // Group patches by app
 const patchesByApp = apps.map((app) => ({
@@ -15,7 +16,7 @@ const patchesByApp = apps.map((app) => ({
 
 <BaseLayout
   title="Patches Catalog — Aidan's Morphe Patches"
-  description="Browse all 47 curated Android bytecode, resource, and Hermes binary patches with full option configuration and source references."
+  description={`Browse all ${totalPatches} curated Android bytecode, resource, and Hermes binary patches with full option configuration and source references.`}
   currentPath="/patches"
 >
   <div class="px-4 sm:px-6 py-10 space-y-10">

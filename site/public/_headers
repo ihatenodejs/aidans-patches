@@ -1,6 +1,6 @@
 # Static asset caching headers for Cloudflare Pages
 /icons/*
-  Cache-Control: public, max-age=31536000, immutable
+  Cache-Control: public, max-age=3600, must-revalidate
   Access-Control-Allow-Origin: *
 
 /_astro/*

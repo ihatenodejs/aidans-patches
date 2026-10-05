@@ -10,8 +10,10 @@ import GridLine from '../components/GridLine.astro';
 import { getApps, getLatestRelease, getInitialVersionStatuses } from '../data/repo';
 
 const apps = getApps();
+const totalPatches = apps.reduce((sum, a) => sum + a.patchCount, 0);
 const latestRelease = getLatestRelease();
 const versionStatuses = getInitialVersionStatuses().slice(0, 4);
+const workerUrl = import.meta.env.PUBLIC_WORKER_URL || 'https://worker.patch.p0ntus.com';
 ---
 
 <BaseLayout
@@ -261,7 +263,7 @@ const versionStatuses = getInitialVersionStatuses().slice(0, 4);
           </thead>
           <tbody class="divide-y divide-white/[0.06]">
             {versionStatuses.map((item) => (
-              <tr class="hover:bg-white/[0.02] transition-colors">
+              <tr class="hover:bg-white/[0.02] transition-colors" data-package={item.packageName}>
                 <td class="py-3.5 px-4 font-sans font-semibold text-white">
                   <div class="flex items-center gap-2.5">
                     {item.iconUrl ? (
@@ -282,12 +284,35 @@ const versionStatuses = getInitialVersionStatuses().slice(0, 4);
                   </div>
                 </td>
                 <td class="py-3.5 px-4 text-zinc-300 hidden sm:table-cell">v{item.latestSupportedVersion}</td>
-                <td class="py-3.5 px-4 text-zinc-400 hidden sm:table-cell">v{item.playVersion}</td>
-                <td class="py-3.5 px-4 text-right">
-                  <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-[10px] bg-emerald-950/60 text-emerald-400 border border-emerald-800/40 whitespace-nowrap">
-                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0"></span>
-                    <span>Up to date</span>
-                  </span>
+                <td class="py-3.5 px-4 text-zinc-400 play-version hidden sm:table-cell">
+                  {item.playVersion ? `v${item.playVersion}` : '—'}
+                </td>
+                <td class="py-3.5 px-4 text-right status-badge-cell">
+                  {item.status === 'up-to-date' ? (
+                    <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-[10px] bg-emerald-950/60 text-emerald-400 border border-emerald-800/40 whitespace-nowrap">
+                      <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0"></span>
+                      <span>Up to date</span>
+                    </span>
+                  ) : item.status === 'newer-available' ? (
+                    <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-[10px] bg-amber-950/60 text-amber-400 border border-amber-800/40 whitespace-nowrap">
+                      <span class="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0"></span>
+                      <span>Newer version available</span>
+                    </span>
+                  ) : item.status === 'check-failed' ? (
+                    <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-[10px] bg-rose-950/60 text-rose-400 border border-rose-800/40 whitespace-nowrap">
+                      <span class="w-1.5 h-1.5 rounded-full bg-rose-400 shrink-0"></span>
+                      <span>Check failed</span>
+                    </span>
+                  ) : item.status === 'not-on-play-store' ? (
+                    <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-[10px] bg-zinc-900 text-zinc-500 border border-white/10 whitespace-nowrap">
+                      <span>Not on Play Store</span>
+                    </span>
+                  ) : (
+                    <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-[10px] bg-zinc-900 text-zinc-400 border border-white/10 whitespace-nowrap">
+                      <span class="w-1.5 h-1.5 rounded-full bg-zinc-500 shrink-0"></span>
+                      <span>Unknown</span>
+                    </span>
+                  )}
                 </td>
               </tr>
             ))}
@@ -438,7 +463,7 @@ const versionStatuses = getInitialVersionStatuses().slice(0, 4);
         See what you can patch.
       </h2>
       <p class="text-xs text-zinc-400 leading-relaxed">
-        Browse the complete catalog of 47 patches across 8 apps with full option documentation and direct source references.
+        Browse the complete catalog of {totalPatches} patches across {apps.length} apps with full option documentation and direct source references.
       </p>
     </div>
 
@@ -459,4 +484,101 @@ const versionStatuses = getInitialVersionStatuses().slice(0, 4);
       </a>
     </div>
   </section>
+
+  <!-- Client-side live hydration from Cloudflare Worker -->
+  <script is:inline define:vars={{ workerUrl }}>
+    (function () {
+      const STATUS_CACHE_KEY = 'aidans_patches_status_cache';
+      const STATUS_CACHE_TTL_MS = 5 * 60 * 1000;
+      const rows = document.querySelectorAll('tr[data-package]');
+
+      function applyStatusData(data) {
+        if (!data || !data.apps) return;
+        rows.forEach((row) => {
+          const pkg = row.getAttribute('data-package');
+          const appData = data.apps[pkg];
+          if (!appData) return;
+
+          const playCell = row.querySelector('.play-version');
+          const badgeCell = row.querySelector('.status-badge-cell');
+
+          if (playCell && appData.playVersion) {
+            playCell.textContent = 'v' + appData.playVersion;
+          }
+
+          if (badgeCell) {
+            if (appData.status === 'up-to-date') {
+              badgeCell.innerHTML = `
+                <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-[10px] bg-emerald-950/60 text-emerald-400 border border-emerald-800/40 whitespace-nowrap">
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0"></span>
+                  <span>Up to date</span>
+                </span>
+              `;
+            } else if (appData.status === 'newer-available') {
+              badgeCell.innerHTML = `
+                <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-[10px] bg-amber-950/60 text-amber-400 border border-amber-800/40 whitespace-nowrap">
+                  <span class="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0"></span>
+                  <span>Newer version available</span>
+                </span>
+              `;
+            } else if (appData.status === 'check-failed') {
+              badgeCell.innerHTML = `
+                <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-[10px] bg-rose-950/60 text-rose-400 border border-rose-800/40 whitespace-nowrap">
+                  <span class="w-1.5 h-1.5 rounded-full bg-rose-400 shrink-0"></span>
+                  <span>Check failed</span>
+                </span>
+              `;
+            } else if (appData.status === 'not-on-play-store') {
+              badgeCell.innerHTML = `
+                <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-[10px] bg-zinc-900 text-zinc-500 border border-white/10 whitespace-nowrap">
+                  <span>Not on Play Store</span>
+                </span>
+              `;
+            } else {
+              badgeCell.innerHTML = `
+                <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-[10px] bg-zinc-900 text-zinc-400 border border-white/10 whitespace-nowrap">
+                  <span class="w-1.5 h-1.5 rounded-full bg-zinc-500 shrink-0"></span>
+                  <span>Unknown</span>
+                </span>
+              `;
+            }
+          }
+        });
+      }
+
+      (async function hydrate() {
+        try {
+          const cached = sessionStorage.getItem(STATUS_CACHE_KEY);
+          if (cached) {
+            try {
+              const parsed = JSON.parse(cached);
+              if (parsed && parsed.data && Date.now() - parsed.timestamp < STATUS_CACHE_TTL_MS) {
+                applyStatusData(parsed.data);
+                return;
+              }
+            } catch {
+              // Ignore parse error
+            }
+          }
+
+          const endpoint = (typeof workerUrl !== 'undefined' && workerUrl) ? `${workerUrl}/api/status` : 'https://worker.patch.p0ntus.com/api/status';
+          const response = await fetch(endpoint);
+          if (!response.ok) return;
+
+          const data = await response.json();
+          if (!data || !data.apps) return;
+
+          try {
+            sessionStorage.setItem(STATUS_CACHE_KEY, JSON.stringify({ data, timestamp: Date.now() }));
+          } catch {
+            // Ignore storage quota errors
+          }
+
+          applyStatusData(data);
+        } catch {
+          // Keep static fallback
+        }
+      })();
+    })();
+  </script>
 </BaseLayout>

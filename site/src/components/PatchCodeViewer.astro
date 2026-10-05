@@ -33,7 +33,8 @@ const viewerData = apps.map((app) => {
 });
 
 // Initial selection: first app with code
-const initialApp = viewerData.find((a) => a.patches.length > 0) || viewerData[0];
+const initialAppIndex = Math.max(0, viewerData.findIndex((a) => a.patches.length > 0));
+const initialApp = viewerData[initialAppIndex] || viewerData[0];
 const initialPatch = initialApp.patches[0];
 ---
 
@@ -59,7 +60,7 @@ const initialPatch = initialApp.patches[0];
               type="button"
               data-app-id={app.id}
               class={`w-full text-left px-3 py-2 rounded-sm text-xs font-mono flex items-center justify-between transition-colors ${
-                index === 0
+                index === initialAppIndex
                   ? 'bg-white/[0.08] text-white font-semibold'
                   : 'text-zinc-400 hover:text-white hover:bg-white/[0.03]'
               }`}
@@ -171,10 +172,10 @@ const initialPatch = initialApp.patches[0];
   </div>
 </div>
 
-<script is:inline define:vars={{ viewerData }}>
+<script is:inline define:vars={{ viewerData, initialAppIndex }}>
   (function () {
     if (!viewerData || viewerData.length === 0) return;
-    let activeAppIndex = 0;
+    let activeAppIndex = initialAppIndex;
     let activePatchIndex = 0;
 
     const appListEl = document.getElementById('code-viewer-app-list');
@@ -350,7 +351,8 @@ const initialPatch = initialApp.patches[0];
       });
     }
 
-    // Initial highlight on load
+    // Initial highlight and patch list binding on load
+    renderPatchList();
     renderActivePatch();
   })();
 </script>
