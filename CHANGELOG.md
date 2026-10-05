@@ -1,9 +1,3 @@
-## [1.2.0-dev.6](https://github.com/ihatenodejs/aidans-patches/compare/v1.2.0-dev.5...v1.2.0-dev.6) (2026-10-05)
-
-### ✨ New Features
-
-* **sezzle:** added js bundle patch to remove ads and tracking ([a5c9937](https://github.com/ihatenodejs/aidans-patches/commit/a5c993787b66b2da0c9b6a37dafe6a7263b6ec0e))
-
 ## [1.2.0](https://github.com/ihatenodejs/aidans-patches/compare/v1.1.0...v1.2.0) (2026-10-03)
 
 ### 🐛 Bug Fixes

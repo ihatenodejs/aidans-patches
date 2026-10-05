@@ -76,15 +76,14 @@
       }
     ],
     [
-      "@cleyrop-org/semantic-release-backmerge",
+      "@kilianpaquier/semantic-release-backmerge",
       {
-        "backmergeBranches": [
+        "targets": [
           {
             "from": "main",
             "to": "dev"
           }
-        ],
-        "clearWorkspace": true
+        ]
       }
     ]
   ]
