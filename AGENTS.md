@@ -12,7 +12,7 @@ The project patches eight Android applications:
 5. **Navigate360 Student** (`com.eab.se`, target `26.19.22`): Cordova hybrid Android application hosted in an Ionic WebView. Patches neutralize native Gainsight PX telemetry and Cordova bridge methods, remove Sentry Browser/CSP web reporting, and inert embedded Gainsight web engines.
 6. **Blackjack** (`com.tripledot.blackjack`, target `2.22.08`): Unity IL2CPP game compiled to native ARM64 (`libil2cpp.so`). Patches eliminate ads, six telemetry SDKs (Tripledot Analytics, Firebase, Crashlytics, Adjust, AppsFlyer, Unity Analytics), and notification permission requests; rewire defunct store buttons to a custom Android chip balance dialog (`ChipBalanceDialog`); install an in-game level skip touch interceptor (`SkipLevelDialog`); and enforce 16 KB page size alignment.
 7. **Adobe Scan: PDF Scanner, OCR** (`com.adobe.scan.android`, target `26.09.25`): Native Android (Kotlin/Java + Compose) scanning app. Patches bypass the mandatory Adobe ID / social sign-in gate on cold start, neutralize in-scanner save prompts and banners, preserve local scans without an account, replace Adobe Clean typography with the device system font, and remove Adobe, Branch, Facebook, Creative SDK, and Crashlytics telemetry, in-app ads, AAID and install-referrer collection, rating prompts, and dead telemetry settings.
-8. **Fizz** (`com.ashtoncofer.Buzz`, target `1.53.0`): Native Android (Kotlin/Java + Compose) social application. Patches bypass PairIP Play Integrity licensing verification, neutralize first-party event tracking and batch uploads (`ra.da`, `jc.i0`), disable Mixpanel analytics, Airbridge and Adjust attribution SDKs, zero the Google Play Advertising ID (AAID), and provide options for silent DM screenshots and Sentry telemetry removal.
+8. **Fizz** (`com.ashtoncofer.Buzz`, target `1.53.0`): Native Android (Kotlin/Java + Compose) social application. Patches bypass PairIP Play Integrity licensing verification, neutralize first-party event tracking and batch uploads (`ra.da`, `jc.i0`), disable Mixpanel analytics, Airbridge and Adjust attribution SDKs, zero the Google Play Advertising ID (AAID), eliminate feed ads and sponsored marketplace listings, and provide options for silent DM screenshots and Sentry telemetry removal.
 
 ---
 
@@ -124,7 +124,8 @@ When `dependsOn` is declared, selecting the user-facing patch automatically trig
 │       │   ├── canvas/                    # Canvas Student patch implementations (1 patch)
 │       │   │   ├── shared/                # Canvas constants & compatibility
 │       │   │   └── tracking/              # RemoveTrackingAndAnalyticsPatch, Fix16KbPageCompatibilityPatch
-│       │   ├── fizz/                      # Fizz patch implementations (3 patches)
+│       │   ├── fizz/                      # Fizz patch implementations (4 patches)
+│       │   │   ├── ads/                   # RemoveAdsPatch (sponsored ads, marketplace feed listings)
 │       │   │   ├── customization/         # ReplaceEmojiFontWithIosPatch
 │       │   │   ├── dev/                   # EnableDeveloperSettingsPatch
 │       │   │   ├── shared/                # Fizz constants & compatibility
@@ -356,12 +357,14 @@ Keep bytecode injection logic reusable and safe:
 | `docs/adobe-scan/architecture.md` | Reverse engineering specification for Adobe Scan navigation, local PDF pipeline, telemetry, and advertising surfaces. |
 | `docs/adobe-scan/patches.md` | Patch specifications for Adobe Scan login removal, local-only persistence, and ads/tracking removal. |
 | `patches/src/main/kotlin/app/aidan/patches/fizz/shared/Constants.kt` | Fizz package name (`com.ashtoncofer.Buzz`), signature, APKM type, and Morphe `Compatibility` object. |
+|`patches/src/main/kotlin/app/aidan/patches/fizz/ads/RemoveAdsPatch.kt`|Dalvik patch removing sponsored feed advertisements by default and filtering marketplace listing cards from the feed via option.|
 | `patches/src/main/kotlin/app/aidan/patches/fizz/tracking/RemoveTrackingAndAnalyticsPatch.kt` | Dalvik patch neutralizing first-party tracking, Mixpanel, Airbridge, Adjust, AAID, PairIP check, Sentry, and screenshot alerts in Fizz. |
 | `patches/src/main/kotlin/app/aidan/patches/fizz/customization/ReplaceEmojiFontWithIosPatch.kt` | Dalvik & asset patch bundling Apple Color Emoji and configuring native fallback chain. |
 | `extensions/extension/src/main/java/app/aidan/extension/emoji/EmojiFontBridge.java` | Native Android extension creating and caching `CustomFallbackBuilder` typefaces with Apple Color Emoji. |
 | `docs/fizz/architecture.md` | Reverse engineering specification for Fizz social architecture, PairIP protection, and telemetry pipelines. |
 | `docs/fizz/patches.md` | Patch specifications for Fizz tracking removal, PairIP bypass, and silent screenshots. |
 | `patches/src/main/kotlin/app/aidan/patches/fizz/dev/EnableDeveloperSettingsPatch.kt` | Dalvik patch injecting top-bar developer mod menu icon with Mobile Studio trigger. |
+| `extensions/extension/src/main/java/app/aidan/extension/fizz/FeedFilterBridge.java` | Native Android bridge filtering advertisements and marketplace listings from Home feed display items. |
 | `extensions/extension/src/main/java/app/aidan/extension/fizz/DeveloperMenuBridge.java` | Native Android bridge handling menu invocation, Mobile Studio flow trigger, and app restart. |
 | `extensions/extension/src/main/java/app/aidan/extension/fizz/DeveloperMenuDialog.java` | Native Android modal dialog presenting developer mod menu with Mobile Studio launcher. |
 ---

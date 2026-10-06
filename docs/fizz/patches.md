@@ -277,3 +277,62 @@ This patch adds a dedicated Developer Settings button into the Home Screen top n
 
 #### Layer 4: Mobile Studio Drawer Gating Bypass (`ce.w1.invokeSuspend`)
 - When `mobileStudio == true`, patches case 1 of `ce.w1.invokeSuspend` to return `Boolean.TRUE`, ensuring the root Compose drawer (`ce.i1`) mounts and animates on all user accounts.
+
+---
+
+## Patch: Remove Ads
+
+- **Name:** Remove Ads
+- **Target Package:** `com.ashtoncofer.Buzz`
+- **Supported Versions:** `1.53.0`
+- **Default State:** `true` (Enabled by default)
+- **Type:** Dalvik Bytecode Patch (`bytecodePatch`)
+- **Dependencies:** None
+
+### 1. Motivation & Purpose
+
+Fizz injects promotional advertisements into the user content feed:
+1. **Sponsored Feed Advertisements (`advertisement`)**: Commercial ad campaigns formatted as feed announcement items.
+2. **Marketplace Listing Advertisements (`listing`)**: Embedded university marketplace cards ("<Campus> Marketplace", "View Listing", "DM SELLER") inserted between user feed posts.
+
+This patch eliminates sponsored feed advertisements by default and provides a configurable option to remove marketplace listing ads as well.
+
+---
+
+### 2. Options Breakdown
+
+- **`removeMarketplaceAds` (Boolean, Default: `true`)**:
+  - *Title:* Remove Marketplace Ads
+  - *Description:* Removes marketplace listing advertisements injected into the feed.
+  - When enabled, filters out embedded marketplace listing cards (`ListingFeedItem` / `rc.t1`) from the feed while preserving normal navigation and functionality of the dedicated Marketplace tab.
+
+---
+
+### 3. Technical Implementation & Injection Points
+
+#### Layer 1: Display Items Filter (`HomeFeedViewModel.l0`)
+- **Target:** `Lcom/fizzsocial/fizz/ui/feed/HomeFeedViewModel;`
+- **Method:** `l0(Lsd/i4;)Lsd/i4;`
+- **Mechanism:** Injects call to `app.aidan.extension.fizz.FeedFilterBridge` before the `f0.l` (`displayItems`) equality check and assignment:
+  ```smali
+  invoke-static {v6}, Lapp/aidan/extension/fizz/FeedFilterBridge->filterDisplayItems(Ljava/util/List;)Ljava/util/List;
+  move-result-object v6
+  ```
+  - Commercial advertisements (`rc.k` with `d1.Advertisement`) are filtered out by default.
+  - If `removeMarketplaceAds == true`, marketplace listing cards (`rc.t1`) are also filtered out via `filterDisplayItems(List)`.
+  - If `removeMarketplaceAds == false`, calls `filterAdsOnly(List)` to retain marketplace listing cards while still filtering commercial ads.
+- **Preservation of Pagination:** The underlying repository state (`jc.z2` and `f0.f38180a`) retains all items, ensuring `arrayListA` is never empty and deduplication size checks never falsely trigger `endReached = true`. The LazyColumn renders only `displayItems`, keeping ads off-screen while preserving continuous infinite scrolling.
+- **Safety:** Zero scratch registers are clobbered (only `v6`, which holds the display items list reference, is read and reassigned).
+---
+
+### 4. Preconditions & Verification
+
+1. **Target Specification**: Compatible with Fizz `1.53.0` (`com.ashtoncofer.Buzz`).
+2. **Build Verification**:
+   ```bash
+   ./gradlew :patches:buildAndroid clean --no-daemon
+   ```
+3. **Metadata Generation**:
+   ```bash
+   ./gradlew generatePatchesList
+   ```

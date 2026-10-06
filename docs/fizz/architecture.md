@@ -145,3 +145,10 @@ When `EmojiCompat` is neutralized:
    - Bundles `AppleColorEmoji.ttf` into `assets/fonts/AppleColorEmoji.ttf` in target APK (`rawResourcePatch`).
    - Stubs `EmojiCompatInitializer.b` to return `Boolean.FALSE`, disabling Google Noto emoji replacement (`bytecodePatch`).
    - Wraps Compose font loader `n4.a.b` and platform font resolver `uj.a.v` with `EmojiFontBridge` custom fallback builder (`bytecodePatch`).
+3. **`EnableDeveloperSettingsPatch.kt` (`bytecodePatch`)**:
+   - Injects `DeveloperMenuBridge.init` into `MainActivity.onCreate`.
+   - Injects developer mod menu button into Home Screen top bar composable (`sd.w.a`).
+   - Bypasses Mobile Studio drawer gating (`ce.w1.invokeSuspend`).
+4. **`RemoveAdsPatch.kt` (`bytecodePatch`)**:
+   - Filters commercial feed advertisements and optional marketplace listing cards from Home feed `displayItems` via `FeedFilterBridge` in `HomeFeedViewModel.l0`.
+   - Preserves repository item models in `FeedRepository` (`jc.z2`), maintaining uninterrupted infinite scrolling without falsely triggering `endReached`.

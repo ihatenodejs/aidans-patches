@@ -593,6 +593,45 @@
       "options": []
     },
     {
+      "name": "Remove Ads",
+      "description": "Removes sponsored feed advertisements and optional marketplace listing advertisements from the feed.",
+      "default": true,
+      "category": null,
+      "dependencies": [],
+      "compatiblePackages": [
+        {
+          "packageName": "com.ashtoncofer.Buzz",
+          "name": "Fizz",
+          "description": null,
+          "apkFileType": "APKM",
+          "appIconColor": "#7F00FF",
+          "signatures": [
+            "622850867847ccb7a1371bc42c865b1137fa51bd19987dc81b53815c9a9817bf"
+          ],
+          "targets": [
+            {
+              "version": "1.53.0",
+              "versionCodes": null,
+              "isExperimental": false,
+              "minSdk": 23,
+              "description": null
+            }
+          ]
+        }
+      ],
+      "options": [
+        {
+          "key": "removeMarketplaceAds",
+          "title": "Remove Marketplace Ads",
+          "description": "Removes marketplace listing advertisements injected into the feed.",
+          "required": false,
+          "type": "kotlin.Boolean",
+          "default": true,
+          "values": null
+        }
+      ]
+    },
+    {
       "name": "Remove Ads and Tracking",
       "description": "Disables Adobe, Branch, Facebook, Creative SDK, and Crashlytics telemetry; removes in-app ads and review prompts; blocks install-referrer collection; and zeroes the Google Play Advertising ID.",
       "default": true,
