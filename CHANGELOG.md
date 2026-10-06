@@ -1,3 +1,13 @@
+## [1.4.0-dev.1](https://github.com/ihatenodejs/aidans-patches/compare/v1.3.1...v1.4.0-dev.1) (2026-10-06)
+
+### 🐛 Bug Fixes
+
+* **build:** Selected newest patch artifact ([185b8bc](https://github.com/ihatenodejs/aidans-patches/commit/185b8bce6097df0a9c9d435a482d1fd898115b43))
+
+### ✨ New Features
+
+* **fizz:** Added feed advertisement removal patch ([6c10066](https://github.com/ihatenodejs/aidans-patches/commit/6c100662f9516b125cf4ce3fe60808fb3c9e1678))
+
 ## [1.3.1](https://github.com/ihatenodejs/aidans-patches/compare/v1.3.0...v1.3.1) (2026-10-06)
 
 ### 🐛 Bug Fixes
