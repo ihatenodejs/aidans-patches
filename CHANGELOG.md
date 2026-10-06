@@ -1,3 +1,9 @@
+## [1.3.1](https://github.com/ihatenodejs/aidans-patches/compare/v1.3.0...v1.3.1) (2026-10-06)
+
+### 🐛 Bug Fixes
+
+* **ci:** allow release workflow to create backmerge PRs ([8bc1992](https://github.com/ihatenodejs/aidans-patches/commit/8bc1992dc6904a73ad205adc858db1847ff7afe3))
+
 ## [1.3.1-dev.1](https://github.com/ihatenodejs/aidans-patches/compare/v1.3.0...v1.3.1-dev.1) (2026-10-06)
 
 ### 🐛 Bug Fixes
