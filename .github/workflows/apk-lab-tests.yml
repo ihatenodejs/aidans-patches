@@ -2,8 +2,10 @@ name: APK Lab Tests & Build Verification
 
 on:
   push:
-    branches: ["main", "dev", "next"]
+    branches: ["main"]
   pull_request:
+    branches: ["main", "dev", "next"]
+  workflow_dispatch:
 
 jobs:
   test:
@@ -21,6 +23,14 @@ jobs:
           distribution: "temurin"
           java-version: "21"
 
+      - name: Cache font assets
+        uses: actions/cache@v4
+        with:
+          path: ~/.gradle/caches/aidans-patches/fonts
+          key: emoji-font-${{ hashFiles('.github/scripts/prepare_emoji_font.py') }}
+          restore-keys: |
+            emoji-font-
+
       - name: Setup uv
         uses: astral-sh/setup-uv@v5
         with:
@@ -35,4 +45,6 @@ jobs:
         run: uv run --project tools/apk-lab pytest
 
       - name: Build and verify patches
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: ./gradlew :patches:buildAndroid clean --no-daemon

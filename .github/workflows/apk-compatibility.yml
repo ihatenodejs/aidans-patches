@@ -91,9 +91,10 @@ jobs:
           COMPATIBILITY_STATUS_SECRET: ${{ secrets.COMPATIBILITY_STATUS_SECRET }}
 
       - name: Build Patch Bundle (.mpp)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           ./gradlew :patches:buildAndroid --no-daemon
-
       - name: Reconcile and Test Fixtures
         run: |
           uv run --project tools/apk-lab python -m apk_lab.compatibility_ci run --package "${{ matrix.package }}"
