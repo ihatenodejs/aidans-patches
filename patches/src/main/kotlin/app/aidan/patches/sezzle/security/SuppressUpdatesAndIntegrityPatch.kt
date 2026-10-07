@@ -65,6 +65,7 @@ val suppressHermesUpdatesAndIntegrityPatch = rawResourcePatch(
     description = "Neutralizes Hermes Redux update sagas, UpdateAppModal dialogs, Play Store URL redirects, trustFall tamper detection, and in-app rating prompts.",
     default = true
 ) {
+    category("Security")
     compatibleWith(COMPATIBILITY_SEZZLE)
 
     val suppressForceUpdates = booleanOption(
@@ -193,6 +194,7 @@ val suppressUpdatesAndIntegrityPatch = bytecodePatch(
     description = "Disables Microsoft CodePush OTA updates and neutralizes Dalvik root and tamper detection SDKs (RootBeer and JailMonkey).",
     default = true
 ) {
+    category("Security")
     compatibleWith(COMPATIBILITY_SEZZLE)
     dependsOn(suppressHermesUpdatesAndIntegrityPatch)
 

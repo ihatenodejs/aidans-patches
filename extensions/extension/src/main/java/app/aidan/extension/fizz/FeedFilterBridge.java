@@ -33,15 +33,14 @@ public final class FeedFilterBridge {
                 continue;
             }
             String className = item.getClass().getName();
-            // Marketplace listing card is rc.t1
-            if (removeMarketplace && "rc.t1".equals(className)) {
+            // Marketplace listing card is sc.t1 (1.54.0) or rc.t1 (1.53.0)
+            if (removeMarketplace && ("sc.t1".equals(className) || "rc.t1".equals(className))) {
                 continue;
             }
-            // Commercial announcement / ad item is rc.k
-            if ("rc.k".equals(className)) {
+            // Commercial announcement / ad item is sc.k (1.54.0) or rc.k (1.53.0)
+            if ("sc.k".equals(className) || "rc.k".equals(className)) {
                 try {
                     Field typeField = item.getClass().getDeclaredField("b");
-                    typeField.setAccessible(true);
                     Object typeVal = typeField.get(item);
                     if (typeVal != null && "Advertisement".equals(((Enum<?>) typeVal).name())) {
                         continue;

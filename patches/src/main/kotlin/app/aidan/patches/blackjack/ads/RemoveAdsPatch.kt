@@ -19,6 +19,7 @@ val removeAdsPatch = rawResourcePatch(
     description = "Removes banner, interstitial, and rewarded advertising and removes ad-based chip offers.",
     default = true
 ) {
+    category("Ads")
     compatibleWith(COMPATIBILITY_BLACKJACK)
 
     execute {

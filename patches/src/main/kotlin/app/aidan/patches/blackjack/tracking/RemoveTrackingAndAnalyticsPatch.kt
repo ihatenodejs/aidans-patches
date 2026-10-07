@@ -12,6 +12,7 @@ val removeTrackingAndAnalyticsPatch = rawResourcePatch(
     description = "Neutralizes active advertising telemetry, analytics, attribution, and crash reporting.",
     default = true
 ) {
+    category("Privacy")
     compatibleWith(COMPATIBILITY_BLACKJACK)
 
     execute {

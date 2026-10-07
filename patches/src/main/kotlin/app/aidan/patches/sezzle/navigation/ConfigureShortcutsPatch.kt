@@ -109,6 +109,7 @@ val configureShortcutsPatch = rawResourcePatch(
     description = "Customizes items displayed in the Your Shortcuts carousel.",
     default = true
 ) {
+    category("Interface")
     compatibleWith(COMPATIBILITY_SEZZLE)
 
     val hideReferAFriend = booleanOption(

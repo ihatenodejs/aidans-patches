@@ -1,0 +1,38 @@
+name: APK Lab Tests & Build Verification
+
+on:
+  push:
+    branches: ["main", "dev", "next"]
+  pull_request:
+
+jobs:
+  test:
+    name: Test & Build Gate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Setup Java
+        uses: actions/setup-java@v6.0.1
+        with:
+          distribution: "temurin"
+          java-version: "21"
+
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "latest"
+          enable-cache: true
+          python-version: "3.12"
+
+      - name: Sync apk-lab dependencies
+        run: uv sync --locked --project tools/apk-lab
+
+      - name: Run apk-lab tests
+        run: uv run --project tools/apk-lab pytest
+
+      - name: Build and verify patches
+        run: ./gradlew :patches:buildAndroid clean --no-daemon

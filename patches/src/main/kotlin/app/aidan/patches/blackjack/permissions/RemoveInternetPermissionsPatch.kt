@@ -18,6 +18,7 @@ val removeInternetPermissionsPatch = resourcePatch(
     description = "Removes Internet permissions from AndroidManifest.xml to prevent network access.",
     default = true
 ) {
+    category("Privacy")
     compatibleWith(COMPATIBILITY_BLACKJACK)
 
     val removeBrokenScreens = booleanOption(

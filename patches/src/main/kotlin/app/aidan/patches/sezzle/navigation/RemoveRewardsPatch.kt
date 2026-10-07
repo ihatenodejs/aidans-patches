@@ -72,6 +72,7 @@ val removeRewardsPatch = rawResourcePatch(
     description = "Removes Rewards navigation while keeping Account's Sezzle Points item and routing the Home shortcut to the same page.",
     default = true
 ) {
+    category("Interface")
     compatibleWith(COMPATIBILITY_SEZZLE)
 
     execute {

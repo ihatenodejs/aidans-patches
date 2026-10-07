@@ -111,6 +111,7 @@ val patchChipStoreResourcePatch = rawResourcePatch(
     description = "Hooks BlackjackApplication.OpenShop and CheckUpdateToVersion in libil2cpp.so to bridge the custom chip store.",
     default = true
 ) {
+    category("Features")
     compatibleWith(COMPATIBILITY_BLACKJACK)
 
     execute {
@@ -155,6 +156,7 @@ val addCustomChipStorePatch = bytecodePatch(
     description = "Replaces the unavailable store with a dialog to view and set your exact chip balance.",
     default = true
 ) {
+    category("Features")
     compatibleWith(COMPATIBILITY_BLACKJACK)
     dependsOn(patchChipStoreResourcePatch)
     extendWith("extensions/extension.mpe")

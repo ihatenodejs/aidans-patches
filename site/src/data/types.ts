@@ -63,6 +63,28 @@ export type FreshnessStatus =
   | 'not-on-play-store'
   | 'unknown';
 
+export type PatchCompatibilityStatus =
+  | 'queued'
+  | 'running'
+  | 'compatible'
+  | 'incompatible'
+  | 'error'
+  | 'not-tested';
+
+export interface CompatibilityRecord {
+  requestId: string;
+  role: 'target' | 'latest';
+  versionName: string;
+  versionCode: number;
+  patchBundleVersion: string;
+  gitRevision: string;
+  testedAt: string;
+  passedCount: number;
+  failedCount: number;
+  status: PatchCompatibilityStatus;
+  workflowRunUrl?: string | null;
+}
+
 export interface AppVersionStatus {
   packageName: string;
   appName: string;
@@ -75,6 +97,8 @@ export interface AppVersionStatus {
   updatedAt?: string | null;
   updatedOn?: string | null;
   status: FreshnessStatus;
+  targetCompatibility?: CompatibilityRecord | null;
+  latestCompatibility?: CompatibilityRecord | null;
   playStoreUrl: string;
   iconUrl?: string | null;
 }
