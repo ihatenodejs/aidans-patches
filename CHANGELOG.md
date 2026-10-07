@@ -1,3 +1,9 @@
+## [1.4.0-dev.3](https://github.com/ihatenodejs/aidans-patches/compare/v1.4.0-dev.2...v1.4.0-dev.3) (2026-10-07)
+
+### ✨ New Features
+
+* **sezzle:** Added configurable shortcut filtering ([5716677](https://github.com/ihatenodejs/aidans-patches/commit/57166774f3ce51eed55606f7c9d783750397183f))
+
 ## [1.4.0-dev.2](https://github.com/ihatenodejs/aidans-patches/compare/v1.4.0-dev.1...v1.4.0-dev.2) (2026-10-07)
 
 ### ✨ New Features
