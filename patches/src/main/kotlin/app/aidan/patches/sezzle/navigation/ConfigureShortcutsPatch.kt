@@ -147,6 +147,13 @@ val configureShortcutsPatch = rawResourcePatch(
         description = "Hides the Sezzle Mobile shortcut from the Your Shortcuts carousel."
     )
 
+    val hideAmazonDeals = booleanOption(
+        key = "hideAmazonDeals",
+        default = true,
+        title = "Hide Amazon Deals",
+        description = "Hides the Amazon Deals shortcut from the Your Shortcuts carousel."
+    )
+
     execute {
         val bundleFile = get("assets/index.android.bundle")
         if (!bundleFile.exists()) {
@@ -226,6 +233,30 @@ val configureShortcutsPatch = rawResourcePatch(
         }
         if (hideRewards.value == true) {
             tryExclude("earn")
+        }
+        if (hideAmazonDeals.value == true) {
+            var sidDeals = editor.findStringId("amazon_deals")
+            if (sidDeals == null) {
+                editor.replaceStringUsingDonor(
+                    target = "__STORYBOOK_ADDONS",
+                    replacement = "amazon_deals",
+                    donor = "__STORYBOOK_ADDONS"
+                )
+            }
+            tryExclude("amazon_deals")
+            var sidCamel = editor.findStringId("amazonDeals")
+            if (sidCamel == null) {
+                editor.replaceStringUsingDonor(
+                    target = "__STORYBOOK_ADDONS_PREVIEW",
+                    replacement = "amazonDeals",
+                    donor = "__STORYBOOK_ADDONS_PREVIEW"
+                )
+            }
+            tryExclude("amazonDeals")
+            tryExclude("amazon")
+            tryExclude("amazonStore")
+            tryExclude("deals")
+            tryExclude("deal")
         }
 
         if (excludedItems.isNotEmpty()) {

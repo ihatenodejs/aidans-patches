@@ -273,6 +273,15 @@
           "type": "kotlin.Boolean",
           "default": true,
           "values": null
+        },
+        {
+          "key": "hideAmazonDeals",
+          "title": "Hide Amazon Deals",
+          "description": "Hides the Amazon Deals shortcut from the Your Shortcuts carousel.",
+          "required": false,
+          "type": "kotlin.Boolean",
+          "default": true,
+          "values": null
         }
       ]
     },

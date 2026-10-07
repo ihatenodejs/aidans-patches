@@ -13,7 +13,7 @@ This document details the binary bytecode, asset, and resource patches available
 | [Enable App Debugging](#patch-enable-app-debugging) | `dev/EnableAppDebuggingPatch.kt` | `resourcePatch` | `false` | None | None | Injects `android:debuggable="true"` into `AndroidManifest.xml` for ADB debugging. |
 | [Unlock Developer Settings](#patch-unlock-developer-settings) | `dev/UnlockDevSettingsPatch.kt` | `rawResourcePatch` | `false` | None | None | Unlocks internal Development Settings menu in Account for all authenticated users. |
 | [Unlock Receipt Scanner](#patch-unlock-receipt-scanner) | `features/UnlockReceiptScannerPatch.kt` | `rawResourcePatch` | `false` | `Unlock Developer Settings` | None | Enables receipt scanner from Developer Settings and forces V2 scanner flow to render. |
-| [Configure Shortcuts](#patch-configure-shortcuts) | `navigation/ConfigureShortcutsPatch.kt` | `rawResourcePatch` | `true` | None | 5 boolean options (default: `true`) | Customizes items in "Your Shortcuts" carousel (Refer a Friend, Giveaway, Offers, Rewards, Sezzle Mobile). |
+| [Configure Shortcuts](#patch-configure-shortcuts) | `navigation/ConfigureShortcutsPatch.kt` | `rawResourcePatch` | `true` | None | 6 boolean options (default: `true`) | Customizes items in "Your Shortcuts" carousel (Refer a Friend, Giveaway, Offers, Rewards, Sezzle Mobile, Amazon Deals). |
 | [Hide Sezzle Mobile](#patch-hide-sezzle-mobile) | `navigation/HideSezzleMobilePatch.kt` | `rawResourcePatch` | `false` | None | None | Stubs `useIsSezzleMobilePlanEnabled` and hides `MobilePlanSection` in Wallet. |
 | [Remove Promos & Giveaways](#patch-remove-promos--giveaways) | `navigation/RemovePromosAndGiveawaysPatch.kt` | `rawResourcePatch` | `true` | None | 7 boolean options | Blocks deal popups, giveaway screens, Knot linking, wallet marketing, playtime, and referrals. |
 | [Remove Rewards](#patch-remove-rewards) | `navigation/RemoveRewardsPatch.kt` | `rawResourcePatch` | `true` | None | None | Removes Rewards bottom navigation tab while keeping Account Sezzle Points accessible. |
@@ -192,6 +192,7 @@ Modifies `assets/index.android.bundle`:
   - `hideOffers` (Boolean, default: `true`)
   - `hideRewards` (Boolean, default: `true`)
   - `hideSezzleMobile` (Boolean, default: `true`)
+  - `hideAmazonDeals` (Boolean, default: `true`)
 
 #### 1. Motivation & Purpose
 Customizes which items appear in the "Your Shortcuts" carousel on Home and Shop tabs.
@@ -199,7 +200,7 @@ Customizes which items appear in the "Your Shortcuts" carousel on Home and Shop 
 #### 2. Technical Implementation & Injection Points
 Modifies `assets/index.android.bundle`:
 1. Validates Hermes function `#97583` (offset `0x019ba337`, capacity 57) and donor function `#75517` (offset `0x017d2ed7`, capacity 152).
-2. Synthesizes a predicate in the donor region filtering targeted shortcut string identifiers (`user_referrals`, `sezzle_mobile`, `offers`, `offer`, `giveaway`, `earn`).
+2. Synthesizes a predicate in the donor region filtering targeted shortcut string identifiers (`user_referrals`, `sezzle_mobile`, `offers`, `offer`, `giveaway`, `earn`, `amazon_deals`, `amazonDeals`, `amazon`, `amazonStore`, `deals`, `deal`).
 3. Re-points `#97583`'s function header to the synthesized donor logic.
 4. Recomputes Hermes footer hash.
 
