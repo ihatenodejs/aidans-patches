@@ -1,3 +1,9 @@
+## [1.4.0-dev.2](https://github.com/ihatenodejs/aidans-patches/compare/v1.4.0-dev.1...v1.4.0-dev.2) (2026-10-07)
+
+### ✨ New Features
+
+* **apk-lab:** added apk compatibility testing and status tracking ([c077d5a](https://github.com/ihatenodejs/aidans-patches/commit/c077d5a2b72447f455c9e80268f95c59a7bd7395))
+
 ## [1.4.0-dev.1](https://github.com/ihatenodejs/aidans-patches/compare/v1.3.1...v1.4.0-dev.1) (2026-10-06)
 
 ### 🐛 Bug Fixes
