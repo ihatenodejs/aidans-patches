@@ -246,7 +246,11 @@ val suppressUpdatesAndIntegrityPatch = bytecodePatch(
             val codePushClass = mutableClassDefByOrNull(CODE_PUSH)
             if (codePushClass != null) {
                 for (method in codePushClass.methods) {
-                    if (method.name == "getJSBundleFile" && method.implementation != null) {
+                    if (method.name == "getJSBundleFile" &&
+                        method.parameterTypes.isEmpty() &&
+                        method.returnType == "Ljava/lang/String;" &&
+                        method.implementation != null
+                    ) {
                         method.addInstructions(0, "const/4 v0, 0x0\nreturn-object v0")
                     }
                 }
