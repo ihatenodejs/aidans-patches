@@ -1,7 +1,10 @@
 package app.aidan.patches.sidelineswap.customization
 
 import app.aidan.patches.sidelineswap.shared.COMPATIBILITY_SIDELINESWAP
+import app.morphe.patcher.extensions.InstructionExtensions.addInstructions
 import app.morphe.patcher.patch.PatchException
+import app.morphe.patcher.patch.BytecodePatchContext
+import app.morphe.patcher.patch.bytecodePatch
 import app.morphe.patcher.patch.resourcePatch
 import org.w3c.dom.Document
 import org.w3c.dom.Element
@@ -117,12 +120,15 @@ private val AMOLED_ICON_FILES = listOf(
     "ic_shopping_cart_grey_24dp.xml",
     "ic_tariff_warning_outlined.xml",
     "ic_uncheck_box.xml",
-    "ic_view_grey_24dp.xml"
+    "ic_view_grey_24dp.xml",
+    "ic_local_shipping.xml",
+    "ic_place.xml",
+    "ic_access_time.xml",
+    "ic_perm_identity.xml"
 )
-
-val amoledThemePatch = resourcePatch(
-    name = "AMOLED Theme",
-    description = "Forces SidelineSwap into a pure-black AMOLED theme with dark system bars, black app surfaces, and readable light text and icons.",
+val amoledThemeResourcePatch = resourcePatch(
+    name = "AMOLED Theme Resources",
+    description = "Resource modifications for AMOLED theme.",
     default = false
 ) {
     category("Customization")
@@ -135,6 +141,63 @@ val amoledThemePatch = resourcePatch(
         patchLayouts()
         patchDrawables()
         patchIcons()
+    }
+}
+
+val amoledThemePatch = bytecodePatch(
+    name = "AMOLED Theme",
+    description = "Forces SidelineSwap into a pure-black AMOLED theme with dark system bars, black app surfaces, readable light text and icons, and force dark mode on embedded WebViews.",
+    default = false
+) {
+    category("Customization")
+    compatibleWith(COMPATIBILITY_SIDELINESWAP)
+    dependsOn(amoledThemeResourcePatch)
+    extendWith("extensions/extension.mpe")
+
+    execute {
+        patchWebViewDarkMode()
+    }
+}
+
+private fun BytecodePatchContext.patchWebViewDarkMode() {
+    val webViewFragment = mutableClassDefByOrNull("Lcom/sidelineswap/android/webview/WebViewFragment;")
+    webViewFragment?.methods?.firstOrNull { it.name == "onViewCreated" && it.implementation != null }?.let { method ->
+        method.addInstructions(
+            0,
+            """
+            check-cast p1, Landroid/view/ViewGroup;
+            const v0, 0x7f0904ab
+            invoke-virtual {p1, v0}, Landroid/view/View;->findViewById(I)Landroid/view/View;
+            move-result-object v0
+            check-cast v0, Landroid/webkit/WebView;
+            invoke-static {v0}, Lapp/aidan/extension/sidelineswap/DarkWebViewBridge;->applyDarkMode(Landroid/webkit/WebView;)V
+            """
+        )
+    }
+
+    val webViewClientClass = mutableClassDefByOrNull("Lcom/sidelineswap/android/webview/WebViewFragment\$onViewCreated\$4;")
+    webViewClientClass?.methods?.firstOrNull { it.name == "onPageFinished" && it.implementation != null }?.let { method ->
+        method.addInstructions(
+            0,
+            """
+            invoke-static {p1}, Lapp/aidan/extension/sidelineswap/DarkWebViewBridge;->applyDarkMode(Landroid/webkit/WebView;)V
+            """
+        )
+    }
+
+    val webSignInFragment = mutableClassDefByOrNull("Lcom/sidelineswap/android/account/WebSignInFragment;")
+    webSignInFragment?.methods?.firstOrNull { it.name == "onViewCreated" && it.implementation != null }?.let { method ->
+        method.addInstructions(
+            0,
+            """
+            check-cast p1, Landroid/view/ViewGroup;
+            const v0, 0x7f0903c5
+            invoke-virtual {p1, v0}, Landroid/view/View;->findViewById(I)Landroid/view/View;
+            move-result-object v0
+            check-cast v0, Landroid/webkit/WebView;
+            invoke-static {v0}, Lapp/aidan/extension/sidelineswap/DarkWebViewBridge;->applyDarkMode(Landroid/webkit/WebView;)V
+            """
+        )
     }
 }
 
@@ -174,7 +237,13 @@ private fun app.morphe.patcher.patch.ResourcePatchContext.patchStyles() {
         replaceStyleItem(stylesPath, facetSubtitleStyle, "android:textColor", "#de000000", COLOR_WHITE)
 
         val messagingStyle = findSingleStyle(doc, stylesPath, "TextAppearance.Messaging")
-        replaceStyleItem(stylesPath, messagingStyle, "android:textColor", "#de000000", COLOR_WHITE)
+
+        val appBarDarkOverlay = findSingleStyle(doc, stylesPath, "AppTheme.AppBarOverlay.Dark")
+        val appBarDarkParent = appBarDarkOverlay.getAttribute("parent")
+        if (appBarDarkParent != "@style/ThemeOverlay.MaterialComponents.Dark.ActionBar") {
+            throw PatchException("[$stylesPath] Expected AppTheme.AppBarOverlay.Dark parent '@style/ThemeOverlay.MaterialComponents.Dark.ActionBar', found '$appBarDarkParent'")
+        }
+        appBarDarkOverlay.setAttribute("parent", "@style/ThemeOverlay.MaterialComponents.Dark.ActionBar")
     }
 }
 
@@ -191,7 +260,13 @@ private fun app.morphe.patcher.patch.ResourcePatchContext.patchColors() {
         "design_dark_default_color_background" to Pair("#121212", COLOR_BLACK),
         "design_dark_default_color_surface" to Pair("#121212", COLOR_BLACK),
         "colorBlack" to Pair("#4a4a4a", COLOR_WHITE),
-        "follow" to Pair("#4a4a4a", COLOR_WHITE)
+        "follow" to Pair("#4a4a4a", COLOR_WHITE),
+        "design_default_color_background" to Pair("#ffffff", COLOR_BLACK),
+        "design_default_color_surface" to Pair("#ffffff", COLOR_BLACK),
+        "design_default_color_on_background" to Pair("#000000", COLOR_WHITE),
+        "design_default_color_on_surface" to Pair("#000000", COLOR_WHITE),
+        "primary_text_default_material_light" to Pair("#de000000", COLOR_WHITE),
+        "secondary_text_default_material_light" to Pair("#8a000000", COLOR_MUTED_WHITE)
     )
 
     document(colorsPath).use { doc ->
@@ -429,7 +504,7 @@ private fun app.morphe.patcher.patch.ResourcePatchContext.patchIcons() {
     var totalMutedIconCount = 0
 
     val primaryLiterals = setOf("#ff000000", "#000000", "#4a4a4a")
-    val mutedLiterals = setOf("#757575", "#b3000000")
+    val mutedLiterals = setOf("#757575", "#b3000000", "#b7b7b7")
 
     for (iconName in AMOLED_ICON_FILES) {
         val iconPath = "res/drawable/$iconName"
@@ -466,8 +541,8 @@ private fun app.morphe.patcher.patch.ResourcePatchContext.patchIcons() {
     if (totalPrimaryIconCount != 23) {
         throw PatchException("Icon primary replacement count mismatch: expected 23, got $totalPrimaryIconCount")
     }
-    if (totalMutedIconCount != 3) {
-        throw PatchException("Icon muted replacement count mismatch: expected 3, got $totalMutedIconCount")
+    if (totalMutedIconCount != 10) {
+        throw PatchException("Icon muted replacement count mismatch: expected 10, got $totalMutedIconCount")
     }
 }
 
