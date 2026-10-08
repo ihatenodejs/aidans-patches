@@ -41,6 +41,7 @@ The **Custom Chip Store Binary Hook** patch provides the foundational native ARM
 #### Target File: `lib/arm64-v8a/libil2cpp.so`
 
 1. **`BlackjackApplication.OpenShop` (Offset `0x1fcf6d4`):**
+   - Stripped method names and metadata indices are discovered using `apk-lab il2cpp <artifact> --query OpenShop`. Relative branch targets and register moves are assembled into Morphe Kotlin byte arrays using `apk-lab asm`.
    - **Expected Prologue:** `fe 0f 1a f8 fc 6f 01 a9 fa 67 02 a9 f8 5f 03 a9 f6 57 04 a9` (or previous legacy grant bytes)
    - **Replacement Hook (32 bytes):**
      ```arm64
@@ -232,7 +233,7 @@ The app's Internet permission permits all outbound and inbound network communica
 
 The patch edits `AndroidManifest.xml` through the XML DOM and removes every `uses-permission` or `uses-permission-sdk-23` declaration whose `android:name` is `android.permission.INTERNET`. It reads the Android namespace attribute with a prefix-preserving fallback and fails fast when no matching declaration exists, preventing a version mismatch from silently producing an incomplete patch.
 
-When **Remove Broken Screens** is enabled, the patch changes the serialized `m_IsActive` flag from `true` to `false` for both `Button_HelpCenter` Unity `GameObject` instances in `assets/bin/Data/sharedassets0.assets.split71`. It accepts an already-disabled button and fails if the expected active-state byte differs.
+When **Remove Broken Screens** is enabled, the patch changes the serialized `m_IsActive` flag from `true` to `false` for both `Button_HelpCenter` Unity `GameObject` instances in `assets/bin/Data/sharedassets0.assets.split71`. Active-state byte offsets are deterministically discovered and verified across game updates using `apk-lab unity <artifact> --gameobject Button_HelpCenter`. It accepts an already-disabled button and fails if the expected active-state byte differs.
 
 ---
 

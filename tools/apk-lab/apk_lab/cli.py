@@ -26,6 +26,13 @@ def non_negative_float(val: str) -> float:
     if f < 0:
         raise argparse.ArgumentTypeError(f"Stale age must be non-negative, got {val}")
     return f
+def parse_int_auto(val: str) -> int:
+    try:
+        return int(val, 0)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"Invalid integer or hex value: {val}")
+
+
 
 
 def validate_dex_entry_name(name: str) -> str:
@@ -49,6 +56,53 @@ def materialize_split_member(
         while chunk := src.read(64 * 1024):
             dst.write(chunk)
     return dest
+def extract_native_libraries(
+    apk_paths: list[Path], lib_dir: Path
+) -> dict[str, list[str]]:
+    """Extracts all native shared libraries from candidate APK paths into lib_dir/<arch>/."""
+    extracted: dict[str, list[str]] = {}
+    so_pattern = re.compile(r"^lib/([^/]+)/([^/]+\.so)$")
+
+    for apk_path in apk_paths:
+        if not apk_path.is_file():
+            continue
+        with zipfile.ZipFile(apk_path, "r") as zf:
+            for info in zf.infolist():
+                name = info.filename
+                if name.startswith("lib/") and name.endswith(".so"):
+                    dest = (lib_dir / name.removeprefix("lib/")).resolve()
+                    if not is_contained_path(dest, lib_dir, allow_equal=False):
+                        raise ArchiveSecurityError(
+                            f"Native library {name} escapes library directory {lib_dir}"
+                        )
+                    match = so_pattern.match(name)
+                    if not match:
+                        raise ArchiveSecurityError(
+                            f"Invalid native library entry name: {name}"
+                        )
+                    arch, filename = match.groups()
+                    if dest.exists():
+                        with zf.open(info) as src, open(dest, "rb") as existing:
+                            while True:
+                                chunk1 = src.read(64 * 1024)
+                                chunk2 = existing.read(64 * 1024)
+                                if chunk1 != chunk2:
+                                    raise ArchiveSecurityError(
+                                        f"Conflicting native library content for {name}"
+                                    )
+                                if not chunk1:
+                                    break
+                    else:
+                        dest.parent.mkdir(parents=True, exist_ok=True)
+                        with zf.open(info) as src, open(dest, "wb") as dst:
+                            while chunk := src.read(64 * 1024):
+                                dst.write(chunk)
+                    arch_libs = extracted.setdefault(arch, [])
+                    if filename not in arch_libs:
+                        arch_libs.append(filename)
+
+    return extracted
+
 
 
 def print_json_or_file(data: Any, path: str | None = None) -> None:
@@ -268,6 +322,16 @@ def handle_analyze(args: argparse.Namespace) -> int:
                     dest = materialize_split_member(zf, split.filename, extracted_dir)
                     if split.is_base:
                         target_apk = dest
+        # Extract native shared libraries across splits
+        lib_out = run_dir / "lib"
+        if inspection.container_type == ContainerType.APK:
+            candidate_apks = [target_apk]
+        else:
+            candidate_apks = [
+                extracted_dir / split.filename for split in inspection.splits
+            ]
+        extracted_libs = extract_native_libraries(candidate_apks, lib_out)
+
 
         # 1. Smali disassembly (default or explicit)
         run_smali = args.smali or (not args.jadx and not args.apktool)
@@ -313,6 +377,11 @@ def handle_analyze(args: argparse.Namespace) -> int:
 
         print("Analysis workspace created successfully:")
         print(f"  Workspace: {run_dir}")
+        if extracted_libs:
+            libs_summary = ", ".join(
+                f"{arch} ({len(libs)})" for arch, libs in sorted(extracted_libs.items())
+            )
+            print(f"  Libraries: {libs_summary}")
         cleanup_cmd = ["uv", "run", "--project", "tools/apk-lab", "apk-lab"]
         if str(args.workspace_root) != ".apk-lab":
             cleanup_cmd.extend(["--workspace-root", str(args.workspace_root)])
@@ -453,6 +522,97 @@ def handle_acquire(args: argparse.Namespace) -> int:
     except Exception as e:  # noqa: BLE001
         print(f"Acquisition error: {e}", file=sys.stderr)
         return ExitCode.INFRASTRUCTURE_FAILURE
+def handle_asm(args: argparse.Namespace) -> int:
+    try:
+        from apk_lab.asm import assemble_statement, format_instruction
+
+        opcode = assemble_statement(
+            statement=args.statement,
+            pc=args.pc,
+            explicit_target=args.target,
+        )
+        formatted = format_instruction(opcode, fmt=args.format)
+        print(formatted)
+        return ExitCode.SUCCESS
+    except ValueError as e:
+        print(f"Assembly error: {e}", file=sys.stderr)
+        return ExitCode.USAGE_OR_TOOL_ERROR
+    except Exception as e:  # noqa: BLE001
+        print(f"Assembly error: {e}", file=sys.stderr)
+        return ExitCode.INFRASTRUCTURE_FAILURE
+def handle_il2cpp(args: argparse.Namespace) -> int:
+    try:
+        from apk_lab.il2cpp import analyze_il2cpp
+
+        records = analyze_il2cpp(Path(args.artifact), args.query)
+        if args.json:
+            print_json_or_file(records, args.json)
+        else:
+            if not records:
+                print("No matching IL2CPP symbols found.")
+            else:
+                print(f"Found {len(records)} matching IL2CPP symbols:")
+                print(f"{'Namespace':<25} {'Type':<35} {'Method':<35} {'Params':<6}")
+                print("-" * 105)
+                for r in records[:100]:
+                    ns = r.get("namespace") or "<global>"
+                    print(
+                        f"{ns:<25} {r['type']:<35} {r['method']:<35} {r['parameters_count']:<6}"
+                    )
+                if len(records) > 100:
+                    print(f"... and {len(records) - 100} more (use --json to see all)")
+        return ExitCode.SUCCESS
+    except FileNotFoundError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return ExitCode.USAGE_OR_TOOL_ERROR
+    except ValueError as e:
+        print(f"IL2CPP metadata error: {e}", file=sys.stderr)
+        return ExitCode.USAGE_OR_TOOL_ERROR
+    except Exception as e:  # noqa: BLE001
+        print(f"IL2CPP analysis error: {e}", file=sys.stderr)
+        return ExitCode.INFRASTRUCTURE_FAILURE
+def handle_unity(args: argparse.Namespace) -> int:
+    try:
+        from apk_lab.unity import inspect_unity_assets
+
+        records = inspect_unity_assets(
+            artifact_path=Path(args.artifact),
+            name_filter=args.gameobject,
+        )
+        if args.json:
+            print_json_or_file(records, args.json)
+        else:
+            if not records:
+                print("No matching Unity GameObjects found.")
+            else:
+                print(f"Found {len(records)} matching Unity GameObjects:")
+                print(
+                    f"{'Member':<45} {'Name':<30} {'Offset':<10} {'Active Offset':<15} {'Active':<6}"
+                )
+                print("-" * 110)
+                for r in records[:100]:
+                    print(
+                        f"{r['member']:<45} {r['name']:<30} 0x{r['file_offset']:x}     "
+                        f"{r['is_active_offset_hex']:<15} {r['is_active_value']:<6}"
+                    )
+                if len(records) > 100:
+                    print(f"... and {len(records) - 100} more (use --json to see all)")
+        return ExitCode.SUCCESS
+    except FileNotFoundError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return ExitCode.USAGE_OR_TOOL_ERROR
+    except ValueError as e:
+        print(f"Unity asset error: {e}", file=sys.stderr)
+        return ExitCode.USAGE_OR_TOOL_ERROR
+    except Exception as e:  # noqa: BLE001
+        print(f"Unity asset inspection error: {e}", file=sys.stderr)
+        return ExitCode.INFRASTRUCTURE_FAILURE
+
+
+
+
+
+
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -614,6 +774,72 @@ def build_parser() -> argparse.ArgumentParser:
     p_acquire.add_argument("--out-dir", help="Output directory")
     p_acquire.add_argument("--version-code", type=int, help="Expected version code")
     p_acquire.set_defaults(handler=handle_acquire)
+    # asm
+    p_asm = subparsers.add_parser(
+        "asm", help="Encode ARM64 instruction and calculate branch relocations"
+    )
+    p_asm.add_argument(
+        "statement",
+        help="ARM64 instruction statement (e.g. 'bl 0x3c98ce4', 'ret', 'mov w1, #1')",
+    )
+    p_asm.add_argument(
+        "--pc",
+        type=parse_int_auto,
+        default=0,
+        help="Program counter address (default: 0)",
+    )
+    p_asm.add_argument(
+        "--target",
+        type=parse_int_auto,
+        default=None,
+        help="Target address override",
+    )
+    p_asm.add_argument(
+        "--format",
+        choices=["hex", "kotlin", "int", "bytes"],
+        default="hex",
+        help="Output format (default: hex)",
+    )
+    p_asm.set_defaults(handler=handle_asm)
+    # il2cpp
+    p_il2cpp = subparsers.add_parser(
+        "il2cpp", help="Extract and query Unity IL2CPP symbols from artifact"
+    )
+    p_il2cpp.add_argument("artifact", help="Path to APK/APKM/APKS file")
+    p_il2cpp.add_argument(
+        "--query",
+        "-q",
+        default=None,
+        help="Filter symbol or type name (substring or regex)",
+    )
+    p_il2cpp.add_argument(
+        "--json",
+        nargs="?",
+        const="-",
+        help="Output symbols as JSON (optionally to file path or '-' for stdout)",
+    )
+    p_il2cpp.set_defaults(handler=handle_il2cpp)
+    # unity
+    p_unity = subparsers.add_parser(
+        "unity", help="Inspect Unity serialized assets and locate GameObject properties"
+    )
+    p_unity.add_argument("artifact", help="Path to APK/APKM/APKS file")
+    p_unity.add_argument(
+        "--gameobject",
+        "-g",
+        required=True,
+        help="Target GameObject name to search (e.g. Button_HelpCenter)",
+    )
+    p_unity.add_argument(
+        "--json",
+        nargs="?",
+        const="-",
+        help="Output results as JSON (optionally to file path or '-' for stdout)",
+    )
+    p_unity.set_defaults(handler=handle_unity)
+
+
+
 
     return parser
 
