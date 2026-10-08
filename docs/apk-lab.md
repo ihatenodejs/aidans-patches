@@ -62,7 +62,7 @@ uv run --project tools/apk-lab apk-lab analyze path/to/app.apkm --jadx
 uv run --project tools/apk-lab apk-lab analyze path/to/app.apkm --apktool
 ```
 
-The command prints the exact directory and matching cleanup command upon completion.
+The command extracts all native `.so` shared libraries across the base APK and architecture splits into `<workspace>/lib/<arch>/` (e.g. `lib/arm64-v8a/libil2cpp.so`), and prints the exact directory and matching cleanup command upon completion.
 
 ### `compare` — Artifact Diffing
 Compares two APK/APKM artifacts across version codes, signing certificates, split members, DEX classes/methods delta, native libraries, and assets.
@@ -122,6 +122,45 @@ uv run --project tools/apk-lab apk-lab clean --stale 7
 # Dry-run preview
 uv run --project tools/apk-lab apk-lab clean --package com.example.app --dry-run
 ```
+### `asm` — ARM64 Instruction Assembler & Branch Relocator
+Encodes ARM64 machine instructions and computes 26-bit relative branch relocations (`b`, `bl`), returns (`ret`), and register moves (`mov`/`movz`). Deterministically formats output as space-separated hex bytes, integer opcodes, or Morphe Kotlin `byteArrayOf(...)` arrays with appropriate `.toByte()` casting for signed bytes.
+
+```bash
+# Calculate relative branch and encode to little-endian hex bytes
+uv run --project tools/apk-lab apk-lab asm "bl 0x3c98ce4" --pc 0x1fcf6e8
+# Output: 7f 25 73 94
+
+# Encode return instruction directly to Kotlin byteArrayOf syntax
+uv run --project tools/apk-lab apk-lab asm "ret" --format kotlin
+# Output: byteArrayOf(0xc0.toByte(), 0x03, 0x5f, 0xd6.toByte())
+
+# Encode immediate register move
+uv run --project tools/apk-lab apk-lab asm "mov w1, #1"
+# Output: 21 00 80 52
+```
+### `il2cpp` — Unity IL2CPP Metadata Extraction & Symbol Mapping
+Extracts and parses Unity `assets/bin/Data/Managed/Metadata/global-metadata.dat` and companion native shared libraries (`lib/<arch>/libil2cpp.so`) across single APKs and multi-split container bundles (APKM, APKS, XAPK). Enables instant querying of stripped C# type definitions, method signatures, parameter counts, and namespaces without external tooling.
+
+```bash
+# Query symbols matching a method name substring
+uv run --project tools/apk-lab apk-lab il2cpp path/to/game.apkm --query OpenShop
+
+# Export all symbols or matches to JSON stdout or file
+uv run --project tools/apk-lab apk-lab il2cpp path/to/game.apkm --query "Blackjack.*" --json symbols.json
+```
+### `unity` — Unity Serialized Asset & GameObject Inspector
+Inspects Unity serialized asset files (`assets/bin/Data/*.assets`, `*.assets.split*`, `globalgamemanagers`) across single APKs and multi-split container bundles (APKM, APKS, XAPK). Locates `GameObject` records by name, reports their containing split chunk, and calculates the exact byte offset and value of the `m_IsActive` boolean property for direct Morphe raw resource patching.
+
+```bash
+# Locate GameObject and calculate active-state byte offset
+uv run --project tools/apk-lab apk-lab unity path/to/game.apkm --gameobject Button_HelpCenter
+
+# Output matches as JSON
+uv run --project tools/apk-lab apk-lab unity path/to/game.apkm --gameobject Button_HelpCenter --json
+```
+
+
+
 
 ### `fixtures` — Private R2 Cloud Fixtures
 Manages the two-slot private R2 storage architecture (`fixtures/<package>/latest` and `fixtures/<package>/target`).
@@ -143,26 +182,42 @@ uv run --project tools/apk-lab apk-lab fixtures download \
   --out /tmp/target.apk
 ```
 
+### `acquire` — Artifact Acquisition from Google Play
+Downloads and normalizes Android application artifacts directly from the Google Play Store using `apkeep` (native Play Store downloader) or `goopdl` fallback. Validates downloaded package signatures, container integrity, and version metadata.
+
+```bash
+# Acquire latest version of an application package
+uv run --project tools/apk-lab apk-lab acquire com.example.app
+
+# Acquire specific version to an explicit output directory
+uv run --project tools/apk-lab apk-lab acquire com.example.app --version 2.22.08 --out-dir /tmp/artifacts
+```
+
 ---
 
 ## 3. Standard Workflows
 
 ### Authoring Patches for a New Application
 1. **Inspect**: Run `apk-lab inspect <artifact>` to determine package name, version, signing cert SHA-256, and container structure.
-2. **Analyze**: Run `apk-lab analyze <artifact> --smali` to extract smali into a managed run.
-3. **Implement**: Define fail-fast Morphe bytecode and resource patches in Kotlin using `bytecodePatch`, `resourcePatch`, or `rawResourcePatch`. Register `Compatibility(name, packageName, apkFileType, signatures, targets)`.
-4. **Compile**: Run `./gradlew :patches:buildAndroid --no-daemon`.
-5. **Verify**: Run `apk-lab check <artifact> --mpp patches/build/libs/patches-*.mpp --package <pkg> --all`.
-6. **Device Smoke Test**: Install patched APK on an emulator or test device (`adb install -r output.apk`) and smoke test user flows.
-7. **Clean**: Clean the workspace with `apk-lab clean --run <path>`.
+2. **Analyze**: Run `apk-lab analyze <artifact> --smali` to extract smali and native shared libraries (`lib/<arch>/*.so`) into a managed run.
+3. **Native & Unity Inspection** (if applicable):
+   - For Unity IL2CPP applications: Run `apk-lab il2cpp <artifact> --query <Symbol>` to locate stripped C# classes and method signatures in `global-metadata.dat`.
+   - For Unity serialized assets: Run `apk-lab unity <artifact> --gameobject <Name>` to find GameObject entries and calculate `m_IsActive` byte offsets across asset splits.
+   - For ARM64 binary patches: Run `apk-lab asm "<instruction>" --pc <pc> --format kotlin` to calculate 26-bit branch offsets and emit Morphe Kotlin `byteArrayOf(...)` hooks.
+4. **Implement**: Define fail-fast Morphe bytecode and resource patches in Kotlin using `bytecodePatch`, `resourcePatch`, or `rawResourcePatch`. Register `Compatibility(name, packageName, apkFileType, signatures, targets)`.
+5. **Compile**: Run `./gradlew :patches:buildAndroid --no-daemon`.
+6. **Verify**: Run `apk-lab check <artifact> --mpp patches/build/libs/patches-*.mpp --package <pkg> --all`.
+7. **Device Smoke Test**: Install patched APK on an emulator or test device (`adb install -r output.apk`) and smoke test user flows.
+8. **Clean**: Clean the workspace with `apk-lab clean --run <path>`.
 
 ### Migrating Existing Patches on App Updates
-1. **Compare**: Run `apk-lab compare <old_artifact> <new_artifact>` to identify changed DEX method counts, split changes, and resource modifications.
-2. **Forced Baseline Check**: Run `apk-lab check <new_artifact> --mpp <bundle> --package <pkg> --all --force` to capture the failing-before baseline and pinpoint obsolete anchors.
-3. **Analyze & Remap**: Run `apk-lab analyze <new_artifact> --smali` to rediscover changed classes, obfuscated descriptors, and instructions using stable landmarks.
-4. **Update Source**: Update patch definitions, extension classes, and bump target in `Constants.kt`.
-5. **Matrix Check**: Rebuild and run `apk-lab check <new_artifact> --mpp <bundle> --package <pkg> --all`. Require 100% pass rate.
-6. **Documentation & List**: Update reverse engineering specs in `docs/<app>/`, run `./gradlew generatePatchesList`, and sync README with `generate_patches_readme.py`.
+1. **Acquire or Ingest**: Download update via `apk-lab acquire <pkg>` or load from local artifact.
+2. **Compare**: Run `apk-lab compare <old_artifact> <new_artifact>` to identify changed DEX method counts, split changes, native libraries, and resource modifications.
+3. **Forced Baseline Check**: Run `apk-lab check <new_artifact> --mpp <bundle> --package <pkg> --all --force` to capture the failing-before baseline and pinpoint obsolete anchors.
+4. **Analyze & Remap**: Run `apk-lab analyze <new_artifact> --smali` to rediscover changed classes, obfuscated descriptors, and instructions using stable landmarks. For native/Unity patches, rerun `apk-lab il2cpp` and `apk-lab unity` to update shifted offsets.
+5. **Update Source**: Update patch definitions, extension classes, and bump target in `Constants.kt`.
+6. **Matrix Check**: Rebuild and run `apk-lab check <new_artifact> --mpp <bundle> --package <pkg> --all`. Require 100% pass rate.
+7. **Documentation & List**: Update reverse engineering specs in `docs/<app>/`, run `./gradlew generatePatchesList`, and sync README with `generate_patches_readme.py`.
 
 ---
 

@@ -38,7 +38,7 @@ My [Morphe](https://morphe.software) patches
 ## 📱 Supported Applications & Patches
 
 <!-- PATCHES_START EXPANDED -->
-> **[v1.4.0-dev.3](https://github.com/ihatenodejs/aidans-patches/releases/tag/v1.4.0-dev.3)**&nbsp;&nbsp;•&nbsp;&nbsp;`dev`&nbsp;&nbsp;•&nbsp;&nbsp;49 patches total
+> **[v1.4.0-dev.5](https://github.com/ihatenodejs/aidans-patches/releases/tag/v1.4.0-dev.5)**&nbsp;&nbsp;•&nbsp;&nbsp;`dev`&nbsp;&nbsp;•&nbsp;&nbsp;49 patches total
 <details open>
 <summary>📦 AfterShip&nbsp;&nbsp;•&nbsp;&nbsp;11 patches</summary>
 <br>
@@ -70,7 +70,7 @@ My [Morphe](https://morphe.software) patches
 
 **🎯 Supported versions:**
 
-| 2.22.08 |
+| 2.22.09 |
 | :---: |
 
 | 💊&nbsp;Patch | 📜&nbsp;Description | ⚙️&nbsp;Options |
@@ -220,6 +220,17 @@ To update `patches-list.json`:
 ```bash
 ./gradlew generatePatchesList
 ```
+### Analysis & Compatibility Testing (`apk-lab`)
+
+Reverse engineering workflows, multi-split artifact inspection, ARM64 assembly, IL2CPP metadata querying, and isolated patch compatibility checks use `tools/apk-lab`:
+
+```bash
+uv run --project tools/apk-lab apk-lab doctor
+uv run --project tools/apk-lab apk-lab check path/to/app.apkm --mpp patches/build/libs/patches-1.0.0.mpp --package com.example.app --all
+```
+
+See [`docs/apk-lab.md`](docs/apk-lab.md) for complete CLI documentation and workflows.
+
 
 ## 📲 Applying Patches
 

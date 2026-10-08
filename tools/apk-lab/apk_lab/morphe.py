@@ -32,6 +32,16 @@ DEFAULT_PATCHES_LIST_PATH = (
     Path(__file__).parent.parent.parent.parent / "patches-list.json"
 )
 
+def is_patchable_member(name: str) -> bool:
+    """Whether a member can be changed by a patch and must count toward the check postcondition."""
+    return (
+        name == "AndroidManifest.xml"
+        or name == "resources.arsc"
+        or name.endswith(".dex")
+        or name.startswith(("res/", "assets/", "lib/"))
+    )
+
+
 
 @dataclass
 class PatchOptionDef:
@@ -354,19 +364,6 @@ def run_single_patch_case(
         scratch_dir = run_dir / "scratch"
         scratch_dir.mkdir(parents=True, exist_ok=True)
         patch_input_path = artifact_path
-        if input_inspection.container_type.value != "APK" and input_inspection.splits:
-            base_splits = [s for s in input_inspection.splits if s.is_base]
-            if base_splits:
-                base_name = base_splits[0].filename
-                patch_input_path = run_dir / "base.apk"
-                with (
-                    zipfile.ZipFile(artifact_path, "r") as zf,
-                    zf.open(base_name) as src,
-                    open(patch_input_path, "wb") as dst,
-                ):
-                    while chunk := src.read(64 * 1024):
-                        dst.write(chunk)
-
         cmd = build_morphe_patch_cmd(
             mpp_path=mpp_path,
             patch_name=test_case.patch_name,
@@ -537,15 +534,7 @@ def run_single_patch_case(
             in_hashes = get_member_hashes(artifact_path)
             for name, in_h in in_hashes.items():
                 out_h = out_hashes.get(name)
-                if (
-                    out_h
-                    and out_h != in_h
-                    and (
-                        name.endswith(".dex")
-                        or name.startswith(("res/", "assets/", "lib/"))
-                        or name == "resources.arsc"
-                    )
-                ):
+                if out_h and out_h != in_h and is_patchable_member(name):
                     has_changed_member = True
             for name in out_hashes:
                 if name.endswith(".dex") and name not in in_hashes and injected_classes:
@@ -553,11 +542,7 @@ def run_single_patch_case(
         else:
             in_hashes_map = get_split_container_input_member_hashes(artifact_path)
             for name, out_h in out_hashes.items():
-                if not (
-                    name.endswith(".dex")
-                    or name.startswith(("res/", "assets/", "lib/"))
-                    or name == "resources.arsc"
-                ):
+                if not is_patchable_member(name):
                     continue
 
                 if name in in_hashes_map:
