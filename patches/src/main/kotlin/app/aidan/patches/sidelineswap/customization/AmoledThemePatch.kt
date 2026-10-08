@@ -2,6 +2,9 @@ package app.aidan.patches.sidelineswap.customization
 
 import app.aidan.patches.sidelineswap.shared.COMPATIBILITY_SIDELINESWAP
 import app.morphe.patcher.extensions.InstructionExtensions.addInstructions
+import app.morphe.patcher.extensions.InstructionExtensions.replaceInstruction
+import com.android.tools.smali.dexlib2.iface.instruction.formats.Instruction21c
+import com.android.tools.smali.dexlib2.iface.reference.StringReference
 import app.morphe.patcher.patch.PatchException
 import app.morphe.patcher.patch.BytecodePatchContext
 import app.morphe.patcher.patch.bytecodePatch
@@ -14,6 +17,7 @@ private const val COLOR_WHITE = "#FFFFFFFF"
 private const val COLOR_MUTED_WHITE = "#B3FFFFFF"
 private const val COLOR_DIVIDER = "#33FFFFFF"
 private const val COLOR_LOCAL_BUBBLE = "#121212"
+private const val COLOR_FREE_SHIPPING_GREEN = "#02c874"
 
 private val AMOLED_LAYOUT_FILES = listOf(
     "activity_facet_child_list.xml",
@@ -141,6 +145,7 @@ val amoledThemeResourcePatch = resourcePatch(
         patchLayouts()
         patchDrawables()
         patchIcons()
+        patchShippingIcon()
     }
 }
 
@@ -156,6 +161,7 @@ val amoledThemePatch = bytecodePatch(
 
     execute {
         patchWebViewDarkMode()
+        patchEmblemLabelColor()
     }
 }
 
@@ -199,6 +205,35 @@ private fun BytecodePatchContext.patchWebViewDarkMode() {
             """
         )
     }
+}
+
+private fun BytecodePatchContext.patchEmblemLabelColor() {
+    val itemKtClass = mutableClassDefByOrNull("Lcom/sidelineswap/android/model/ItemKt;")
+        ?: throw PatchException("Class Lcom/sidelineswap/android/model/ItemKt; not found")
+    val getEmblemLabelMethod = itemKtClass.methods.firstOrNull {
+        it.name == "getEmblemLabel" && it.implementation != null
+    } ?: throw PatchException("Method getEmblemLabel not found in Lcom/sidelineswap/android/model/ItemKt;")
+
+    val impl = getEmblemLabelMethod.implementation
+        ?: throw PatchException("getEmblemLabel has no implementation")
+
+    val instructions = impl.instructions.toList()
+    val targetIndex = instructions.indexOfFirst { inst ->
+        if (inst is Instruction21c) {
+            val ref = inst.reference
+            ref is StringReference && ref.string.equals("#253C32", ignoreCase = true)
+        } else false
+    }
+
+    if (targetIndex < 0) {
+        throw PatchException("const-string '#253C32' not found in getEmblemLabel")
+    }
+
+    val inst = instructions[targetIndex] as Instruction21c
+    getEmblemLabelMethod.replaceInstruction(
+        targetIndex,
+        "const-string v${inst.registerA}, \"$COLOR_FREE_SHIPPING_GREEN\""
+    )
 }
 
 private fun app.morphe.patcher.patch.ResourcePatchContext.patchStyles() {
@@ -433,6 +468,11 @@ private fun app.morphe.patcher.patch.ResourcePatchContext.patchDrawables() {
         expectedStroke = "#d8d8d8",
         replacementStroke = COLOR_DIVIDER
     )
+    patchDrawableShape(
+        path = "res/drawable/avatar_stroke_v2.xml",
+        expectedSolid = "#ffffff",
+        replacementSolid = "@android:color/transparent"
+    )
 
     val togglePath = "res/drawable/toggle_background_unchecked.xml"
     document(togglePath).use { doc ->
@@ -461,6 +501,39 @@ private fun app.morphe.patcher.patch.ResourcePatchContext.patchDrawables() {
         }
         if (!found) {
             throw PatchException("[$toggleColorPath] Item with color '#4a4a4a' not found")
+        }
+    }
+}
+
+private fun app.morphe.patcher.patch.ResourcePatchContext.patchShippingIcon() {
+    val shippingIconPath = "res/drawable/ic_shipping.xml"
+    document(shippingIconPath).use { doc ->
+        val paths = doc.getElementsByTagName("path")
+        var backgroundRemoved = false
+        var foregroundUpdatedCount = 0
+
+        val nodesToRemove = mutableListOf<Element>()
+        for (i in 0 until paths.length) {
+            val pathElem = paths.item(i) as? Element ?: continue
+            val fillColor = pathElem.getAttribute("android:fillColor").trim().lowercase()
+            if (fillColor == "#ffffff") {
+                nodesToRemove.add(pathElem)
+                backgroundRemoved = true
+            } else if (fillColor == "#253c32") {
+                pathElem.setAttribute("android:fillColor", COLOR_FREE_SHIPPING_GREEN)
+                foregroundUpdatedCount++
+            }
+        }
+
+        for (node in nodesToRemove) {
+            node.parentNode?.removeChild(node)
+        }
+
+        if (!backgroundRemoved) {
+            throw PatchException("[$shippingIconPath] White background path not found")
+        }
+        if (foregroundUpdatedCount != 5) {
+            throw PatchException("[$shippingIconPath] Expected 5 foreground paths with #253c32, found $foregroundUpdatedCount")
         }
     }
 }
