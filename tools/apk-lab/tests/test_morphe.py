@@ -6,6 +6,7 @@ from apk_lab.morphe import (
     is_patchable_member,
 )
 
+
 def test_is_patchable_member_includes_manifest_and_mutable_members():
     assert is_patchable_member("AndroidManifest.xml")
     assert is_patchable_member("classes.dex")
