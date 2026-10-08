@@ -107,6 +107,7 @@ The patch operates entirely at the Android XML resource level via Morphe `resour
   - `TextAppearance.Messaging`: `android:textColor` `#de000000` $\rightarrow$ `#FFFFFFFF`.
 - Leaves `AppTheme.AppBarOverlay.Dark` and `BlackActionButton` untouched.
 - Overrides `CardView` style `cardBackgroundColor`: `?android:attr/colorBackgroundFloating` $\rightarrow$ `#000000` (ensures legacy `androidx.cardview.widget.CardView` containers such as cart seller groups render pure black).
+- Re-parents Braintree Drop-in themes (`bt_drop_in_activity_theme`, `bt_add_card_activity_theme`) to `@style/Theme.AppCompat.NoActionBar` and `bt_edit_button` to `@style/Theme.AppCompat`.
 #### 2. Centralized Color Palette Tokens (`res/values/colors.xml`)
 Updates key surface, background, and divider color tokens:
 - `appBarColor`: `#ffffff` $\rightarrow$ `#000000` (pure black top app bar)
@@ -120,6 +121,13 @@ Updates key surface, background, and divider color tokens:
 - `design_dark_default_color_surface`: `#121212` $\rightarrow$ `#000000` (pure black Design library surfaces)
 - `colorBlack`: `#4a4a4a` $\rightarrow$ `#FFFFFFFF` (light foreground token for legacy color definitions)
 - `follow`: `#4a4a4a` $\rightarrow$ `#FFFFFFFF` (high-contrast text token for locker follow states)
+- `bt_base_background`: `#fafafa` $\rightarrow$ `#000000` (pure black Braintree bottom sheet and card screens)
+- `bt_black`: `#001129` $\rightarrow$ `#FFFFFFFF` (light text for Braintree payment method types)
+- `bt_black_12`: `#1e000000` $\rightarrow$ `#33FFFFFF` (subtle divider lines in Braintree lists)
+- `bt_black_54`: `#8a000000` $\rightarrow$ `#B3FFFFFF` (muted text for Braintree headers and card descriptions)
+- `bt_black_87`: `#de000000` $\rightarrow$ `#FFFFFFFF` (light text for vaulted card titles)
+- `bt_black_contrast`: `#000000` $\rightarrow$ `#02c874` (brand green accent and animated action button background)
+- `bt_color_primary` / `bt_color_primary_dark`: `#3e3c42` / `#363439` $\rightarrow$ `#000000` (pure black Card Details toolbar)
 #### 3. Dynamic HTML Strings (`res/values/strings.xml`)
 Updates seller feedback string resources with explicit light HTML font color tags to override hardcoded Dalvik text colors:
 - `feedback_zero`: wraps "No Feedback" in `<font color=#ffffff>` and count in `<font color=#b3ffffff>`.
@@ -140,16 +148,19 @@ An audited allowlist of 80 layout files is processed with attribute-aware rules:
   - `rating_background_checked.xml`: solid `#f8f8f8` $\rightarrow$ `#000000`, stroke `#d8d8d8` $\rightarrow$ `#33FFFFFF`
   - `toggle_background_unchecked.xml`: stroke `#4a4a4a` $\rightarrow$ `#33FFFFFF`
   - `toggle_text_color.xml`: unchecked color `#4a4a4a` $\rightarrow$ `#B3FFFFFF`
-- **Vector Icons (22 audited allowlist files)**:
-  - `android:tint` / `android:fillColor` primary dark values (`#ff000000`, `#000000`, `#4a4a4a`) $\rightarrow$ `#FFFFFFFF` (exactly 23 replacements).
-  - `android:tint` / `android:fillColor` muted values (`#757575`, `#b3000000`) $\rightarrow$ `#B3FFFFFF` (exactly 3 replacements).
+- **Vector Icons (29 audited allowlist files)**:
+  - `android:tint` / `android:fillColor` primary dark values (`#ff000000`, `#000000`, `#4a4a4a`, `#000`) $\rightarrow$ `#FFFFFFFF` (exactly 28 replacements, covering navigation, toolbar, payment selection radio buttons `ic_radio_button_on`/`ic_radio_button_off`, and `ic_zip_logo`).
+  - `android:tint` / `android:fillColor` muted values (`#757575`, `#b3000000`, `#b7b7b7`) $\rightarrow$ `#B3FFFFFF` (exactly 10 replacements).
   - Enforces that each icon file in the allowlist is modified at least once.
 
 
+- **Payment Cards & Address Containers**:
+  - `bt_vaulted_payment_method_card.xml`: `card_view:cardBackgroundColor` `@android:color/white` $\rightarrow$ `#121212` (dark elevated cards for vaulted payment methods).
+  - `fragment_address_list.xml`: fixes uninitialized `guidelineStart` by injecting `app:layout_constraintGuide_begin="16.0dp"`, eliminating the layout solver offset that placed address rows at -1078px off-screen.
 #### 6. Dalvik Bytecode Hooking
 - **Cart Item Surface Neutralization**: Rewrites hardcoded light background color hex codes (`#ffffff`, `#f8f8f8` $\rightarrow$ `#000000`) within `CartItemAdapter$ViewHolder.bind` and `CartCheckoutItemAdapter$ViewHolder.bind` so item rows render on AMOLED black surfaces with readable light text.
 - **Free Shipping Badge**: Neutralizes hardcoded dark green string literal `#253C32` in `ItemKt.getEmblemLabel` to vibrant brand green `#02c874`.
 - **Dark WebViews**: Injects `DarkWebViewBridge.applyDarkMode` on embedded WebViews (`WebViewFragment`, `WebSignInFragment`).
 ### Coexistence and SDK Boundaries
 - **Change Brand Color Coexistence**: `AMOLED Theme` does not modify `colorPrimary`, `colorPrimaryDark`, `colorAccent`, `badge_color`, `green_badge`, or `ic_launcher_background`. Users can enable both patches simultaneously without conflicts or execution-order dependencies.
-- **Vendor Payment SDK Boundaries**: Embedded third-party payment and verification SDK resources (Braintree Drop-in, CardinalCommerce 3DS) are deliberately preserved with their original styles and palettes to prevent contrast regressions or broken card verification layouts.
+- **Vendor Verification SDK Boundaries**: CardinalCommerce 3DS verification web resources are deliberately preserved with their original styles and palettes to prevent broken card verification layouts.

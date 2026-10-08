@@ -117,6 +117,8 @@ private val AMOLED_ICON_FILES = listOf(
     "ic_info_circle.xml",
     "ic_more_vert.xml",
     "ic_radio_button_unchecked.xml",
+    "ic_radio_button_on.xml",
+    "ic_radio_button_off.xml",
     "ic_receipt.xml",
     "ic_recent_search_dark_grey_24dp.xml",
     "ic_search_black_24.xml",
@@ -128,7 +130,8 @@ private val AMOLED_ICON_FILES = listOf(
     "ic_local_shipping.xml",
     "ic_place.xml",
     "ic_access_time.xml",
-    "ic_perm_identity.xml"
+    "ic_perm_identity.xml",
+    "ic_zip_logo.xml",
 )
 val amoledThemeResourcePatch = resourcePatch(
     name = "AMOLED Theme Resources",
@@ -146,6 +149,8 @@ val amoledThemeResourcePatch = resourcePatch(
         patchDrawables()
         patchIcons()
         patchShippingIcon()
+        patchVaultedPaymentCard()
+        patchAddressListGuideline()
     }
 }
 
@@ -320,6 +325,27 @@ private fun app.morphe.patcher.patch.ResourcePatchContext.patchStyles() {
 
         val cardViewStyle = findSingleStyle(doc, stylesPath, "CardView")
         replaceStyleItem(stylesPath, cardViewStyle, "cardBackgroundColor", "?android:attr/colorBackgroundFloating", COLOR_BLACK)
+
+        val btDropInTheme = findSingleStyle(doc, stylesPath, "bt_drop_in_activity_theme")
+        val btDropInParent = btDropInTheme.getAttribute("parent")
+        if (btDropInParent != "@style/Theme.AppCompat.Light.NoActionBar") {
+            throw PatchException("[$stylesPath] Expected bt_drop_in_activity_theme parent '@style/Theme.AppCompat.Light.NoActionBar', found '$btDropInParent'")
+        }
+        btDropInTheme.setAttribute("parent", "@style/Theme.AppCompat.NoActionBar")
+
+        val btAddCardTheme = findSingleStyle(doc, stylesPath, "bt_add_card_activity_theme")
+        val btAddCardParent = btAddCardTheme.getAttribute("parent")
+        if (btAddCardParent != "@style/Theme.AppCompat.Light.NoActionBar") {
+            throw PatchException("[$stylesPath] Expected bt_add_card_activity_theme parent '@style/Theme.AppCompat.Light.NoActionBar', found '$btAddCardParent'")
+        }
+        btAddCardTheme.setAttribute("parent", "@style/Theme.AppCompat.NoActionBar")
+
+        val btEditButton = findSingleStyle(doc, stylesPath, "bt_edit_button")
+        val btEditParent = btEditButton.getAttribute("parent")
+        if (btEditParent != "@style/Theme.AppCompat.Light") {
+            throw PatchException("[$stylesPath] Expected bt_edit_button parent '@style/Theme.AppCompat.Light', found '$btEditParent'")
+        }
+        btEditButton.setAttribute("parent", "@style/Theme.AppCompat")
     }
 }
 
@@ -342,7 +368,15 @@ private fun app.morphe.patcher.patch.ResourcePatchContext.patchColors() {
         "design_default_color_on_background" to Pair("#000000", COLOR_WHITE),
         "design_default_color_on_surface" to Pair("#000000", COLOR_WHITE),
         "primary_text_default_material_light" to Pair("#de000000", COLOR_WHITE),
-        "secondary_text_default_material_light" to Pair("#8a000000", COLOR_MUTED_WHITE)
+        "secondary_text_default_material_light" to Pair("#8a000000", COLOR_MUTED_WHITE),
+        "bt_base_background" to Pair("#fafafa", COLOR_BLACK),
+        "bt_black" to Pair("#001129", COLOR_WHITE),
+        "bt_black_12" to Pair("#1e000000", COLOR_DIVIDER),
+        "bt_black_54" to Pair("#8a000000", COLOR_MUTED_WHITE),
+        "bt_black_87" to Pair("#de000000", COLOR_WHITE),
+        "bt_black_contrast" to Pair("#000000", COLOR_FREE_SHIPPING_GREEN),
+        "bt_color_primary" to Pair("#3e3c42", COLOR_BLACK),
+        "bt_color_primary_dark" to Pair("#363439", COLOR_BLACK),
     )
 
     document(colorsPath).use { doc ->
@@ -579,6 +613,38 @@ private fun app.morphe.patcher.patch.ResourcePatchContext.patchShippingIcon() {
     }
 }
 
+private fun app.morphe.patcher.patch.ResourcePatchContext.patchVaultedPaymentCard() {
+    val path = "res/layout/bt_vaulted_payment_method_card.xml"
+    document(path).use { doc ->
+        val cards = doc.getElementsByTagName("androidx.cardview.widget.CardView")
+        if (cards.length != 1) {
+            throw PatchException("[$path] Expected 1 CardView, found ${cards.length}")
+        }
+        val card = cards.item(0) as Element
+        val attrName = if (card.hasAttribute("card_view:cardBackgroundColor")) "card_view:cardBackgroundColor" else "app:cardBackgroundColor"
+        val current = card.getAttribute(attrName).trim()
+        if (!current.equals("@android:color/white", ignoreCase = true)) {
+            throw PatchException("[$path] Expected cardBackgroundColor '@android:color/white', found '$current'")
+        }
+        card.setAttribute(attrName, COLOR_LOCAL_BUBBLE)
+    }
+}
+
+private fun app.morphe.patcher.patch.ResourcePatchContext.patchAddressListGuideline() {
+    val layoutPath = "res/layout/fragment_address_list.xml"
+    document(layoutPath).use { doc ->
+        val guidelines = doc.getElementsByTagName("androidx.constraintlayout.widget.Guideline")
+        for (i in 0 until guidelines.length) {
+            val elem = guidelines.item(i) as? Element ?: continue
+            if (elem.getAttribute("android:id") == "@id/guidelineStart") {
+                elem.setAttribute("app:layout_constraintGuide_begin", "16.0dp")
+                return@use
+            }
+        }
+        throw PatchException("[$layoutPath] guidelineStart not found")
+    }
+}
+
 private fun app.morphe.patcher.patch.ResourcePatchContext.patchDrawableShape(
     path: String,
     expectedSolid: String,
@@ -617,7 +683,7 @@ private fun app.morphe.patcher.patch.ResourcePatchContext.patchIcons() {
     var totalPrimaryIconCount = 0
     var totalMutedIconCount = 0
 
-    val primaryLiterals = setOf("#ff000000", "#000000", "#4a4a4a")
+    val primaryLiterals = setOf("#ff000000", "#000000", "#4a4a4a", "#000")
     val mutedLiterals = setOf("#757575", "#b3000000", "#b7b7b7")
 
     for (iconName in AMOLED_ICON_FILES) {
@@ -652,8 +718,8 @@ private fun app.morphe.patcher.patch.ResourcePatchContext.patchIcons() {
         }
     }
 
-    if (totalPrimaryIconCount != 23) {
-        throw PatchException("Icon primary replacement count mismatch: expected 23, got $totalPrimaryIconCount")
+    if (totalPrimaryIconCount != 28) {
+        throw PatchException("Icon primary replacement count mismatch: expected 28, got $totalPrimaryIconCount")
     }
     if (totalMutedIconCount != 10) {
         throw PatchException("Icon muted replacement count mismatch: expected 10, got $totalMutedIconCount")
