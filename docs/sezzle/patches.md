@@ -275,7 +275,7 @@ Removes the commercial Rewards bottom tab while preserving access to Sezzle Poin
 #### 2. Technical Implementation & Injection Points
 Modifies `assets/index.android.bundle`:
 1. Unmounts `EarnTab` in `ProtectedStack` by stubbing `useIsShowEarnTabEnabled` to return `false`.
-2. Rewires the Home `customer/points` shortcut to dispatch through the P2P deep-link dispatcher directly to `Account > SezzleSpend > SezzlePoints`.
+2. Rewires the Home `customer/points` shortcut by conditionally branching in the P2P deep-link dispatcher: if the deep link contains the `send` payload property it jumps directly to native Sezzle Send navigation, otherwise it navigates to `Account > SezzleSpend > SezzlePoints` and jumps to cleanup, keeping both Sezzle Send and Sezzle Points fully functional.
 3. Recomputes Hermes footer hash.
 
 ---
