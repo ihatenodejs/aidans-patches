@@ -3,7 +3,16 @@ from apk_lab.morphe import (
     PatchOptionDef,
     generate_test_cases,
     get_compatible_patches,
+    is_patchable_member,
 )
+
+def test_is_patchable_member_includes_manifest_and_mutable_members():
+    assert is_patchable_member("AndroidManifest.xml")
+    assert is_patchable_member("classes.dex")
+    assert is_patchable_member("res/values/strings.xml")
+    assert is_patchable_member("assets/config.json")
+    assert is_patchable_member("lib/arm64-v8a/libil2cpp.so")
+    assert not is_patchable_member("META-INF/CERT.RSA")
 
 
 def test_generate_test_cases_boolean_inversion():
