@@ -199,7 +199,7 @@ describe('Worker fetch endpoints', () => {
       { packageName: 'com.instructure.candroid', name: 'Canvas Student', latest: '8.10.0' },
       { packageName: 'com.sezzle.sezzlemobile', name: 'Sezzle', latest: '5.3.9' },
       { packageName: 'com.sidelineswap.android', name: 'SidelineSwap', latest: '1.52.0' },
-      { packageName: 'com.tripledot.blackjack', name: 'Blackjack', latest: '2.22.08' },
+      { packageName: 'com.tripledot.blackjack', name: 'Blackjack', latest: '2.22.09' },
     ]) {
       const record: AppVersionRecord = {
         appName: app.name,

@@ -277,7 +277,7 @@ def handle_analyze(args: argparse.Namespace) -> int:
 
             with zipfile.ZipFile(target_apk, "r") as zf:
                 for name in zf.namelist():
-                    if name.endswith(".dex"):
+                    if re.fullmatch(r"classes\d*\.dex", name):
                         validate_dex_entry_name(name)
                         dex_dest = (run_dir / name).resolve()
                         if not is_contained_path(dex_dest, run_dir, allow_equal=False):

@@ -70,7 +70,7 @@ My [Morphe](https://morphe.software) patches
 
 **🎯 Supported versions:**
 
-| 2.22.08 |
+| 2.22.09 |
 | :---: |
 
 | 💊&nbsp;Patch | 📜&nbsp;Description | ⚙️&nbsp;Options |
