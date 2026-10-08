@@ -162,6 +162,7 @@ val amoledThemePatch = bytecodePatch(
     execute {
         patchWebViewDarkMode()
         patchEmblemLabelColor()
+        patchCartItemBackgrounds()
     }
 }
 
@@ -236,6 +237,43 @@ private fun BytecodePatchContext.patchEmblemLabelColor() {
     )
 }
 
+private fun BytecodePatchContext.patchCartItemBackgrounds() {
+    val cartItemViewHolder = mutableClassDefByOrNull("Lcom/sidelineswap/android/cart/CartItemAdapter\$ViewHolder;")
+        ?: throw PatchException("Class Lcom/sidelineswap/android/cart/CartItemAdapter\$ViewHolder; not found")
+    val bindMethod = cartItemViewHolder.methods.firstOrNull {
+        it.name == "bind" && it.parameterTypes.size == 1 && it.parameterTypes[0] == "Lcom/sidelineswap/android/model/Cart\$CartItem;" && it.implementation != null
+    } ?: throw PatchException("Method bind not found in Lcom/sidelineswap/android/cart/CartItemAdapter\$ViewHolder;")
+    val checkoutViewHolder = mutableClassDefByOrNull("Lcom/sidelineswap/android/cart/CartCheckoutItemAdapter\$ViewHolder;")
+        ?: throw PatchException("Class Lcom/sidelineswap/android/cart/CartCheckoutItemAdapter\$ViewHolder; not found")
+    val checkoutBindMethod = checkoutViewHolder.methods.firstOrNull {
+        it.name == "bind" && it.parameterTypes.size == 1 && it.parameterTypes[0] == "Lcom/sidelineswap/android/cart/CartCheckoutItemAdapter\$AdapterItem;" && it.implementation != null
+    } ?: throw PatchException("Method bind not found in Lcom/sidelineswap/android/cart/CartCheckoutItemAdapter\$ViewHolder;")
+
+    for (method in listOf(bindMethod, checkoutBindMethod)) {
+        val impl = method.implementation ?: throw PatchException("${method.name} has no implementation")
+        val instructions = impl.instructions.toList()
+        val targets = setOf("#ffffff", "#f8f8f8")
+        val matches = mutableListOf<Pair<Int, Instruction21c>>()
+        instructions.forEachIndexed { index, inst ->
+            if (inst is Instruction21c) {
+                val ref = inst.reference
+                if (ref is StringReference && ref.string.lowercase() in targets) {
+                    matches.add(index to inst)
+                }
+            }
+        }
+        if (matches.size != targets.size) {
+            throw PatchException("${method.name}: expected to replace ${targets.size} color strings, but found ${matches.size}")
+        }
+        for ((index, inst) in matches.asReversed()) {
+            method.replaceInstruction(
+                index,
+                "const-string v${inst.registerA}, \"$COLOR_BLACK\""
+            )
+        }
+    }
+}
+
 private fun app.morphe.patcher.patch.ResourcePatchContext.patchStyles() {
     val stylesPath = "res/values/styles.xml"
     document(stylesPath).use { doc ->
@@ -279,6 +317,9 @@ private fun app.morphe.patcher.patch.ResourcePatchContext.patchStyles() {
             throw PatchException("[$stylesPath] Expected AppTheme.AppBarOverlay.Dark parent '@style/ThemeOverlay.MaterialComponents.Dark.ActionBar', found '$appBarDarkParent'")
         }
         appBarDarkOverlay.setAttribute("parent", "@style/ThemeOverlay.MaterialComponents.Dark.ActionBar")
+
+        val cardViewStyle = findSingleStyle(doc, stylesPath, "CardView")
+        replaceStyleItem(stylesPath, cardViewStyle, "cardBackgroundColor", "?android:attr/colorBackgroundFloating", COLOR_BLACK)
     }
 }
 

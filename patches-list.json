@@ -4,7 +4,38 @@
   "patches": [
     {
       "name": "AMOLED Theme",
-      "description": "Forces SidelineSwap into a pure-black AMOLED theme with dark system bars, black app surfaces, and readable light text and icons.",
+      "description": "Forces SidelineSwap into a pure-black AMOLED theme with dark system bars, black app surfaces, readable light text and icons, and force dark mode on embedded WebViews.",
+      "default": false,
+      "category": "Customization",
+      "dependencies": [
+        "AMOLED Theme Resources"
+      ],
+      "compatiblePackages": [
+        {
+          "packageName": "com.sidelineswap.android",
+          "name": "SidelineSwap",
+          "description": null,
+          "apkFileType": "XAPK",
+          "appIconColor": "#02C874",
+          "signatures": [
+            "e434334ea79d8702a5d023ce7bfae4da9fa5539796cb9e0ba515cb471528697f"
+          ],
+          "targets": [
+            {
+              "version": "1.52.0",
+              "versionCodes": null,
+              "isExperimental": false,
+              "minSdk": 28,
+              "description": null
+            }
+          ]
+        }
+      ],
+      "options": []
+    },
+    {
+      "name": "AMOLED Theme Resources",
+      "description": "Resource modifications for AMOLED theme.",
       "default": false,
       "category": "Customization",
       "dependencies": [],

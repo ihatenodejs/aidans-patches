@@ -106,6 +106,7 @@ The patch operates entirely at the Android XML resource level via Morphe `resour
   - `TextAppearance.Facet.Subtitle`: `android:textColor` `#de000000` $\rightarrow$ `#FFFFFFFF`.
   - `TextAppearance.Messaging`: `android:textColor` `#de000000` $\rightarrow$ `#FFFFFFFF`.
 - Leaves `AppTheme.AppBarOverlay.Dark` and `BlackActionButton` untouched.
+- Overrides `CardView` style `cardBackgroundColor`: `?android:attr/colorBackgroundFloating` $\rightarrow$ `#000000` (ensures legacy `androidx.cardview.widget.CardView` containers such as cart seller groups render pure black).
 #### 2. Centralized Color Palette Tokens (`res/values/colors.xml`)
 Updates key surface, background, and divider color tokens:
 - `appBarColor`: `#ffffff` $\rightarrow$ `#000000` (pure black top app bar)
@@ -144,6 +145,11 @@ An audited allowlist of 80 layout files is processed with attribute-aware rules:
   - `android:tint` / `android:fillColor` muted values (`#757575`, `#b3000000`) $\rightarrow$ `#B3FFFFFF` (exactly 3 replacements).
   - Enforces that each icon file in the allowlist is modified at least once.
 
+
+#### 6. Dalvik Bytecode Hooking
+- **Cart Item Surface Neutralization**: Rewrites hardcoded light background color hex codes (`#ffffff`, `#f8f8f8` $\rightarrow$ `#000000`) within `CartItemAdapter$ViewHolder.bind` and `CartCheckoutItemAdapter$ViewHolder.bind` so item rows render on AMOLED black surfaces with readable light text.
+- **Free Shipping Badge**: Neutralizes hardcoded dark green string literal `#253C32` in `ItemKt.getEmblemLabel` to vibrant brand green `#02c874`.
+- **Dark WebViews**: Injects `DarkWebViewBridge.applyDarkMode` on embedded WebViews (`WebViewFragment`, `WebSignInFragment`).
 ### Coexistence and SDK Boundaries
 - **Change Brand Color Coexistence**: `AMOLED Theme` does not modify `colorPrimary`, `colorPrimaryDark`, `colorAccent`, `badge_color`, `green_badge`, or `ic_launcher_background`. Users can enable both patches simultaneously without conflicts or execution-order dependencies.
 - **Vendor Payment SDK Boundaries**: Embedded third-party payment and verification SDK resources (Braintree Drop-in, CardinalCommerce 3DS) are deliberately preserved with their original styles and palettes to prevent contrast regressions or broken card verification layouts.
