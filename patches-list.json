@@ -3,6 +3,35 @@
   "version": "1.4.0-dev.3",
   "patches": [
     {
+      "name": "AMOLED Theme",
+      "description": "Forces SidelineSwap into a pure-black AMOLED theme with dark system bars, black app surfaces, and readable light text and icons.",
+      "default": false,
+      "category": "Customization",
+      "dependencies": [],
+      "compatiblePackages": [
+        {
+          "packageName": "com.sidelineswap.android",
+          "name": "SidelineSwap",
+          "description": null,
+          "apkFileType": "XAPK",
+          "appIconColor": "#02C874",
+          "signatures": [
+            "e434334ea79d8702a5d023ce7bfae4da9fa5539796cb9e0ba515cb471528697f"
+          ],
+          "targets": [
+            {
+              "version": "1.52.0",
+              "versionCodes": null,
+              "isExperimental": false,
+              "minSdk": 28,
+              "description": null
+            }
+          ]
+        }
+      ],
+      "options": []
+    },
+    {
       "name": "Add Copy Tracking Number Option",
       "description": "Adds an option to copy tracking numbers in the multi-shipment selection menu.",
       "default": true,

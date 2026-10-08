@@ -38,7 +38,24 @@ My [Morphe](https://morphe.software) patches
 ## 📱 Supported Applications & Patches
 
 <!-- PATCHES_START EXPANDED -->
-> **[v1.4.0-dev.3](https://github.com/ihatenodejs/aidans-patches/releases/tag/v1.4.0-dev.3)**&nbsp;&nbsp;•&nbsp;&nbsp;`dev`&nbsp;&nbsp;•&nbsp;&nbsp;49 patches total
+> **[v1.4.0-dev.3](https://github.com/ihatenodejs/aidans-patches/releases/tag/v1.4.0-dev.3)**&nbsp;&nbsp;•&nbsp;&nbsp;`main`&nbsp;&nbsp;•&nbsp;&nbsp;50 patches total
+<details open>
+<summary>📦 SidelineSwap&nbsp;&nbsp;•&nbsp;&nbsp;3 patches</summary>
+<br>
+
+**🎯 Supported versions:**
+
+| 1.52.0 |
+| :---: |
+
+| 💊&nbsp;Patch | 📜&nbsp;Description | ⚙️&nbsp;Options |
+|----------|----------------|-----------|
+| [AMOLED Theme](#amoled-theme) | Forces SidelineSwap into a pure-black AMOLED theme with dark system bars, black app surfaces, and readable light text and icons. |  |
+| [Block Tracking and Telemetry](#block-tracking-and-telemetry) | Neutralizes first-party analytics (SidelineSwap backend), behavioral tracking (Amplitude, Firebase Analytics, Facebook App Events, Iterable), diagnostic telemetry (Firebase Crashlytics, Timber logging tree), payment gateway telemetry (Braintree FPTI), and zeros the Google Play Advertising ID (AAID). |  |
+| [Change Brand Color](#change-brand-color) | Customizes the primary accent brand color across SidelineSwap buttons, navigation highlights, badges, and accents. | • Primary Brand Color<br>• Primary Dark Color |
+
+</details>
+
 <details open>
 <summary>📦 AfterShip&nbsp;&nbsp;•&nbsp;&nbsp;11 patches</summary>
 <br>
@@ -82,22 +99,6 @@ My [Morphe](https://morphe.software) patches
 | [Remove Notifications](#remove-notifications) | Removes notification permissions from AndroidManifest.xml to eliminate push notifications entirely. |  |
 | [Remove Tracking and Analytics](#remove-tracking-and-analytics) | Neutralizes active advertising telemetry, analytics, attribution, and crash reporting. |  |
 | [Skip to Next Level](#skip-to-next-level) | Allows tapping the next level indicator on the top bar to show a confirmation dialog and skip to the next level. REQUIRES Add Custom Chip Store to be enabled. |  |
-
-</details>
-
-<details open>
-<summary>📦 SidelineSwap&nbsp;&nbsp;•&nbsp;&nbsp;2 patches</summary>
-<br>
-
-**🎯 Supported versions:**
-
-| 1.52.0 |
-| :---: |
-
-| 💊&nbsp;Patch | 📜&nbsp;Description | ⚙️&nbsp;Options |
-|----------|----------------|-----------|
-| [Block Tracking and Telemetry](#block-tracking-and-telemetry) | Neutralizes first-party analytics (SidelineSwap backend), behavioral tracking (Amplitude, Firebase Analytics, Facebook App Events, Iterable), diagnostic telemetry (Firebase Crashlytics, Timber logging tree), payment gateway telemetry (Braintree FPTI), and zeros the Google Play Advertising ID (AAID). |  |
-| [Change Brand Color](#change-brand-color) | Customizes the primary accent brand color across SidelineSwap buttons, navigation highlights, badges, and accents. | • Primary Brand Color<br>• Primary Dark Color |
 
 </details>
 
