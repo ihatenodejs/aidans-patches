@@ -5,6 +5,38 @@ export type FreshnessStatus =
   | 'not-on-play-store'
   | 'unknown';
 
+export type PatchCompatibilityStatus =
+  | 'queued'
+  | 'running'
+  | 'compatible'
+  | 'incompatible'
+  | 'error'
+  | 'not-tested';
+
+export type FinalPatchCompatibilityStatus = 'compatible' | 'incompatible' | 'error';
+
+export interface CompatibilityRecord {
+  requestId: string;
+  role: 'target' | 'latest';
+  versionName: string;
+  versionCode: number;
+  patchBundleVersion: string;
+  gitRevision: string;
+  testedAt: string;
+  passedCount: number;
+  failedCount: number;
+  status: PatchCompatibilityStatus;
+  workflowRunUrl?: string | null;
+}
+
+export interface OutstandingCompatibilityRequest {
+  requestId: string;
+  targetVersion: string;
+  playVersion: string | null;
+  expectedRoles: ('target' | 'latest')[];
+  dispatchedAt: string;
+}
+
 export interface AppVersionRecord {
   appName?: string;
   playVersion: string | null;
@@ -15,6 +47,10 @@ export interface AppVersionRecord {
   status: FreshnessStatus;
   supportedVersions: string[];
   latestSupportedVersion: string;
+  targetCompatibility?: CompatibilityRecord | null;
+  latestCompatibility?: CompatibilityRecord | null;
+  outstandingRequest?: OutstandingCompatibilityRequest | null;
+  outstandingRequestId?: string | null;
 }
 
 export interface LatestReleaseSummary {
@@ -32,14 +68,36 @@ export interface KVVersionPayload {
   latestRelease?: LatestReleaseSummary | null;
 }
 
-export interface Env {
-  PLAY_VERSIONS_KV: KVNamespace;
-  REFRESH_SECRET?: string;
-}
-
 export interface TargetAppConfig {
   packageName: string;
   name: string;
+  apkFileType: string;
+  signatures: string[];
+  patchNames: string[];
   latestSupportedVersion: string;
   supportedVersions: string[];
+}
+
+export interface CompatibilityResultInput {
+  role: 'target' | 'latest';
+  versionName: string;
+  versionCode: number;
+  patchBundleVersion: string;
+  gitRevision: string;
+  status: FinalPatchCompatibilityStatus;
+  passedCount: number;
+  failedCount: number;
+  workflowRunUrl?: string | null;
+}
+
+export interface CompatibilityResultSubmission {
+  requestId: string;
+  packageName: string;
+  results: CompatibilityResultInput[];
+}
+
+export interface WorkerEnv extends Env {
+  REFRESH_SECRET?: string;
+  GITHUB_DISPATCH_TOKEN?: string;
+  COMPATIBILITY_STATUS_SECRET?: string;
 }

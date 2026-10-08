@@ -15,6 +15,8 @@ My [Morphe](https://morphe.software) patches
 [![License: WTFPL](https://img.shields.io/badge/License-WTFPL-white.svg)](http://www.wtfpl.net/about/)
 ![Kotlin](https://img.shields.io/badge/Kotlin-%237F52FF.svg?logo=kotlin&logoColor=white)
 ![Java](https://img.shields.io/badge/Java-%23ED8B00.svg?logo=openjdk&logoColor=white)
+[![APK Lab Tests](https://github.com/ihatenodejs/aidans-patches/actions/workflows/apk-lab-tests.yml/badge.svg)](https://github.com/ihatenodejs/aidans-patches/actions/workflows/apk-lab-tests.yml)
+[![Compatibility](https://worker.patch.p0ntus.com/badges/compatibility.svg)](https://patch.p0ntus.com/status)
 [![AI Generated](https://img.shields.io/badge/AI%20Generated-orange?logo=googlegemini&logoColor=white)](https://img.shields.io/badge/AI%20Generated-orange?logo=googlegemini&logoColor=white)
 
 [![Add to Morphe badge](https://github.com/ihatenodejs/aidans-patches/blob/main/assets/add-to-morphe.png?raw=true)](https://morphe.software/add-source?github=ihatenodejs/aidans-patches)
@@ -36,7 +38,25 @@ My [Morphe](https://morphe.software) patches
 ## 📱 Supported Applications & Patches
 
 <!-- PATCHES_START EXPANDED -->
-> **[v1.3.1](https://github.com/ihatenodejs/aidans-patches/releases/tag/v1.3.1)**&nbsp;&nbsp;•&nbsp;&nbsp;`main`&nbsp;&nbsp;•&nbsp;&nbsp;48 patches total
+> **[v1.4.0-dev.7](https://github.com/ihatenodejs/aidans-patches/releases/tag/v1.4.0-dev.7)**&nbsp;&nbsp;•&nbsp;&nbsp;`dev`&nbsp;&nbsp;•&nbsp;&nbsp;51 patches total
+<details open>
+<summary>📦 SidelineSwap&nbsp;&nbsp;•&nbsp;&nbsp;4 patches</summary>
+<br>
+
+**🎯 Supported versions:**
+
+| 1.52.0 |
+| :---: |
+
+| 💊&nbsp;Patch | 📜&nbsp;Description | ⚙️&nbsp;Options |
+|----------|----------------|-----------|
+| [AMOLED Theme](#amoled-theme) | Forces SidelineSwap into a pure-black AMOLED theme with dark system bars, black app surfaces, readable light text and icons, and force dark mode on embedded WebViews. |  |
+| [AMOLED Theme Resources](#amoled-theme-resources) | Resource modifications for AMOLED theme. |  |
+| [Block Tracking and Telemetry](#block-tracking-and-telemetry) | Neutralizes first-party analytics (SidelineSwap backend), behavioral tracking (Amplitude, Firebase Analytics, Facebook App Events, Iterable), diagnostic telemetry (Firebase Crashlytics, Timber logging tree), payment gateway telemetry (Braintree FPTI), and zeros the Google Play Advertising ID (AAID). |  |
+| [Change Brand Color](#change-brand-color) | Customizes the primary accent brand color across SidelineSwap buttons, navigation highlights, badges, and accents. | • Primary Brand Color<br>• Primary Dark Color |
+
+</details>
+
 <details open>
 <summary>📦 AfterShip&nbsp;&nbsp;•&nbsp;&nbsp;11 patches</summary>
 <br>
@@ -68,7 +88,7 @@ My [Morphe](https://morphe.software) patches
 
 **🎯 Supported versions:**
 
-| 2.22.08 |
+| 2.22.09 |
 | :---: |
 
 | 💊&nbsp;Patch | 📜&nbsp;Description | ⚙️&nbsp;Options |
@@ -84,22 +104,6 @@ My [Morphe](https://morphe.software) patches
 </details>
 
 <details open>
-<summary>📦 SidelineSwap&nbsp;&nbsp;•&nbsp;&nbsp;2 patches</summary>
-<br>
-
-**🎯 Supported versions:**
-
-| 1.52.0 |
-| :---: |
-
-| 💊&nbsp;Patch | 📜&nbsp;Description | ⚙️&nbsp;Options |
-|----------|----------------|-----------|
-| [Block Tracking and Telemetry](#block-tracking-and-telemetry) | Neutralizes first-party analytics (SidelineSwap backend), behavioral tracking (Amplitude, Firebase Analytics, Facebook App Events, Iterable), diagnostic telemetry (Firebase Crashlytics, Timber logging tree), payment gateway telemetry (Braintree FPTI), and zeros the Google Play Advertising ID (AAID). |  |
-| [Change Brand Color](#change-brand-color) | Customizes the primary accent brand color across SidelineSwap buttons, navigation highlights, badges, and accents. | • Primary Brand Color<br>• Primary Dark Color |
-
-</details>
-
-<details open>
 <summary>📦 Sezzle&nbsp;&nbsp;•&nbsp;&nbsp;16 patches</summary>
 <br>
 
@@ -111,7 +115,7 @@ My [Morphe](https://morphe.software) patches
 | 💊&nbsp;Patch | 📜&nbsp;Description | ⚙️&nbsp;Options |
 |----------|----------------|-----------|
 | [Clean Authentication](#clean-authentication) | Shows Google sign-in only and removes the unavailable phone sign-in controls. | • Inject patch warning |
-| [Configure Shortcuts](#configure-shortcuts) | Customizes items displayed in the Your Shortcuts carousel. | • Hide Refer a Friend<br>• Hide Giveaway<br>• Hide Offers<br>• Hide Rewards<br>• Hide Sezzle Mobile |
+| [Configure Shortcuts](#configure-shortcuts) | Customizes items displayed in the Your Shortcuts carousel. | • Hide Refer a Friend<br>• Hide Giveaway<br>• Hide Offers<br>• Hide Rewards<br>• Hide Sezzle Mobile<br>• Hide Amazon Deals |
 | [Enable App Debugging](#enable-app-debugging) | Marks the app debuggable so patch developers can use ADB run-as after reinstalling. |  |
 | [Hide Sezzle Mobile](#hide-sezzle-mobile) | Hides Sezzle Mobile offers and account entry points. |  |
 | [Patch Consent Screen](#patch-consent-screen) | Requires consent to a patched-app warning before opening Sezzle authentication. |  |
@@ -130,17 +134,18 @@ My [Morphe](https://morphe.software) patches
 </details>
 
 <details open>
-<summary>📦 Fizz&nbsp;&nbsp;•&nbsp;&nbsp;4 patches</summary>
+<summary>📦 Fizz&nbsp;&nbsp;•&nbsp;&nbsp;5 patches</summary>
 <br>
 
 **🎯 Supported versions:**
 
-| 1.53.0 |
+| 1.54.0 |
 | :---: |
 
 | 💊&nbsp;Patch | 📜&nbsp;Description | ⚙️&nbsp;Options |
 |----------|----------------|-----------|
 | [Enable Developer Settings](#enable-developer-settings) | Adds an in-app developer mod menu accessible via a top-bar header button, with controls for Mobile Studio. | • Mobile Studio |
+| [Remove Ads](#remove-ads) | Removes sponsored feed advertisements and optional marketplace listing advertisements from the feed. | • Remove Marketplace Ads |
 | [Remove Tracking and Analytics](#remove-tracking-and-analytics) | Neutralizes first-party client event tracking, Mixpanel analytics, Airbridge and Adjust attribution SDKs, Google Advertising ID (AAID) collection, and bypasses PairIP Play Integrity verification, with options for silent DM screenshots and Sentry telemetry removal. | • Silent Screenshots<br>• Disable Crash Reporting |
 | [Replace Emoji Font with iOS](#replace-emoji-font-with-ios) | Replaces Android system emoji with iOS Apple Color Emoji across Compose UI, posts, comments, and direct messages. |  |
 | [Replace Emoji Font with iOS Asset](#replace-emoji-font-with-ios-asset) | Copies the packaged Apple Color Emoji font into the target APK assets. |  |
@@ -217,6 +222,17 @@ To update `patches-list.json`:
 ```bash
 ./gradlew generatePatchesList
 ```
+### Analysis & Compatibility Testing (`apk-lab`)
+
+Reverse engineering workflows, multi-split artifact inspection, ARM64 assembly, IL2CPP metadata querying, and isolated patch compatibility checks use `tools/apk-lab`:
+
+```bash
+uv run --project tools/apk-lab apk-lab doctor
+uv run --project tools/apk-lab apk-lab check path/to/app.apkm --mpp patches/build/libs/patches-1.0.0.mpp --package com.example.app --all
+```
+
+See [`docs/apk-lab.md`](docs/apk-lab.md) for complete CLI documentation and workflows.
+
 
 ## 📲 Applying Patches
 
