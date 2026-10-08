@@ -16,40 +16,51 @@ from apk_lab.il2cpp import (
 from apk_lab.models import ExitCode
 
 
-def build_synthetic_metadata(version: int = 29) -> bytes:
+def build_synthetic_metadata(
+    version: int = 29,
+    *,
+    corrupt_methods_size: int | None = None,
+    corrupt_types_size: int | None = None,
+) -> bytes:
     """Builds a minimal valid synthetic global-metadata.dat buffer."""
-    # String table
-    # Index 0: empty
-    # Index 1: "TestNamespace"
-    # Index 15: "BlackjackApplication"
-    # Index 36: "OpenShop"
     string_data = b"\x00TestNamespace\x00BlackjackApplication\x00OpenShop\x00OtherMethod\x00"
     string_offset = 256
     string_size = len(string_data)
 
-    # Method definitions table (32 bytes per method)
-    # Method 0: "OpenShop", paramCount = 1
-    # Method 1: "OtherMethod", paramCount = 0
-    # struct format: "<iiiiiIHHHH"
-    # name_idx, decl_type, return_type, param_start, gen_container, token, flags, iflags, slot, param_count
+    if version == 29:
+        # Method definitions table (32 bytes per method)
+        # struct format: "<iiiiiIHHHH"
+        # name_idx, decl_type, return_type, param_start, gen_container, token, flags, iflags, slot, param_count
+        method0 = struct.pack("<iiiiiIHHHH", 36, 0, 0, 0, -1, 0, 0, 0, 0, 1)
+        method1 = struct.pack("<iiiiiIHHHH", 45, 0, 0, 0, -1, 0, 0, 0, 0, 0)
+        methods_data = method0 + method1
+    elif version == 31:
+        # Method definitions table (36 bytes per method)
+        # struct format: "<iiiiiiIHHHH"
+        # name_idx, decl_type, return_type, returnParameterToken, param_start, gen_container, token, flags, iflags, slot, param_count
+        # Nonzero sentinel 0x12345678 at offset 12 proves param_start comes from offset 16 (0) and param_count from 34 (1)
+        method0 = struct.pack("<iiiiiiIHHHH", 36, 0, 0, 0x12345678, 0, -1, 0, 0, 0, 0, 1)
+        method1 = struct.pack("<iiiiiiIHHHH", 45, 0, 0, 0x12345678, 0, -1, 0, 0, 0, 0, 0)
+        methods_data = method0 + method1
+    else:
+        # Dummy method data for unsupported version testing
+        methods_data = b"\x00" * 64
+
     methods_offset = string_offset + string_size + 4
-    method0 = struct.pack("<iiiiiIHHHH", 36, 0, 0, 0, -1, 0, 0, 0, 0, 1)
-    method1 = struct.pack("<iiiiiIHHHH", 45, 0, 0, 0, -1, 0, 0, 0, 0, 0)
-    methods_data = method0 + method1
-    methods_size = len(methods_data)
+    methods_size = corrupt_methods_size if corrupt_methods_size is not None else len(methods_data)
 
     # Type definitions table (88 bytes per type)
     # Type 0: "BlackjackApplication", namespace="TestNamespace", methodStart=0, methodCount=2
-    types_offset = methods_offset + methods_size + 4
+    types_offset = methods_offset + len(methods_data) + 4
     type0_buf = bytearray(88)
     struct.pack_into("<i", type0_buf, 0, 15)  # nameIndex: "BlackjackApplication"
-    struct.pack_into("<i", type0_buf, 4, 1)  # namespaceIndex: "TestNamespace"
-    struct.pack_into("<i", type0_buf, 44, 0)  # methodStart = 0
-    struct.pack_into("<H", type0_buf, 72, 2)  # methodCount = 2
+    struct.pack_into("<i", type0_buf, 4, 1)   # namespaceIndex: "TestNamespace"
+    struct.pack_into("<i", type0_buf, 36, 0)  # methodStart = 0
+    struct.pack_into("<H", type0_buf, 64, 2)  # methodCount = 2
     types_data = bytes(type0_buf)
-    types_size = len(types_data)
+    types_size = corrupt_types_size if corrupt_types_size is not None else len(types_data)
 
-    total_len = types_offset + types_size + 16
+    total_len = types_offset + len(types_data) + 16
     buf = bytearray(total_len)
 
     # Header
@@ -64,14 +75,14 @@ def build_synthetic_metadata(version: int = 29) -> bytes:
 
     # Copy section data
     buf[string_offset : string_offset + string_size] = string_data
-    buf[methods_offset : methods_offset + methods_size] = methods_data
-    buf[types_offset : types_offset + types_size] = types_data
+    buf[methods_offset : methods_offset + len(methods_data)] = methods_data
+    buf[types_offset : types_offset + len(types_data)] = types_data
 
     return bytes(buf)
 
 
-def test_il2cpp_metadata_parsing():
-    raw = build_synthetic_metadata()
+def test_il2cpp_metadata_parsing_v29():
+    raw = build_synthetic_metadata(29)
     meta = Il2CppMetadata(raw)
 
     assert meta.sanity == IL2CPP_METADATA_MAGIC
@@ -82,14 +93,78 @@ def test_il2cpp_metadata_parsing():
 
     assert len(meta.method_definitions) == 2
     assert meta.method_definitions[0].name == "OpenShop"
+    assert meta.method_definitions[0].parameter_start_index == 0
     assert meta.method_definitions[0].parameter_count == 1
     assert meta.method_definitions[1].name == "OtherMethod"
 
     assert len(meta.type_definitions) == 1
     assert meta.type_definitions[0].name == "BlackjackApplication"
     assert meta.type_definitions[0].namespace == "TestNamespace"
+    assert meta.type_definitions[0].method_start_index == 0
     assert meta.type_definitions[0].method_count == 2
 
+    # Symbol map join finds BlackjackApplication.OpenShop
+    smap = Il2CppSymbolMap(meta)
+    matches = smap.search("OpenShop")
+    assert len(matches) == 1
+    assert matches[0].namespace == "TestNamespace"
+    assert matches[0].type_name == "BlackjackApplication"
+    assert matches[0].method_name == "OpenShop"
+    assert matches[0].parameter_count == 1
+
+
+def test_il2cpp_metadata_parsing_v31():
+    raw = build_synthetic_metadata(31)
+    meta = Il2CppMetadata(raw)
+
+    assert meta.sanity == IL2CPP_METADATA_MAGIC
+    assert meta.version == 31
+    assert meta.get_string_from_index(1) == "TestNamespace"
+    assert meta.get_string_from_index(15) == "BlackjackApplication"
+    assert meta.get_string_from_index(36) == "OpenShop"
+
+    assert len(meta.method_definitions) == 2
+    assert meta.method_definitions[0].name == "OpenShop"
+    # Parameter start comes from offset 16 (0), not offset 12 sentinel (0x12345678)
+    assert meta.method_definitions[0].parameter_start_index == 0
+    # Parameter count comes from offset 34 (1), not offset 30 (0)
+    assert meta.method_definitions[0].parameter_count == 1
+    assert meta.method_definitions[1].name == "OtherMethod"
+
+    assert len(meta.type_definitions) == 1
+    assert meta.type_definitions[0].name == "BlackjackApplication"
+    assert meta.type_definitions[0].namespace == "TestNamespace"
+    assert meta.type_definitions[0].method_start_index == 0
+    assert meta.type_definitions[0].method_count == 2
+
+    # Symbol map join finds BlackjackApplication.OpenShop
+    smap = Il2CppSymbolMap(meta)
+    matches = smap.search("OpenShop")
+    assert len(matches) == 1
+    assert matches[0].namespace == "TestNamespace"
+    assert matches[0].type_name == "BlackjackApplication"
+    assert matches[0].method_name == "OpenShop"
+    assert matches[0].parameter_count == 1
+
+
+def test_il2cpp_unsupported_version_or_subversion():
+    raw_v28 = build_synthetic_metadata(28)
+    with pytest.raises(ValueError, match="Unsupported IL2CPP metadata layout: 28.0"):
+        Il2CppMetadata(raw_v28)
+
+    raw_v29 = build_synthetic_metadata(29)
+    with pytest.raises(ValueError, match="Unsupported IL2CPP metadata layout: 29.1"):
+        Il2CppMetadata(raw_v29, metadata_subversion=1)
+
+
+def test_il2cpp_table_size_not_whole_record():
+    raw_bad_methods = build_synthetic_metadata(29, corrupt_methods_size=33)
+    with pytest.raises(ValueError, match="Methods table size .* not a multiple of record size"):
+        Il2CppMetadata(raw_bad_methods)
+
+    raw_bad_types = build_synthetic_metadata(29, corrupt_types_size=89)
+    with pytest.raises(ValueError, match="Type definitions table size .* not a multiple of record size"):
+        Il2CppMetadata(raw_bad_types)
 
 def test_il2cpp_symbol_map_query():
     raw = build_synthetic_metadata()

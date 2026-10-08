@@ -80,10 +80,22 @@ def extract_native_libraries(
                             f"Invalid native library entry name: {name}"
                         )
                     arch, filename = match.groups()
-                    dest.parent.mkdir(parents=True, exist_ok=True)
-                    with zf.open(name) as src, open(dest, "wb") as dst:
-                        while chunk := src.read(64 * 1024):
-                            dst.write(chunk)
+                    if dest.exists():
+                        with zf.open(name) as src, open(dest, "rb") as existing:
+                            while True:
+                                chunk1 = src.read(64 * 1024)
+                                chunk2 = existing.read(64 * 1024)
+                                if chunk1 != chunk2:
+                                    raise ArchiveSecurityError(
+                                        f"Conflicting native library content for {name}"
+                                    )
+                                if not chunk1:
+                                    break
+                    else:
+                        dest.parent.mkdir(parents=True, exist_ok=True)
+                        with zf.open(name) as src, open(dest, "wb") as dst:
+                            while chunk := src.read(64 * 1024):
+                                dst.write(chunk)
                     arch_libs = extracted.setdefault(arch, [])
                     if filename not in arch_libs:
                         arch_libs.append(filename)
@@ -814,7 +826,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_unity.add_argument(
         "--gameobject",
         "-g",
-        default=None,
+        required=True,
         help="Target GameObject name to search (e.g. Button_HelpCenter)",
     )
     p_unity.add_argument(

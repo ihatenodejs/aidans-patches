@@ -4,6 +4,7 @@ import io
 import struct
 import zipfile
 
+import pytest
 from apk_lab.cli import build_parser, handle_unity
 from apk_lab.models import ExitCode
 from apk_lab.unity import (
@@ -132,6 +133,11 @@ def test_cli_unity_integration(tmp_path, capsys):
         zf.writestr("assets/bin/Data/sharedassets0.assets", data)
 
     parser = build_parser()
+    # CLI query without --gameobject raises SystemExit code 2
+    with pytest.raises(SystemExit) as exc_info:
+        parser.parse_args(["unity", str(apk_file)])
+    assert exc_info.value.code == 2
+
 
     # CLI query formatted table
     args = parser.parse_args(

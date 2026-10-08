@@ -10,6 +10,7 @@ from apk_lab.asm import (
     encode_ret,
     format_instruction,
     format_kotlin_byte_array,
+    parse_register_number,
 )
 from apk_lab.cli import build_parser, handle_asm
 from apk_lab.models import ExitCode
@@ -86,6 +87,78 @@ def test_encode_ret_and_mov():
     assert assemble_statement("mov x0, xzr") == 0xAA1F03E0
     assert assemble_statement("mov w1, #1") == 0x52800021
 
+
+def test_parse_register_number():
+    # Valid x-registers
+    assert parse_register_number("x0", "x") == 0
+    assert parse_register_number("x30", "x") == 30
+    assert parse_register_number("lr", "x") == 30
+    assert parse_register_number("xzr", "x") == 31
+
+    # Valid w-registers
+    assert parse_register_number("w0", "w") == 0
+    assert parse_register_number("w30", "w") == 30
+    assert parse_register_number("wzr", "w") == 31
+
+    # Ordinary width mismatches
+    with pytest.raises(ValueError, match="Register width mismatch"):
+        parse_register_number("w0", "x")
+    with pytest.raises(ValueError, match="Register width mismatch"):
+        parse_register_number("x0", "w")
+
+    # Zero-register & lr width mismatches
+    with pytest.raises(ValueError, match="Register width mismatch"):
+        parse_register_number("wzr", "x")
+    with pytest.raises(ValueError, match="Register width mismatch"):
+        parse_register_number("xzr", "w")
+    with pytest.raises(ValueError, match="Register width mismatch"):
+        parse_register_number("lr", "w")
+
+    # expected_type="any"
+    assert parse_register_number("x5", "any") == 5
+    assert parse_register_number("w5", "any") == 5
+    assert parse_register_number("xzr", "any") == 31
+    assert parse_register_number("wzr", "any") == 31
+    assert parse_register_number("lr", "any") == 30
+
+    # Rejected sp
+    with pytest.raises(ValueError, match="Invalid ARM64 register name: 'sp'"):
+        parse_register_number("sp", "x")
+    with pytest.raises(ValueError, match="Invalid ARM64 register name: 'sp'"):
+        parse_register_number("sp", "any")
+
+
+def test_ret_rejections():
+    # Preserved valid ret
+    assert encode_ret() == 0xD65F03C0
+    assert encode_ret("lr") == 0xD65F03C0
+    assert encode_ret("x30") == 0xD65F03C0
+
+    # Rejected ret sp
+    with pytest.raises(ValueError, match="Invalid ARM64 register name: 'sp'"):
+        encode_ret("sp")
+    with pytest.raises(ValueError, match="Invalid ARM64 register name: 'sp'"):
+        assemble_statement("ret sp")
+
+    # Rejected ret wzr
+    with pytest.raises(ValueError, match="Register width mismatch"):
+        encode_ret("wzr")
+    with pytest.raises(ValueError, match="Register width mismatch"):
+        assemble_statement("ret wzr")
+
+
+def test_mov_immediate_validation():
+    # Malformed plain numeric text produces unsupported-operand error with suppressed chaining
+    with pytest.raises(ValueError, match="Unsupported mov source operand: 'malformed'") as exc_info:
+        encode_mov("x0", "malformed")
+    assert exc_info.value.__cause__ is None
+    assert exc_info.value.__suppress_context__ is True
+
+    # Plain numeric 65536 produces supported-range error
+    with pytest.raises(ValueError, match="exceeds supported range"):
+        encode_mov("x0", "65536")
+    with pytest.raises(ValueError, match="exceeds supported range"):
+        assemble_statement("mov x0, 65536")
 
 def test_format_kotlin_byte_array():
     # Boundary byte values: 0x00, 0x7f (no toByte), 0x80, 0xff (with toByte)

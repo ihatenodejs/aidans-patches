@@ -13,25 +13,29 @@ def parse_register_number(reg_str: str, expected_type: str = "x") -> int:
     Supports x0-x30, lr (x30), w0-w30, xzr/wzr (31).
     """
     cleaned = reg_str.strip().lower()
-    if cleaned in ("xzr", "wzr"):
-        return 31
-    if cleaned == "lr":
-        return 30
-    if cleaned == "sp":
-        return 31
+    if cleaned == "xzr":
+        rtype = "x"
+        rnum = 31
+    elif cleaned == "wzr":
+        rtype = "w"
+        rnum = 31
+    elif cleaned == "lr":
+        rtype = "x"
+        rnum = 30
+    else:
+        match = re.match(r"^([xw])(\d+)$", cleaned)
+        if not match:
+            raise ValueError(f"Invalid ARM64 register name: '{reg_str}'")
 
-    match = re.match(r"^([xw])(\d+)$", cleaned)
-    if not match:
-        raise ValueError(f"Invalid ARM64 register name: '{reg_str}'")
+        rtype, rnum_str = match.groups()
+        rnum = int(rnum_str)
+        if not (0 <= rnum <= 30):
+            raise ValueError(f"Register number out of range (0-30): '{reg_str}'")
 
-    rtype, rnum_str = match.groups()
-    rnum = int(rnum_str)
-    if not (0 <= rnum <= 30):
-        raise ValueError(f"Register number out of range (0-30): '{reg_str}'")
-
-    if expected_type != "any" and rtype != expected_type:
-        # We allow 32-bit and 64-bit when matching
-        pass
+    if expected_type in ("x", "w") and rtype != expected_type:
+        raise ValueError(
+            f"Register width mismatch: expected '{expected_type}', got '{rtype}' for '{reg_str}'"
+        )
 
     return rnum
 
@@ -103,10 +107,9 @@ def encode_mov(dest_reg: str, src: str | int) -> int:
         # Check if src is numeric string like "0x1" or "42"
         try:
             imm_val = int(src_cleaned, 0)
-            return _encode_mov_immediate(dest_num, imm_val, is_64bit)
         except ValueError:
-            pass
-        raise ValueError(f"Unsupported mov source operand: '{src}'")
+            raise ValueError(f"Unsupported mov source operand: '{src}'") from None
+        return _encode_mov_immediate(dest_num, imm_val, is_64bit)
     elif isinstance(src, int):
         return _encode_mov_immediate(dest_num, src, is_64bit)
     else:

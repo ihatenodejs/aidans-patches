@@ -10,52 +10,66 @@ from typing import Any
 
 # Magic constant for global-metadata.dat
 IL2CPP_METADATA_MAGIC = 0xFAB11BAF
-SUPPORTED_VERSIONS_MIN = 24
-SUPPORTED_VERSIONS_MAX = 39
 
-METADATA_HEADER_FIELD_OFFSETS = {
-    "stringLiteralOffset": 8,
-    "stringLiteralSize": 12,
-    "stringLiteralDataOffset": 16,
-    "stringLiteralDataSize": 20,
-    "stringOffset": 24,
-    "stringSize": 28,
-    "eventsOffset": 32,
-    "eventsSize": 36,
-    "propertiesOffset": 40,
-    "propertiesSize": 44,
-    "methodsOffset": 48,
-    "methodsSize": 52,
-    "parameterDefaultValuesOffset": 56,
-    "parameterDefaultValuesSize": 60,
-    "fieldDefaultValuesOffset": 64,
-    "fieldDefaultValuesSize": 68,
-    "fieldAndParameterDefaultValueDataOffset": 72,
-    "fieldAndParameterDefaultValueDataSize": 76,
-    "fieldMarshaledSizesOffset": 80,
-    "fieldMarshaledSizesSize": 84,
-    "parametersOffset": 88,
-    "parametersSize": 92,
-    "fieldsOffset": 96,
-    "fieldsSize": 100,
-    "genericParametersOffset": 104,
-    "genericParametersSize": 108,
-    "genericParameterConstraintsOffset": 112,
-    "genericParameterConstraintsSize": 116,
-    "genericContainersOffset": 120,
-    "genericContainersSize": 124,
-    "nestedTypesOffset": 128,
-    "nestedTypesSize": 132,
-    "interfacesOffset": 136,
-    "interfacesSize": 140,
-    "vtableMethodsOffset": 144,
-    "vtableMethodsSize": 148,
-    "interfaceOffsetsOffset": 152,
-    "interfaceOffsetsSize": 156,
-    "typeDefinitionsOffset": 160,
-    "typeDefinitionsSize": 164,
+
+@dataclass(frozen=True)
+class MetadataLayout:
+    string_offset_header: int
+    string_size_header: int
+    methods_offset_header: int
+    methods_size_header: int
+    type_definitions_offset_header: int
+    type_definitions_size_header: int
+    method_record_size: int
+    method_name_index_offset: int
+    method_return_type_offset: int
+    method_parameter_start_offset: int
+    method_parameter_count_offset: int
+    type_record_size: int
+    type_name_index_offset: int
+    type_namespace_index_offset: int
+    type_method_start_offset: int
+    type_method_count_offset: int
+
+
+SUPPORTED_LAYOUTS: dict[tuple[int, int], MetadataLayout] = {
+    (29, 0): MetadataLayout(
+        string_offset_header=24,
+        string_size_header=28,
+        methods_offset_header=48,
+        methods_size_header=52,
+        type_definitions_offset_header=160,
+        type_definitions_size_header=164,
+        method_record_size=32,
+        method_name_index_offset=0,
+        method_return_type_offset=8,
+        method_parameter_start_offset=12,
+        method_parameter_count_offset=30,
+        type_record_size=88,
+        type_name_index_offset=0,
+        type_namespace_index_offset=4,
+        type_method_start_offset=36,
+        type_method_count_offset=64,
+    ),
+    (31, 0): MetadataLayout(
+        string_offset_header=24,
+        string_size_header=28,
+        methods_offset_header=48,
+        methods_size_header=52,
+        type_definitions_offset_header=160,
+        type_definitions_size_header=164,
+        method_record_size=36,
+        method_name_index_offset=0,
+        method_return_type_offset=8,
+        method_parameter_start_offset=16,
+        method_parameter_count_offset=34,
+        type_record_size=88,
+        type_name_index_offset=0,
+        type_namespace_index_offset=4,
+        type_method_start_offset=36,
+        type_method_count_offset=64,
+    ),
 }
-
 
 @dataclass
 class Il2CppTypeDefinition:
@@ -87,11 +101,12 @@ class Il2CppMethodMatch:
 class Il2CppMetadata:
     """Parser for Unity IL2CPP global-metadata.dat binary files."""
 
-    def __init__(self, data: bytes) -> None:
+    def __init__(self, data: bytes, *, metadata_subversion: int = 0) -> None:
         if len(data) < 256:
             raise ValueError(f"Metadata file too small ({len(data)} bytes, minimum 256)")
 
         self.data = data
+        self.metadata_subversion = metadata_subversion
         self.sanity = struct.unpack_from("<I", data, 0)[0]
         if self.sanity != IL2CPP_METADATA_MAGIC:
             raise ValueError(
@@ -100,30 +115,38 @@ class Il2CppMetadata:
             )
 
         self.version = struct.unpack_from("<I", data, 4)[0]
-        if not (SUPPORTED_VERSIONS_MIN <= self.version <= SUPPORTED_VERSIONS_MAX):
-            # We record version but warn/proceed if reasonable
-            pass
+        layout = SUPPORTED_LAYOUTS.get((self.version, self.metadata_subversion))
+        if layout is None:
+            raise ValueError(
+                f"Unsupported IL2CPP metadata layout: {self.version}.{self.metadata_subversion}"
+            )
+        self.layout = layout
 
-        self.headers: dict[str, int] = {}
-        for field, offset in METADATA_HEADER_FIELD_OFFSETS.items():
-            if offset + 4 <= len(data):
-                self.headers[field] = struct.unpack_from("<I", data, offset)[0]
-            else:
-                self.headers[field] = 0
+        self.string_offset = struct.unpack_from("<I", data, layout.string_offset_header)[0]
+        self.string_size = struct.unpack_from("<I", data, layout.string_size_header)[0]
+        self.methods_offset = struct.unpack_from("<I", data, layout.methods_offset_header)[0]
+        self.methods_size = struct.unpack_from("<I", data, layout.methods_size_header)[0]
+        self.type_definitions_offset = struct.unpack_from(
+            "<I", data, layout.type_definitions_offset_header
+        )[0]
+        self.type_definitions_size = struct.unpack_from(
+            "<I", data, layout.type_definitions_size_header
+        )[0]
 
-        self.string_offset = self.headers.get("stringOffset", 0)
-        self.string_size = self.headers.get("stringSize", 0)
-        self.methods_offset = self.headers.get("methodsOffset", 0)
-        self.methods_size = self.headers.get("methodsSize", 0)
-        self.type_definitions_offset = self.headers.get("typeDefinitionsOffset", 0)
-        self.type_definitions_size = self.headers.get("typeDefinitionsSize", 0)
+        self.headers: dict[str, int] = {
+            "stringOffset": self.string_offset,
+            "stringSize": self.string_size,
+            "methodsOffset": self.methods_offset,
+            "methodsSize": self.methods_size,
+            "typeDefinitionsOffset": self.type_definitions_offset,
+            "typeDefinitionsSize": self.type_definitions_size,
+        }
 
         self.method_definitions: list[Il2CppMethodDefinition] = []
         self.type_definitions: list[Il2CppTypeDefinition] = []
 
         self._parse_method_definitions()
         self._parse_type_definitions()
-
     def get_string_from_index(self, index: int) -> str:
         """Reads a null-terminated UTF-8 string from the string table at the given offset."""
         if index < 0 or index >= self.string_size:
@@ -137,32 +160,33 @@ class Il2CppMetadata:
         return self.data[abs_offset:end].decode("utf-8", errors="replace")
 
     def _parse_method_definitions(self) -> None:
-        """Parses the method definitions table.
-
-        Standard struct size for Il2CppMethodDefinition in v24..v29 is 32 bytes:
-          0: nameIndex (int32)
-          4: declaringType (int32)
-          8: returnType (int32)
-         12: parameterStart (int32)
-         16: genericContainerIndex (int32)
-         20: token (uint32)
-         24: flags (uint16)
-         26: iflags (uint16)
-         28: slot (uint16)
-         30: parameterCount (uint16)
-        """
-        method_def_size = 32
+        """Parses the method definitions table according to the selected layout."""
         if self.methods_offset == 0 or self.methods_size == 0:
             return
 
-        count = self.methods_size // method_def_size
-        for i in range(count):
-            offset = self.methods_offset + i * method_def_size
-            if offset + method_def_size > len(self.data):
-                break
-            name_idx, _decl_type, return_type_idx, param_start, _gen, _token, _fl, _ifl, _slot, param_count = struct.unpack_from(
-                "<iiiiiIHHHH", self.data, offset
+        if self.methods_size % self.layout.method_record_size != 0:
+            raise ValueError(
+                f"Methods table size ({self.methods_size} bytes) is not a multiple of "
+                f"record size ({self.layout.method_record_size} bytes)"
             )
+
+        count = self.methods_size // self.layout.method_record_size
+        for i in range(count):
+            offset = self.methods_offset + i * self.layout.method_record_size
+            if offset + self.layout.method_record_size > len(self.data):
+                break
+            name_idx = struct.unpack_from(
+                "<i", self.data, offset + self.layout.method_name_index_offset
+            )[0]
+            return_type_idx = struct.unpack_from(
+                "<i", self.data, offset + self.layout.method_return_type_offset
+            )[0]
+            param_start = struct.unpack_from(
+                "<i", self.data, offset + self.layout.method_parameter_start_offset
+            )[0]
+            param_count = struct.unpack_from(
+                "<H", self.data, offset + self.layout.method_parameter_count_offset
+            )[0]
             name = self.get_string_from_index(name_idx)
             self.method_definitions.append(
                 Il2CppMethodDefinition(
@@ -175,39 +199,33 @@ class Il2CppMetadata:
             )
 
     def _parse_type_definitions(self) -> None:
-        """Parses the type definitions table.
-
-        In v24-v29, Il2CppTypeDefinition size is typically 88, 96, or 100 bytes.
-        Key field offsets:
-          0: nameIndex (int32)
-          4: namespaceIndex (int32)
-         44: methodStart (int32)
-         72: method_count (uint16)
-        """
+        """Parses the type definitions table according to the selected layout."""
         if self.type_definitions_offset == 0 or self.type_definitions_size == 0:
             return
 
-        type_def_size = 88
-        if self.type_definitions_size % 88 != 0:
-            if self.type_definitions_size % 100 == 0:
-                type_def_size = 100
-            elif self.type_definitions_size % 96 == 0:
-                type_def_size = 96
+        if self.type_definitions_size % self.layout.type_record_size != 0:
+            raise ValueError(
+                f"Type definitions table size ({self.type_definitions_size} bytes) is not a multiple of "
+                f"record size ({self.layout.type_record_size} bytes)"
+            )
 
-        count = self.type_definitions_size // type_def_size
+        count = self.type_definitions_size // self.layout.type_record_size
         for i in range(count):
-            offset = self.type_definitions_offset + i * type_def_size
-            if offset + type_def_size > len(self.data):
+            offset = self.type_definitions_offset + i * self.layout.type_record_size
+            if offset + self.layout.type_record_size > len(self.data):
                 break
-            name_idx = struct.unpack_from("<i", self.data, offset)[0]
-            namespace_idx = struct.unpack_from("<i", self.data, offset + 4)[0]
-
-            method_start = 0
-            method_count = 0
-            if offset + 48 <= len(self.data):
-                method_start = struct.unpack_from("<i", self.data, offset + 44)[0]
-            if offset + 74 <= len(self.data):
-                method_count = struct.unpack_from("<H", self.data, offset + 72)[0]
+            name_idx = struct.unpack_from(
+                "<i", self.data, offset + self.layout.type_name_index_offset
+            )[0]
+            namespace_idx = struct.unpack_from(
+                "<i", self.data, offset + self.layout.type_namespace_index_offset
+            )[0]
+            method_start = struct.unpack_from(
+                "<i", self.data, offset + self.layout.type_method_start_offset
+            )[0]
+            method_count = struct.unpack_from(
+                "<H", self.data, offset + self.layout.type_method_count_offset
+            )[0]
 
             name = self.get_string_from_index(name_idx)
             namespace = self.get_string_from_index(namespace_idx)
@@ -222,7 +240,6 @@ class Il2CppMetadata:
                     namespace_index=namespace_idx,
                 )
             )
-
 
 class Il2CppSymbolMap:
     """Aggregates Il2Cpp types, method names, and provides fast symbol search."""

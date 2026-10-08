@@ -226,7 +226,7 @@ Reverse engineering workflows, multi-split artifact inspection, ARM64 assembly, 
 
 ```bash
 uv run --project tools/apk-lab apk-lab doctor
-uv run --project tools/apk-lab apk-lab check path/to/app.apkm --mpp patches/build/libs/patches-*.mpp --package com.example.app --all
+uv run --project tools/apk-lab apk-lab check path/to/app.apkm --mpp patches/build/libs/patches-1.0.0.mpp --package com.example.app --all
 ```
 
 See [`docs/apk-lab.md`](docs/apk-lab.md) for complete CLI documentation and workflows.
