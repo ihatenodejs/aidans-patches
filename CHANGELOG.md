@@ -1,3 +1,9 @@
+## [1.4.0-dev.4](https://github.com/ihatenodejs/aidans-patches/compare/v1.4.0-dev.3...v1.4.0-dev.4) (2026-10-08)
+
+### 🐛 Bug Fixes
+
+* **blackjack:** update to 2.22.09 ([34eca78](https://github.com/ihatenodejs/aidans-patches/commit/34eca782360220175556fc587f37a8c5e011c9e0))
+
 ## [1.4.0-dev.3](https://github.com/ihatenodejs/aidans-patches/compare/v1.4.0-dev.2...v1.4.0-dev.3) (2026-10-07)
 
 ### ✨ New Features
