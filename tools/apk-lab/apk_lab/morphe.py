@@ -36,6 +36,7 @@ def is_patchable_member(name: str) -> bool:
     """Whether a member can be changed by a patch and must count toward the check postcondition."""
     return (
         name == "AndroidManifest.xml"
+        or name == "resources.arsc"
         or name.endswith(".dex")
         or name.startswith(("res/", "assets/", "lib/"))
     )

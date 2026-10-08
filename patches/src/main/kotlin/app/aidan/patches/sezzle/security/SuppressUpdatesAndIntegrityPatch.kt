@@ -242,6 +242,19 @@ val suppressUpdatesAndIntegrityPatch = bytecodePatch(
             // DefaultReactHost treats a null bundle path as a request for assets/index.android.bundle.
             // The CodePush package remains registered so the embedded bundle can still resolve it.
             bundleHostMethod.addInstructions(getBundleIndex + 2, "const/4 v${result.registerA}, 0x0")
+
+            val codePushClass = mutableClassDefByOrNull(CODE_PUSH)
+            if (codePushClass != null) {
+                for (method in codePushClass.methods) {
+                    if (method.name == "getJSBundleFile" &&
+                        method.parameterTypes.isEmpty() &&
+                        method.returnType == "Ljava/lang/String;" &&
+                        method.implementation != null
+                    ) {
+                        method.addInstructions(0, "const/4 v0, 0x0\nreturn-object v0")
+                    }
+                }
+            }
         }
 
         if (bypassRootAndTamperDetection.value != false) {
