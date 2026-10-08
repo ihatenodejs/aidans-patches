@@ -150,6 +150,28 @@ def test_extract_native_libraries_duplicate_collisions(tmp_path):
     # First APK's bytes are preserved and never overwritten
     assert (lib_dir2 / "arm64-v8a" / "libshared.so").read_bytes() == b"identical_content_bytes"
 
+
+@pytest.mark.parametrize("second_content", [b"first_content", b"different_content"])
+def test_extract_native_libraries_duplicate_entries_in_same_apk(tmp_path, second_content):
+    apk_file = tmp_path / "duplicate.apk"
+    name = "lib/arm64-v8a/libshared.so"
+    with zipfile.ZipFile(apk_file, "w") as zf:
+        zf.writestr(name, b"first_content")
+        with pytest.warns(UserWarning, match="Duplicate name"):
+            zf.writestr(name, second_content)
+
+    lib_dir = tmp_path / "lib"
+    if second_content == b"first_content":
+        assert extract_native_libraries([apk_file], lib_dir) == {
+            "arm64-v8a": ["libshared.so"]
+        }
+    else:
+        with pytest.raises(ArchiveSecurityError, match="Conflicting native library content"):
+            extract_native_libraries([apk_file], lib_dir)
+
+    assert (lib_dir / "arm64-v8a" / "libshared.so").read_bytes() == b"first_content"
+
+
 def test_analyze_extracts_native_libs(tmp_path, monkeypatch):
     # Create synthetic split APKs
     base_apk = tmp_path / "base.apk"

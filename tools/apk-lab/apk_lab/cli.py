@@ -67,7 +67,8 @@ def extract_native_libraries(
         if not apk_path.is_file():
             continue
         with zipfile.ZipFile(apk_path, "r") as zf:
-            for name in zf.namelist():
+            for info in zf.infolist():
+                name = info.filename
                 if name.startswith("lib/") and name.endswith(".so"):
                     dest = (lib_dir / name.removeprefix("lib/")).resolve()
                     if not is_contained_path(dest, lib_dir, allow_equal=False):
@@ -81,7 +82,7 @@ def extract_native_libraries(
                         )
                     arch, filename = match.groups()
                     if dest.exists():
-                        with zf.open(name) as src, open(dest, "rb") as existing:
+                        with zf.open(info) as src, open(dest, "rb") as existing:
                             while True:
                                 chunk1 = src.read(64 * 1024)
                                 chunk2 = existing.read(64 * 1024)
@@ -93,7 +94,7 @@ def extract_native_libraries(
                                     break
                     else:
                         dest.parent.mkdir(parents=True, exist_ok=True)
-                        with zf.open(name) as src, open(dest, "wb") as dst:
+                        with zf.open(info) as src, open(dest, "wb") as dst:
                             while chunk := src.read(64 * 1024):
                                 dst.write(chunk)
                     arch_libs = extracted.setdefault(arch, [])
