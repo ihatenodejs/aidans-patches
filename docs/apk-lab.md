@@ -62,7 +62,7 @@ uv run --project tools/apk-lab apk-lab analyze path/to/app.apkm --jadx
 uv run --project tools/apk-lab apk-lab analyze path/to/app.apkm --apktool
 ```
 
-The command prints the exact directory and matching cleanup command upon completion.
+The command extracts all native `.so` shared libraries across the base APK and architecture splits into `<workspace>/lib/<arch>/` (e.g. `lib/arm64-v8a/libil2cpp.so`), and prints the exact directory and matching cleanup command upon completion.
 
 ### `compare` — Artifact Diffing
 Compares two APK/APKM artifacts across version codes, signing certificates, split members, DEX classes/methods delta, native libraries, and assets.

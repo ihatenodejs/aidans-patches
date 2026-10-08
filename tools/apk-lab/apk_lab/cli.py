@@ -49,6 +49,40 @@ def materialize_split_member(
         while chunk := src.read(64 * 1024):
             dst.write(chunk)
     return dest
+def extract_native_libraries(
+    apk_paths: list[Path], lib_dir: Path
+) -> dict[str, list[str]]:
+    """Extracts all native shared libraries from candidate APK paths into lib_dir/<arch>/."""
+    extracted: dict[str, list[str]] = {}
+    so_pattern = re.compile(r"^lib/([^/]+)/([^/]+\.so)$")
+
+    for apk_path in apk_paths:
+        if not apk_path.is_file():
+            continue
+        with zipfile.ZipFile(apk_path, "r") as zf:
+            for name in zf.namelist():
+                if name.startswith("lib/") and name.endswith(".so"):
+                    dest = (lib_dir / name.removeprefix("lib/")).resolve()
+                    if not is_contained_path(dest, lib_dir, allow_equal=False):
+                        raise ArchiveSecurityError(
+                            f"Native library {name} escapes library directory {lib_dir}"
+                        )
+                    match = so_pattern.match(name)
+                    if not match:
+                        raise ArchiveSecurityError(
+                            f"Invalid native library entry name: {name}"
+                        )
+                    arch, filename = match.groups()
+                    dest.parent.mkdir(parents=True, exist_ok=True)
+                    with zf.open(name) as src, open(dest, "wb") as dst:
+                        while chunk := src.read(64 * 1024):
+                            dst.write(chunk)
+                    arch_libs = extracted.setdefault(arch, [])
+                    if filename not in arch_libs:
+                        arch_libs.append(filename)
+
+    return extracted
+
 
 
 def print_json_or_file(data: Any, path: str | None = None) -> None:
@@ -268,6 +302,16 @@ def handle_analyze(args: argparse.Namespace) -> int:
                     dest = materialize_split_member(zf, split.filename, extracted_dir)
                     if split.is_base:
                         target_apk = dest
+        # Extract native shared libraries across splits
+        lib_out = run_dir / "lib"
+        if inspection.container_type == ContainerType.APK:
+            candidate_apks = [target_apk]
+        else:
+            candidate_apks = [
+                extracted_dir / split.filename for split in inspection.splits
+            ]
+        extracted_libs = extract_native_libraries(candidate_apks, lib_out)
+
 
         # 1. Smali disassembly (default or explicit)
         run_smali = args.smali or (not args.jadx and not args.apktool)
@@ -313,6 +357,11 @@ def handle_analyze(args: argparse.Namespace) -> int:
 
         print("Analysis workspace created successfully:")
         print(f"  Workspace: {run_dir}")
+        if extracted_libs:
+            libs_summary = ", ".join(
+                f"{arch} ({len(libs)})" for arch, libs in sorted(extracted_libs.items())
+            )
+            print(f"  Libraries: {libs_summary}")
         cleanup_cmd = ["uv", "run", "--project", "tools/apk-lab", "apk-lab"]
         if str(args.workspace_root) != ".apk-lab":
             cleanup_cmd.extend(["--workspace-root", str(args.workspace_root)])
