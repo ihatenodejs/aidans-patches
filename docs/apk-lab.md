@@ -122,6 +122,23 @@ uv run --project tools/apk-lab apk-lab clean --stale 7
 # Dry-run preview
 uv run --project tools/apk-lab apk-lab clean --package com.example.app --dry-run
 ```
+### `asm` — ARM64 Instruction Assembler & Branch Relocator
+Encodes ARM64 machine instructions and computes 26-bit relative branch relocations (`b`, `bl`), returns (`ret`), and register moves (`mov`/`movz`). Deterministically formats output as space-separated hex bytes, integer opcodes, or Morphe Kotlin `byteArrayOf(...)` arrays with appropriate `.toByte()` casting for signed bytes.
+
+```bash
+# Calculate relative branch and encode to little-endian hex bytes
+uv run --project tools/apk-lab apk-lab asm "bl 0x3c98ce4" --pc 0x1fcf6e8
+# Output: 7f 25 73 94
+
+# Encode return instruction directly to Kotlin byteArrayOf syntax
+uv run --project tools/apk-lab apk-lab asm "ret" --format kotlin
+# Output: byteArrayOf(0xc0.toByte(), 0x03, 0x5f, 0xd6.toByte())
+
+# Encode immediate register move
+uv run --project tools/apk-lab apk-lab asm "mov w1, #1"
+# Output: 21 00 80 52
+```
+
 
 ### `fixtures` — Private R2 Cloud Fixtures
 Manages the two-slot private R2 storage architecture (`fixtures/<package>/latest` and `fixtures/<package>/target`).

@@ -26,6 +26,13 @@ def non_negative_float(val: str) -> float:
     if f < 0:
         raise argparse.ArgumentTypeError(f"Stale age must be non-negative, got {val}")
     return f
+def parse_int_auto(val: str) -> int:
+    try:
+        return int(val, 0)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"Invalid integer or hex value: {val}")
+
+
 
 
 def validate_dex_entry_name(name: str) -> str:
@@ -502,6 +509,26 @@ def handle_acquire(args: argparse.Namespace) -> int:
     except Exception as e:  # noqa: BLE001
         print(f"Acquisition error: {e}", file=sys.stderr)
         return ExitCode.INFRASTRUCTURE_FAILURE
+def handle_asm(args: argparse.Namespace) -> int:
+    try:
+        from apk_lab.asm import assemble_statement, format_instruction
+
+        opcode = assemble_statement(
+            statement=args.statement,
+            pc=args.pc,
+            explicit_target=args.target,
+        )
+        formatted = format_instruction(opcode, fmt=args.format)
+        print(formatted)
+        return ExitCode.SUCCESS
+    except ValueError as e:
+        print(f"Assembly error: {e}", file=sys.stderr)
+        return ExitCode.USAGE_OR_TOOL_ERROR
+    except Exception as e:  # noqa: BLE001
+        print(f"Assembly error: {e}", file=sys.stderr)
+        return ExitCode.INFRASTRUCTURE_FAILURE
+
+
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -663,6 +690,34 @@ def build_parser() -> argparse.ArgumentParser:
     p_acquire.add_argument("--out-dir", help="Output directory")
     p_acquire.add_argument("--version-code", type=int, help="Expected version code")
     p_acquire.set_defaults(handler=handle_acquire)
+    # asm
+    p_asm = subparsers.add_parser(
+        "asm", help="Encode ARM64 instruction and calculate branch relocations"
+    )
+    p_asm.add_argument(
+        "statement",
+        help="ARM64 instruction statement (e.g. 'bl 0x3c98ce4', 'ret', 'mov w1, #1')",
+    )
+    p_asm.add_argument(
+        "--pc",
+        type=parse_int_auto,
+        default=0,
+        help="Program counter address (default: 0)",
+    )
+    p_asm.add_argument(
+        "--target",
+        type=parse_int_auto,
+        default=None,
+        help="Target address override",
+    )
+    p_asm.add_argument(
+        "--format",
+        choices=["hex", "kotlin", "int", "bytes"],
+        default="hex",
+        help="Output format (default: hex)",
+    )
+    p_asm.set_defaults(handler=handle_asm)
+
 
     return parser
 
