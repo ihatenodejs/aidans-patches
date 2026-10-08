@@ -1,3 +1,17 @@
+## [1.4.0-dev.7](https://github.com/ihatenodejs/aidans-patches/compare/v1.4.0-dev.6...v1.4.0-dev.7) (2026-10-08)
+
+### 🐛 Bug Fixes
+
+* **apk-lab:** Included AndroidManifest in patchable member check ([af7fcd6](https://github.com/ihatenodejs/aidans-patches/commit/af7fcd6d19ec5d22d9f8494ac774a7ed3fa26124))
+
+### ✨ New Features
+
+* **sidelineswap:** Added AMOLED theme patch ([619e112](https://github.com/ihatenodejs/aidans-patches/commit/619e112c7304eb0a0a03d677fb0d65f47448b99c))
+* **sidelineswap:** Added cart item and CardView theming ([9603003](https://github.com/ihatenodejs/aidans-patches/commit/9603003d69265ffafd4ce4fbe5a39dfe27ea4469))
+* **sidelineswap:** Added dark WebView support and expanded AMOLED theme ([d0de58a](https://github.com/ihatenodejs/aidans-patches/commit/d0de58a456ec9d9bd8a2f421cf216ef6f8420f75))
+* **sidelineswap:** Added payment sheet theming and address list fix ([4290b27](https://github.com/ihatenodejs/aidans-patches/commit/4290b270af2c009b4ef1c1c52c483a0b5c9a0b57))
+* **sidelineswap:** Added shipping badge and avatar stroke theming ([cdfed1e](https://github.com/ihatenodejs/aidans-patches/commit/cdfed1e4bbba03c8d94d789ca57824c5964a5498))
+
 ## [1.4.0-dev.6](https://github.com/ihatenodejs/aidans-patches/compare/v1.4.0-dev.5...v1.4.0-dev.6) (2026-10-08)
 
 ### 🐛 Bug Fixes
