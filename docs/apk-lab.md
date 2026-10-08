@@ -138,6 +138,17 @@ uv run --project tools/apk-lab apk-lab asm "ret" --format kotlin
 uv run --project tools/apk-lab apk-lab asm "mov w1, #1"
 # Output: 21 00 80 52
 ```
+### `il2cpp` — Unity IL2CPP Metadata Extraction & Symbol Mapping
+Extracts and parses Unity `assets/bin/Data/Managed/Metadata/global-metadata.dat` and companion native shared libraries (`lib/<arch>/libil2cpp.so`) across single APKs and multi-split container bundles (APKM, APKS, XAPK). Enables instant querying of stripped C# type definitions, method signatures, parameter counts, and namespaces without external tooling.
+
+```bash
+# Query symbols matching a method name substring
+uv run --project tools/apk-lab apk-lab il2cpp path/to/game.apkm --query OpenShop
+
+# Export all symbols or matches to JSON stdout or file
+uv run --project tools/apk-lab apk-lab il2cpp path/to/game.apkm --query "Blackjack.*" --json symbols.json
+```
+
 
 
 ### `fixtures` — Private R2 Cloud Fixtures

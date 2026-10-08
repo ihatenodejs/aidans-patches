@@ -527,6 +527,39 @@ def handle_asm(args: argparse.Namespace) -> int:
     except Exception as e:  # noqa: BLE001
         print(f"Assembly error: {e}", file=sys.stderr)
         return ExitCode.INFRASTRUCTURE_FAILURE
+def handle_il2cpp(args: argparse.Namespace) -> int:
+    try:
+        from apk_lab.il2cpp import analyze_il2cpp
+
+        records = analyze_il2cpp(Path(args.artifact), args.query)
+        if args.json:
+            print_json_or_file(records, args.json)
+        else:
+            if not records:
+                print("No matching IL2CPP symbols found.")
+            else:
+                print(f"Found {len(records)} matching IL2CPP symbols:")
+                print(f"{'Namespace':<25} {'Type':<35} {'Method':<35} {'Params':<6}")
+                print("-" * 105)
+                for r in records[:100]:
+                    ns = r.get("namespace") or "<global>"
+                    print(
+                        f"{ns:<25} {r['type']:<35} {r['method']:<35} {r['parameters_count']:<6}"
+                    )
+                if len(records) > 100:
+                    print(f"... and {len(records) - 100} more (use --json to see all)")
+        return ExitCode.SUCCESS
+    except FileNotFoundError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return ExitCode.USAGE_OR_TOOL_ERROR
+    except ValueError as e:
+        print(f"IL2CPP metadata error: {e}", file=sys.stderr)
+        return ExitCode.USAGE_OR_TOOL_ERROR
+    except Exception as e:  # noqa: BLE001
+        print(f"IL2CPP analysis error: {e}", file=sys.stderr)
+        return ExitCode.INFRASTRUCTURE_FAILURE
+
+
 
 
 
@@ -717,6 +750,25 @@ def build_parser() -> argparse.ArgumentParser:
         help="Output format (default: hex)",
     )
     p_asm.set_defaults(handler=handle_asm)
+    # il2cpp
+    p_il2cpp = subparsers.add_parser(
+        "il2cpp", help="Extract and query Unity IL2CPP symbols from artifact"
+    )
+    p_il2cpp.add_argument("artifact", help="Path to APK/APKM/APKS file")
+    p_il2cpp.add_argument(
+        "--query",
+        "-q",
+        default=None,
+        help="Filter symbol or type name (substring or regex)",
+    )
+    p_il2cpp.add_argument(
+        "--json",
+        nargs="?",
+        const="-",
+        help="Output symbols as JSON (optionally to file path or '-' for stdout)",
+    )
+    p_il2cpp.set_defaults(handler=handle_il2cpp)
+
 
 
     return parser
