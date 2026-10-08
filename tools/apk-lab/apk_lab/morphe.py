@@ -28,6 +28,17 @@ from apk_lab.tools import ToolManager
 from apk_lab.workspace import WorkspaceManager
 
 logger = logging.getLogger(__name__)
+
+
+def is_patchable_member(name: str) -> bool:
+    """Whether a member can be changed by a patch and must count toward the check postcondition."""
+    return (
+        name == "AndroidManifest.xml"
+        or name.endswith(".dex")
+        or name.startswith(("res/", "assets/", "lib/"))
+    )
+
+
 DEFAULT_PATCHES_LIST_PATH = (
     Path(__file__).parent.parent.parent.parent / "patches-list.json"
 )
@@ -364,6 +375,7 @@ def run_single_patch_case(
         scratch_dir = run_dir / "scratch"
         scratch_dir.mkdir(parents=True, exist_ok=True)
         patch_input_path = artifact_path
+
         cmd = build_morphe_patch_cmd(
             mpp_path=mpp_path,
             patch_name=test_case.patch_name,
