@@ -1,3 +1,13 @@
+## [1.4.0-dev.6](https://github.com/ihatenodejs/aidans-patches/compare/v1.4.0-dev.5...v1.4.0-dev.6) (2026-10-08)
+
+### 🐛 Bug Fixes
+
+* **apk-lab:** Allowed overriding default kwargs in tool runner ([76801f6](https://github.com/ihatenodejs/aidans-patches/commit/76801f612922c52a52bb264a01eb9d78f0a1e53d))
+* **apk-lab:** Included resources.arsc in patch artifact detection ([845d8f1](https://github.com/ihatenodejs/aidans-patches/commit/845d8f1623fa68063ccf17ee9e5e62df1c746cb4))
+* **sezzle:** Corrected rewards dispatch and CodePush method matching ([0b60e45](https://github.com/ihatenodejs/aidans-patches/commit/0b60e450f3fbae774b4ec7888458bb8152f62e10))
+* **sezzle:** Preserved Sezzle Send navigation in rewards patch ([9245a74](https://github.com/ihatenodejs/aidans-patches/commit/9245a74c3d49b921938e435bd31edf1114217147))
+* **sezzle:** Stubbed CodePush bundle resolution in update patch ([c1cac39](https://github.com/ihatenodejs/aidans-patches/commit/c1cac396717618c97eae379f4328677b74975ca2))
+
 ## [1.4.0-dev.5](https://github.com/ihatenodejs/aidans-patches/compare/v1.4.0-dev.4...v1.4.0-dev.5) (2026-10-08)
 
 ### 🐛 Bug Fixes
