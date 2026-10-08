@@ -558,6 +558,44 @@ def handle_il2cpp(args: argparse.Namespace) -> int:
     except Exception as e:  # noqa: BLE001
         print(f"IL2CPP analysis error: {e}", file=sys.stderr)
         return ExitCode.INFRASTRUCTURE_FAILURE
+def handle_unity(args: argparse.Namespace) -> int:
+    try:
+        from apk_lab.unity import inspect_unity_assets
+
+        records = inspect_unity_assets(
+            artifact_path=Path(args.artifact),
+            name_filter=args.gameobject,
+        )
+        if args.json:
+            print_json_or_file(records, args.json)
+        else:
+            if not records:
+                print("No matching Unity GameObjects found.")
+            else:
+                print(f"Found {len(records)} matching Unity GameObjects:")
+                print(
+                    f"{'Member':<45} {'Name':<30} {'Offset':<10} {'Active Offset':<15} {'Active':<6}"
+                )
+                print("-" * 110)
+                for r in records[:100]:
+                    print(
+                        f"{r['member']:<45} {r['name']:<30} 0x{r['file_offset']:x}     "
+                        f"{r['is_active_offset_hex']:<15} {r['is_active_value']:<6}"
+                    )
+                if len(records) > 100:
+                    print(f"... and {len(records) - 100} more (use --json to see all)")
+        return ExitCode.SUCCESS
+    except FileNotFoundError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return ExitCode.USAGE_OR_TOOL_ERROR
+    except ValueError as e:
+        print(f"Unity asset error: {e}", file=sys.stderr)
+        return ExitCode.USAGE_OR_TOOL_ERROR
+    except Exception as e:  # noqa: BLE001
+        print(f"Unity asset inspection error: {e}", file=sys.stderr)
+        return ExitCode.INFRASTRUCTURE_FAILURE
+
+
 
 
 
@@ -768,6 +806,25 @@ def build_parser() -> argparse.ArgumentParser:
         help="Output symbols as JSON (optionally to file path or '-' for stdout)",
     )
     p_il2cpp.set_defaults(handler=handle_il2cpp)
+    # unity
+    p_unity = subparsers.add_parser(
+        "unity", help="Inspect Unity serialized assets and locate GameObject properties"
+    )
+    p_unity.add_argument("artifact", help="Path to APK/APKM/APKS file")
+    p_unity.add_argument(
+        "--gameobject",
+        "-g",
+        default=None,
+        help="Target GameObject name to search (e.g. Button_HelpCenter)",
+    )
+    p_unity.add_argument(
+        "--json",
+        nargs="?",
+        const="-",
+        help="Output results as JSON (optionally to file path or '-' for stdout)",
+    )
+    p_unity.set_defaults(handler=handle_unity)
+
 
 
 

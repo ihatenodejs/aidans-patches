@@ -148,6 +148,17 @@ uv run --project tools/apk-lab apk-lab il2cpp path/to/game.apkm --query OpenShop
 # Export all symbols or matches to JSON stdout or file
 uv run --project tools/apk-lab apk-lab il2cpp path/to/game.apkm --query "Blackjack.*" --json symbols.json
 ```
+### `unity` — Unity Serialized Asset & GameObject Inspector
+Inspects Unity serialized asset files (`assets/bin/Data/*.assets`, `*.assets.split*`, `globalgamemanagers`) across single APKs and multi-split container bundles (APKM, APKS, XAPK). Locates `GameObject` records by name, reports their containing split chunk, and calculates the exact byte offset and value of the `m_IsActive` boolean property for direct Morphe raw resource patching.
+
+```bash
+# Locate GameObject and calculate active-state byte offset
+uv run --project tools/apk-lab apk-lab unity path/to/game.apkm --gameobject Button_HelpCenter
+
+# Output matches as JSON
+uv run --project tools/apk-lab apk-lab unity path/to/game.apkm --gameobject Button_HelpCenter --json
+```
+
 
 
 
