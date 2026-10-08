@@ -159,8 +159,8 @@ When `dependsOn` is declared, selecting the user-facing patch automatically trig
 ├── tools/apk-lab/                         # Deterministic APK lifecycle, analysis & compatibility toolkit
 │   ├── pyproject.toml                     # Python 3.12 project configuration with uv lock and CLI entry point
 │   ├── tools.lock.json                    # Pinned toolchain hashes (Morphe, JADX, Apktool, baksmali, apkeep)
-│   ├── apk_lab/                           # Python modules (inspection, comparison, morphe, workspace, fixtures)
-│   └── tests/                             # Automated pytest test suite (23 tests)
+│   ├── apk_lab/                           # Python modules (inspection, comparison, morphe, workspace, fixtures, asm, il2cpp, unity)
+│   └── tests/                             # Automated pytest test suite (78 tests)
 ├── worker/                                # Cloudflare Worker control plane (daily Play scraper, badges, dispatch)
 │   ├── wrangler.jsonc                     # Worker configuration & KV namespace binding
 │   └── src/                               # TypeScript sources (apps.ts derived from patches-list.json, badges.ts)
@@ -229,12 +229,23 @@ uv run --project tools/apk-lab apk-lab check path/to/app.apkm \
   --package com.example.app \
   --all
 
+# Encode ARM64 branch instruction or return into Morphe Kotlin byteArrayOf format
+uv run --project tools/apk-lab apk-lab asm "bl 0x3c98ce4" --pc 0x1fcf6e8 --format kotlin
+
+# Extract and query stripped Unity IL2CPP symbols across splits
+uv run --project tools/apk-lab apk-lab il2cpp path/to/game.apkm --query OpenShop
+
+# Inspect Unity serialized assets and locate GameObject active-state byte offsets
+uv run --project tools/apk-lab apk-lab unity path/to/game.apkm --gameobject Button_HelpCenter
+
+# Acquire application artifact from Google Play
+uv run --project tools/apk-lab apk-lab acquire com.example.app
+
 # Clean managed workspaces safely (never use raw rm -rf on workspaces)
 uv run --project tools/apk-lab apk-lab clean --package com.example.app
-```
 
 ### Agent Operational Rules for APKs and Patches
-- **Start with apk-lab**: Always use `uv run --project tools/apk-lab apk-lab inspect|analyze|compare|check`. Never invent arbitrary unzipping/decompilation locations outside the managed `.apk-lab` workspace.
+- **Start with apk-lab**: Always use `uv run --project tools/apk-lab apk-lab inspect|analyze|compare|check|asm|il2cpp|unity`. Never invent arbitrary unzipping/decompilation locations outside the managed `.apk-lab` workspace.
 - **Safe Cleanup**: Never use raw `rm -rf` on workspace folders. Always use `apk-lab clean --run <path>` or `apk-lab clean --package <pkg>`, which verify `.marker.json` and refuse symlinks or escaped paths.
 - **Never Guess Compatibility**: Never mark a target version supported in `Constants.kt` from a metadata diff alone. A version is supported ONLY when `apk-lab check ... --all` executes every patch and boolean option permutation independently and passes Morphe result parsing and Android SDK DEX verification.
 - **New Patch Sequence**: `inspect` $\rightarrow$ targeted `analyze` $\rightarrow$ implement fail-fast bytecode hooks $\rightarrow$ compile `.mpp` $\rightarrow$ `check --all` $\rightarrow$ device smoke.
@@ -406,7 +417,7 @@ Keep bytecode injection logic reusable and safe:
 | `docs/apk-lab.md` | Complete reference specification, workflow guides, and storage rules for the `apk-lab` toolkit. |
 | `worker/src/apps.ts` | Dynamic target app metadata module deriving unique packages, targets, and signers from `patches-list.json`. |
 | `worker/src/badges.ts` | SVG badge generator for aggregate and per-package patch compatibility. |
-| `.github/workflows/apk-lab-tests.yml` | GitHub Actions workflow executing the 23-test pytest suite and Gradle patch compilation gate. |
+| `.github/workflows/apk-lab-tests.yml` | GitHub Actions workflow executing the 78-test pytest suite and Gradle patch compilation gate. |
 | `.github/workflows/apk-compatibility.yml` | GitHub Actions workflow acquiring APKs, rotating R2 slots, and testing target/latest compatibility. |
 ---
 
@@ -421,7 +432,7 @@ Keep bytecode injection logic reusable and safe:
   - Configure path via `ANDROID_HOME` / `ANDROID_SDK_ROOT` environment variables or `sdk.dir=/path/to/sdk` in `local.properties`.
 - **Python & uv**:
   - Python 3.12+ managed via **uv** (`tools/apk-lab`).
-  - All APK lifecycle tasks (inspect, analyze, compare, check, clean, fixtures, acquire) must run via `uv run --project tools/apk-lab apk-lab <subcommand>`.
+  - All APK lifecycle tasks (inspect, analyze, compare, check, clean, fixtures, acquire, asm, il2cpp, unity) must run via `uv run --project tools/apk-lab apk-lab <subcommand>`.
 - **Gradle**:
   - Use the bundled wrapper `./gradlew` (pinned to **Gradle 9.7.1** with SHA-256 verification).
   - Parallel execution and build caching are enabled in `gradle.properties`.
@@ -437,7 +448,7 @@ Keep bytecode injection logic reusable and safe:
 
 ### Testing Status
 - **Patch Core Tests**: There are no synthetic test sources in `patches/src/test` or `extensions/extension/src/test`. Patches transform proprietary closed-source APK binaries; synthetic tests provide little value compared to real-world APK application.
-- **Automated Tooling & Archive Tests**: The `tools/apk-lab` module includes a comprehensive pytest suite (`uv run --project tools/apk-lab pytest`, 23 tests) covering safe archive extraction, zip bomb rejection, path traversal rejection, container classification, split consistency, deterministic workspace IDs, tool checksums, and Morphe result parsing.
+- **Automated Tooling & Archive Tests**: The `tools/apk-lab` module includes a comprehensive pytest suite (`uv run --project tools/apk-lab pytest`, 78 tests) covering safe archive extraction, zip bomb rejection, path traversal rejection, container classification, split consistency, deterministic workspace IDs, tool checksums, Morphe result parsing, multi-split native library extraction, deterministic ARM64 instruction assembly, Unity IL2CPP metadata parsing, and Unity serialized asset inspection.
 - **Automated Worker Tests**: The `worker/` module includes a Vitest suite (`cd worker && bun run test`, 15 tests) testing app metadata derivation, Play Store scraper error handling, duplicate dispatch suppression, authenticated result ingestion, and badge SVG generation.
 - **Automated Compatibility Verification**: `apk-lab check <artifact> --mpp <bundle> --package <pkg> --all` runs live application of all declared patches and boolean option permutations, enforcing Morphe success and Android SDK DEX structural verification.
 

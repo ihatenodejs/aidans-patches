@@ -182,26 +182,42 @@ uv run --project tools/apk-lab apk-lab fixtures download \
   --out /tmp/target.apk
 ```
 
+### `acquire` — Artifact Acquisition from Google Play
+Downloads and normalizes Android application artifacts directly from the Google Play Store using `apkeep` (native Play Store downloader) or `goopdl` fallback. Validates downloaded package signatures, container integrity, and version metadata.
+
+```bash
+# Acquire latest version of an application package
+uv run --project tools/apk-lab apk-lab acquire com.example.app
+
+# Acquire specific version to an explicit output directory
+uv run --project tools/apk-lab apk-lab acquire com.example.app --version 2.22.08 --out-dir /tmp/artifacts
+```
+
 ---
 
 ## 3. Standard Workflows
 
 ### Authoring Patches for a New Application
 1. **Inspect**: Run `apk-lab inspect <artifact>` to determine package name, version, signing cert SHA-256, and container structure.
-2. **Analyze**: Run `apk-lab analyze <artifact> --smali` to extract smali into a managed run.
-3. **Implement**: Define fail-fast Morphe bytecode and resource patches in Kotlin using `bytecodePatch`, `resourcePatch`, or `rawResourcePatch`. Register `Compatibility(name, packageName, apkFileType, signatures, targets)`.
-4. **Compile**: Run `./gradlew :patches:buildAndroid --no-daemon`.
-5. **Verify**: Run `apk-lab check <artifact> --mpp patches/build/libs/patches-*.mpp --package <pkg> --all`.
-6. **Device Smoke Test**: Install patched APK on an emulator or test device (`adb install -r output.apk`) and smoke test user flows.
-7. **Clean**: Clean the workspace with `apk-lab clean --run <path>`.
+2. **Analyze**: Run `apk-lab analyze <artifact> --smali` to extract smali and native shared libraries (`lib/<arch>/*.so`) into a managed run.
+3. **Native & Unity Inspection** (if applicable):
+   - For Unity IL2CPP applications: Run `apk-lab il2cpp <artifact> --query <Symbol>` to locate stripped C# classes and method signatures in `global-metadata.dat`.
+   - For Unity serialized assets: Run `apk-lab unity <artifact> --gameobject <Name>` to find GameObject entries and calculate `m_IsActive` byte offsets across asset splits.
+   - For ARM64 binary patches: Run `apk-lab asm "<instruction>" --pc <pc> --format kotlin` to calculate 26-bit branch offsets and emit Morphe Kotlin `byteArrayOf(...)` hooks.
+4. **Implement**: Define fail-fast Morphe bytecode and resource patches in Kotlin using `bytecodePatch`, `resourcePatch`, or `rawResourcePatch`. Register `Compatibility(name, packageName, apkFileType, signatures, targets)`.
+5. **Compile**: Run `./gradlew :patches:buildAndroid --no-daemon`.
+6. **Verify**: Run `apk-lab check <artifact> --mpp patches/build/libs/patches-*.mpp --package <pkg> --all`.
+7. **Device Smoke Test**: Install patched APK on an emulator or test device (`adb install -r output.apk`) and smoke test user flows.
+8. **Clean**: Clean the workspace with `apk-lab clean --run <path>`.
 
 ### Migrating Existing Patches on App Updates
-1. **Compare**: Run `apk-lab compare <old_artifact> <new_artifact>` to identify changed DEX method counts, split changes, and resource modifications.
-2. **Forced Baseline Check**: Run `apk-lab check <new_artifact> --mpp <bundle> --package <pkg> --all --force` to capture the failing-before baseline and pinpoint obsolete anchors.
-3. **Analyze & Remap**: Run `apk-lab analyze <new_artifact> --smali` to rediscover changed classes, obfuscated descriptors, and instructions using stable landmarks.
-4. **Update Source**: Update patch definitions, extension classes, and bump target in `Constants.kt`.
-5. **Matrix Check**: Rebuild and run `apk-lab check <new_artifact> --mpp <bundle> --package <pkg> --all`. Require 100% pass rate.
-6. **Documentation & List**: Update reverse engineering specs in `docs/<app>/`, run `./gradlew generatePatchesList`, and sync README with `generate_patches_readme.py`.
+1. **Acquire or Ingest**: Download update via `apk-lab acquire <pkg>` or load from local artifact.
+2. **Compare**: Run `apk-lab compare <old_artifact> <new_artifact>` to identify changed DEX method counts, split changes, native libraries, and resource modifications.
+3. **Forced Baseline Check**: Run `apk-lab check <new_artifact> --mpp <bundle> --package <pkg> --all --force` to capture the failing-before baseline and pinpoint obsolete anchors.
+4. **Analyze & Remap**: Run `apk-lab analyze <new_artifact> --smali` to rediscover changed classes, obfuscated descriptors, and instructions using stable landmarks. For native/Unity patches, rerun `apk-lab il2cpp` and `apk-lab unity` to update shifted offsets.
+5. **Update Source**: Update patch definitions, extension classes, and bump target in `Constants.kt`.
+6. **Matrix Check**: Rebuild and run `apk-lab check <new_artifact> --mpp <bundle> --package <pkg> --all`. Require 100% pass rate.
+7. **Documentation & List**: Update reverse engineering specs in `docs/<app>/`, run `./gradlew generatePatchesList`, and sync README with `generate_patches_readme.py`.
 
 ---
 
