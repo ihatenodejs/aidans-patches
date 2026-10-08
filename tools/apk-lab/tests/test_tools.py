@@ -137,3 +137,47 @@ def test_doctor_ci_credentials_readiness(monkeypatch, tmp_path):
     for cred in REQUIRED_CI_CREDENTIALS:
         assert creds_dict[cred] is True
     assert "dummy_secret_value" not in json.dumps(report_ok.to_dict())
+
+
+def test_run_tool_cmd_allows_callers_to_override_defaults(monkeypatch, tmp_path):
+    import subprocess
+
+    lock_file = tmp_path / "tools.lock.json"
+    lock_file.write_text(
+        json.dumps(
+            {
+                "tools": {
+                    "dummy": {
+                        "version": "1.0.0",
+                        "url": "https://example.com/dummy",
+                        "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                        "license": "MIT",
+                        "supportedPlatforms": ["any"],
+                        "toolType": "binary",
+                        "executablePath": "dummy",
+                    }
+                }
+            }
+        )
+    )
+    cache_root = tmp_path / "cache"
+    mgr = ToolManager(cache_root=cache_root, lock_file=lock_file)
+    dummy_exe = mgr.get_executable_path("dummy")
+    dummy_exe.parent.mkdir(parents=True)
+    dummy_exe.write_text("#!/bin/sh\n")
+
+    captured = {}
+
+    def mock_run(cmd, **kwargs):
+        captured["cmd"] = cmd
+        captured["kwargs"] = kwargs
+        return subprocess.CompletedProcess(cmd, returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr("subprocess.run", mock_run)
+
+    mgr.run_tool_cmd("dummy", ["--version"], check=True, capture_output=False)
+
+    assert captured["cmd"] == [str(dummy_exe), "--version"]
+    assert captured["kwargs"]["check"] is True
+    assert captured["kwargs"]["capture_output"] is False
+    assert captured["kwargs"]["text"] is True
