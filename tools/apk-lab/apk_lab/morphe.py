@@ -543,6 +543,7 @@ def run_single_patch_case(
                     and (
                         name.endswith(".dex")
                         or name.startswith(("res/", "assets/", "lib/"))
+                        or name == "resources.arsc"
                     )
                 ):
                     has_changed_member = True
@@ -555,6 +556,7 @@ def run_single_patch_case(
                 if not (
                     name.endswith(".dex")
                     or name.startswith(("res/", "assets/", "lib/"))
+                    or name == "resources.arsc"
                 ):
                     continue
 
