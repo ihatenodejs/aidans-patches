@@ -387,7 +387,7 @@ Keep bytecode injection logic reusable and safe:
 | `.releaserc` | Semantic-release configuration managing version bumps, changelog bundling, and backmerges. |
 | `.github/workflows/release.yml` | CI/CD release workflow with Java 21, build provenance attestation, and fallback build checks. |
 | `docs/sezzle/architecture.md` | Architecture and reverse engineering specification for Sezzle v5.3.9. |
-| `docs/sezzle/patches.md` | Patch specifications for all 15 Sezzle patches across navigation, security, and features. |
+| `docs/sezzle/patches.md` | Patch specifications for all 16 Sezzle patches across navigation, security, and features. |
 | `docs/sezzle/hidden_feature_flags.md` | Catalog of Sezzle hidden feature flags, cohorts, and debugger hooks. |
 | `docs/sidelineswap/architecture.md` | Reverse engineering specification for SidelineSwap architecture and telemetry. |
 | `docs/sidelineswap/patches.md` | Patch specification for SidelineSwap tracking neutralization and brand color customization. |
