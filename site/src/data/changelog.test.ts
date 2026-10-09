@@ -213,27 +213,44 @@ describe('resolveLatestRelease async', () => {
       download_url: 'https://example.com/patches.mpp',
     };
 
-    const release = await resolveLatestRelease({
-      bundleJson: bundle,
-      changelogContent: changelog,
-      repo: 'nonexistent-org/nonexistent-repo-12345',
-    });
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = () =>
+      Promise.reject(new Error('Network offline (test stub)'));
 
-    assert.equal(release.version, '1.4.0');
-    assert.equal(release.downloadUrl, 'https://example.com/patches.mpp');
-    assert.equal(release.recentChanges.length, 1);
+    try {
+      const release = await resolveLatestRelease({
+        bundleJson: bundle,
+        changelogContent: changelog,
+        repo: 'owner/repo',
+      });
+
+      assert.equal(release.version, '1.4.0');
+      assert.equal(release.downloadUrl, 'https://example.com/patches.mpp');
+      assert.equal(release.recentChanges.length, 1);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 
-  it('fetches actual latest tagged release from live GitHub repository', async () => {
-    const release = await fetchLatestGitHubRelease(
-      'ihatenodejs/aidans-patches',
-    );
-    assert.ok(release !== null);
-    assert.ok(
-      typeof release?.version === 'string' && release.version.length > 0,
-    );
-    assert.equal(isPreRelease(release?.version || ''), false);
-    assert.ok(release?.downloadUrl.endsWith('.mpp'));
-    assert.ok((release?.recentChanges.length ?? 0) > 0);
-  });
+  it(
+    'fetches actual latest tagged release from live GitHub repository',
+    {
+      skip:
+        process.env.RUN_LIVE_GITHUB_RELEASE_TESTS !== '1'
+          ? 'Requires RUN_LIVE_GITHUB_RELEASE_TESTS=1'
+          : false,
+    },
+    async () => {
+      const release = await fetchLatestGitHubRelease(
+        'ihatenodejs/aidans-patches',
+      );
+      assert.ok(release !== null);
+      assert.ok(
+        typeof release?.version === 'string' && release.version.length > 0,
+      );
+      assert.equal(isPreRelease(release?.version || ''), false);
+      assert.ok(release?.downloadUrl.endsWith('.mpp'));
+      assert.ok((release?.recentChanges.length ?? 0) > 0);
+    },
+  );
 });

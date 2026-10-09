@@ -329,6 +329,10 @@ function initRepositoryDataSync() {
   return assembleRepositoryData(rawList, entities, release);
 }
 
+// Static builds intentionally attempt to resolve current release metadata from
+// GitHub via initRepositoryData. If GitHub is unavailable or rate-limited, the lookup
+// is bounded by a 5-second timeout in fetchLatestGitHubRelease before falling back
+// synchronously to local bundle and changelog files via initRepositoryDataSync.
 try {
   cachedData = await initRepositoryData();
 } catch {
