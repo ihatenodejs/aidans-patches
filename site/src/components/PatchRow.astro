@@ -4,9 +4,10 @@ import type { Patch } from '../data/types';
 interface Props {
   patch: Patch;
   appId: string;
+  appName: string;
 }
 
-const { patch, appId } = Astro.props;
+const { patch, appId, appName } = Astro.props;
 const anchorId = `${appId}-${patch.id}`;
 ---
 
@@ -16,6 +17,7 @@ const anchorId = `${appId}-${patch.id}`;
   data-patch-name={patch.name.toLowerCase()}
   data-patch-desc={patch.description.toLowerCase()}
   data-app-id={appId}
+  data-app-name={appName.toLowerCase()}
   data-is-default={patch.default ? 'true' : 'false'}
   data-has-options={patch.options.length > 0 ? 'true' : 'false'}
   class="relative bg-[#090909] border border-white/[0.08] p-5 hover:border-white/[0.18] transition-colors rounded-sm group flex flex-col justify-between permalink-target"

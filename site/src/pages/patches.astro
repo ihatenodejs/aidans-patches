@@ -200,7 +200,7 @@ const patchesByApp = apps.map((app) => ({
           <!-- Patches Grid for this App -->
           <div class="grid grid-cols-1 md:grid-cols-2 gap-3 items-stretch">
             {patches.map((patch) => (
-              <PatchRow patch={patch} appId={app.id} />
+              <PatchRow patch={patch} appId={app.id} appName={app.name} />
             ))}
           </div>
         </section>
@@ -251,6 +251,7 @@ const patchesByApp = apps.map((app) => ({
           const name = card.getAttribute('data-patch-name') || '';
           const desc = card.getAttribute('data-patch-desc') || '';
           const appId = card.getAttribute('data-app-id') || '';
+          const appName = card.getAttribute('data-app-name') || '';
           const isDefault = card.getAttribute('data-is-default') === 'true';
           const hasOptions = card.getAttribute('data-has-options') === 'true';
 
@@ -268,7 +269,12 @@ const patchesByApp = apps.map((app) => ({
             matches = false;
           }
 
-          if (query && !name.includes(query) && !desc.includes(query)) {
+          if (
+            query &&
+            !name.includes(query) &&
+            !desc.includes(query) &&
+            !appName.includes(query)
+          ) {
             matches = false;
           }
 
