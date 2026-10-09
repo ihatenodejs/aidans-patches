@@ -61,13 +61,13 @@ jobs:
           distribution: "temurin"
           java-version: "21"
 
-      - name: Setup Android SDK Build Tools
-        uses: android-actions/setup-android@v3
-
-      - name: Install Build-Tools 36.0.0
+      - name: Verify Android SDK Build Tools
         run: |
-          sdkmanager "build-tools;36.0.0"
-
+          echo "ANDROID_HOME=${ANDROID_HOME:-/usr/local/lib/android/sdk}" >> "$GITHUB_ENV"
+          test -d "${ANDROID_HOME:-/usr/local/lib/android/sdk}/build-tools/36.0.0" || {
+            yes | "${ANDROID_HOME:-/usr/local/lib/android/sdk}/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null || true
+            "${ANDROID_HOME:-/usr/local/lib/android/sdk}/cmdline-tools/latest/bin/sdkmanager" "build-tools;36.0.0"
+          }
       - name: Setup uv
         uses: astral-sh/setup-uv@v5
         with:
