@@ -1,3 +1,9 @@
+## [1.5.0-dev.1](https://github.com/ihatenodejs/aidans-patches/compare/v1.4.0...v1.5.0-dev.1) (2026-10-09)
+
+### ✨ New Features
+
+* **sezzle:** Added subscription removal patch and shortcut toggle ([47801e6](https://github.com/ihatenodejs/aidans-patches/commit/47801e691eca3274ceb00d21ac43932a48ca5545))
+
 ## [1.4.0](https://github.com/ihatenodejs/aidans-patches/compare/v1.3.1...v1.4.0) (2026-10-08)
 
 ### 🐛 Bug Fixes
