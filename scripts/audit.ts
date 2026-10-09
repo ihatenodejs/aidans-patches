@@ -118,6 +118,33 @@ async function ensureKtlint(): Promise<string> {
   fs.writeFileSync(localBin, buf, { mode: 0o755 });
   return localBin;
 }
+function resolveRuffCommand(): { cmd: string; baseArgs: string[] } {
+  const systemRuff = Bun.which('ruff');
+  if (systemRuff) {
+    return { cmd: systemRuff, baseArgs: [] };
+  }
+  const venvRuff = path.join(
+    process.cwd(),
+    'tools',
+    'apk-lab',
+    '.venv',
+    process.platform === 'win32' ? 'Scripts' : 'bin',
+    process.platform === 'win32' ? 'ruff.exe' : 'ruff',
+  );
+  if (fs.existsSync(venvRuff)) {
+    return { cmd: venvRuff, baseArgs: [] };
+  }
+  const systemUvx = Bun.which('uvx');
+  if (systemUvx) {
+    return { cmd: systemUvx, baseArgs: ['ruff'] };
+  }
+  const systemUv = Bun.which('uv');
+  if (systemUv) {
+    return { cmd: systemUv, baseArgs: ['tool', 'run', 'ruff'] };
+  }
+  return { cmd: 'ruff', baseArgs: [] };
+}
+
 
 function printSectionHeader(title: string, subtitle?: string): void {
   console.log();
@@ -211,10 +238,11 @@ async function runFormat(checkOnly = false): Promise<boolean> {
 
   // 2. Ruff (Python)
   process.stdout.write(`  ${sym.arrow} Formatting Python sources (Ruff)... `);
+  const ruff = resolveRuffCommand();
   const ruffArgs = checkOnly
     ? ['format', '--check', 'tools/apk-lab', '.github/scripts']
     : ['format', 'tools/apk-lab', '.github/scripts'];
-  const rRes = await execCommand('ruff', ruffArgs);
+  const rRes = await execCommand(ruff.cmd, [...ruff.baseArgs, ...ruffArgs]);
   const rPassed = rRes.code === 0;
   const rSummary = checkOnly
     ? rPassed
@@ -312,11 +340,12 @@ async function runLint(autoFix = false): Promise<boolean> {
 
   // 2. Ruff (Python)
   process.stdout.write(`  ${sym.arrow} Linting Python sources (Ruff)... `);
+  const ruff = resolveRuffCommand();
   const ruffArgs = ['check', '--output-format', 'json'];
   if (autoFix) ruffArgs.push('--fix');
   ruffArgs.push('tools/apk-lab', '.github/scripts');
 
-  const rRes = await execCommand('ruff', ruffArgs);
+  const rRes = await execCommand(ruff.cmd, [...ruff.baseArgs, ...ruffArgs]);
   const rDiags: Diagnostic[] = [];
   try {
     const items = JSON.parse(rRes.stdout);
