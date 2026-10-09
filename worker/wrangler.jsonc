@@ -9,10 +9,6 @@
       "enabled": true,
     },
   },
-  "vars": {
-    "GITHUB_REPO": "ihatenodejs/aidans-patches",
-    "DISPATCH_EVENT_TYPE": "apk-fixture-refresh",
-  },
   "triggers": {
     "crons": ["0 */6 * * *"],
   },

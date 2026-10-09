@@ -1,8 +1,11 @@
 name: APK Compatibility & Fixture Automation
 
 on:
-  repository_dispatch:
-    types: ['apk-fixture-refresh']
+  push:
+    branches:
+      - main
+    paths:
+      - 'patches/**'
   workflow_dispatch:
     inputs:
       package_name:
@@ -16,13 +19,21 @@ permissions:
 
 jobs:
   matrix-setup:
-    name: Determine Target Packages
+    name: Build Bundle & Determine Packages
     runs-on: ubuntu-latest
     outputs:
       packages: ${{ steps.set-matrix.outputs.packages }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Setup Java
+        uses: actions/setup-java@v6.0.1
+        with:
+          distribution: 'temurin'
+          java-version: '21'
 
       - name: Setup uv
         uses: astral-sh/setup-uv@v5
@@ -30,12 +41,32 @@ jobs:
           version: 'latest'
           python-version: '3.12'
 
+      - name: Build Patch Bundle & Metadata
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ./gradlew generatePatchesList --no-daemon
+
+      - name: Upload Patch Bundle & Metadata Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: patches-bundle
+          path: |
+            patches/build/libs/patches-*.mpp
+            patches-list.json
+          retention-days: 1
+          if-no-files-found: error
+
       - name: Compute package list
         id: set-matrix
         run: |
-          uv run --project tools/apk-lab python -m apk_lab.compatibility_ci matrix --output-file "$GITHUB_OUTPUT"
+          uv run --project tools/apk-lab python -m apk_lab.compatibility_ci matrix \
+            --patches-list patches-list.json \
+            --output-file "$GITHUB_OUTPUT"
         env:
-          DISPATCH_PACKAGE_NAME: ${{ github.event.client_payload.packageName }}
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          BEFORE_SHA: ${{ github.event.before }}
+          COMMIT_SHA: ${{ github.sha }}
           INPUT_PACKAGE_NAME: ${{ inputs.package_name }}
 
   reconcile-and-test:
@@ -49,17 +80,20 @@ jobs:
       fail-fast: false
       matrix:
         package: ${{ fromJson(needs.matrix-setup.outputs.packages) }}
+    env:
+      COMPATIBILITY_REQUEST_ID: ${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.package }}
+      WORKER_STATUS_URL: ${{ env.WORKER_STATUS_URL || 'https://worker.patch.p0ntus.com' }}
+      COMPATIBILITY_STATUS_SECRET: ${{ secrets.COMPATIBILITY_STATUS_SECRET }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
-      - name: Setup Java
-        uses: actions/setup-java@v6.0.1
+      - name: Download Patch Bundle & Metadata Artifact
+        uses: actions/download-artifact@v4
         with:
-          distribution: 'temurin'
-          java-version: '21'
+          name: patches-bundle
 
       - name: Verify Android SDK Build Tools
         run: |
@@ -68,6 +102,7 @@ jobs:
             yes | "${ANDROID_HOME:-/usr/local/lib/android/sdk}/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null || true
             "${ANDROID_HOME:-/usr/local/lib/android/sdk}/cmdline-tools/latest/bin/sdkmanager" "build-tools;36.0.0"
           }
+
       - name: Setup uv
         uses: astral-sh/setup-uv@v5
         with:
@@ -88,19 +123,29 @@ jobs:
           APKEEP_AAS_TOKEN: ${{ secrets.APKEEP_AAS_TOKEN }}
           COMPATIBILITY_STATUS_SECRET: ${{ secrets.COMPATIBILITY_STATUS_SECRET }}
 
-      - name: Build Patch Bundle (.mpp)
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Register Run Start
+        if: ${{ env.COMPATIBILITY_STATUS_SECRET != '' }}
         run: |
-          ./gradlew :patches:buildAndroid --no-daemon
+          uv run --project tools/apk-lab python -m apk_lab.compatibility_ci start \
+            --package "${{ matrix.package }}" \
+            --request-id "$COMPATIBILITY_REQUEST_ID" \
+            --git-revision "$GITHUB_SHA" \
+            --patches-list patches-list.json
+
       - name: Reconcile and Test Fixtures
         id: reconcile-and-test
         run: |
-          uv run --project tools/apk-lab python -m apk_lab.compatibility_ci run --package "${{ matrix.package }}"
+          MPP_FILE=$(ls patches-*.mpp 2>/dev/null | head -n 1)
+          if [ -z "$MPP_FILE" ]; then
+            MPP_FILE=$(ls patches/build/libs/patches-*.mpp 2>/dev/null | head -n 1)
+          fi
+          uv run --project tools/apk-lab python -m apk_lab.compatibility_ci run \
+            --package "${{ matrix.package }}" \
+            --mpp "$MPP_FILE" \
+            --patches-list patches-list.json
         env:
-          DISPATCH_REQUEST_ID: ${{ github.event.client_payload.requestId }}
-          DISPATCH_EXPECTED_ROLES: ${{ join(github.event.client_payload.expectedRoles, ',') }}
-          DISPATCH_PLAY_VERSION: ${{ github.event.client_payload.observedPlayVersion }}
+          DISPATCH_REQUEST_ID: ${{ env.COMPATIBILITY_REQUEST_ID }}
+          DISPATCH_EXPECTED_ROLES: 'target'
           COMPATIBILITY_SUBMISSION_PATH: ${{ runner.temp }}/compatibility-submission.json
           COMPATIBILITY_CALLBACK_MARKER: ${{ runner.temp }}/compatibility-callback-complete
           R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
@@ -111,11 +156,10 @@ jobs:
           COMPATIBILITY_STATUS_SECRET: ${{ secrets.COMPATIBILITY_STATUS_SECRET }}
 
       - name: Report compatibility pipeline failure
-        if: ${{ always() && github.event_name == 'repository_dispatch' }}
+        if: ${{ always() && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
         env:
-          DISPATCH_REQUEST_ID: ${{ github.event.client_payload.requestId }}
+          DISPATCH_REQUEST_ID: ${{ env.COMPATIBILITY_REQUEST_ID }}
           DISPATCH_PACKAGE_NAME: ${{ matrix.package }}
-          DISPATCH_TARGET_VERSION: ${{ github.event.client_payload.targetVersion }}
           COMPATIBILITY_STATUS_SECRET: ${{ secrets.COMPATIBILITY_STATUS_SECRET }}
           WORKER_STATUS_URL: ${{ env.WORKER_STATUS_URL || 'https://worker.patch.p0ntus.com' }}
           SUBMISSION_PATH: ${{ runner.temp }}/compatibility-submission.json
@@ -141,7 +185,8 @@ jobs:
             PAYLOAD_FILE="${{ runner.temp }}/fallback-failure-submission.json"
             RUN_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
 
-            if [ -z "$DISPATCH_TARGET_VERSION" ] && [ -f "patches-list.json" ]; then
+            DISPATCH_TARGET_VERSION=""
+            if [ -f "patches-list.json" ]; then
               DISPATCH_TARGET_VERSION=$(grep -A 20 "\"packageName\": \"$DISPATCH_PACKAGE_NAME\"" patches-list.json | grep '"version":' | head -n 1 | sed -E 's/.*"version": "([^"]+)".*/\1/' || true)
             fi
 
@@ -165,7 +210,8 @@ jobs:
                     passedCount: 0,
                     failedCount: 1,
                     workflowRunUrl: $workflowRunUrl,
-                    failureReason: "GitHub Actions failed before compatibility results were reported."
+                    failureReason: "GitHub Actions failed before compatibility results were reported.",
+                    failureStage: "pipeline"
                   }
                 ]
               }' > "$PAYLOAD_FILE"

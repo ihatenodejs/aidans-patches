@@ -75,3 +75,11 @@ jobs:
       contents: read
     uses: ./.github/workflows/deploy-site.yml
     secrets: inherit
+  deploy-worker:
+    name: Deploy Worker
+    needs: release
+    if: github.ref == 'refs/heads/main' && needs.release.outputs.new_release_published == 'true'
+    permissions:
+      contents: read
+    uses: ./.github/workflows/deploy-worker.yml
+    secrets: inherit

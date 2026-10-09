@@ -66,6 +66,14 @@ export type FreshnessStatus =
 export type PatchCompatibilityStatus =
   'queued' | 'running' | 'compatible' | 'incompatible' | 'error' | 'not-tested';
 
+export type FailureStage =
+  | 'acquisition'
+  | 'r2-lookup'
+  | 'r2-upload'
+  | 'r2-download'
+  | 'compatibility-check'
+  | 'pipeline';
+
 export interface CompatibilityRecord {
   requestId: string;
   role: 'target';
@@ -79,6 +87,7 @@ export interface CompatibilityRecord {
   status: PatchCompatibilityStatus;
   workflowRunUrl?: string | null;
   failureReason?: string | null;
+  failureStage?: FailureStage | null;
 }
 
 export interface OutstandingCompatibilityRequest {
@@ -87,8 +96,8 @@ export interface OutstandingCompatibilityRequest {
   playVersion: string | null;
   expectedRoles: 'target'[];
   dispatchedAt: string;
+  gitRevision?: string;
 }
-
 export interface AppVersionStatus {
   packageName: string;
   appName: string;
