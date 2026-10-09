@@ -2,6 +2,8 @@ package app.aidan.patches.geocaching.features
 
 import app.aidan.patches.geocaching.shared.COMPATIBILITY_GEOCACHING
 import app.aidan.patches.geocaching.shared.patchAllL3cChecksToValue
+import app.aidan.patches.geocaching.shared.patchIncludeOwnedDisabledCachesToNull
+import app.aidan.patches.geocaching.shared.patchSanitizeFilterModel
 import app.morphe.patcher.extensions.InstructionExtensions.addInstructions
 import app.morphe.patcher.extensions.InstructionExtensions.replaceInstruction
 import app.morphe.patcher.patch.BytecodePatchContext
@@ -18,11 +20,12 @@ import com.android.tools.smali.dexlib2.iface.reference.StringReference
 
 val localPremiumPatch = bytecodePatch(
     name = "Local Premium",
-    description = "Enables local Premium membership status across profile and account screens, and removes upgrade promotions, banners, and icons.",
+    description = "Enables local Premium membership status across profile and account screens, removes upgrade promotions, banners, and icons, and preserves loaded non-traditional cache details.",
     default = true
 ) {
     category("Interface")
     compatibleWith(COMPATIBILITY_GEOCACHING)
+    extendWith("extensions/extension.mpe")
 
     execute {
         patchProfileMembershipLabel()
@@ -30,6 +33,8 @@ val localPremiumPatch = bytecodePatch(
         patchProfileUpgradeCard()
         patchSettingsFragment()
         patchAccountFragment()
+        patchPreventCacheDetailsError()
+        patchPreventMapSearchError()
     }
 }
 
@@ -334,3 +339,72 @@ private fun BytecodePatchContext.patchAccountFragment() {
         vMethod.implementation!!.replaceInstruction(sgetIndex, BuilderInstruction30t(Opcode.GOTO_32, targetLabel))
     }
 }
+
+/**
+ * Prevents non-traditional cache details from being wiped out with a "Something went wrong"
+ * error screen after the map loads the cache data.
+ *
+ * In LegacyGeocacheRepo.loadGeocache (d.e), after converting the database's LiteGeocache
+ * to a LegacyGeocache and emitting it to the UI callback, preserves the LegacyGeocache reference
+ * in p1 across the fetchLegacyCacheFromServer suspension point. When the server returns 403 Forbidden
+ * (because basic accounts cannot fetch full non-traditional cache details from the server), the
+ * repository's existing non-null cache check suppresses the error callback.
+ */
+private fun BytecodePatchContext.patchPreventCacheDetailsError() {
+    patchLegacyGeocacheRepoLiteCache()
+}
+
+private fun BytecodePatchContext.patchLegacyGeocacheRepoLiteCache() {
+    val dClass = mutableClassDefByOrNull("Lcom/groundspeak/geocaching/intro/model/d;") ?: return
+    val eMethod = dClass.methods.firstOrNull {
+        it.name == "e" &&
+            it.parameterTypes == listOf(
+                "Ljava/lang/String;",
+                "Lcom/groundspeak/geocaching/intro/geocachedetails/k;",
+                "Lkotlin/coroutines/jvm/internal/ContinuationImpl;"
+            ) &&
+            it.implementation != null
+    } ?: return
+
+    val impl = eMethod.implementation ?: return
+    val instructions = impl.instructions.toList()
+
+    val invokeLIndex = instructions.indexOfFirst { inst ->
+        inst.opcode == Opcode.INVOKE_STATIC &&
+            (inst as? ReferenceInstruction)?.reference?.let { ref ->
+                (ref as? MethodReference)?.let { m ->
+                    m.definingClass == "Lie4;" && m.name == "l"
+                }
+            } == true
+    }
+    if (invokeLIndex == -1) return
+
+    val nextInst = instructions.getOrNull(invokeLIndex + 2)
+    val isAlreadyPatched = nextInst?.opcode == Opcode.MOVE_OBJECT
+    if (!isAlreadyPatched) {
+        eMethod.addInstructions(invokeLIndex + 2, "move-object p1, p3")
+    }
+}
+
+/**
+ * Prevents map searches from failing with HTTP 403 Forbidden when moving around the map.
+ *
+ * In FilterPreferences.h (dk3.h), `includeOwnedDisabledCaches` is hardcoded to Boolean.TRUE
+ * for Premium accounts. Because basic accounts on Geocaching's server cannot search with
+ * `includeOwnedDisabledCaches=true`, the server rejects the request with HTTP 403 Forbidden.
+ *
+ * Nulling out `includeOwnedDisabledCaches` ensures map search requests send only valid
+ * parameters, preventing 403 errors while preserving all user-configured filters.
+ */
+private fun BytecodePatchContext.patchPreventMapSearchError() {
+    val filterPrefsClass = mutableClassDefByOrNull("Ldk3;") ?: return
+    val hMethod = filterPrefsClass.methods.firstOrNull {
+        it.name == "h" &&
+            it.parameterTypes.isEmpty() &&
+            it.returnType == "Lck3;" &&
+            it.implementation != null
+    } ?: return
+    patchIncludeOwnedDisabledCachesToNull(hMethod)
+    patchSanitizeFilterModel(hMethod)
+}
+

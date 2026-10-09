@@ -93,6 +93,20 @@ Unlocks all advanced cache search filters and sorting options, allowing users to
    - Target: `hf4.p()Lszb;`
    - Intercepts `l3c.d()` check by forcing register to `0x1` (`true`), bypassing upsell and displaying `geotourSortDialog`.
 
+6. **Filter Preferences & Criteria Parser**:
+   - Targets: `dk3.h()` (`FilterPreferences.h`), `dk3.b()` (`FilterPreferences.b`), and `ak3.invoke`
+   - Forces `l3c.d()` check results to `0x1` (`true`), ensuring user-saved filter criteria (cache types, sizes, difficulty, terrain, attributes, min favorites, etc.) are actually loaded into `ck3` and evaluated across map search and list views instead of defaulting to empty filter sets.
+   - In `dk3.h()`, replaces the hardcoded `Boolean.TRUE` for `includeOwnedDisabledCaches` with `null` (`const/4 v15, 0x0`), and sanitizes inactive toggle filters to `null`, preventing the Geocaching server from rejecting basic account map search requests with HTTP 403 Forbidden.
+7. **Client-Side Map Item Filtering & Lifecycle Synchronization**:
+   - Target: `com.groundspeak.geocaching.intro.map.rendering.a.e(List, Ll3c)`
+     - Injects `GeocacheFilterBridge.filterMapItems(List)` at instruction 0 using `invoke-static/range`, filtering all map items (`Luq8`, `Ltq8`) against active `FilterModel` criteria (types, sizes, difficulty, terrain, minimum favorites, hide finds, hide owned) before generating pins for MapLibre, Google Maps, and list views.
+   - Targets: `SharedMapViewModel$trySearching$1`, `SharedMapViewModel$trySearching$2`, and `SharedMapViewModel$reloadPins$1`
+     - Injects `GeocacheFilterBridge.updateAndFilterMapItems` on database and network search item emissions, maintaining a master in-memory cache of all downloaded viewport items and emitting filtered subsets to `SharedMapViewModel.p0`.
+     - Injects `GeocacheFilterBridge.reapplyFilters` into `reloadPins$1` to instantly re-filter the master cache when filter criteria change.
+   - Target: `MapLibreFragment.onResume()`
+     - Injects `SharedMapViewModel.p()` (`reloadPins`) on fragment resume so returning from `FilterNavHostActivity` immediately triggers pin reloading and updates the map.
+   - Target: `SharedMapViewModel$refreshFilteredState$1`
+     - Triggers `SharedMapViewModel.p()` whenever filter state is refreshed.
 ---
 
 ## 4. OpenStreetMap Drop-in Replacement

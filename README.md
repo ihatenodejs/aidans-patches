@@ -164,7 +164,7 @@ My [Morphe](https://morphe.software) patches
 
 | 💊&nbsp;Patch | 📜&nbsp;Description | ⚙️&nbsp;Options |
 |----------|----------------|-----------|
-| [Local Premium](#local-premium) | Enables local Premium membership status across profile and account screens, and removes upgrade promotions, banners, and icons. |  |
+| [Local Premium](#local-premium) | Enables local Premium membership status across profile and account screens, removes upgrade promotions, banners, and icons, and preserves loaded non-traditional cache details. |  |
 | [OpenStreetMap Drop-in Replacement](#openstreetmap-drop-in-replacement) | Replaces Google Maps with OpenStreetMap (MapLibre vector engine) across the main map and navigation screens, removing the Google watermark and rendering community-driven OpenStreetMap tiles. | • OpenStreetMap Style URL |
 | [Remove Lists](#remove-lists) | Removes the Lists option from the bottom navigation bar. |  |
 | [Remove Lists Resource](#remove-lists-resource) | Removes the Lists option from bottom_nav_menu.xml. |  |
