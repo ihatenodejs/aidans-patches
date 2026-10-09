@@ -302,51 +302,77 @@ describe('Worker fetch endpoints', () => {
     const body = await res.text();
     expect(body).toContain('Fizz compatibility');
   });
-  it('serves GET /badges/compatibility/com.sezzle.sezzlemobile.svg with no apk status when fixture is missing', async () => {
-    const workerEnv: WorkerEnv = {
-      ...env,
-      PLAY_VERSIONS_KV: env.PLAY_VERSIONS_KV,
-    };
+  it.each([
+    [undefined, 0, 0, '', 'no apk'],
+    [null, 2, 3, 'No fixture slot matches target', 'no apk'],
+    [undefined, 0, 1, 'Failed fixture retrieval', 'no apk'],
+    ['acquisition', 2, 3, '', 'no apk'],
+    ...[
+      'r2-lookup',
+      'r2-upload',
+      'r2-download',
+      'compatibility-check',
+      'pipeline',
+    ].flatMap((stage) => [
+      [stage, 0, 0, '', 'error'],
+      [stage, 0, 1, 'Missing fixture: no APK', 'error'],
+    ]),
+  ])(
+    'renders failure stage %s with counts %s/%s and reason %s as %s',
+    async (
+      failureStage,
+      passedCount,
+      failedCount,
+      failureReason,
+      expectedStatus,
+    ) => {
+      const workerEnv: WorkerEnv = {
+        ...env,
+        PLAY_VERSIONS_KV: env.PLAY_VERSIONS_KV,
+      };
 
-    await seedTestApps(env.PLAY_VERSIONS_KV);
-    const appRecord = {
-      appName: 'Sezzle',
-      playVersion: '5.3.13',
-      checkedAt: new Date().toISOString(),
-      status: 'newer-available' as const,
-      supportedVersions: ['5.3.9'],
-      latestSupportedVersion: '5.3.9',
-      targetCompatibility: {
-        requestId: 'req-test',
-        role: 'target' as const,
-        versionName: '5.3.9',
-        versionCode: 0,
-        patchBundleVersion: '1.5.1',
-        gitRevision: 'rev1',
-        testedAt: new Date().toISOString(),
-        passedCount: 0,
-        failedCount: 0,
-        status: 'error' as const,
-        failureReason: "No fixture slot matches target version '5.3.9'",
-      },
-    };
-    await env.PLAY_VERSIONS_KV.put(
-      'app_version:com.sezzle.sezzlemobile',
-      JSON.stringify(appRecord),
-    );
+      await seedTestApps(env.PLAY_VERSIONS_KV);
+      const appRecord = {
+        appName: 'Sezzle',
+        playVersion: '5.3.13',
+        checkedAt: new Date().toISOString(),
+        status: 'newer-available' as const,
+        supportedVersions: ['5.3.9'],
+        latestSupportedVersion: '5.3.9',
+        targetCompatibility: {
+          requestId: 'req-test',
+          role: 'target' as const,
+          versionName: '5.3.9',
+          versionCode: 0,
+          patchBundleVersion: '1.5.1',
+          gitRevision: 'rev1',
+          testedAt: new Date().toISOString(),
+          passedCount,
+          failedCount,
+          status: 'error' as const,
+          failureStage,
+          failureReason,
+        },
+      };
+      await env.PLAY_VERSIONS_KV.put(
+        'app_version:com.sezzle.sezzlemobile',
+        JSON.stringify(appRecord),
+      );
 
-    const req = new Request(
-      'http://localhost/badges/compatibility/com.sezzle.sezzlemobile.svg',
-      { method: 'GET' },
-    );
-    const res = await worker.fetch(req, workerEnv);
+      const req = new Request(
+        'http://localhost/badges/compatibility/com.sezzle.sezzlemobile.svg',
+        { method: 'GET' },
+      );
+      const res = await worker.fetch(req, workerEnv);
 
-    expect(res.status).toBe(200);
-    const body = await res.text();
-    expect(body).toContain('Sezzle compatibility');
-    expect(body).toContain('no apk');
-    expect(body).toContain('#EF4444');
-  });
+      expect(res.status).toBe(200);
+      const body = await res.text();
+      expect(body).toContain('Sezzle compatibility');
+      expect(body).toContain(expectedStatus as string);
+      if (expectedStatus === 'error') expect(body).not.toContain('no apk');
+      expect(body).toContain('#EF4444');
+    },
+  );
 
   it('rejects unauthenticated POST /api/compatibility-results', async () => {
     const workerEnv: WorkerEnv = {

@@ -16,7 +16,7 @@ from typing import Any
 
 from apk_lab.acquisition import AcquisitionError
 from apk_lab.fixtures import R2FixtureManager, SlotMetadata
-from apk_lab.inspection import InspectionError
+from apk_lab.inspection import InspectionError, inspect_artifact
 from apk_lab.models import ExitCode, PatchCompatibilityReport
 from apk_lab.morphe import load_patches_list, run_compatibility_check
 
@@ -169,7 +169,7 @@ def get_package_run_metadata(
         clean = re.sub(r"^v", "", v, flags=re.IGNORECASE).split("-")[0].split("+")[0]
         return [int(x) for x in re.findall(r"\d+", clean)] or [0]
 
-    sorted_versions = sorted(target_versions, key=version_key)
+    sorted_versions = sorted(target_versions, key=lambda v: (version_key(v), v))
     latest_target = sorted_versions[-1] if sorted_versions else ""
     return {
         "packageName": package_name,
@@ -419,12 +419,15 @@ def run_ci_reconcile_and_test(
             if overall_exit == ExitCode.SUCCESS and acquirer is not None:
                 dl_dir = runner_temp / f"{pkg}-acquire"
                 try:
-                    try:
-                        acquired_path, src = acquirer(
-                            pkg, dl_dir, expected_version=target_version
+                    acquired_path, src = acquirer(
+                        pkg, dl_dir, expected_version=target_version
+                    )
+                    inspection = inspect_artifact(acquired_path)
+                    if inspection.version_name != target_version:
+                        raise AcquisitionError(
+                            f"Acquired version '{inspection.version_name}' != expected '{target_version}'",
+                            ExitCode.INVALID_ARTIFACT,
                         )
-                    except TypeError:
-                        acquired_path, src = acquirer(pkg, dl_dir)
                     print(
                         f"Acquired {pkg} v{target_version} via {src}: {acquired_path}"
                     )

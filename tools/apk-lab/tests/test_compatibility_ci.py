@@ -327,7 +327,14 @@ def test_reconcile_and_test_uses_existing_r2_target(monkeypatch, tmp_path):
     assert posted_submissions[0]["results"][0]["role"] == "target"
 
 
-def test_reconcile_and_test_missing_target_acquires_and_uploads(monkeypatch, tmp_path):
+@pytest.mark.parametrize("acquired_version", ["1.0.0", "2.0.0", None])
+def test_reconcile_and_test_missing_target_acquires_and_uploads(
+    monkeypatch, tmp_path, acquired_version
+):
+    monkeypatch.setattr(
+        "apk_lab.compatibility_ci.inspect_artifact",
+        lambda path: MagicMock(version_name=acquired_version),
+    )
     monkeypatch.setenv("DISPATCH_REQUEST_ID", "req-missing-target")
     monkeypatch.setenv("COMPATIBILITY_STATUS_SECRET", "secret-xyz")
     monkeypatch.setenv("WORKER_STATUS_URL", "https://worker.test")
@@ -396,6 +403,15 @@ def test_reconcile_and_test_missing_target_acquires_and_uploads(monkeypatch, tmp
         checker=mock_checker,
         poster=lambda u, s, sub: posted.append(sub) or 200,
     )
+    if acquired_version != "1.0.0":
+        assert exit_code == ExitCode.INVALID_ARTIFACT
+        mock_r2.seed_fixture.assert_not_called()
+        mock_r2.download_fixture.assert_not_called()
+        result = posted[0]["results"][0]
+        assert result["status"] == "error"
+        assert result["failureStage"] == "acquisition"
+        assert "!= expected '1.0.0'" in result["failureReason"]
+        return
     assert exit_code == ExitCode.SUCCESS
     # seed_fixture was called to persist target artifact into R2
     mock_r2.seed_fixture.assert_called_once()
@@ -474,6 +490,10 @@ def test_reconcile_and_test_r2_lookup_failure(monkeypatch, tmp_path):
 
 
 def test_reconcile_and_test_r2_upload_failure(monkeypatch, tmp_path):
+    monkeypatch.setattr(
+        "apk_lab.compatibility_ci.inspect_artifact",
+        lambda path: MagicMock(version_name="1.0.0"),
+    )
     monkeypatch.setenv("DISPATCH_REQUEST_ID", "req-r2-upload-fail")
     monkeypatch.setenv("COMPATIBILITY_STATUS_SECRET", "secret-xyz")
     monkeypatch.setenv("WORKER_STATUS_URL", "https://worker.test")
@@ -929,3 +949,50 @@ def test_reconcile_and_test_non_2xx_poster_leaves_submission_without_marker(
     saved_sub = json.loads(sub_file.read_text(encoding="utf-8"))
     assert saved_sub["requestId"] == "req-persist-500"
     assert not marker_file.exists()
+
+
+def test_target_version_ties_use_raw_version_order():
+    versions = ["v1.0.0", "1.0.0-beta", "1.0.0", "1.0.0+build", "1.0.1"]
+    data = {
+        "patches": [
+            {
+                "compatiblePackages": [
+                    {
+                        "packageName": "com.test.app",
+                        "targets": [{"version": version} for version in versions],
+                    }
+                ]
+            }
+        ]
+    }
+    meta = get_package_run_metadata(data, "com.test.app")
+    assert meta["supportedVersions"] == [
+        "1.0.0",
+        "1.0.0+build",
+        "1.0.0-beta",
+        "v1.0.0",
+        "1.0.1",
+    ]
+    assert meta["targetVersion"] == "1.0.1"
+
+
+def test_acquirer_type_error_is_not_retried(monkeypatch, tmp_path):
+    monkeypatch.setattr(
+        "apk_lab.compatibility_ci.get_target_version_for_package",
+        lambda data, pkg: "1.0.0",
+    )
+    mock_r2 = MagicMock()
+    mock_r2.get_slot_metadata.return_value = None
+    acquirer = MagicMock(side_effect=TypeError("internal acquisition bug"))
+    with pytest.raises(TypeError, match="internal acquisition bug"):
+        run_ci_reconcile_and_test(
+            pkg="com.test.app",
+            mpp_path=tmp_path / "bundle.mpp",
+            runner_temp=tmp_path,
+            r2_mgr=mock_r2,
+            acquirer=acquirer,
+        )
+    acquirer.assert_called_once_with(
+        "com.test.app", tmp_path / "com.test.app-acquire", expected_version="1.0.0"
+    )
+    mock_r2.seed_fixture.assert_not_called()

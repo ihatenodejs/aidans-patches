@@ -418,8 +418,9 @@ def acquire_with_apkmirror(
                 capture_output=True,
                 text=True,
                 check=False,
+                timeout=180,
             )
-        except OSError as e:
+        except (OSError, subprocess.TimeoutExpired) as e:
             raise AcquisitionError(
                 f"Failed to execute apkmirror-downloader: {e}",
                 ExitCode.INFRASTRUCTURE_FAILURE,
@@ -450,6 +451,13 @@ def acquire_with_apkmirror(
             extract_dir.mkdir(parents=True, exist_ok=True)
             try:
                 with zipfile.ZipFile(raw_artifact, "r") as zf:
+                    for member in zf.infolist():
+                        destination = (extract_dir / member.filename).resolve()
+                        if not destination.is_relative_to(extract_dir.resolve()):
+                            raise AcquisitionError(
+                                f"Unsafe archive member path: {member.filename}",
+                                ExitCode.INVALID_ARTIFACT,
+                            )
                     zf.extractall(extract_dir)
             except Exception as e:
                 raise AcquisitionError(

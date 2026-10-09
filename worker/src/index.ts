@@ -854,14 +854,15 @@ export default {
       const isNoApk =
         targetStatus === 'error' &&
         (stage === 'acquisition' ||
-          reasonLower.includes('no fixture slot') ||
-          reasonLower.includes('no apk') ||
-          reasonLower.includes('missing fixture') ||
-          ((record?.targetCompatibility?.passedCount ?? 0) === 0 &&
-            (record?.targetCompatibility?.failedCount ?? 0) === 0) ||
-          ((record?.targetCompatibility?.passedCount ?? 0) === 0 &&
-            (record?.targetCompatibility?.failedCount ?? 0) <= 1 &&
-            reasonLower.includes('fixture')));
+          (stage == null &&
+            (reasonLower.includes('no fixture slot') ||
+              reasonLower.includes('no apk') ||
+              reasonLower.includes('missing fixture') ||
+              ((record?.targetCompatibility?.passedCount ?? 0) === 0 &&
+                (record?.targetCompatibility?.failedCount ?? 0) === 0) ||
+              ((record?.targetCompatibility?.passedCount ?? 0) === 0 &&
+                (record?.targetCompatibility?.failedCount ?? 0) <= 1 &&
+                reasonLower.includes('fixture')))));
 
       const badgeStatus = isNoApk ? 'no apk' : targetStatus;
       const label = `${appConfig.name} compatibility`;

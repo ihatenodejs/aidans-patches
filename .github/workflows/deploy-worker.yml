@@ -9,6 +9,12 @@ on:
       - 'patches-list.json'
       - '.github/workflows/deploy-worker.yml'
   workflow_dispatch:
+  workflow_call:
+    secrets:
+      CLOUDFLARE_API_TOKEN:
+        required: false
+      CLOUDFLARE_ACCOUNT_ID:
+        required: false
 
 permissions:
   contents: read

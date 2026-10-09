@@ -162,6 +162,15 @@ export function formatCompatBadge(
   };
 }
 
+function isHttpUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'http:' || url.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
 export function renderCompatBadgeHtml(
   compatRecord: CompatibilityRecord | null | undefined,
   defaultLabel = 'Not tested',
@@ -174,7 +183,11 @@ export function renderCompatBadgeHtml(
 
   const spanContent = `<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-[10px] ${badge.bg} ${badge.text} border ${badge.border}"${titleAttr}><span class="w-1.5 h-1.5 rounded-full ${badge.dot}"></span><span>${escapeHtml(badge.label)}</span></span>`;
 
-  if (badge.isLinkable && badge.workflowRunUrl) {
+  if (
+    badge.isLinkable &&
+    badge.workflowRunUrl &&
+    isHttpUrl(badge.workflowRunUrl)
+  ) {
     const linkTitle = badge.titleAttr
       ? ` title="${escapeHtml(badge.titleAttr)}"`
       : ' title="CI Run"';

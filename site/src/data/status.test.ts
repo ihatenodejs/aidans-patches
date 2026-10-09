@@ -175,5 +175,30 @@ describe('renderCompatBadgeHtml', () => {
       html.includes('&lt;Script&gt;alert(&quot;xss&quot;)&lt;/Script&gt;'),
     );
     assert.ok(html.includes('APK download failed'));
+
+    for (const workflowRunUrl of [
+      'javascript:alert(1)',
+      'JaVaScRiPt:alert(1)',
+      'java\tscript:alert(1)',
+      'data:text/html,<script>alert(1)</script>',
+      'ftp://example.com/run',
+      '//example.com/run',
+      '/runs/42',
+      'https://',
+      '',
+    ]) {
+      const unsafeHtml = renderCompatBadgeHtml({ ...record, workflowRunUrl });
+      assert.ok(unsafeHtml.startsWith('<span'), workflowRunUrl);
+      assert.ok(!unsafeHtml.includes('href='), workflowRunUrl);
+    }
+    for (const workflowRunUrl of [
+      'http://example.com/runs/42',
+      'HTTPS://example.com/runs/42?x=1&y=2',
+    ]) {
+      assert.ok(
+        renderCompatBadgeHtml({ ...record, workflowRunUrl }).startsWith('<a '),
+        workflowRunUrl,
+      );
+    }
   });
 });

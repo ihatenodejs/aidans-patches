@@ -82,7 +82,7 @@ jobs:
         package: ${{ fromJson(needs.matrix-setup.outputs.packages) }}
     env:
       COMPATIBILITY_REQUEST_ID: ${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.package }}
-      WORKER_STATUS_URL: ${{ env.WORKER_STATUS_URL || 'https://worker.patch.p0ntus.com' }}
+      WORKER_STATUS_URL: ${{ vars.WORKER_STATUS_URL || 'https://worker.patch.p0ntus.com' }}
       COMPATIBILITY_STATUS_SECRET: ${{ secrets.COMPATIBILITY_STATUS_SECRET }}
     steps:
       - name: Checkout
@@ -161,7 +161,7 @@ jobs:
           DISPATCH_REQUEST_ID: ${{ env.COMPATIBILITY_REQUEST_ID }}
           DISPATCH_PACKAGE_NAME: ${{ matrix.package }}
           COMPATIBILITY_STATUS_SECRET: ${{ secrets.COMPATIBILITY_STATUS_SECRET }}
-          WORKER_STATUS_URL: ${{ env.WORKER_STATUS_URL || 'https://worker.patch.p0ntus.com' }}
+          WORKER_STATUS_URL: ${{ vars.WORKER_STATUS_URL || 'https://worker.patch.p0ntus.com' }}
           SUBMISSION_PATH: ${{ runner.temp }}/compatibility-submission.json
           MARKER_PATH: ${{ runner.temp }}/compatibility-callback-complete
         run: |
