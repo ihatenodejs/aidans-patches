@@ -9,6 +9,12 @@ on:
       - 'patches-list.json'
       - '.github/workflows/deploy-worker.yml'
   workflow_dispatch:
+  workflow_call:
+    secrets:
+      CLOUDFLARE_API_TOKEN:
+        required: false
+      CLOUDFLARE_ACCOUNT_ID:
+        required: false
 
 permissions:
   contents: read
@@ -35,6 +41,10 @@ jobs:
       - name: Typecheck Worker
         working-directory: worker
         run: bun run check
+
+      - name: Run Worker Unit Tests
+        working-directory: worker
+        run: bun run test
 
       - name: Deploy Cloudflare Worker (Version Freshness Cron)
         if: env.DEPLOY_ENABLED == 'true'

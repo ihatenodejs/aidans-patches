@@ -15,11 +15,15 @@ My [Morphe](https://morphe.software) patches
 [![License: WTFPL](https://img.shields.io/badge/License-WTFPL-white.svg)](http://www.wtfpl.net/about/)
 ![Kotlin](https://img.shields.io/badge/Kotlin-%237F52FF.svg?logo=kotlin&logoColor=white)
 ![Java](https://img.shields.io/badge/Java-%23ED8B00.svg?logo=openjdk&logoColor=white)
-[![APK Lab Tests](https://github.com/ihatenodejs/aidans-patches/actions/workflows/apk-lab-tests.yml/badge.svg)](https://github.com/ihatenodejs/aidans-patches/actions/workflows/apk-lab-tests.yml)
-[![Compatibility](https://worker.patch.p0ntus.com/badges/compatibility.svg)](https://patch.p0ntus.com/status)
 [![AI Generated](https://img.shields.io/badge/AI%20Generated-orange?logo=googlegemini&logoColor=white)](https://img.shields.io/badge/AI%20Generated-orange?logo=googlegemini&logoColor=white)
 
+[![APK Lab Tests](https://github.com/ihatenodejs/aidans-patches/actions/workflows/apk-lab-tests.yml/badge.svg)](https://github.com/ihatenodejs/aidans-patches/actions/workflows/apk-lab-tests.yml)
+[![Compatibility](https://worker.patch.p0ntus.com/badges/compatibility.svg)](https://patch.p0ntus.com/status)
+
 [![Add to Morphe badge](https://github.com/ihatenodejs/aidans-patches/blob/main/assets/add-to-morphe.png?raw=true)](https://morphe.software/add-source?github=ihatenodejs/aidans-patches)
+<a href="https://www.buymeacoffee.com/ihatenodejs">
+  <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me a Coffee" height="100">
+</a>
 
 <h2>DISCLAIMERS</h2>
 
@@ -38,7 +42,7 @@ My [Morphe](https://morphe.software) patches
 ## 📱 Supported Applications & Patches
 
 <!-- PATCHES_START EXPANDED -->
-> **[v1.5.0-dev.2](https://github.com/ihatenodejs/aidans-patches/releases/tag/v1.5.0-dev.2)**&nbsp;&nbsp;•&nbsp;&nbsp;`feat/geocaching/implement-support`&nbsp;&nbsp;•&nbsp;&nbsp;60 patches total
+> **[v1.5.0-dev.3](https://github.com/ihatenodejs/aidans-patches/releases/tag/v1.5.0-dev.3)**&nbsp;&nbsp;•&nbsp;&nbsp;`dev`&nbsp;&nbsp;•&nbsp;&nbsp;52 patches total
 <details open>
 <summary>📦 SidelineSwap&nbsp;&nbsp;•&nbsp;&nbsp;4 patches</summary>
 <br>

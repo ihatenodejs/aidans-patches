@@ -44,10 +44,13 @@ export const SCOPE_TO_APP_ID: Record<string, string> = {
 
 export function resolveAppForScope(
   scope: string | null,
-  apps: App[]
+  apps: App[],
 ): App | null {
   if (!scope) return null;
-  const normalized = scope.toLowerCase().trim().replace(/[^\w-]/g, '');
+  const normalized = scope
+    .toLowerCase()
+    .trim()
+    .replace(/[^\w-]/g, '');
 
   const matchedId = SCOPE_TO_APP_ID[normalized];
   if (matchedId) {
@@ -56,7 +59,7 @@ export function resolveAppForScope(
   }
 
   const direct = apps.find(
-    (a) => a.id === normalized || a.name.toLowerCase() === normalized
+    (a) => a.id === normalized || a.name.toLowerCase() === normalized,
   );
   if (direct) return direct;
 

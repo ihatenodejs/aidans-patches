@@ -10,6 +10,13 @@ export type PatchCompatibilityStatus =
 
 export type FinalPatchCompatibilityStatus =
   'compatible' | 'incompatible' | 'error';
+export type FailureStage =
+  | 'acquisition'
+  | 'r2-lookup'
+  | 'r2-upload'
+  | 'r2-download'
+  | 'compatibility-check'
+  | 'pipeline';
 
 export interface CompatibilityRecord {
   requestId: string;
@@ -24,6 +31,7 @@ export interface CompatibilityRecord {
   status: PatchCompatibilityStatus;
   workflowRunUrl?: string | null;
   failureReason?: string | null;
+  failureStage?: FailureStage | null;
 }
 
 export interface OutstandingCompatibilityRequest {
@@ -32,6 +40,16 @@ export interface OutstandingCompatibilityRequest {
   playVersion: string | null;
   expectedRoles: 'target'[];
   dispatchedAt: string;
+  gitRevision: string;
+}
+
+export interface CompatibilityRunStart {
+  requestId: string;
+  packageName: string;
+  appName: string;
+  targetVersion: string;
+  supportedVersions: string[];
+  gitRevision: string;
 }
 
 export interface AppVersionRecord {
@@ -86,6 +104,7 @@ export interface CompatibilityResultInput {
   failedCount: number;
   workflowRunUrl?: string | null;
   failureReason?: string | null;
+  failureStage?: FailureStage | null;
 }
 
 export interface CompatibilityResultSubmission {
@@ -97,6 +116,5 @@ export interface CompatibilityResultSubmission {
 
 export interface WorkerEnv extends Env {
   REFRESH_SECRET?: string;
-  GITHUB_DISPATCH_TOKEN?: string;
   COMPATIBILITY_STATUS_SECRET?: string;
 }

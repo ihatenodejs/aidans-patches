@@ -6,7 +6,7 @@ import logging
 import shutil
 from collections.abc import Generator
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -74,7 +74,7 @@ class WorkspaceManager:
             "command": command,
             "configDigest": config_digest,
             "toolVersions": tool_versions,
-            "createdAt": datetime.now(timezone.utc).isoformat(),
+            "createdAt": datetime.now(UTC).isoformat(),
         }
 
         marker_file = run_dir / MARKER_FILENAME
@@ -171,7 +171,7 @@ class WorkspaceManager:
             raise WorkspaceError(f"Stale age must be non-negative: {days}")
 
         """Cleans runs older than the specified number of days."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         cutoff_seconds = days * 86400.0
 
         stale: list[Path] = []

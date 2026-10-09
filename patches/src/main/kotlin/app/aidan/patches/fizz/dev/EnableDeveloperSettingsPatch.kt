@@ -109,8 +109,12 @@ private fun BytecodePatchContext.patchHomeTopBarComposable() {
             val ref = instruction.reference
             if (ref is StringReference) {
                 ref.string == "feed-activity-button"
-            } else false
-        } else false
+            } else {
+                false
+            }
+        } else {
+            false
+        }
     }
 
     if (activityButtonIndex < 0) {
@@ -123,8 +127,12 @@ private fun BytecodePatchContext.patchHomeTopBarComposable() {
             val ref = instruction.reference
             if (ref is FieldReference) {
                 ref.definingClass == ALIGNMENT_CLASS && ref.name == "f"
-            } else false
-        } else false
+            } else {
+                false
+            }
+        } else {
+            false
+        }
     }
 
     if (centerEndAnchor < 0) {
@@ -234,8 +242,12 @@ private fun BytecodePatchContext.unlockMobileStudioDrawerGate() {
             val ref = instruction.reference
             if (ref is TypeReference) {
                 ref.type == SPOOF_USER_CLASS
-            } else false
-        } else false
+            } else {
+                false
+            }
+        } else {
+            false
+        }
     }
 
     if (x6Index < 0) {

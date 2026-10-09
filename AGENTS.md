@@ -209,6 +209,30 @@ When `dependsOn` is declared, selecting the user-facing patch automatically trig
 python3 .github/scripts/generate_patches_readme.py <owner/repo> <branch> patches-list.json README.md
 ```
 
+### Code Quality, Linting & Unified Auditing
+```bash
+# Full project audit (runs format check, lint, typecheck, and all test suites)
+bun run audit
+
+# Code formatting (Prettier for web/configs/docs, Ruff for Python, ktlint for Kotlin)
+bun run format            # Reformat files in place
+bun run format:check      # Check formatting without modifying files
+
+# Code quality linting
+bun run lint              # Oxlint (Web/TS), Ruff (Python), ktlint (Kotlin)
+bun run lint:fix          # Apply automated fixes where supported
+
+# Strict multi-stack typecheck
+bun run typecheck         # Worker (tsc), Site (astro check), apk-lab (mypy), Patches (Gradle)
+
+# Unified test runner across all suites
+bun run test              # apk-lab (pytest), Worker (vitest), Site (bun test), app icon sync
+
+# Git pre-commit and pre-push hooks
+pre-commit run --all-files                          # Run commit hygiene, format & lint checks
+pre-commit run --hook-stage pre-push --all-files    # Run typecheck and full test suites
+```
+
 ### Patch Application & Artifact Tooling (`apk-lab`)
 ```bash
 # Setup toolchain and verify host environment
@@ -251,6 +275,7 @@ uv run --project tools/apk-lab apk-lab clean --package com.example.app
 - **Never Guess Compatibility**: Never mark a target version supported in `Constants.kt` from a metadata diff alone. A version is supported ONLY when `apk-lab check ... --all` executes every patch and boolean option permutation independently and passes Morphe result parsing and Android SDK DEX verification.
 - **New Patch Sequence**: `inspect` $\rightarrow$ targeted `analyze` $\rightarrow$ implement fail-fast bytecode hooks $\rightarrow$ compile `.mpp` $\rightarrow$ `check --all` $\rightarrow$ device smoke.
 - **App Update Sequence**: `compare` $\rightarrow$ forced failing `check --all --force` (capture failing baseline) $\rightarrow$ targeted `analyze` $\rightarrow$ remap anchors and models $\rightarrow$ compile `.mpp` $\rightarrow$ `check --all` $\rightarrow$ update compatibility and docs.
+- **Always Verify with Unified Audit**: After modifying any code across the repository, agents MUST run `bun run audit` (or at minimum `bun run lint`, `bun run typecheck`, and `bun run test`) before concluding or claiming completion. Never leave typecheck failures, lint errors, or unformatted code.
 ### Release Pipeline (Local Dry-Run)
 ```bash
 # Install release automation dependencies
@@ -428,7 +453,11 @@ Keep bytecode injection logic reusable and safe:
 | `docs/apk-lab.md` | Complete reference specification, workflow guides, and storage rules for the `apk-lab` toolkit. |
 | `worker/src/apps.ts` | Dynamic target app metadata module deriving unique packages, targets, and signers from `patches-list.json`. |
 | `worker/src/badges.ts` | SVG badge generator for aggregate and per-package patch compatibility. |
-| `.github/workflows/apk-lab-tests.yml` | GitHub Actions workflow executing the 78-test pytest suite and Gradle patch compilation gate. |
+| `.github/workflows/apk-lab-tests.yml` | GitHub Actions workflow executing full multi-stack audit, typecheck, test suites, and Gradle patch compilation gate. |
+| `scripts/audit.ts` | Unified multi-language audit runner aggregating Prettier, Ruff, ktlint, Oxlint, tsc, astro check, mypy, Gradle, pytest, and vitest. |
+| `.pre-commit-config.yaml` | Git pre-commit (hygiene, format, lint) and pre-push (typecheck, tests) hook configuration. |
+| `.prettierrc.json` | Project-wide Prettier configuration supporting TypeScript, Astro, JSON, and YAML. |
+| `.oxlintrc.json` | High-performance Oxlint linter configuration enforcing code correctness and hygiene. |
 | `.github/workflows/apk-compatibility.yml` | GitHub Actions workflow acquiring APKs, rotating R2 slots, and testing target/latest compatibility. |
 ---
 
@@ -449,8 +478,9 @@ Keep bytecode injection logic reusable and safe:
   - Parallel execution and build caching are enabled in `gradle.properties`.
 - **Node.js, Bun & npm**:
   - Node.js LTS (`lts/*`) with standard `npm` for semantic-release.
-  - **Bun** is used for Cloudflare Worker runtime tests (`vitest`), types generation (`wrangler types`), and Astro site builds (`site/`).
-- **Repository Authentication**:
+  - **Bun** is the primary script, format, lint, and audit orchestrator (`scripts/audit.ts`), powering Cloudflare Worker tests (`vitest`), types generation (`wrangler types`), and Astro site checks (`site/`).
+- **Pre-commit**:
+  - Managed via `pre-commit` (configured in `.pre-commit-config.yaml`). Installed locally via `bun run prepare` or `pre-commit install && pre-commit install --hook-type pre-push`.
   - GitHub Packages registry (`maven.pkg.github.com/MorpheApp/registry`) requires authentication via `GITHUB_TOKEN` / `GITHUB_ACTOR` or `gpr.key` / `gpr.user` in `~/.gradle/gradle.properties`.
 
 ---
@@ -459,21 +489,26 @@ Keep bytecode injection logic reusable and safe:
 
 ### Testing Status
 - **Patch Core Tests**: There are no synthetic test sources in `patches/src/test` or `extensions/extension/src/test`. Patches transform proprietary closed-source APK binaries; synthetic tests provide little value compared to real-world APK application.
-- **Automated Tooling & Archive Tests**: The `tools/apk-lab` module includes a comprehensive pytest suite (`uv run --project tools/apk-lab pytest`, 78 tests) covering safe archive extraction, zip bomb rejection, path traversal rejection, container classification, split consistency, deterministic workspace IDs, tool checksums, Morphe result parsing, multi-split native library extraction, deterministic ARM64 instruction assembly, Unity IL2CPP metadata parsing, and Unity serialized asset inspection.
-- **Automated Worker Tests**: The `worker/` module includes a Vitest suite (`cd worker && bun run test`, 15 tests) testing app metadata derivation, Play Store scraper error handling, duplicate dispatch suppression, authenticated result ingestion, and badge SVG generation.
+- **Automated Tooling & Archive Tests**: The `tools/apk-lab` module includes a comprehensive pytest suite (`uv run --project tools/apk-lab pytest`, 95 tests) covering safe archive extraction, zip bomb rejection, path traversal rejection, container classification, split consistency, deterministic workspace IDs, tool checksums, Morphe result parsing, multi-split native library extraction, deterministic ARM64 instruction assembly, Unity IL2CPP metadata parsing, and Unity serialized asset inspection.
+- **Automated Worker Tests**: The `worker/` module includes a Vitest suite (`cd worker && bun run test`, 27 tests) testing app metadata derivation, Play Store scraper error handling, duplicate dispatch suppression, authenticated result ingestion, and badge SVG generation.
+- **Unified Repository Audit**: The root runner (`bun run audit`) verifies formatting, code quality linting, strict multi-stack typechecking, and all unit tests in a single command.
 - **Automated Compatibility Verification**: `apk-lab check <artifact> --mpp <bundle> --package <pkg> --all` runs live application of all declared patches and boolean option permutations, enforcing Morphe success and Android SDK DEX structural verification.
 
 ### Quality Assurance Strategy
-1. **Compilation Verification**:
+1. **Full Repository Audit**:
+   - Primary gate (`bun run audit`):
+     ```bash
+     bun run audit
+     ```
+   - Runs format check (Prettier, Ruff, ktlint), linting (Oxlint, Ruff, ktlint), strict typechecking (tsc, astro check, mypy, Gradle), and all automated test suites.
+2. **Compilation Verification**:
    - Primary CI validation (`release.yml`, `apk-lab-tests.yml`):
      ```bash
      ./gradlew :patches:buildAndroid clean --no-daemon
      ```
    - Validates that Kotlin sources, Java extension code, and `.mpp` packaging compile cleanly.
-2. **Tooling & Unit Test Gates**:
-   - Run `uv run --project tools/apk-lab pytest` to verify archive safety, tool caching, and workspace invariants.
-   - Run `cd worker && bun run test` to verify control plane endpoints, dispatch logic, and badge rendering.
-3. **Metadata Verification**:
+3. **Tooling & Unit Test Gates**:
+   - Run `bun run test` (or `uv run --project tools/apk-lab pytest` + `cd worker && bun run test` + `cd site && bun run test`) to verify tooling safety, control plane endpoints, dispatch logic, and badge rendering.
    - Run `./gradlew generatePatchesList` to verify that all patches instantiate cleanly, register valid compatibility objects, and serialize to `patches-list.json`.
 4. **Automated Patch Compatibility Testing (`apk-lab check`)**:
    - Apply the `.mpp` bundle across all compatible patches and option permutations:

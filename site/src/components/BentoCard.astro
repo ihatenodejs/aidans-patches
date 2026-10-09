@@ -9,13 +9,23 @@ interface Props {
 const { title, badge, className = '', withCrosshair = false } = Astro.props;
 ---
 
-<div class={`relative bg-[#080808] border border-white/[0.08] p-6 flex flex-col justify-between overflow-hidden group hover:border-white/[0.16] transition-colors ${className}`}>
+<div
+  class={`relative bg-[#080808] border border-white/[0.08] p-6 flex flex-col justify-between overflow-hidden group hover:border-white/[0.16] transition-colors ${className}`}
+>
   {withCrosshair && (
     <>
-      <span class="absolute -top-[5px] -left-[5px] select-none text-[9px] font-mono text-zinc-600 leading-none pointer-events-none">+</span>
-      <span class="absolute -top-[5px] -right-[5px] select-none text-[9px] font-mono text-zinc-600 leading-none pointer-events-none">+</span>
-      <span class="absolute -bottom-[5px] -left-[5px] select-none text-[9px] font-mono text-zinc-600 leading-none pointer-events-none">+</span>
-      <span class="absolute -bottom-[5px] -right-[5px] select-none text-[9px] font-mono text-zinc-600 leading-none pointer-events-none">+</span>
+      <span class="absolute -top-[5px] -left-[5px] select-none text-[9px] font-mono text-zinc-600 leading-none pointer-events-none">
+        +
+      </span>
+      <span class="absolute -top-[5px] -right-[5px] select-none text-[9px] font-mono text-zinc-600 leading-none pointer-events-none">
+        +
+      </span>
+      <span class="absolute -bottom-[5px] -left-[5px] select-none text-[9px] font-mono text-zinc-600 leading-none pointer-events-none">
+        +
+      </span>
+      <span class="absolute -bottom-[5px] -right-[5px] select-none text-[9px] font-mono text-zinc-600 leading-none pointer-events-none">
+        +
+      </span>
     </>
   )}
 

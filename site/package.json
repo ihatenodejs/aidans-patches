@@ -8,6 +8,7 @@
     "build": "astro build",
     "preview": "astro preview",
     "astro": "astro",
+    "test": "bun test",
     "check": "astro check",
     "check:icons": "python3 ../.github/scripts/sync_app_icons.py --check-only"
   },
