@@ -4,6 +4,7 @@ import { deriveMonitoredApps, MONITORED_APPS } from '../src/apps';
 import { compareAppVersions } from '../src/comparator';
 import { renderBadgeSvg } from '../src/badges';
 import worker, {
+  OUTSTANDING_REQUEST_TTL_MS,
   computeAggregateCompatibilityStatus,
   timingSafeEqual,
   performVersionCheck,
@@ -873,7 +874,7 @@ describe('Version check and self-healing dispatches', () => {
     }
   });
 
-  it('outstanding request older than 6 hours is replaced with a new dispatch', async () => {
+  it('outstanding request older than TTL is replaced with a new dispatch', async () => {
     const pkg = 'com.ashtoncofer.Buzz';
     const workerEnv: WorkerEnv = {
       ...env,
@@ -883,7 +884,9 @@ describe('Version check and self-healing dispatches', () => {
 
     await seedMonitoredAppsStable(env.PLAY_VERSIONS_KV, pkg);
 
-    const staleTime = new Date(Date.now() - 7 * 3600_000).toISOString();
+    const staleTime = new Date(
+      Date.now() - (OUTSTANDING_REQUEST_TTL_MS + 3600_000),
+    ).toISOString();
     const initialRecord: AppVersionRecord = {
       appName: 'Fizz',
       playVersion: '1.54.0',

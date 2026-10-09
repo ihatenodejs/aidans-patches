@@ -145,26 +145,30 @@ jobs:
               DISPATCH_TARGET_VERSION=$(grep -A 20 "\"packageName\": \"$DISPATCH_PACKAGE_NAME\"" patches-list.json | grep '"version":' | head -n 1 | sed -E 's/.*"version": "([^"]+)".*/\1/' || true)
             fi
 
-            cat > "$PAYLOAD_FILE" <<EOF
-          {
-            "requestId": "$DISPATCH_REQUEST_ID",
-            "packageName": "$DISPATCH_PACKAGE_NAME",
-            "results": [
-              {
-                "role": "target",
-                "versionName": "$DISPATCH_TARGET_VERSION",
-                "versionCode": 0,
-                "patchBundleVersion": "unknown",
-                "gitRevision": "$GITHUB_SHA",
-                "status": "error",
-                "passedCount": 0,
-                "failedCount": 1,
-                "workflowRunUrl": "$RUN_URL",
-                "failureReason": "GitHub Actions failed before compatibility results were reported."
-              }
-            ]
-          }
-          EOF
+            jq -n \
+              --arg requestId "$DISPATCH_REQUEST_ID" \
+              --arg packageName "$DISPATCH_PACKAGE_NAME" \
+              --arg versionName "$DISPATCH_TARGET_VERSION" \
+              --arg gitRevision "$GITHUB_SHA" \
+              --arg workflowRunUrl "$RUN_URL" \
+              '{
+                requestId: $requestId,
+                packageName: $packageName,
+                results: [
+                  {
+                    role: "target",
+                    versionName: $versionName,
+                    versionCode: 0,
+                    patchBundleVersion: "unknown",
+                    gitRevision: $gitRevision,
+                    status: "error",
+                    passedCount: 0,
+                    failedCount: 1,
+                    workflowRunUrl: $workflowRunUrl,
+                    failureReason: "GitHub Actions failed before compatibility results were reported."
+                  }
+                ]
+              }' > "$PAYLOAD_FILE"
           fi
 
           echo "Reporting terminal status to Worker..."
