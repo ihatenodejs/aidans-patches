@@ -1,4 +1,5 @@
 import io
+import warnings
 import zipfile
 
 import pytest
@@ -53,9 +54,11 @@ def test_safe_zip_absolute_path_rejected(tmp_path):
 def test_safe_zip_duplicate_rejected(tmp_path):
     bad_zip = tmp_path / "dup.zip"
     # Write duplicate entries using lower-level zipfile
-    with zipfile.ZipFile(bad_zip, "w") as zf:
-        zf.writestr("file.txt", b"one")
-        zf.writestr("file.txt", b"two")
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", UserWarning)
+        with zipfile.ZipFile(bad_zip, "w") as zf:
+            zf.writestr("file.txt", b"one")
+            zf.writestr("file.txt", b"two")
 
     with pytest.raises(ArchiveSecurityError, match="Duplicate entry in archive"):
         inspect_safe_zip(bad_zip)

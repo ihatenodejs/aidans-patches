@@ -10,10 +10,11 @@ import type {
   OptionType,
   RepositoryStats,
   ReleaseInfo,
+  RawBundle,
   AppVersionStatus,
 } from './types';
 import { getPatchSourceUrl } from './source-links';
-import { parseReleaseInfo } from './changelog';
+import { resolveLatestRelease, resolveLatestReleaseSync } from './changelog';
 import { getAppIconUrl } from './icons';
 import { resolveAppForScope } from './commit-apps';
 
@@ -26,7 +27,10 @@ function slugify(text: string): string {
     .replace(/^-+|-+$/g, '');
 }
 
-const BASELINE_PLAY_UPDATES: Record<string, { updatedAt: string; updatedOn: string }> = {
+const BASELINE_PLAY_UPDATES: Record<
+  string,
+  { updatedAt: string; updatedOn: string }
+> = {
   'com.sezzle.sezzlemobile': {
     updatedAt: '2026-10-01T21:55:06.000Z',
     updatedOn: 'Oct 1, 2026',
@@ -104,14 +108,6 @@ interface RawPatchesList {
   patches: RawPatch[];
 }
 
-interface RawBundle {
-  version: string;
-  created_at: string;
-  description: string;
-  download_url: string;
-  signature_download_url?: string;
-}
-
 let cachedData: {
   apps: App[];
   patches: Patch[];
@@ -120,20 +116,13 @@ let cachedData: {
   versionStatuses: AppVersionStatus[];
 } | null = null;
 
-export function loadRepositoryData() {
-  if (cachedData) return cachedData;
+interface RepositoryEntities {
+  apps: App[];
+  patches: Patch[];
+  versionStatuses: AppVersionStatus[];
+}
 
-  const currentDir = path.dirname(fileURLToPath(import.meta.url));
-  const patchesListPath = path.resolve(currentDir, '../../../patches-list.json');
-  const bundleListPath = path.resolve(currentDir, '../../../patches-bundle.json');
-
-  const rawList: RawPatchesList = JSON.parse(
-    fs.readFileSync(patchesListPath, 'utf-8')
-  );
-  const rawBundle: RawBundle = JSON.parse(
-    fs.readFileSync(bundleListPath, 'utf-8')
-  );
-
+function buildRepositoryEntities(rawList: RawPatchesList) {
   const appsById: Record<string, App> = {};
   const patches: Patch[] = [];
 
@@ -228,7 +217,6 @@ export function loadRepositoryData() {
     });
   }
 
-  // Calculate patch counts per app
   for (const patch of patches) {
     for (const appId of patch.compatibleAppIds) {
       const app = appsById[appId];
@@ -239,25 +227,8 @@ export function loadRepositoryData() {
   }
 
   const apps = Object.values(appsById).sort((a, b) =>
-    a.name.localeCompare(b.name)
+    a.name.localeCompare(b.name),
   );
-
-  const release = parseReleaseInfo(rawBundle);
-
-  for (const item of release.recentChanges) {
-    const matchedApp = resolveAppForScope(item.scope, apps);
-    if (matchedApp) {
-      item.appId = matchedApp.id;
-      item.appName = matchedApp.name;
-      item.appIconUrl = matchedApp.iconUrl;
-    }
-  }
-  const stats: RepositoryStats = {
-    supportedAppsCount: apps.length,
-    totalPatchesCount: patches.length,
-    bundleVersion: rawBundle.version || rawList.version,
-    releaseDate: release.releaseDate,
-  };
 
   const versionStatuses: AppVersionStatus[] = apps.map((app) => {
     const baseline = BASELINE_PLAY_UPDATES[app.packageName];
@@ -278,17 +249,102 @@ export function loadRepositoryData() {
     };
   });
 
-  cachedData = {
+  return { apps, patches, versionStatuses };
+}
+
+function readLocalFiles() {
+  const currentDir = path.dirname(fileURLToPath(import.meta.url));
+  const patchesListPath = path.resolve(
+    currentDir,
+    '../../../patches-list.json',
+  );
+  const bundleListPath = path.resolve(
+    currentDir,
+    '../../../patches-bundle.json',
+  );
+  const changelogPath = path.resolve(currentDir, '../../../CHANGELOG.md');
+
+  const rawList: RawPatchesList = JSON.parse(
+    fs.readFileSync(patchesListPath, 'utf-8'),
+  );
+  const rawBundle: RawBundle | null = fs.existsSync(bundleListPath)
+    ? JSON.parse(fs.readFileSync(bundleListPath, 'utf-8'))
+    : null;
+  const changelogContent: string | null = fs.existsSync(changelogPath)
+    ? fs.readFileSync(changelogPath, 'utf-8')
+    : null;
+
+  return { rawList, rawBundle, changelogContent };
+}
+
+function assembleRepositoryData(
+  rawList: RawPatchesList,
+  entities: RepositoryEntities,
+  release: ReleaseInfo,
+) {
+  const { apps, patches, versionStatuses } = entities;
+
+  for (const item of release.recentChanges) {
+    const matchedApp = resolveAppForScope(item.scope, apps);
+    if (matchedApp) {
+      item.appId = matchedApp.id;
+      item.appName = matchedApp.name;
+      item.appIconUrl = matchedApp.iconUrl;
+    }
+  }
+
+  const stats: RepositoryStats = {
+    supportedAppsCount: apps.length,
+    totalPatchesCount: patches.length,
+    bundleVersion: release.version || rawList.version,
+    releaseDate: release.releaseDate,
+  };
+
+  return {
     apps,
     patches,
     stats,
     release,
     versionStatuses,
   };
-
-  return cachedData;
 }
 
+async function initRepositoryData() {
+  const { rawList, rawBundle, changelogContent } = readLocalFiles();
+  const entities = buildRepositoryEntities(rawList);
+  const release = await resolveLatestRelease({
+    bundleJson: rawBundle,
+    changelogContent,
+  });
+  return assembleRepositoryData(rawList, entities, release);
+}
+
+function initRepositoryDataSync() {
+  const { rawList, rawBundle, changelogContent } = readLocalFiles();
+  const entities = buildRepositoryEntities(rawList);
+  const release = resolveLatestReleaseSync({
+    bundleJson: rawBundle,
+    changelogContent,
+  });
+  return assembleRepositoryData(rawList, entities, release);
+}
+
+// Static builds intentionally attempt to resolve current release metadata from
+// GitHub via initRepositoryData. If GitHub is unavailable or rate-limited, the lookup
+// is bounded by a 5-second timeout in fetchLatestGitHubRelease before falling back
+// synchronously to local bundle and changelog files via initRepositoryDataSync.
+try {
+  cachedData = await initRepositoryData();
+} catch {
+  cachedData = initRepositoryDataSync();
+}
+
+export function loadRepositoryData() {
+  if (!cachedData) {
+    cachedData = initRepositoryDataSync();
+  }
+  return cachedData;
+}
 export function getApps(): App[] {
   return loadRepositoryData().apps;
 }
@@ -303,7 +359,7 @@ export function getPatches(): Patch[] {
 
 export function getPatchesForApp(appId: string): Patch[] {
   return loadRepositoryData().patches.filter((p) =>
-    p.compatibleAppIds.includes(appId)
+    p.compatibleAppIds.includes(appId),
   );
 }
 

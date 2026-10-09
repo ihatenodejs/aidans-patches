@@ -284,7 +284,7 @@ class ToolManager:
             cmd = [str(exe)] + extra_args
 
         check = kwargs.pop("check", False)
-        run_kwargs = {
+        run_kwargs: dict[str, Any] = {
             "capture_output": True,
             "text": True,
         }

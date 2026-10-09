@@ -10,12 +10,22 @@ interface Props {
 }
 
 const {
-  title = "Aidan's Morphe Patches",
-  description = "Minimal technical frontend and live freshness catalog for bytecode, resource, and Hermes binary patches.",
+  title = "Aidan's Morphe Patches — Block Ads, Remove Tracking & Customize Android Apps",
+  description = 'Free, open-source patches for popular Android apps. Block ads, remove invasive tracking, bypass artificial limits, and customize the apps you use every day.',
   currentPath = '/',
 } = Astro.props;
 
-const canonicalUrl = new URL(currentPath, Astro.site || 'https://aidans-patches.pages.dev').href;
+const siteUrl = Astro.site || 'https://patch.p0ntus.com';
+const canonicalUrl = new URL(currentPath, siteUrl).href;
+const imageUrl = new URL('/favicon.svg', siteUrl).href;
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'WebSite',
+  name: "Aidan's Morphe Patches",
+  url: canonicalUrl,
+  description: description,
+};
 ---
 
 <!doctype html>
@@ -26,22 +36,31 @@ const canonicalUrl = new URL(currentPath, Astro.site || 'https://aidans-patches.
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="generator" content={Astro.generator} />
 
-    <!-- Canonical & SEO -->
+    <!-- Canonical & Search Engine Optimization -->
     <title>{title}</title>
     <meta name="description" content={description} />
     <link rel="canonical" href={canonicalUrl} />
+    <meta name="robots" content="index, follow" />
+    <meta name="theme-color" content="#050505" />
 
-    <!-- Open Graph -->
+    <!-- Open Graph (Facebook, Discord, LinkedIn) -->
+    <meta property="og:site_name" content="Aidan's Morphe Patches" />
+    <meta property="og:locale" content="en_US" />
     <meta property="og:type" content="website" />
     <meta property="og:url" content={canonicalUrl} />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
-    <meta property="og:image" content="/favicon.svg" />
+    <meta property="og:image" content={imageUrl} />
 
-    <!-- Twitter -->
+    <!-- Twitter Card -->
     <meta property="twitter:card" content="summary" />
+    <meta property="twitter:url" content={canonicalUrl} />
     <meta property="twitter:title" content={title} />
     <meta property="twitter:description" content={description} />
+    <meta property="twitter:image" content={imageUrl} />
+
+    <!-- Structured Data (JSON-LD) -->
+    <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
   </head>
   <body class="bg-[#050505] text-[#ededed] font-sans antialiased selection:bg-white/20 selection:text-white">
     <!-- Centered Content Rail with subtle vertical border rails -->

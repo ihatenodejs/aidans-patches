@@ -72,7 +72,6 @@ private val HIDDEN_PLAYTIME_CAMPAIGNS_BYTES = byteArrayOf(0x92.toByte(), 0x00, 0
 private val EXPECTED_REFERRAL_UNAVAILABLE_BYTES = byteArrayOf(0x34, 0x02, 0x00, 0x3b)
 private val HIDDEN_REFERRAL_UNAVAILABLE_BYTES = byteArrayOf(0x95.toByte(), 0x01, 0x76.toByte(), 0x01)
 
-
 // 6. Trivia
 private val EXPECTED_TRIVIA_GIVEAWAY_BANNER_BYTES = byteArrayOf(0x34, 0x07, 0x00, 0x40)
 private val HIDDEN_TRIVIA_GIVEAWAY_BANNER_BYTES = byteArrayOf(0x92.toByte(), 0x00, 0x76.toByte(), 0x00)
@@ -324,7 +323,6 @@ val removePromosAndGiveawaysPatch = rawResourcePatch(
                 EXPECTED_REFERRAL_UNAVAILABLE_BYTES,
                 HIDDEN_REFERRAL_UNAVAILABLE_BYTES
             )
-
         }
 
         // 10. Trivia
