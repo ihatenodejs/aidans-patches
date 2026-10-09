@@ -17,7 +17,7 @@ export type FinalPatchCompatibilityStatus = 'compatible' | 'incompatible' | 'err
 
 export interface CompatibilityRecord {
   requestId: string;
-  role: 'target' | 'latest';
+  role: 'target';
   versionName: string;
   versionCode: number;
   patchBundleVersion: string;
@@ -27,13 +27,14 @@ export interface CompatibilityRecord {
   failedCount: number;
   status: PatchCompatibilityStatus;
   workflowRunUrl?: string | null;
+  failureReason?: string | null;
 }
 
 export interface OutstandingCompatibilityRequest {
   requestId: string;
   targetVersion: string;
   playVersion: string | null;
-  expectedRoles: ('target' | 'latest')[];
+  expectedRoles: ('target')[];
   dispatchedAt: string;
 }
 
@@ -48,7 +49,6 @@ export interface AppVersionRecord {
   supportedVersions: string[];
   latestSupportedVersion: string;
   targetCompatibility?: CompatibilityRecord | null;
-  latestCompatibility?: CompatibilityRecord | null;
   outstandingRequest?: OutstandingCompatibilityRequest | null;
   outstandingRequestId?: string | null;
 }
@@ -79,7 +79,7 @@ export interface TargetAppConfig {
 }
 
 export interface CompatibilityResultInput {
-  role: 'target' | 'latest';
+  role: 'target';
   versionName: string;
   versionCode: number;
   patchBundleVersion: string;
@@ -88,6 +88,7 @@ export interface CompatibilityResultInput {
   passedCount: number;
   failedCount: number;
   workflowRunUrl?: string | null;
+  failureReason?: string | null;
 }
 
 export interface CompatibilityResultSubmission {

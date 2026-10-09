@@ -16,6 +16,7 @@ import { getStatusColor, renderBadgeSvg } from './badges';
 
 let memoryCache: { payload: KVVersionPayload; expiresAt: number } | null = null;
 const MEMORY_CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour fallback
+const OUTSTANDING_REQUEST_TTL_MS = 12 * 60 * 60 * 1000; // 12 hours TTL (two 6-hour scrape cycles)
 
 const PUBLIC_CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -122,7 +123,6 @@ export async function loadStatusPayload(
         supportedVersions: app.supportedVersions,
         latestSupportedVersion: app.latestSupportedVersion,
         targetCompatibility: null,
-        latestCompatibility: null,
         outstandingRequest: null,
         outstandingRequestId: null,
       };
@@ -152,7 +152,8 @@ export async function dispatchCompatibilityCheck(
   requestId: string,
   packageName: string,
   observedPlayVersion: string | null,
-  targetVersion: string
+  targetVersion: string,
+  expectedRoles: ('target')[]
 ): Promise<boolean> {
   if (!env.GITHUB_DISPATCH_TOKEN) {
     return false;
@@ -169,6 +170,7 @@ export async function dispatchCompatibilityCheck(
       packageName,
       observedPlayVersion,
       targetVersion,
+      expectedRoles,
     },
   });
 
@@ -186,6 +188,14 @@ export async function dispatchCompatibilityCheck(
       });
 
       if (response.status === 204 || response.ok) {
+        console.info(
+          JSON.stringify({
+            event: 'dispatch_success',
+            packageName,
+            requestId,
+            expectedRoles,
+          })
+        );
         return true;
       }
 
@@ -194,17 +204,38 @@ export async function dispatchCompatibilityCheck(
         continue;
       }
 
-      console.error(`GitHub dispatch rejected for ${packageName}: HTTP ${response.status}`);
+      console.error(
+        JSON.stringify({
+          event: 'dispatch_rejected',
+          packageName,
+          requestId,
+          status: response.status,
+        })
+      );
       return false;
     } catch (err) {
       if (attempt === 2) {
-        console.error(`GitHub dispatch network error for ${packageName}:`, err);
+        console.error(
+          JSON.stringify({
+            event: 'dispatch_network_error',
+            packageName,
+            requestId,
+            error: err instanceof Error ? err.message : String(err),
+          })
+        );
         return false;
       }
       await delay(1000 * (attempt + 1));
     }
   }
 
+  console.error(
+    JSON.stringify({
+      event: 'dispatch_failed',
+      packageName,
+      requestId,
+    })
+  );
   return false;
 }
 
@@ -234,40 +265,30 @@ export async function performVersionCheck(
       playVersion = scraped.playVersion;
       status = compareAppVersions(app.latestSupportedVersion, playVersion);
     } else {
-      status = 'unknown';
-      playVersion = priorRecord?.playVersion ?? null;
+      // App exists on Google Play (not 404, not error), but Google Play web HTML omits
+      // the version string (e.g. multi-split App Bundle where version varies with device).
+      if (priorRecord?.playVersion) {
+        playVersion = priorRecord.playVersion;
+        status = compareAppVersions(app.latestSupportedVersion, playVersion);
+      } else {
+        playVersion = app.latestSupportedVersion;
+        status = 'up-to-date';
+      }
     }
 
     let targetCompat = priorRecord?.targetCompatibility ?? null;
-    let latestCompat = priorRecord?.latestCompatibility ?? null;
 
     const targetVersionChanged = Boolean(
       priorRecord && priorRecord.latestSupportedVersion !== app.latestSupportedVersion
     );
-    const concretePlayVersionChanged = Boolean(
-      playVersion &&
-      priorRecord?.playVersion &&
-      playVersion !== priorRecord.playVersion &&
-      !playVersion.toLowerCase().includes('varies')
-    );
 
     if (targetVersionChanged) {
       targetCompat = null;
-      latestCompat = null;
-    } else if (concretePlayVersionChanged) {
-      latestCompat = null;
     }
 
-    const expectedRoles: ('target' | 'latest')[] = [];
+    const expectedRoles: ('target')[] = [];
     if (!targetCompat || targetCompat.status === 'error') {
       expectedRoles.push('target');
-    }
-    if (
-      playVersion &&
-      status === 'newer-available' &&
-      (!latestCompat || latestCompat.status === 'error')
-    ) {
-      expectedRoles.push('latest');
     }
 
     let outstandingRequest = priorRecord?.outstandingRequest ?? null;
@@ -277,6 +298,16 @@ export async function performVersionCheck(
         outstandingRequest.playVersion !== playVersion)
     ) {
       outstandingRequest = null;
+    }
+
+    if (outstandingRequest) {
+      const dispatchedTime = new Date(outstandingRequest.dispatchedAt).getTime();
+      const isStaleOrInvalid =
+        Number.isNaN(dispatchedTime) ||
+        Date.now() - dispatchedTime > OUTSTANDING_REQUEST_TTL_MS;
+      if (isStaleOrInvalid) {
+        outstandingRequest = null;
+      }
     }
 
     if (expectedRoles.length > 0 && !outstandingRequest) {
@@ -289,7 +320,8 @@ export async function performVersionCheck(
           requestId,
           app.packageName,
           playVersion,
-          app.latestSupportedVersion
+          app.latestSupportedVersion,
+          expectedRoles
         );
       }
       if (dispatchOk) {
@@ -314,7 +346,6 @@ export async function performVersionCheck(
       supportedVersions: app.supportedVersions,
       latestSupportedVersion: app.latestSupportedVersion,
       targetCompatibility: targetCompat,
-      latestCompatibility: latestCompat,
       outstandingRequest,
       outstandingRequestId: outstandingRequest?.requestId ?? null,
     };
@@ -378,20 +409,17 @@ export function computeAggregateCompatibilityStatus(
     monitoredAppsFound++;
 
     const targetStatus = record.targetCompatibility?.status || 'not-tested';
-    const latestStatus = record.latestCompatibility?.status || null;
 
-    if (targetStatus === 'error' || latestStatus === 'error') {
+    if (targetStatus === 'error') {
       anyError = true;
       allCompatible = false;
-    } else if (targetStatus === 'incompatible' || latestStatus === 'incompatible') {
+    } else if (targetStatus === 'incompatible') {
       anyIncompatible = true;
       allCompatible = false;
     } else if (
       targetStatus === 'queued' ||
       targetStatus === 'running' ||
-      targetStatus === 'not-tested' ||
-      latestStatus === 'queued' ||
-      latestStatus === 'running'
+      targetStatus === 'not-tested'
     ) {
       anyPending = true;
       allCompatible = false;
@@ -596,6 +624,17 @@ export default {
           });
         }
 
+        if (
+          res.failureReason !== undefined &&
+          res.failureReason !== null &&
+          typeof res.failureReason !== 'string'
+        ) {
+          return new Response(JSON.stringify({ error: 'Malformed failureReason field' }), {
+            status: 400,
+            headers: { 'Content-Type': 'application/json' },
+          });
+        }
+
         if (res.role === 'target' && res.versionName !== outstanding.targetVersion) {
           return new Response(
             JSON.stringify({
@@ -608,21 +647,6 @@ export default {
           );
         }
 
-        if (
-          res.role === 'latest' &&
-          outstanding.playVersion &&
-          res.versionName !== outstanding.playVersion
-        ) {
-          return new Response(
-            JSON.stringify({
-              error: `Tested latest version '${res.versionName}' does not match expected '${outstanding.playVersion}'`,
-            }),
-            {
-              status: 409,
-              headers: { 'Content-Type': 'application/json' },
-            }
-          );
-        }
 
         recordsToApply.push({
           requestId: submission.requestId,
@@ -636,15 +660,12 @@ export default {
           failedCount: res.failedCount,
           status: res.status,
           workflowRunUrl: res.workflowRunUrl || null,
+          failureReason: typeof res.failureReason === 'string' ? res.failureReason : null,
         });
       }
 
       for (const rec of recordsToApply) {
-        if (rec.role === 'target') {
-          appRecord.targetCompatibility = rec;
-        } else {
-          appRecord.latestCompatibility = rec;
-        }
+        appRecord.targetCompatibility = rec;
       }
 
       appRecord.outstandingRequest = null;

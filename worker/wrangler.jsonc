@@ -14,7 +14,7 @@
     "DISPATCH_EVENT_TYPE": "apk-fixture-refresh"
   },
   "triggers": {
-    "crons": ["0 6 * * *"]
+    "crons": ["0 */6 * * *"]
   },
   "kv_namespaces": [
     {
