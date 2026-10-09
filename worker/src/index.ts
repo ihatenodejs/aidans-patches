@@ -15,7 +15,7 @@ import { getStatusColor, renderBadgeSvg } from './badges';
 
 let memoryCache: { payload: KVVersionPayload; expiresAt: number } | null = null;
 const MEMORY_CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour fallback
-const OUTSTANDING_REQUEST_TTL_MS = 12 * 60 * 60 * 1000; // 12 hours TTL (two 6-hour scrape cycles)
+const OUTSTANDING_REQUEST_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours TTL (one scrape cycle)
 
 const PUBLIC_CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
