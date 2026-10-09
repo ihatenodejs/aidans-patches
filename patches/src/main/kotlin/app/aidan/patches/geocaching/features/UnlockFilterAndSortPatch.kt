@@ -2,18 +2,17 @@ package app.aidan.patches.geocaching.features
 
 import app.aidan.patches.geocaching.shared.COMPATIBILITY_GEOCACHING
 import app.aidan.patches.geocaching.shared.patchAllL3cChecksToValue
+import app.aidan.patches.geocaching.shared.patchCz9OmitAllCacheTypes
 import app.aidan.patches.geocaching.shared.patchIncludeOwnedDisabledCachesToNull
 import app.aidan.patches.geocaching.shared.patchSanitizeFilterModel
-import app.aidan.patches.geocaching.shared.patchCz9OmitAllCacheTypes
 import app.morphe.patcher.extensions.InstructionExtensions.addInstructions
 import app.morphe.patcher.patch.BytecodePatchContext
 import app.morphe.patcher.patch.PatchException
+import app.morphe.patcher.patch.bytecodePatch
 import com.android.tools.smali.dexlib2.Opcode
 import com.android.tools.smali.dexlib2.iface.instruction.FiveRegisterInstruction
-import com.android.tools.smali.dexlib2.iface.instruction.RegisterRangeInstruction
 import com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction
-import com.android.tools.smali.dexlib2.iface.reference.MethodReference
-import app.morphe.patcher.patch.bytecodePatch
+import com.android.tools.smali.dexlib2.iface.instruction.RegisterRangeInstruction
 val unlockFilterAndSortPatch = bytecodePatch(
     name = "Unlock Cache Filter and Sorting Tools",
     description = "Unlocks advanced cache search filters and sorting options without prompting for Geocaching Premium.",
@@ -361,5 +360,3 @@ private fun BytecodePatchContext.patchMapLibreFragmentOnResume() {
         )
     }
 }
-
-

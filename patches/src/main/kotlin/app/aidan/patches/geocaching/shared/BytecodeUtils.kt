@@ -1,13 +1,13 @@
 package app.aidan.patches.geocaching.shared
 
 import app.morphe.patcher.extensions.InstructionExtensions.addInstructions
-import app.morphe.patcher.patch.PatchException
 import app.morphe.patcher.extensions.InstructionExtensions.replaceInstruction
-import com.android.tools.smali.dexlib2.iface.reference.FieldReference
+import app.morphe.patcher.patch.PatchException
+import app.morphe.patcher.util.proxy.mutableTypes.MutableMethod
 import com.android.tools.smali.dexlib2.Opcode
 import com.android.tools.smali.dexlib2.iface.instruction.OneRegisterInstruction
-import app.morphe.patcher.util.proxy.mutableTypes.MutableMethod
 import com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction
+import com.android.tools.smali.dexlib2.iface.reference.FieldReference
 import com.android.tools.smali.dexlib2.iface.reference.MethodReference
 
 /**
@@ -104,8 +104,10 @@ fun patchSanitizeFilterModel(method: MutableMethod) {
 
     val returnIdx = instructions.indexOfFirst { inst ->
         inst.opcode == Opcode.RETURN_OBJECT &&
-            (instructions.getOrNull(instructions.indexOf(inst) - 1)?.opcode == Opcode.INVOKE_DIRECT_RANGE ||
-             instructions.getOrNull(instructions.indexOf(inst) - 1)?.opcode == Opcode.INVOKE_DIRECT)
+            (
+                instructions.getOrNull(instructions.indexOf(inst) - 1)?.opcode == Opcode.INVOKE_DIRECT_RANGE ||
+                    instructions.getOrNull(instructions.indexOf(inst) - 1)?.opcode == Opcode.INVOKE_DIRECT
+                )
     }
     if (returnIdx != -1) {
         val returnInst = instructions[returnIdx] as OneRegisterInstruction

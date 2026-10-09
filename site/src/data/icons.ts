@@ -4,7 +4,8 @@ export const APP_ICONS: Record<string, string> = {
   'com.aftership.AfterShip': '/icons/com.aftership.AfterShip.png',
   'com.ashtoncofer.Buzz': '/icons/com.ashtoncofer.Buzz.png',
   'com.eab.se': '/icons/com.eab.se.png',
-  'com.groundspeak.geocaching.intro': '/icons/com.groundspeak.geocaching.intro.png',
+  'com.groundspeak.geocaching.intro':
+    '/icons/com.groundspeak.geocaching.intro.png',
   'com.instructure.candroid': '/icons/com.instructure.candroid.png',
   'com.sezzle.sezzlemobile': '/icons/com.sezzle.sezzlemobile.png',
   'com.sidelineswap.android': '/icons/com.sidelineswap.android.png',

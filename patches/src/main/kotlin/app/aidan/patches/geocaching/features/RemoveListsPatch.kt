@@ -82,7 +82,8 @@ private fun BytecodePatchContext.patchOnResumeListBadge() {
     val prevInst = if (constIdx > 0) instructions[constIdx - 1] else null
     val prevPrevInst = if (constIdx > 1) instructions[constIdx - 2] else null
     if (prevInst?.opcode == com.android.tools.smali.dexlib2.Opcode.RETURN_OBJECT &&
-        prevPrevInst?.opcode == com.android.tools.smali.dexlib2.Opcode.SGET_OBJECT) {
+        prevPrevInst?.opcode == com.android.tools.smali.dexlib2.Opcode.SGET_OBJECT
+    ) {
         return
     }
 

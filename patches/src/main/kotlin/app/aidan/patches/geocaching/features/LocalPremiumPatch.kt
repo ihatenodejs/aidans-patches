@@ -407,4 +407,3 @@ private fun BytecodePatchContext.patchPreventMapSearchError() {
     patchIncludeOwnedDisabledCachesToNull(hMethod)
     patchSanitizeFilterModel(hMethod)
 }
-

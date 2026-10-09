@@ -55,6 +55,10 @@ tasks {
     named("processResources") {
         dependsOn(prepareEmojiFont)
     }
+    named("sourcesJar") {
+        dependsOn(prepareEmojiFont)
+    }
+
 
     named("build") {
         finalizedBy("buildAndroid")
