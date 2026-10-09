@@ -82,6 +82,7 @@ jobs:
         package: ${{ fromJson(needs.matrix-setup.outputs.packages) }}
     env:
       COMPATIBILITY_REQUEST_ID: ${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.package }}
+      DISPATCH_PACKAGE_NAME: ${{ matrix.package }}
       WORKER_STATUS_URL: ${{ vars.WORKER_STATUS_URL || 'https://worker.patch.p0ntus.com' }}
       COMPATIBILITY_STATUS_SECRET: ${{ secrets.COMPATIBILITY_STATUS_SECRET }}
     steps:
@@ -127,7 +128,7 @@ jobs:
         if: ${{ env.COMPATIBILITY_STATUS_SECRET != '' }}
         run: |
           uv run --project tools/apk-lab python -m apk_lab.compatibility_ci start \
-            --package "${{ matrix.package }}" \
+            --package "$DISPATCH_PACKAGE_NAME" \
             --request-id "$COMPATIBILITY_REQUEST_ID" \
             --git-revision "$GITHUB_SHA" \
             --patches-list patches-list.json
@@ -140,7 +141,7 @@ jobs:
             MPP_FILE=$(ls patches/build/libs/patches-*.mpp 2>/dev/null | head -n 1)
           fi
           uv run --project tools/apk-lab python -m apk_lab.compatibility_ci run \
-            --package "${{ matrix.package }}" \
+            --package "$DISPATCH_PACKAGE_NAME" \
             --mpp "$MPP_FILE" \
             --patches-list patches-list.json
         env:
@@ -187,7 +188,7 @@ jobs:
 
             DISPATCH_TARGET_VERSION=""
             if [ -f "patches-list.json" ]; then
-              DISPATCH_TARGET_VERSION=$(grep -A 20 "\"packageName\": \"$DISPATCH_PACKAGE_NAME\"" patches-list.json | grep '"version":' | head -n 1 | sed -E 's/.*"version": "([^"]+)".*/\1/' || true)
+              DISPATCH_TARGET_VERSION=$(jq -r --arg pkg "$DISPATCH_PACKAGE_NAME" '[.patches[].compatiblePackages[]? | select(.packageName == $pkg) | .targets[]?.version // empty] | first // ""' patches-list.json)
             fi
 
             jq -n \
