@@ -180,6 +180,7 @@ def test_reconcile_and_test_uses_updated_target_and_posts_batched(
     assert len(sub["results"]) == 1
     assert sub["results"][0]["role"] == "target"
 
+
 def test_reconcile_and_test_no_fixture_fails(monkeypatch, tmp_path):
     monkeypatch.delenv("APKEEP_EMAIL", raising=False)
     monkeypatch.delenv("R2_ACCESS_KEY_ID", raising=False)
@@ -200,6 +201,7 @@ def test_reconcile_and_test_no_fixture_fails(monkeypatch, tmp_path):
     )
     # Must exit nonzero because no fixture exists
     assert exit_code == ExitCode.INVALID_ARTIFACT
+
 
 def test_reconcile_and_test_acquisition_failure_posts_null_acquired_version(
     monkeypatch, tmp_path

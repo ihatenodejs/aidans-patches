@@ -15,45 +15,68 @@ const patchesByApp = apps.map((app) => ({
 ---
 
 <BaseLayout
-  title="Patches Catalog — Aidan's Morphe Patches"
-  description={`Browse all ${totalPatches} curated Android bytecode, resource, and Hermes binary patches with full option configuration and source references.`}
+  title="Browse Android Patches — Aidan's Morphe Patches"
+  description={`Explore all ${totalPatches} free patches across ${apps.length} popular Android apps. Block ads, turn off tracking, enable dark mode, and unlock hidden features.`}
   currentPath="/patches"
 >
   <div class="px-4 sm:px-6 py-10 space-y-10">
     <!-- Header Section -->
     <div class="space-y-3">
       <h1 class="font-sans text-3xl font-extrabold tracking-tight text-white">
-        Patch Catalog
+        Android App Patches
       </h1>
       <p class="font-sans text-sm text-zinc-400 max-w-2xl leading-relaxed">
-        Search and filter through bytecode injections, telemetry blocks, custom resource overrides, and native ARM64 hooks. Expand any patch to inspect configurable parameters.
+        Find and customize patches for your favorite apps. Block ads and
+        tracking, switch to dark themes, unlock hidden tools, and configure
+        options for each patch.
       </p>
     </div>
 
     <!-- Filter & Search Controls Bar -->
-    <div id="filter-bar" class="border border-white/[0.08] bg-[#080808] p-4 rounded-sm space-y-4 sticky top-16 z-40 backdrop-blur-md bg-opacity-95">
+    <div
+      id="filter-bar"
+      class="border border-white/[0.08] bg-[#080808] p-4 rounded-sm space-y-4 sticky top-16 z-40 backdrop-blur-md bg-opacity-95"
+    >
       <div class="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
         <!-- Search Input -->
         <div class="relative flex-grow max-w-md">
           <input
             type="search"
             id="search-input"
-            placeholder="Search patches, options, descriptions..."
+            placeholder="Search patches, apps, features..."
             class="w-full bg-zinc-950 border border-white/10 px-3.5 py-2 pl-9 text-xs font-mono text-white placeholder-zinc-500 rounded-sm focus:outline-none focus:border-white/30"
           />
-          <svg class="w-4 h-4 text-zinc-500 absolute left-2.5 top-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          <svg
+            class="w-4 h-4 text-zinc-500 absolute left-2.5 top-2.5"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+            />
           </svg>
         </div>
 
         <!-- Filter Checkboxes -->
         <div class="flex flex-wrap items-center gap-4 text-xs font-mono text-zinc-400">
           <label class="flex items-center gap-1.5 cursor-pointer hover:text-white transition-colors">
-            <input type="checkbox" id="filter-configurable" class="accent-blue-500 rounded cursor-pointer" />
+            <input
+              type="checkbox"
+              id="filter-configurable"
+              class="accent-blue-500 rounded cursor-pointer"
+            />
             <span>Configurable only</span>
           </label>
           <label class="flex items-center gap-1.5 cursor-pointer hover:text-white transition-colors">
-            <input type="checkbox" id="filter-default" class="accent-emerald-500 rounded cursor-pointer" />
+            <input
+              type="checkbox"
+              id="filter-default"
+              class="accent-emerald-500 rounded cursor-pointer"
+            />
             <span>Default only</span>
           </label>
         </div>
@@ -96,7 +119,13 @@ const patchesByApp = apps.map((app) => ({
 
       <!-- Live Search Counter -->
       <div id="filter-count" class="text-[11px] font-mono text-zinc-500 hidden">
-        Showing <span id="visible-count" class="text-zinc-300 font-bold">{allPatches.length}</span> <span id="visible-label">{allPatches.length === 1 ? 'patch' : 'patches'}</span>
+        Showing{' '}
+        <span id="visible-count" class="text-zinc-300 font-bold">
+          {allPatches.length}
+        </span>{' '}
+        <span id="visible-label">
+          {allPatches.length === 1 ? 'patch' : 'patches'}
+        </span>
       </div>
     </div>
 
@@ -111,23 +140,23 @@ const patchesByApp = apps.map((app) => ({
           <!-- App Header Strip -->
           <div class="border border-white/[0.08] bg-[#070707] p-4 rounded-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div class="flex items-center gap-3">
-            {app.iconUrl ? (
-              <Image
-                src={app.iconUrl}
-                alt={app.name}
-                width={40}
-                height={40}
-                class="w-10 h-10 rounded-md object-cover border border-white/10 shrink-0"
-                loading={index === 0 ? "eager" : "lazy"}
-              />
-            ) : (
-              <div
-                class="w-10 h-10 rounded-sm flex items-center justify-center font-mono text-sm font-bold shrink-0"
-                style={`background-color: ${app.appIconColor}1a; color: ${app.appIconColor}; border: 1px solid ${app.appIconColor}40;`}
-              >
-                {app.name.charAt(0)}
-              </div>
-            )}
+              {app.iconUrl ? (
+                <Image
+                  src={app.iconUrl}
+                  alt={app.name}
+                  width={40}
+                  height={40}
+                  class="w-10 h-10 rounded-md object-cover border border-white/10 shrink-0"
+                  loading={index === 0 ? 'eager' : 'lazy'}
+                />
+              ) : (
+                <div
+                  class="w-10 h-10 rounded-sm flex items-center justify-center font-mono text-sm font-bold shrink-0"
+                  style={`background-color: ${app.appIconColor}1a; color: ${app.appIconColor}; border: 1px solid ${app.appIconColor}40;`}
+                >
+                  {app.name.charAt(0)}
+                </div>
+              )}
 
               <div>
                 <div class="flex items-center gap-2">
@@ -179,7 +208,10 @@ const patchesByApp = apps.map((app) => ({
     </div>
 
     <!-- Empty Results Fallback -->
-    <div id="no-results" class="hidden p-12 border border-white/[0.08] bg-[#070707] text-center space-y-2 rounded-sm font-mono text-xs text-zinc-500">
+    <div
+      id="no-results"
+      class="hidden p-12 border border-white/[0.08] bg-[#070707] text-center space-y-2 rounded-sm font-mono text-xs text-zinc-500"
+    >
       <div>No patches matched your search query or filters.</div>
       <button
         type="button"
@@ -262,9 +294,16 @@ const patchesByApp = apps.map((app) => ({
         // Update counter & empty state
         if (visibleCountEl) visibleCountEl.textContent = String(visibleCount);
         const visibleLabelEl = document.getElementById('visible-label');
-        if (visibleLabelEl) visibleLabelEl.textContent = visibleCount === 1 ? 'patch' : 'patches';
+        if (visibleLabelEl)
+          visibleLabelEl.textContent = visibleCount === 1 ? 'patch' : 'patches';
         if (filterCountEl) {
-          filterCountEl.classList.toggle('hidden', query === '' && !configurableOnly && !defaultOnly && activeAppFilter === 'all');
+          filterCountEl.classList.toggle(
+            'hidden',
+            query === '' &&
+              !configurableOnly &&
+              !defaultOnly &&
+              activeAppFilter === 'all',
+          );
         }
         if (noResultsEl) {
           noResultsEl.classList.toggle('hidden', visibleCount > 0);
@@ -319,7 +358,10 @@ const patchesByApp = apps.map((app) => ({
           // so the space above the app header matches the space below it
           const filterHeight = filterBar.offsetHeight;
           const offset = 64 + filterHeight + 16;
-          document.documentElement.style.setProperty('--scroll-target-offset', offset + 'px');
+          document.documentElement.style.setProperty(
+            '--scroll-target-offset',
+            offset + 'px',
+          );
         }
       }
       updateScrollMargin();
@@ -342,7 +384,6 @@ const patchesByApp = apps.map((app) => ({
       window.addEventListener('hashchange', scrollToTarget);
     })();
   </script>
-
   <style is:global>
     :root {
       --scroll-target-offset: 231px;

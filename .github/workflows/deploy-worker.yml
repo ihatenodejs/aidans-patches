@@ -36,6 +36,10 @@ jobs:
         working-directory: worker
         run: bun run check
 
+      - name: Run Worker Unit Tests
+        working-directory: worker
+        run: bun run test
+
       - name: Deploy Cloudflare Worker (Version Freshness Cron)
         if: env.DEPLOY_ENABLED == 'true'
         uses: cloudflare/wrangler-action@v3

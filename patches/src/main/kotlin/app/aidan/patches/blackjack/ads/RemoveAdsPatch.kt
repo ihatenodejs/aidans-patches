@@ -26,6 +26,7 @@ val removeAdsPatch = rawResourcePatch(
         val library = get("lib/arm64-v8a/libil2cpp.so")
         if (!library.exists()) throw PatchException("Missing arm64 IL2CPP library")
         val bytes = library.readBytes()
+
         /**
          * Writes [replacement] into the in-memory library at byte [offset] after checking
          * [expected], or does nothing if the replacement is already present. [target]

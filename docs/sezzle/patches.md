@@ -413,4 +413,3 @@ Prevents Microsoft CodePush from downloading remote OTA bundles that would overw
 3. Stubs `RootedCheck.isJailBroken()`—the value that `JailMonkeyModule.getConstants()` publishes as `isJailBroken`—to return `false`.
 
 ---
-

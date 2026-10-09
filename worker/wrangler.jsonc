@@ -6,26 +6,26 @@
   "compatibility_flags": ["nodejs_compat"],
   "observability": {
     "logs": {
-      "enabled": true
-    }
+      "enabled": true,
+    },
   },
   "vars": {
     "GITHUB_REPO": "ihatenodejs/aidans-patches",
-    "DISPATCH_EVENT_TYPE": "apk-fixture-refresh"
+    "DISPATCH_EVENT_TYPE": "apk-fixture-refresh",
   },
   "triggers": {
-    "crons": ["0 */6 * * *"]
+    "crons": ["0 */6 * * *"],
   },
   "kv_namespaces": [
     {
       "binding": "PLAY_VERSIONS_KV",
-      "id": "5c62cbcdc49749368cc3daba5aa87759"
-    }
+      "id": "5c62cbcdc49749368cc3daba5aa87759",
+    },
   ],
   "routes": [
     {
       "pattern": "worker.patch.p0ntus.com",
-      "custom_domain": true
-    }
-  ]
+      "custom_domain": true,
+    },
+  ],
 }

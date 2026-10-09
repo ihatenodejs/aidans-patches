@@ -64,12 +64,7 @@ export type FreshnessStatus =
   | 'unknown';
 
 export type PatchCompatibilityStatus =
-  | 'queued'
-  | 'running'
-  | 'compatible'
-  | 'incompatible'
-  | 'error'
-  | 'not-tested';
+  'queued' | 'running' | 'compatible' | 'incompatible' | 'error' | 'not-tested';
 
 export interface CompatibilityRecord {
   requestId: string;
@@ -90,7 +85,7 @@ export interface OutstandingCompatibilityRequest {
   requestId: string;
   targetVersion: string;
   playVersion: string | null;
-  expectedRoles: ('target')[];
+  expectedRoles: 'target'[];
   dispatchedAt: string;
 }
 
@@ -130,6 +125,14 @@ export interface ReleaseInfo {
   downloadUrl: string;
   rawChangelog: string;
   recentChanges: ReleaseChangeItem[];
+}
+
+export interface RawBundle {
+  version: string;
+  created_at: string;
+  description: string;
+  download_url: string;
+  signature_download_url?: string;
 }
 
 export interface RepositoryStats {

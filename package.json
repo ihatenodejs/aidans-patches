@@ -1,11 +1,27 @@
 {
+  "name": "aidans-patches",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "format": "bun scripts/audit.ts format",
+    "format:check": "bun scripts/audit.ts format:check",
+    "lint": "bun scripts/audit.ts lint",
+    "lint:fix": "bun scripts/audit.ts lint:fix",
+    "typecheck": "bun scripts/audit.ts typecheck",
+    "test": "bun scripts/audit.ts test",
+    "audit": "bun scripts/audit.ts all",
+    "prepare": "pre-commit install --install-hooks -t pre-commit -t pre-push || true"
+  },
   "devDependencies": {
-    "@cleyrop-org/semantic-release-backmerge": "^6.2.0",
     "@MorpheApp/changelog": "git+https://github.com/MorpheApp/changelog.git#bundle",
+    "@cleyrop-org/semantic-release-backmerge": "^6.2.0",
     "@semantic-release/exec": "^7.1.0",
     "@semantic-release/git": "^11.0.1",
     "conventional-changelog-conventionalcommits": "^9.3.1",
     "gradle-semantic-release-plugin": "^1.10.3",
+    "oxlint": "^1.87.0",
+    "prettier": "^3.9.9",
+    "prettier-plugin-astro": "^1.1.0",
     "semantic-release": "^25.0.9"
   }
 }

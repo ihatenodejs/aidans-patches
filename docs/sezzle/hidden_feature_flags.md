@@ -1,8 +1,8 @@
 # Sezzle Android App Hidden Feature Flags & Cohort Catalog
 
-**Target Package:** `com.sezzle.sezzlemobile`  
-**Analyzed Version:** `5.3.9` (VersionCode: `1889`)  
-**Target Runtime:** React Native Fabric / Hermes Bytecode v98 (`assets/index.android.bundle`) & Dalvik (`base.apk`)  
+**Target Package:** `com.sezzle.sezzlemobile`
+**Analyzed Version:** `5.3.9` (VersionCode: `1889`)
+**Target Runtime:** React Native Fabric / Hermes Bytecode v98 (`assets/index.android.bundle`) & Dalvik (`base.apk`)
 
 ---
 
