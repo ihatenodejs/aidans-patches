@@ -114,6 +114,7 @@ def build_error_result(
     reason: str,
     patch_bundle_version: str = "unknown",
     git_revision: str = "unknown",
+    failed_count: int = 0,
 ) -> dict[str, Any]:
     """Builds a terminal error result item for a role when fixture is missing or mismatched."""
     return {
@@ -124,7 +125,7 @@ def build_error_result(
         "gitRevision": git_revision,
         "status": "error",
         "passedCount": 0,
-        "failedCount": 1,
+        "failedCount": failed_count,
         "failureReason": reason,
         "workflowRunUrl": (
             os.environ.get("GITHUB_SERVER_URL", "https://github.com")
@@ -150,10 +151,13 @@ def build_result_item(role: str, report: PatchCompatibilityReport) -> dict[str, 
         "status": status,
         "passedCount": report.passed_cases,
         "failedCount": report.failed_cases,
-        "workflowRunUrl": os.environ.get("GITHUB_SERVER_URL", "https://github.com")
-        + f"/{os.environ.get('GITHUB_REPOSITORY', '')}/actions/runs/{os.environ.get('GITHUB_RUN_ID', '')}"
-        if os.environ.get("GITHUB_RUN_ID")
-        else None,
+        "failureReason": report.failure_reason,
+        "workflowRunUrl": (
+            os.environ.get("GITHUB_SERVER_URL", "https://github.com")
+            + f"/{os.environ.get('GITHUB_REPOSITORY', '')}/actions/runs/{os.environ.get('GITHUB_RUN_ID', '')}"
+            if os.environ.get("GITHUB_RUN_ID")
+            else None
+        ),
     }
 
 
@@ -276,7 +280,24 @@ def run_ci_reconcile_and_test(
             target_slot_role = "latest"
 
         if target_slot_role is not None:
-            target_file = runner_temp / f"{pkg}-target.apk"
+            active_slot_meta = (
+                target_slot if target_slot_role == "target" else latest_slot
+            )
+            target_ext = ".apk"
+            if active_slot_meta and active_slot_meta.container_type:
+                raw_type = active_slot_meta.container_type.lower().lstrip(".")
+                if raw_type in ("apk", "apkm", "xapk", "apks"):
+                    target_ext = f".{raw_type}"
+            else:
+                for p in patches_data.get("patches", []):
+                    for cp in p.get("compatiblePackages", []):
+                        if cp.get("packageName") == pkg and cp.get("apkFileType"):
+                            raw_type = cp["apkFileType"].lower().lstrip(".")
+                            if raw_type in ("apk", "apkm", "xapk", "apks"):
+                                target_ext = f".{raw_type}"
+                                break
+
+            target_file = runner_temp / f"{pkg}-target{target_ext}"
             try:
                 if (
                     acquired_artifact_path
@@ -293,6 +314,11 @@ def run_ci_reconcile_and_test(
                     f"Target compatibility: {t_report.overall_status} "
                     f"({t_report.passed_cases}/{t_report.total_cases})"
                 )
+                if t_report.failure_reason:
+                    print(
+                        f"Target failure details: {t_report.failure_reason}",
+                        file=sys.stderr,
+                    )
                 results.append(build_result_item("target", t_report))
                 if t_code != 0 or t_report.overall_status != "compatible":
                     overall_exit = t_code or ExitCode.USAGE_OR_TOOL_ERROR
@@ -322,6 +348,7 @@ def run_ci_reconcile_and_test(
                     reason,
                     patch_bundle_version=patch_bundle_version,
                     git_revision=git_revision,
+                    failed_count=0,
                 )
             )
             overall_exit = ExitCode.INVALID_ARTIFACT

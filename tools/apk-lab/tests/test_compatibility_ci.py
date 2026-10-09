@@ -385,10 +385,35 @@ def test_build_error_result():
     assert res["versionCode"] == 0
     assert res["status"] == "error"
     assert res["passedCount"] == 0
-    assert res["failedCount"] == 1
+    assert res["failedCount"] == 0
     assert res["failureReason"] == "Missing target fixture in R2 slot"
     assert res["patchBundleVersion"] == "1.4.0"
     assert res["gitRevision"] == "rev123"
+
+
+def test_build_result_item_includes_failure_reason():
+    from apk_lab.compatibility_ci import build_result_item
+
+    report = PatchCompatibilityReport(
+        artifact_sha256="sha",
+        package_name="com.test.app",
+        version_name="1.0.0",
+        version_code=100,
+        patch_bundle_version="1.4.0",
+        git_revision="rev1",
+        tool_versions={},
+        overall_status="incompatible",
+        total_cases=2,
+        passed_cases=0,
+        failed_cases=2,
+        failure_reason="[Patch1] Class not found; [Patch2] Syntax error",
+    )
+    item = build_result_item("target", report)
+    assert item["role"] == "target"
+    assert item["status"] == "incompatible"
+    assert item["passedCount"] == 0
+    assert item["failedCount"] == 2
+    assert item["failureReason"] == "[Patch1] Class not found; [Patch2] Syntax error"
 
 
 def test_reconcile_and_test_target_only(monkeypatch, tmp_path):

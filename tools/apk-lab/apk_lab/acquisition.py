@@ -26,10 +26,45 @@ class AcquisitionError(Exception):
 class AcquisitionSource(str, Enum):
     APKEEP = "apkeep"
     GOOPDL = "goopdl"
+    APKMIRROR = "apkmirror"
     MANUAL = "manual"
 
 
 FIXED_ZIP_DATETIME = (2026, 1, 1, 0, 0, 0)
+
+
+APKMIRROR_APP_MAP: dict[str, dict[str, str]] = {
+    "com.sezzle.sezzlemobile": {
+        "org": "sezzle",
+        "repo": "sezzle-buy-now-pay-later",
+        "type": "bundle",
+    },
+    "com.adobe.scan.android": {
+        "org": "adobe",
+        "repo": "adobe-scan-pdf-scanner-ocr",
+        "type": "bundle",
+    },
+    "com.aftership.AfterShip": {
+        "org": "aftership-ltd",
+        "repo": "aftership-package-tracker",
+        "type": "apk",
+    },
+    "com.instructure.candroid": {
+        "org": "instructure",
+        "repo": "canvas-student",
+        "type": "bundle",
+    },
+    "com.sidelineswap.android": {
+        "org": "sidelineswap",
+        "repo": "sidelineswap-buy-sell-sports-gear",
+        "type": "apk",
+    },
+    "com.tripledot.blackjack": {
+        "org": "tripledot-studios-limited",
+        "repo": "blackjack-2",
+        "type": "bundle",
+    },
+}
 
 
 def build_apkeep_cmd(
@@ -326,6 +361,133 @@ def acquire_with_goopdl(
         return apkm_path
 
 
+def acquire_with_apkmirror(
+    package_name: str,
+    out_dir: Path,
+    expected_version: str | None = None,
+    expected_version_code: int | None = None,
+    runner_script: Path | None = None,
+) -> Path:
+    """Acquires a specific app version from APKMirror via apkmirror-downloader fallback."""
+    out_dir = Path(out_dir).resolve()
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    mapping = APKMIRROR_APP_MAP.get(package_name)
+    if not mapping:
+        raise AcquisitionError(
+            f"No APKMirror repository mapping configured for '{package_name}'",
+            ExitCode.INVALID_ARTIFACT,
+        )
+
+    node_bin = shutil.which("node") or shutil.which("bun")
+    if not node_bin:
+        raise AcquisitionError(
+            "Node.js or Bun is required to run apkmirror-downloader",
+            ExitCode.INFRASTRUCTURE_FAILURE,
+        )
+
+    if runner_script is None:
+        runner_script = Path(__file__).parent / "apkmirror_runner.cjs"
+
+    if not runner_script.is_file():
+        raise AcquisitionError(
+            f"APKMirror runner script not found at {runner_script}",
+            ExitCode.INFRASTRUCTURE_FAILURE,
+        )
+
+    org = mapping["org"]
+    repo = mapping["repo"]
+    app_type = mapping.get("type", "apk")
+    version = expected_version or "latest"
+
+    with tempfile.TemporaryDirectory(dir=out_dir, prefix="apkmirror-") as attempt_dir:
+        attempt_path = Path(attempt_dir)
+        cmd = [
+            node_bin,
+            str(runner_script),
+            org,
+            repo,
+            version,
+            app_type,
+            str(attempt_path),
+        ]
+
+        try:
+            res = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+        except OSError as e:
+            raise AcquisitionError(
+                f"Failed to execute apkmirror-downloader: {e}",
+                ExitCode.INFRASTRUCTURE_FAILURE,
+            ) from e
+
+        if res.returncode != 0:
+            raise AcquisitionError(
+                f"apkmirror-downloader failed for {package_name} v{version}: {res.stderr[:300]}",
+                ExitCode.INFRASTRUCTURE_FAILURE,
+            )
+
+        downloaded_files = [
+            f
+            for f in attempt_path.iterdir()
+            if f.is_file() and f.suffix.lower() in (".apk", ".apkm", ".zip")
+        ]
+        if not downloaded_files:
+            raise AcquisitionError(
+                f"apkmirror-downloader reported success but no APK/APKM found in {attempt_path}",
+                ExitCode.INFRASTRUCTURE_FAILURE,
+            )
+
+        raw_artifact = downloaded_files[0]
+        apkm_path = out_dir / f"{package_name}.apkm"
+
+        if raw_artifact.suffix.lower() in (".apkm", ".zip"):
+            extract_dir = attempt_path / "extracted"
+            extract_dir.mkdir(parents=True, exist_ok=True)
+            try:
+                with zipfile.ZipFile(raw_artifact, "r") as zf:
+                    zf.extractall(extract_dir)
+            except Exception as e:
+                raise AcquisitionError(
+                    f"Corrupt bundle downloaded from APKMirror: {e}",
+                    ExitCode.INVALID_ARTIFACT,
+                ) from e
+            apks = list(extract_dir.glob("**/*.apk"))
+            normalize_apks_to_apkm(apks, apkm_path)
+        else:
+            if app_type == "bundle":
+                normalize_apks_to_apkm([raw_artifact], apkm_path)
+            else:
+                target_apk = out_dir / f"{package_name}.apk"
+                shutil.copyfile(raw_artifact, target_apk)
+                apkm_path = target_apk
+
+        try:
+            inspection = inspect_artifact(apkm_path)
+            if expected_version and inspection.version_name != expected_version:
+                raise AcquisitionError(
+                    f"APKMirror downloaded version '{inspection.version_name}' != expected '{expected_version}'",
+                    ExitCode.INVALID_ARTIFACT,
+                )
+            if (
+                expected_version_code is not None
+                and inspection.version_code != expected_version_code
+            ):
+                raise AcquisitionError(
+                    f"APKMirror downloaded version code '{inspection.version_code}' != expected '{expected_version_code}'",
+                    ExitCode.INVALID_ARTIFACT,
+                )
+        except Exception:
+            apkm_path.unlink(missing_ok=True)
+            raise
+
+        return apkm_path
+
+
 def acquire_artifact(
     package_name: str,
     out_dir: Path,
@@ -333,7 +495,7 @@ def acquire_artifact(
     expected_version_code: int | None = None,
     tool_mgr: ToolManager | None = None,
 ) -> tuple[Path, AcquisitionSource]:
-    """Tries primary apkeep acquisition, falling back to goopdl on transient delivery failure."""
+    """Tries apkeep, then goopdl, then apkmirror on delivery failure or version mismatch."""
     tool_mgr = tool_mgr or ToolManager()
 
     can_use_apkeep = (
@@ -346,6 +508,7 @@ def acquire_artifact(
         and bool(os.environ.get("APKEEP_AAS_TOKEN"))
     )
 
+    last_err: Exception | None = None
     if can_use_apkeep:
         try:
             apkm = acquire_with_apkeep(
@@ -357,13 +520,28 @@ def acquire_artifact(
             )
             return apkm, AcquisitionSource.APKEEP
         except AcquisitionError as e:
-            if e.exit_code != ExitCode.INFRASTRUCTURE_FAILURE:
-                raise
+            last_err = e
 
-    apkm = acquire_with_goopdl(
-        package_name,
-        out_dir,
-        expected_version=expected_version,
-        expected_version_code=expected_version_code,
-    )
-    return apkm, AcquisitionSource.GOOPDL
+    try:
+        apkm = acquire_with_goopdl(
+            package_name,
+            out_dir,
+            expected_version=expected_version,
+            expected_version_code=expected_version_code,
+        )
+        return apkm, AcquisitionSource.GOOPDL
+    except AcquisitionError as e:
+        last_err = e
+
+    try:
+        apkm = acquire_with_apkmirror(
+            package_name,
+            out_dir,
+            expected_version=expected_version,
+            expected_version_code=expected_version_code,
+        )
+        return apkm, AcquisitionSource.APKMIRROR
+    except AcquisitionError:
+        if last_err is not None:
+            raise last_err
+        raise

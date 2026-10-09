@@ -465,13 +465,28 @@ function formatRelativeTime(dateStr: string): string {
           text = 'text-rose-400';
           border = 'border-rose-800/40';
           dot = 'bg-rose-400';
-          label =
-            total > 0
-              ? passed + '/' + total
-              : s === 'incompatible'
-                ? 'Incompatible'
-                : 'Error';
-        } else if (total > 0) {
+
+          var reasonLower = (compatRecord.failureReason || '').toLowerCase();
+          var isNoApk =
+            reasonLower.includes('no fixture slot') ||
+            reasonLower.includes('no apk') ||
+            reasonLower.includes('missing fixture') ||
+            (s === 'error' && total === 0) ||
+            (s === 'error' &&
+              passed === 0 &&
+              failed <= 1 &&
+              reasonLower.includes('fixture'));
+
+          if (isNoApk) {
+            label = 'No APK';
+          } else {
+            label =
+              total > 0
+                ? passed + '/' + total
+                : s === 'incompatible'
+                  ? 'Incompatible'
+                  : 'Error';
+          }
           label = passed + '/' + total;
           if (failed === 0 && (s === 'compatible' || passed > 0)) {
             bg = 'bg-emerald-950/60';
@@ -493,7 +508,14 @@ function formatRelativeTime(dateStr: string): string {
         }
 
         var titleAttr = '';
-        if (s === 'error' && compatRecord.failureReason) {
+        if (label === 'No APK') {
+          titleAttr =
+            ' title="' +
+            (compatRecord.failureReason
+              ? compatRecord.failureReason.replace(/"/g, '&quot;')
+              : 'Target APK fixture not found') +
+            '"';
+        } else if (s === 'error' && compatRecord.failureReason) {
           titleAttr =
             ' title="' +
             compatRecord.failureReason.replace(/"/g, '&quot;') +

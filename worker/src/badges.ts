@@ -10,7 +10,7 @@ function escapeXml(unsafe: string): string {
 }
 
 export function getStatusColor(
-  status: PatchCompatibilityStatus | 'mixed',
+  status: PatchCompatibilityStatus | 'mixed' | 'no-apk',
 ): string {
   switch (status) {
     case 'compatible':

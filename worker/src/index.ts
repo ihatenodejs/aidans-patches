@@ -840,10 +840,24 @@ export default {
 
       const record = await loadAppRecord(env, packageName);
       const targetStatus = record?.targetCompatibility?.status || 'not-tested';
-      const label = `${appConfig.name} compatibility`;
-      const color = getStatusColor(targetStatus);
-      const svg = renderBadgeSvg(label, targetStatus, color);
+      const reasonLower = (
+        record?.targetCompatibility?.failureReason || ''
+      ).toLowerCase();
+      const isNoApk =
+        targetStatus === 'error' &&
+        (reasonLower.includes('no fixture slot') ||
+          reasonLower.includes('no apk') ||
+          reasonLower.includes('missing fixture') ||
+          ((record?.targetCompatibility?.passedCount ?? 0) === 0 &&
+            (record?.targetCompatibility?.failedCount ?? 0) === 0) ||
+          ((record?.targetCompatibility?.passedCount ?? 0) === 0 &&
+            (record?.targetCompatibility?.failedCount ?? 0) <= 1 &&
+            reasonLower.includes('fixture')));
 
+      const badgeStatus = isNoApk ? 'no apk' : targetStatus;
+      const label = `${appConfig.name} compatibility`;
+      const color = isNoApk ? '#EF4444' : getStatusColor(targetStatus);
+      const svg = renderBadgeSvg(label, badgeStatus, color);
       return new Response(svg, {
         status: 200,
         headers: {
