@@ -10,8 +10,6 @@ on:
         required: false
         default: "all"
         type: string
-  schedule:
-    - cron: "0 8 * * *"
 
 permissions:
   contents: read
@@ -100,6 +98,8 @@ jobs:
           uv run --project tools/apk-lab python -m apk_lab.compatibility_ci run --package "${{ matrix.package }}"
         env:
           DISPATCH_REQUEST_ID: ${{ github.event.client_payload.requestId }}
+          DISPATCH_EXPECTED_ROLES: ${{ join(github.event.client_payload.expectedRoles, ',') }}
+          DISPATCH_PLAY_VERSION: ${{ github.event.client_payload.observedPlayVersion }}
           R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
           R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}

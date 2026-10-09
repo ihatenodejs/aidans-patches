@@ -68,6 +68,73 @@ def get_target_version_for_package(
     return max(target_versions) if target_versions else ""
 
 
+def parse_requested_roles(
+    raw_roles: str | None, event_name: str | None = None
+) -> list[str] | None:
+    """Parses requested roles strictly.
+
+    For repository_dispatch: requires at least one role from {'target', 'latest'}, no duplicates.
+    For workflow_dispatch or manual: if raw_roles is None or empty, returns None (no restriction).
+    If raw_roles is provided, validates strictly.
+    """
+    if raw_roles is None or not raw_roles.strip():
+        if event_name == "repository_dispatch":
+            raise ValueError(
+                "Repository dispatch must specify at least one expected role in DISPATCH_EXPECTED_ROLES"
+            )
+        return None
+
+    tokens = [r.strip() for r in raw_roles.split(",") if r.strip()]
+    if not tokens:
+        if event_name == "repository_dispatch":
+            raise ValueError(
+                "Repository dispatch must specify at least one expected role in DISPATCH_EXPECTED_ROLES"
+            )
+        return None
+
+    valid_roles = {"target"}
+    seen: set[str] = set()
+    result: list[str] = []
+    for token in tokens:
+        if token not in valid_roles:
+            raise ValueError(
+                f"Invalid requested role '{token}'; must be one of {sorted(valid_roles)}"
+            )
+        if token in seen:
+            raise ValueError(f"Duplicate requested role '{token}'")
+        seen.add(token)
+        result.append(token)
+
+    return result
+
+
+def build_error_result(
+    role: str,
+    expected_version: str,
+    reason: str,
+    patch_bundle_version: str = "unknown",
+    git_revision: str = "unknown",
+) -> dict[str, Any]:
+    """Builds a terminal error result item for a role when fixture is missing or mismatched."""
+    return {
+        "role": role,
+        "versionName": expected_version,
+        "versionCode": 0,
+        "patchBundleVersion": patch_bundle_version,
+        "gitRevision": git_revision,
+        "status": "error",
+        "passedCount": 0,
+        "failedCount": 1,
+        "failureReason": reason,
+        "workflowRunUrl": (
+            os.environ.get("GITHUB_SERVER_URL", "https://github.com")
+            + f"/{os.environ.get('GITHUB_REPOSITORY', '')}/actions/runs/{os.environ.get('GITHUB_RUN_ID', '')}"
+            if os.environ.get("GITHUB_RUN_ID")
+            else None
+        ),
+    }
+
+
 def build_result_item(role: str, report: PatchCompatibilityReport) -> dict[str, Any]:
     """Builds a single role result item matching CompatibilityResultInput."""
     status = report.overall_status
@@ -116,11 +183,29 @@ def run_ci_reconcile_and_test(
     acquirer: Callable[..., Any] | None = None,
     checker: Callable[..., Any] | None = None,
     poster: Callable[..., Any] | None = None,
+    requested_roles: list[str] | None = None,
+    observed_play_version: str | None = None,
 ) -> int:
-    """Executes CI acquisition, rotation, target check, and divergent latest check for a package."""
+    """Executes CI acquisition, rotation, target check, and latest check for a package."""
     patches_data = load_patches_list()
     target_version = get_target_version_for_package(patches_data, pkg)
-    print(f"Checking {pkg} with target version {target_version}")
+    patch_bundle_version = patches_data.get("version", "unknown")
+    git_revision = os.environ.get("GITHUB_SHA", "unknown")
+
+    event_name = os.environ.get("GITHUB_EVENT_NAME", "workflow_dispatch")
+    if requested_roles is None and "DISPATCH_EXPECTED_ROLES" in os.environ:
+        requested_roles = parse_requested_roles(
+            os.environ.get("DISPATCH_EXPECTED_ROLES"), event_name=event_name
+        )
+    if observed_play_version is None:
+        observed_play_version = (
+            os.environ.get("DISPATCH_PLAY_VERSION") or ""
+        ).strip() or None
+
+    print(
+        f"Checking {pkg} with target version {target_version}, "
+        f"requested_roles={requested_roles}, observed_play_version={observed_play_version}"
+    )
 
     if r2_mgr is None:
         r2_mgr = R2FixtureManager()
@@ -129,10 +214,7 @@ def run_ci_reconcile_and_test(
     if poster is None:
         poster = post_compatibility_submission
 
-    request_id = (
-        os.environ.get("DISPATCH_REQUEST_ID")
-        or f"ci-{os.environ.get('GITHUB_RUN_ID', 'manual')}"
-    )
+    dispatch_request_id = (os.environ.get("DISPATCH_REQUEST_ID") or "").strip()
     status_secret = os.environ.get("COMPATIBILITY_STATUS_SECRET")
     worker_url = os.environ.get("WORKER_STATUS_URL", "https://worker.patch.p0ntus.com")
 
@@ -172,48 +254,69 @@ def run_ci_reconcile_and_test(
         ) as e:
             print(f"Acquisition or rotation warning: {e}", file=sys.stderr)
 
-    # 2. Select and download target fixture
-    target_file = runner_temp / f"{pkg}-target.apk"
-    if target_slot:
-        r2_mgr.download_slot(pkg, "target", target_file)
-    elif latest_slot:
-        r2_mgr.download_slot(pkg, "latest", target_file)
-    else:
-        print(f"Error: No usable fixture slot available for {pkg}", file=sys.stderr)
-        return ExitCode.INVALID_ARTIFACT
-
     results: list[dict[str, Any]] = []
     overall_exit = ExitCode.SUCCESS
 
-    # Run target check
-    t_report, t_code = checker(
-        target_file, mpp_path, expected_package=pkg, all_patches=True
+    # Determine roles to test: only target is tested
+    should_test_target = (
+        True if requested_roles is None else ("target" in requested_roles)
     )
-    print(
-        f"Target compatibility: {t_report.overall_status} ({t_report.passed_cases}/{t_report.total_cases})"
-    )
-    results.append(build_result_item("target", t_report))
-    if t_code != 0 or t_report.overall_status != "compatible":
-        overall_exit = t_code or ExitCode.USAGE_OR_TOOL_ERROR
 
-    # 3. Test latest slot if divergent
-    if latest_slot and target_slot and latest_slot.sha256 != target_slot.sha256:
-        latest_file = runner_temp / f"{pkg}-latest.apk"
-        r2_mgr.download_slot(pkg, "latest", latest_file)
-        l_report, l_code = checker(
-            latest_file, mpp_path, expected_package=pkg, all_patches=True, force=True
-        )
-        print(
-            f"Latest compatibility: {l_report.overall_status} ({l_report.passed_cases}/{l_report.total_cases})"
-        )
-        results.append(build_result_item("latest", l_report))
-        if l_code != 0 or l_report.overall_status != "compatible":
-            overall_exit = l_code or ExitCode.USAGE_OR_TOOL_ERROR
+    # 2. Target check
+    if should_test_target:
+        target_slot_role: str | None = None
+        if target_slot and target_slot.version_name == target_version:
+            target_slot_role = "target"
+        elif latest_slot and latest_slot.version_name == target_version:
+            target_slot_role = "latest"
 
-    # 4. Post batched results if configured
-    if status_secret and worker_url:
+        if target_slot_role is not None:
+            target_file = runner_temp / f"{pkg}-target.apk"
+            try:
+                r2_mgr.download_slot(pkg, target_slot_role, target_file)
+                t_report, t_code = checker(
+                    target_file, mpp_path, expected_package=pkg, all_patches=True
+                )
+                print(
+                    f"Target compatibility: {t_report.overall_status} "
+                    f"({t_report.passed_cases}/{t_report.total_cases})"
+                )
+                results.append(build_result_item("target", t_report))
+                if t_code != 0 or t_report.overall_status != "compatible":
+                    overall_exit = t_code or ExitCode.USAGE_OR_TOOL_ERROR
+            except Exception as err:  # noqa: BLE001
+                print(f"Error checking target fixture: {err}", file=sys.stderr)
+                results.append(
+                    build_error_result(
+                        "target",
+                        target_version,
+                        f"Target check execution failed: {err}",
+                        patch_bundle_version=patch_bundle_version,
+                        git_revision=git_revision,
+                    )
+                )
+                overall_exit = ExitCode.USAGE_OR_TOOL_ERROR
+        else:
+            reason = (
+                f"No fixture slot matches target version '{target_version}': "
+                f"target_slot={getattr(target_slot, 'version_name', None)}, "
+                f"latest_slot={getattr(latest_slot, 'version_name', None)}"
+            )
+            print(f"Error: {reason}", file=sys.stderr)
+            results.append(
+                build_error_result(
+                    "target",
+                    target_version,
+                    reason,
+                    patch_bundle_version=patch_bundle_version,
+                    git_revision=git_revision,
+                )
+            )
+            overall_exit = ExitCode.INVALID_ARTIFACT
+    # 4. Post batched results only when both status_secret and dispatch_request_id are present
+    if status_secret and worker_url and dispatch_request_id:
         submission = {
-            "requestId": request_id,
+            "requestId": dispatch_request_id,
             "packageName": pkg,
             "results": results,
         }
@@ -222,9 +325,11 @@ def run_ci_reconcile_and_test(
             print(f"Posted {len(results)} results to worker: HTTP {status_code}")
         except (urllib.error.URLError, TimeoutError, OSError, ValueError) as err:
             print(f"Failed to post results to worker: {err}", file=sys.stderr)
-            # If secret was explicitly supplied, posting failure is treated as error
             if overall_exit == ExitCode.SUCCESS:
                 overall_exit = ExitCode.INFRASTRUCTURE_FAILURE
+    else:
+        if not dispatch_request_id:
+            print("No DISPATCH_REQUEST_ID provided; skipping worker callback.")
 
     return overall_exit
 
@@ -277,7 +382,25 @@ def main(argv: list[str] | None = None) -> int:
             return ExitCode.USAGE_OR_TOOL_ERROR
 
         runner_temp = Path(os.environ.get("RUNNER_TEMP", tempfile.gettempdir()))
-        return run_ci_reconcile_and_test(args.package, mpp_path, runner_temp)
+        event_name = os.environ.get("GITHUB_EVENT_NAME", "workflow_dispatch")
+        raw_roles = os.environ.get("DISPATCH_EXPECTED_ROLES")
+        try:
+            requested_roles = parse_requested_roles(raw_roles, event_name=event_name)
+        except ValueError as e:
+            print(f"Role parsing error: {e}", file=sys.stderr)
+            return ExitCode.USAGE_OR_TOOL_ERROR
+
+        observed_play_version = (
+            os.environ.get("DISPATCH_PLAY_VERSION") or ""
+        ).strip() or None
+        runner_temp = Path(os.environ.get("RUNNER_TEMP", tempfile.gettempdir()))
+        return run_ci_reconcile_and_test(
+            args.package,
+            mpp_path,
+            runner_temp,
+            requested_roles=requested_roles,
+            observed_play_version=observed_play_version,
+        )
 
     return ExitCode.SUCCESS
 
