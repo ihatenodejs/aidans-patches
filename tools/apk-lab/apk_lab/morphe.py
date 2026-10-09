@@ -30,18 +30,10 @@ from apk_lab.workspace import WorkspaceManager
 logger = logging.getLogger(__name__)
 
 
-def is_patchable_member(name: str) -> bool:
-    """Whether a member can be changed by a patch and must count toward the check postcondition."""
-    return (
-        name == "AndroidManifest.xml"
-        or name.endswith(".dex")
-        or name.startswith(("res/", "assets/", "lib/"))
-    )
-
-
 DEFAULT_PATCHES_LIST_PATH = (
     Path(__file__).parent.parent.parent.parent / "patches-list.json"
 )
+
 
 def is_patchable_member(name: str) -> bool:
     """Whether a member can be changed by a patch and must count toward the check postcondition."""
@@ -51,7 +43,6 @@ def is_patchable_member(name: str) -> bool:
         or name.endswith(".dex")
         or name.startswith(("res/", "assets/", "lib/"))
     )
-
 
 
 @dataclass

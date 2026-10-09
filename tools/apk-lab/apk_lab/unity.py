@@ -43,7 +43,9 @@ class UnitySerializedFile:
 
     def __init__(self, data: bytes) -> None:
         if len(data) < 20:
-            raise ValueError(f"Serialized file data too small ({len(data)} bytes, minimum 20)")
+            raise ValueError(
+                f"Serialized file data too small ({len(data)} bytes, minimum 20)"
+            )
 
         self.data = data
         # SerializedFile header is big-endian
@@ -210,7 +212,9 @@ def inspect_unity_assets(
         for apk_member in apk_members:
             inner_bytes = zf.read(apk_member)
             with zipfile.ZipFile(io.BytesIO(inner_bytes), "r") as inner_zf:
-                inner_assets = [m for m in inner_zf.namelist() if is_unity_asset_path(m)]
+                inner_assets = [
+                    m for m in inner_zf.namelist() if is_unity_asset_path(m)
+                ]
                 for member in sorted(inner_assets):
                     data = inner_zf.read(member)
                     records = find_game_objects(data, target_name=name_filter)

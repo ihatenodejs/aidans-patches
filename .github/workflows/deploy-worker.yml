@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - 'worker/**'
+      - 'patches-list.json'
       - '.github/workflows/deploy-worker.yml'
   workflow_dispatch:
 

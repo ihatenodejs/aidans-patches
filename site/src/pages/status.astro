@@ -10,14 +10,16 @@ const workerUrl = import.meta.env.PUBLIC_WORKER_URL || 'https://worker.patch.p0n
 
 function getNextCheckCountdown(): string {
   const now = new Date();
+  const nextHour = (Math.floor(now.getUTCHours() / 6) + 1) * 6;
   const nextCheck = new Date(Date.UTC(
     now.getUTCFullYear(),
     now.getUTCMonth(),
     now.getUTCDate(),
-    6, 0, 0
+    0, 0, 0, 0
   ));
-  if (now.getTime() >= nextCheck.getTime()) {
-    nextCheck.setUTCDate(nextCheck.getUTCDate() + 1);
+  nextCheck.setUTCHours(nextHour);
+  if (nextCheck.getTime() <= now.getTime()) {
+    nextCheck.setUTCHours(nextCheck.getUTCHours() + 6);
   }
   const diff = Math.max(0, nextCheck.getTime() - now.getTime());
   const hours = Math.floor(diff / (1000 * 60 * 60));
@@ -117,7 +119,7 @@ function formatRelativeTime(dateStr: string): string {
           <input
             type="search"
             id="status-search-input"
-            placeholder="Search applications or package names..."
+            placeholder="Search applications..."
             class="w-full bg-zinc-900 border border-white/10 px-3 py-1.5 pl-8 text-xs font-mono text-white placeholder-zinc-500 rounded-sm focus:outline-none focus:border-white/30"
           />
           <svg class="w-3.5 h-3.5 text-zinc-500 absolute left-2.5 top-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -126,7 +128,7 @@ function formatRelativeTime(dateStr: string): string {
         </div>
 
         <span class="font-mono text-[11px] text-zinc-500 shrink-0" id="last-updated-label">
-          Built with bundle: {stats.releaseDate}
+          Last Update: {stats.releaseDate}
         </span>
       </div>
 
@@ -136,14 +138,13 @@ function formatRelativeTime(dateStr: string): string {
           <thead>
             <tr class="border-b border-white/[0.08] text-[11px] text-zinc-500 uppercase tracking-wider">
               <!-- Sticky Left: Application Column -->
-              <th class="py-3 px-4 sm:sticky sm:left-0 z-20 bg-zinc-950 sm:shadow-[1px_0_0_rgba(255,255,255,0.08)]">
+              <th class="py-3 px-4 sticky left-0 z-20 bg-zinc-950 shadow-[1px_0_0_rgba(255,255,255,0.08)]">
                 Application
               </th>
-              <th class="py-3 px-4 bg-zinc-950/60 whitespace-nowrap hidden md:table-cell">Tested Target</th>
+              <th class="py-3 px-4 bg-zinc-950/60 whitespace-nowrap hidden md:table-cell">Target</th>
               <th class="py-3 px-4 bg-zinc-950/60 whitespace-nowrap hidden sm:table-cell">Google Play</th>
-              <th class="py-3 px-4 bg-zinc-950/60 whitespace-nowrap">Play Freshness</th>
-              <th class="py-3 px-4 bg-zinc-950/60 whitespace-nowrap">Target Patch Check</th>
-              <th class="py-3 px-4 text-right bg-zinc-950/60 whitespace-nowrap">Latest Patch Check</th>
+              <th class="py-3 px-4 bg-zinc-950/60 whitespace-nowrap">Tests Passed</th>
+              <th class="py-3 px-4 text-right sticky right-0 z-20 bg-zinc-950 shadow-[-1px_0_0_rgba(255,255,255,0.08)] whitespace-nowrap">Update Status</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-white/[0.06]" id="status-tbody">
@@ -154,7 +155,7 @@ function formatRelativeTime(dateStr: string): string {
                 data-app-name={item.appName.toLowerCase()}
               >
                 <!-- Sticky Left: Application Cell -->
-                <td class="py-3.5 px-4 font-sans font-semibold text-white sm:sticky sm:left-0 z-10 bg-[#080808] group-hover/row:bg-[#0c0c0c] sm:shadow-[1px_0_0_rgba(255,255,255,0.08)] whitespace-nowrap">
+                <td class="py-3.5 px-4 font-sans font-semibold text-white sticky left-0 z-10 bg-[#080808] group-hover/row:bg-[#0c0c0c] shadow-[1px_0_0_rgba(255,255,255,0.08)] whitespace-nowrap">
                   <div class="flex items-center gap-2.5">
                     {item.iconUrl ? (
                       <Image
@@ -180,18 +181,10 @@ function formatRelativeTime(dateStr: string): string {
                   v{item.latestSupportedVersion}
                 </td>
                 <td class="py-3.5 px-4 text-zinc-400 play-version whitespace-nowrap hidden sm:table-cell">
-                  {item.playVersion ? `v${item.playVersion}` : '—'}
+                  {item.playVersion ? `v${item.playVersion}` : (item.status !== 'not-on-play-store' && item.status !== 'check-failed' ? `v${item.latestSupportedVersion}` : '—')}
                 </td>
 
-                <!-- Play Freshness Column -->
-                <td class="py-3.5 px-4 play-freshness-cell whitespace-nowrap">
-                  <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-[10px] bg-zinc-900 text-zinc-400 border border-white/10">
-                    <span class="w-1.5 h-1.5 rounded-full bg-zinc-500"></span>
-                    <span>Checking...</span>
-                  </span>
-                </td>
-
-                <!-- Target Patch Check Column -->
+                <!-- Tests Passed Column -->
                 <td class="py-3.5 px-4 target-compat-cell whitespace-nowrap">
                   <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-[10px] bg-zinc-900 text-zinc-400 border border-white/10">
                     <span class="w-1.5 h-1.5 rounded-full bg-zinc-500"></span>
@@ -199,8 +192,8 @@ function formatRelativeTime(dateStr: string): string {
                   </span>
                 </td>
 
-                <!-- Latest Patch Check Column -->
-                <td class="py-3.5 px-4 text-right latest-compat-cell whitespace-nowrap">
+                <!-- Update Status Column (Pinned on mobile) -->
+                <td class="py-3.5 px-4 text-right play-freshness-cell sticky right-0 z-10 bg-[#080808] group-hover/row:bg-[#0c0c0c] shadow-[-1px_0_0_rgba(255,255,255,0.08)] whitespace-nowrap">
                   <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-[10px] bg-zinc-900 text-zinc-400 border border-white/10">
                     <span class="w-1.5 h-1.5 rounded-full bg-zinc-500"></span>
                     <span>Checking...</span>
@@ -229,11 +222,11 @@ function formatRelativeTime(dateStr: string): string {
         <span>Understanding Target Stability &amp; Automated Compatibility</span>
       </div>
 
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-6 pt-1">
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pt-1">
         <div class="space-y-2 p-4 bg-zinc-950/60 border border-white/[0.06] rounded-sm">
           <div class="font-sans font-semibold text-white flex items-center gap-2">
             <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
-            <span>Play Freshness</span>
+            <span>Update Status</span>
           </div>
           <p class="text-zinc-400 leading-relaxed text-[11px]">
             Compares Google Play's live web store release against the repository's pinned supported target. Upstream releases reflect vendor changes rather than broken patches.
@@ -243,20 +236,10 @@ function formatRelativeTime(dateStr: string): string {
         <div class="space-y-2 p-4 bg-zinc-950/60 border border-white/[0.06] rounded-sm">
           <div class="font-sans font-semibold text-white flex items-center gap-2">
             <span class="w-2 h-2 rounded-full bg-blue-400"></span>
-            <span>Target Patch Check</span>
+            <span>Tests Passed</span>
           </div>
           <p class="text-zinc-400 leading-relaxed text-[11px]">
             Automated CI applies every compatible patch and option permutation to the pinned supported release, verifying Morphe success, APK validity, and Android SDK DEX integrity.
-          </p>
-        </div>
-
-        <div class="space-y-2 p-4 bg-zinc-950/60 border border-white/[0.06] rounded-sm">
-          <div class="font-sans font-semibold text-white flex items-center gap-2">
-            <span class="w-2 h-2 rounded-full bg-purple-400"></span>
-            <span>Latest Patch Check</span>
-          </div>
-          <p class="text-zinc-400 leading-relaxed text-[11px]">
-            When Google Play releases a newer build, automated CI tests patch applicability against the latest release. An untested release is never marked compatible until verified.
           </p>
         </div>
       </div>
@@ -270,17 +253,19 @@ function formatRelativeTime(dateStr: string): string {
   <!-- Client-side hydration, countdown timer, and search filter script -->
   <script is:inline define:vars={{ workerUrl }}>
     (function () {
-      // 1. Live Countdown Timer to next 06:00 UTC check
+      // 1. Live Countdown Timer to next UTC six-hour boundary
       function updateCountdown() {
         const now = new Date();
+        const nextHour = (Math.floor(now.getUTCHours() / 6) + 1) * 6;
         const nextCheck = new Date(Date.UTC(
           now.getUTCFullYear(),
           now.getUTCMonth(),
           now.getUTCDate(),
-          6, 0, 0
+          0, 0, 0, 0
         ));
-        if (now.getTime() >= nextCheck.getTime()) {
-          nextCheck.setUTCDate(nextCheck.getUTCDate() + 1);
+        nextCheck.setUTCHours(nextHour);
+        if (nextCheck.getTime() <= now.getTime()) {
+          nextCheck.setUTCHours(nextCheck.getUTCHours() + 6);
         }
         const diff = Math.max(0, nextCheck.getTime() - now.getTime());
         const hours = Math.floor(diff / (1000 * 60 * 60));
@@ -340,32 +325,56 @@ function formatRelativeTime(dateStr: string): string {
       }
 
       // 4. Compatibility Badge Renderer
-      function renderCompatBadge(compatRecord, defaultLabel) {
+      function renderCompatBadge(compatRecord, defaultLabel, isQueued) {
         if (!compatRecord) {
+          if (isQueued) {
+            return '<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-[10px] bg-amber-950/60 text-amber-400 border border-amber-800/40"><span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span><span>Queued</span></span>';
+          }
           return '<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-[10px] bg-zinc-900 text-zinc-500 border border-white/10"><span>' + (defaultLabel || 'Not tested') + '</span></span>';
         }
         var s = compatRecord.status;
+        var passed = typeof compatRecord.passedCount === 'number' ? compatRecord.passedCount : 0;
+        var failed = typeof compatRecord.failedCount === 'number' ? compatRecord.failedCount : 0;
+        var total = passed + failed;
+
         var bg = 'bg-zinc-900';
         var text = 'text-zinc-400';
         var border = 'border-white/10';
         var dot = 'bg-zinc-500';
         var label = s;
 
-        if (s === 'compatible') {
+        if (s === 'queued') {
+          bg = 'bg-amber-950/60'; text = 'text-amber-400'; border = 'border-amber-800/40'; dot = 'bg-amber-400'; label = 'Queued';
+        } else if (s === 'running') {
+          bg = 'bg-amber-950/60'; text = 'text-amber-400'; border = 'border-amber-800/40'; dot = 'bg-amber-400'; label = 'Running';
+        } else if (total > 0) {
+          label = passed + '/' + total;
+          if (failed === 0 && (s === 'compatible' || passed > 0)) {
+            bg = 'bg-emerald-950/60'; text = 'text-emerald-400'; border = 'border-emerald-800/40'; dot = 'bg-emerald-400';
+          } else {
+            bg = 'bg-rose-950/60'; text = 'text-rose-400'; border = 'border-rose-800/40'; dot = 'bg-rose-400';
+          }
+        } else if (s === 'compatible') {
           bg = 'bg-emerald-950/60'; text = 'text-emerald-400'; border = 'border-emerald-800/40'; dot = 'bg-emerald-400'; label = 'Compatible';
         } else if (s === 'incompatible') {
           bg = 'bg-rose-950/60'; text = 'text-rose-400'; border = 'border-rose-800/40'; dot = 'bg-rose-400'; label = 'Incompatible';
         } else if (s === 'error') {
           bg = 'bg-rose-950/60'; text = 'text-rose-400'; border = 'border-rose-800/40'; dot = 'bg-rose-400'; label = 'Error';
-        } else if (s === 'queued') {
-          bg = 'bg-amber-950/60'; text = 'text-amber-400'; border = 'border-amber-800/40'; dot = 'bg-amber-400'; label = 'Queued';
-        } else if (s === 'running') {
-          bg = 'bg-amber-950/60'; text = 'text-amber-400'; border = 'border-amber-800/40'; dot = 'bg-amber-400'; label = 'Running';
         }
 
-        var content = '<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-[10px] ' + bg + ' ' + text + ' border ' + border + '"><span class="w-1.5 h-1.5 rounded-full ' + dot + '"></span><span>' + label + '</span></span>';
+        var titleAttr = '';
+        if (s === 'error' && compatRecord.failureReason) {
+          titleAttr = ' title="' + compatRecord.failureReason.replace(/"/g, '&quot;') + '"';
+        } else if (total > 0) {
+          titleAttr = ' title="' + passed + ' of ' + total + ' patch tests passed (' + s + ')"';
+        }
+
+        var content = '<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-[10px] ' + bg + ' ' + text + ' border ' + border + '"' + titleAttr + '><span class="w-1.5 h-1.5 rounded-full ' + dot + '"></span><span>' + label + '</span></span>';
         if (compatRecord.workflowRunUrl) {
-          return '<a href="' + compatRecord.workflowRunUrl + '" target="_blank" rel="noopener noreferrer" class="hover:opacity-80 transition-opacity" title="CI Run">' + content + '</a>';
+          var linkTitle = (s === 'error' && compatRecord.failureReason)
+            ? ' title="' + compatRecord.failureReason.replace(/"/g, '&quot;') + '"'
+            : (total > 0 ? titleAttr : ' title="CI Run"');
+          return '<a href="' + compatRecord.workflowRunUrl + '" target="_blank" rel="noopener noreferrer" class="hover:opacity-80 transition-opacity"' + linkTitle + '>' + content + '</a>';
         }
         return content;
       }
@@ -379,7 +388,7 @@ function formatRelativeTime(dateStr: string): string {
 
         const lastUpdatedEl = document.getElementById('last-updated-label');
         if (lastUpdatedEl && data.updatedAt) {
-          lastUpdatedEl.textContent = 'Live Cloudflare KV: ' + formatRelative(data.updatedAt);
+          lastUpdatedEl.textContent = 'Last Update: ' + formatRelative(data.updatedAt);
         }
 
         // Update Latest Release card if live data is available
@@ -440,37 +449,47 @@ function formatRelativeTime(dateStr: string): string {
           const playCell = row.querySelector('.play-version');
           const playFreshnessCell = row.querySelector('.play-freshness-cell');
           const targetCompatCell = row.querySelector('.target-compat-cell');
-          const latestCompatCell = row.querySelector('.latest-compat-cell');
 
-          if (playCell && appData.playVersion) {
-            playCell.textContent = 'v' + appData.playVersion;
+          const effectivePlayVersion = appData.playVersion || (
+            (appData.status !== 'not-on-play-store' && appData.status !== 'check-failed')
+              ? appData.latestSupportedVersion
+              : null
+          );
+
+          if (playCell) {
+            playCell.textContent = effectivePlayVersion ? 'v' + effectivePlayVersion : '—';
           }
 
           if (playFreshnessCell) {
-            if (appData.status === 'up-to-date') {
+            let effectiveStatus = appData.status;
+            if (effectiveStatus === 'unknown' && effectivePlayVersion) {
+              effectiveStatus = (effectivePlayVersion === appData.latestSupportedVersion) ? 'up-to-date' : 'unknown';
+            }
+
+            if (effectiveStatus === 'up-to-date') {
               playFreshnessCell.innerHTML = '<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-[10px] bg-emerald-950/60 text-emerald-400 border border-emerald-800/40"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span><span>Up to date</span></span>';
-            } else if (appData.status === 'newer-available') {
+            } else if (effectiveStatus === 'newer-available') {
               playFreshnessCell.innerHTML = '<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-[10px] bg-amber-950/60 text-amber-400 border border-amber-800/40"><span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span><span>Newer available</span></span>';
-            } else if (appData.status === 'not-on-play-store') {
+            } else if (effectiveStatus === 'not-on-play-store') {
               playFreshnessCell.innerHTML = '<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-[10px] bg-zinc-900 text-zinc-500 border border-white/10"><span>Not on Play Store</span></span>';
-            } else if (appData.status === 'check-failed') {
+            } else if (effectiveStatus === 'check-failed') {
               playFreshnessCell.innerHTML = '<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-[10px] bg-rose-950/60 text-rose-400 border border-rose-800/40"><span class="w-1.5 h-1.5 rounded-full bg-rose-400"></span><span>Check failed</span></span>';
             } else {
               playFreshnessCell.innerHTML = '<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-[10px] bg-zinc-900 text-zinc-400 border border-white/10"><span class="w-1.5 h-1.5 rounded-full bg-zinc-500"></span><span>Unknown</span></span>';
             }
           }
 
+          var isTargetQueued = Boolean(
+            !appData.targetCompatibility &&
+            appData.outstandingRequest &&
+            appData.outstandingRequest.expectedRoles &&
+            appData.outstandingRequest.expectedRoles.includes('target')
+          );
+
           if (targetCompatCell) {
-            targetCompatCell.innerHTML = renderCompatBadge(appData.targetCompatibility, 'Not tested');
+            targetCompatCell.innerHTML = renderCompatBadge(appData.targetCompatibility, 'Not tested', isTargetQueued);
           }
 
-          if (latestCompatCell) {
-            if (appData.status === 'up-to-date' || (appData.playVersion && appData.playVersion === appData.latestSupportedVersion)) {
-              latestCompatCell.innerHTML = '<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-[10px] bg-emerald-950/40 text-emerald-400/80 border border-emerald-900/30"><span>Matches target</span></span>';
-            } else {
-              latestCompatCell.innerHTML = renderCompatBadge(appData.latestCompatibility, 'Untested release');
-            }
-          }
         });
       }
 
