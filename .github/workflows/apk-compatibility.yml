@@ -10,8 +10,6 @@ on:
         required: false
         default: "all"
         type: string
-  schedule:
-    - cron: "0 8 * * *"
 
 permissions:
   contents: read
@@ -63,13 +61,13 @@ jobs:
           distribution: "temurin"
           java-version: "21"
 
-      - name: Setup Android SDK Build Tools
-        uses: android-actions/setup-android@v3
-
-      - name: Install Build-Tools 36.0.0
+      - name: Verify Android SDK Build Tools
         run: |
-          sdkmanager "build-tools;36.0.0"
-
+          echo "ANDROID_HOME=${ANDROID_HOME:-/usr/local/lib/android/sdk}" >> "$GITHUB_ENV"
+          test -d "${ANDROID_HOME:-/usr/local/lib/android/sdk}/build-tools/36.0.0" || {
+            yes | "${ANDROID_HOME:-/usr/local/lib/android/sdk}/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null || true
+            "${ANDROID_HOME:-/usr/local/lib/android/sdk}/cmdline-tools/latest/bin/sdkmanager" "build-tools;36.0.0"
+          }
       - name: Setup uv
         uses: astral-sh/setup-uv@v5
         with:
@@ -100,6 +98,8 @@ jobs:
           uv run --project tools/apk-lab python -m apk_lab.compatibility_ci run --package "${{ matrix.package }}"
         env:
           DISPATCH_REQUEST_ID: ${{ github.event.client_payload.requestId }}
+          DISPATCH_EXPECTED_ROLES: ${{ join(github.event.client_payload.expectedRoles, ',') }}
+          DISPATCH_PLAY_VERSION: ${{ github.event.client_payload.observedPlayVersion }}
           R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
           R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}

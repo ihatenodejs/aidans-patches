@@ -1,7 +1,6 @@
 import type {
   AppVersionRecord,
   CompatibilityRecord,
-  CompatibilityResultInput,
   CompatibilityResultSubmission,
   FreshnessStatus,
   KVVersionPayload,
@@ -16,6 +15,7 @@ import { getStatusColor, renderBadgeSvg } from './badges';
 
 let memoryCache: { payload: KVVersionPayload; expiresAt: number } | null = null;
 const MEMORY_CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour fallback
+const OUTSTANDING_REQUEST_TTL_MS = 12 * 60 * 60 * 1000; // 12 hours TTL (two 6-hour scrape cycles)
 
 const PUBLIC_CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -44,7 +44,7 @@ export function appRecordKey(packageName: string): string {
 
 export async function loadAppRecord(
   env: WorkerEnv,
-  packageName: string
+  packageName: string,
 ): Promise<AppVersionRecord | null> {
   if (!env.PLAY_VERSIONS_KV) return null;
   const raw = await env.PLAY_VERSIONS_KV.get(appRecordKey(packageName));
@@ -59,17 +59,20 @@ export async function loadAppRecord(
 export async function saveAppRecord(
   env: WorkerEnv,
   packageName: string,
-  record: AppVersionRecord
+  record: AppVersionRecord,
 ): Promise<void> {
   if (env.PLAY_VERSIONS_KV) {
-    await env.PLAY_VERSIONS_KV.put(appRecordKey(packageName), JSON.stringify(record));
+    await env.PLAY_VERSIONS_KV.put(
+      appRecordKey(packageName),
+      JSON.stringify(record),
+    );
   }
   memoryCache = null;
 }
 
 export async function loadStatusPayload(
   env: WorkerEnv,
-  forceRefresh = false
+  forceRefresh = false,
 ): Promise<KVVersionPayload> {
   if (!forceRefresh && memoryCache && Date.now() < memoryCache.expiresAt) {
     return memoryCache.payload;
@@ -79,7 +82,7 @@ export async function loadStatusPayload(
     MONITORED_APPS.map(async (app) => {
       const rec = await loadAppRecord(env, app.packageName);
       return { app, rec };
-    })
+    }),
   );
 
   const appsRecord: Record<string, AppVersionRecord> = {};
@@ -91,7 +94,8 @@ export async function loadStatusPayload(
     if (rec) {
       appsRecord[app.packageName] = {
         ...rec,
-        outstandingRequestId: rec.outstandingRequest?.requestId ?? rec.outstandingRequestId ?? null,
+        outstandingRequestId:
+          rec.outstandingRequest?.requestId ?? rec.outstandingRequestId ?? null,
       };
       if (rec.checkedAt && rec.checkedAt > latestCheckedAt) {
         latestCheckedAt = rec.checkedAt;
@@ -122,7 +126,6 @@ export async function loadStatusPayload(
         supportedVersions: app.supportedVersions,
         latestSupportedVersion: app.latestSupportedVersion,
         targetCompatibility: null,
-        latestCompatibility: null,
         outstandingRequest: null,
         outstandingRequestId: null,
       };
@@ -152,7 +155,8 @@ export async function dispatchCompatibilityCheck(
   requestId: string,
   packageName: string,
   observedPlayVersion: string | null,
-  targetVersion: string
+  targetVersion: string,
+  expectedRoles: 'target'[],
 ): Promise<boolean> {
   if (!env.GITHUB_DISPATCH_TOKEN) {
     return false;
@@ -169,6 +173,7 @@ export async function dispatchCompatibilityCheck(
       packageName,
       observedPlayVersion,
       targetVersion,
+      expectedRoles,
     },
   });
 
@@ -186,6 +191,14 @@ export async function dispatchCompatibilityCheck(
       });
 
       if (response.status === 204 || response.ok) {
+        console.info(
+          JSON.stringify({
+            event: 'dispatch_success',
+            packageName,
+            requestId,
+            expectedRoles,
+          }),
+        );
         return true;
       }
 
@@ -194,22 +207,43 @@ export async function dispatchCompatibilityCheck(
         continue;
       }
 
-      console.error(`GitHub dispatch rejected for ${packageName}: HTTP ${response.status}`);
+      console.error(
+        JSON.stringify({
+          event: 'dispatch_rejected',
+          packageName,
+          requestId,
+          status: response.status,
+        }),
+      );
       return false;
     } catch (err) {
       if (attempt === 2) {
-        console.error(`GitHub dispatch network error for ${packageName}:`, err);
+        console.error(
+          JSON.stringify({
+            event: 'dispatch_network_error',
+            packageName,
+            requestId,
+            error: err instanceof Error ? err.message : String(err),
+          }),
+        );
         return false;
       }
       await delay(1000 * (attempt + 1));
     }
   }
 
+  console.error(
+    JSON.stringify({
+      event: 'dispatch_failed',
+      packageName,
+      requestId,
+    }),
+  );
   return false;
 }
 
 export async function performVersionCheck(
-  env: WorkerEnv
+  env: WorkerEnv,
 ): Promise<KVVersionPayload> {
   const now = new Date().toISOString();
   const appsRecord: Record<string, AppVersionRecord> = {};
@@ -223,53 +257,57 @@ export async function performVersionCheck(
     let updatedAt = scraped.updatedAt || priorRecord?.updatedAt || null;
     let updatedOn = scraped.updatedOn || priorRecord?.updatedOn || null;
     let status: FreshnessStatus;
+    let playVersionReleaseUpdatedAt: string | null =
+      priorRecord?.playVersionReleaseUpdatedAt ?? null;
 
     if (scraped.isNotFound) {
       status = 'not-on-play-store';
       playVersion = null;
+      playVersionReleaseUpdatedAt = null;
     } else if (scraped.rawError) {
       status = 'check-failed';
       playVersion = priorRecord?.playVersion ?? null;
     } else if (scraped.playVersion) {
       playVersion = scraped.playVersion;
       status = compareAppVersions(app.latestSupportedVersion, playVersion);
+      playVersionReleaseUpdatedAt = scraped.updatedAt ?? null;
     } else {
-      status = 'unknown';
-      playVersion = priorRecord?.playVersion ?? null;
+      // App exists on Google Play (not 404, not error), but Google Play web HTML omits
+      // the version string (e.g. multi-split App Bundle where version varies with device).
+      if (priorRecord?.playVersion) {
+        playVersion = priorRecord.playVersion;
+        status = compareAppVersions(app.latestSupportedVersion, playVersion);
+      } else {
+        playVersion = null;
+        status = 'unknown';
+      }
     }
-
     let targetCompat = priorRecord?.targetCompatibility ?? null;
-    let latestCompat = priorRecord?.latestCompatibility ?? null;
 
     const targetVersionChanged = Boolean(
-      priorRecord && priorRecord.latestSupportedVersion !== app.latestSupportedVersion
-    );
-    const concretePlayVersionChanged = Boolean(
-      playVersion &&
-      priorRecord?.playVersion &&
-      playVersion !== priorRecord.playVersion &&
-      !playVersion.toLowerCase().includes('varies')
+      priorRecord &&
+      priorRecord.latestSupportedVersion !== app.latestSupportedVersion,
     );
 
     if (targetVersionChanged) {
       targetCompat = null;
-      latestCompat = null;
-    } else if (concretePlayVersionChanged) {
-      latestCompat = null;
     }
 
-    const expectedRoles: ('target' | 'latest')[] = [];
-    if (!targetCompat || targetCompat.status === 'error') {
+    const requiresAcquisition =
+      !scraped.isNotFound &&
+      !scraped.rawError &&
+      !scraped.playVersion &&
+      (!priorRecord?.playVersion ||
+        priorRecord.playVersionReleaseUpdatedAt !== scraped.updatedAt);
+
+    const expectedRoles: 'target'[] = [];
+    if (
+      !targetCompat ||
+      targetCompat.status === 'error' ||
+      requiresAcquisition
+    ) {
       expectedRoles.push('target');
     }
-    if (
-      playVersion &&
-      status === 'newer-available' &&
-      (!latestCompat || latestCompat.status === 'error')
-    ) {
-      expectedRoles.push('latest');
-    }
-
     let outstandingRequest = priorRecord?.outstandingRequest ?? null;
     if (
       outstandingRequest &&
@@ -277,6 +315,18 @@ export async function performVersionCheck(
         outstandingRequest.playVersion !== playVersion)
     ) {
       outstandingRequest = null;
+    }
+
+    if (outstandingRequest) {
+      const dispatchedTime = new Date(
+        outstandingRequest.dispatchedAt,
+      ).getTime();
+      const isStaleOrInvalid =
+        Number.isNaN(dispatchedTime) ||
+        Date.now() - dispatchedTime > OUTSTANDING_REQUEST_TTL_MS;
+      if (isStaleOrInvalid) {
+        outstandingRequest = null;
+      }
     }
 
     if (expectedRoles.length > 0 && !outstandingRequest) {
@@ -289,7 +339,8 @@ export async function performVersionCheck(
           requestId,
           app.packageName,
           playVersion,
-          app.latestSupportedVersion
+          app.latestSupportedVersion,
+          expectedRoles,
         );
       }
       if (dispatchOk) {
@@ -313,12 +364,11 @@ export async function performVersionCheck(
       status,
       supportedVersions: app.supportedVersions,
       latestSupportedVersion: app.latestSupportedVersion,
+      playVersionReleaseUpdatedAt,
       targetCompatibility: targetCompat,
-      latestCompatibility: latestCompat,
       outstandingRequest,
       outstandingRequestId: outstandingRequest?.requestId ?? null,
     };
-
     await saveAppRecord(env, app.packageName, appRecord);
     appsRecord[app.packageName] = appRecord;
   }
@@ -359,7 +409,7 @@ export async function performVersionCheck(
 }
 
 export function computeAggregateCompatibilityStatus(
-  payload: KVVersionPayload
+  payload: KVVersionPayload,
 ): { status: PatchCompatibilityStatus; label: string; color: string } {
   let anyError = false;
   let anyIncompatible = false;
@@ -378,20 +428,17 @@ export function computeAggregateCompatibilityStatus(
     monitoredAppsFound++;
 
     const targetStatus = record.targetCompatibility?.status || 'not-tested';
-    const latestStatus = record.latestCompatibility?.status || null;
 
-    if (targetStatus === 'error' || latestStatus === 'error') {
+    if (targetStatus === 'error') {
       anyError = true;
       allCompatible = false;
-    } else if (targetStatus === 'incompatible' || latestStatus === 'incompatible') {
+    } else if (targetStatus === 'incompatible') {
       anyIncompatible = true;
       allCompatible = false;
     } else if (
       targetStatus === 'queued' ||
       targetStatus === 'running' ||
-      targetStatus === 'not-tested' ||
-      latestStatus === 'queued' ||
-      latestStatus === 'running'
+      targetStatus === 'not-tested'
     ) {
       anyPending = true;
       allCompatible = false;
@@ -430,11 +477,27 @@ export function computeAggregateCompatibilityStatus(
   return { status: finalStatus, label, color };
 }
 function isCompatibilityResultSubmission(
-  val: unknown
+  val: unknown,
 ): val is CompatibilityResultSubmission {
   if (!val || typeof val !== 'object') return false;
-  if (!('requestId' in val) || typeof val.requestId !== 'string' || !val.requestId.trim()) return false;
-  if (!('packageName' in val) || typeof val.packageName !== 'string') return false;
+  if (
+    !('requestId' in val) ||
+    typeof val.requestId !== 'string' ||
+    !val.requestId.trim()
+  )
+    return false;
+  if (!('packageName' in val) || typeof val.packageName !== 'string')
+    return false;
+  if ('acquiredPlayVersion' in val) {
+    const apv = (val as Record<string, unknown>).acquiredPlayVersion;
+    if (
+      apv !== undefined &&
+      apv !== null &&
+      (typeof apv !== 'string' || !apv.trim())
+    ) {
+      return false;
+    }
+  }
   if (!('results' in val) || !Array.isArray(val.results)) return false;
   return true;
 }
@@ -446,7 +509,11 @@ const FINAL_STATUSES: Record<string, true> = {
 };
 
 export default {
-  async scheduled(event: ScheduledEvent, env: WorkerEnv, ctx: ExecutionContext): Promise<void> {
+  async scheduled(
+    event: ScheduledEvent,
+    env: WorkerEnv,
+    ctx: ExecutionContext,
+  ): Promise<void> {
     ctx.waitUntil(performVersionCheck(env));
   },
 
@@ -461,9 +528,14 @@ export default {
     }
 
     // 1. Authenticated compatibility test result ingestion
-    if (url.pathname === '/api/compatibility-results' && request.method === 'POST') {
+    if (
+      url.pathname === '/api/compatibility-results' &&
+      request.method === 'POST'
+    ) {
       const authHeader = request.headers.get('Authorization') || '';
-      const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
+      const token = authHeader.startsWith('Bearer ')
+        ? authHeader.slice(7).trim()
+        : '';
 
       if (
         !env.COMPATIBILITY_STATUS_SECRET ||
@@ -487,27 +559,38 @@ export default {
       }
 
       if (!isCompatibilityResultSubmission(rawBody)) {
-        return new Response(JSON.stringify({ error: 'Invalid submission format' }), {
-          status: 400,
-          headers: { 'Content-Type': 'application/json' },
-        });
+        return new Response(
+          JSON.stringify({ error: 'Invalid submission format' }),
+          {
+            status: 400,
+            headers: { 'Content-Type': 'application/json' },
+          },
+        );
       }
 
       const submission = rawBody;
-      const appConfig = MONITORED_APPS.find((a) => a.packageName === submission.packageName);
+      const appConfig = MONITORED_APPS.find(
+        (a) => a.packageName === submission.packageName,
+      );
       if (!appConfig) {
-        return new Response(JSON.stringify({ error: 'Unknown or unmonitored package' }), {
-          status: 400,
-          headers: { 'Content-Type': 'application/json' },
-        });
+        return new Response(
+          JSON.stringify({ error: 'Unknown or unmonitored package' }),
+          {
+            status: 400,
+            headers: { 'Content-Type': 'application/json' },
+          },
+        );
       }
 
       const appRecord = await loadAppRecord(env, submission.packageName);
       if (!appRecord) {
-        return new Response(JSON.stringify({ error: 'App record not initialized' }), {
-          status: 400,
-          headers: { 'Content-Type': 'application/json' },
-        });
+        return new Response(
+          JSON.stringify({ error: 'App record not initialized' }),
+          {
+            status: 400,
+            headers: { 'Content-Type': 'application/json' },
+          },
+        );
       }
 
       const outstanding = appRecord.outstandingRequest;
@@ -520,7 +603,7 @@ export default {
           {
             status: 409,
             headers: { 'Content-Type': 'application/json' },
-          }
+          },
         );
       }
 
@@ -533,7 +616,7 @@ export default {
           {
             status: 400,
             headers: { 'Content-Type': 'application/json' },
-          }
+          },
         );
       }
 
@@ -543,39 +626,54 @@ export default {
 
       for (const res of submission.results) {
         if (!res || typeof res !== 'object') {
-          return new Response(JSON.stringify({ error: 'Invalid result item' }), {
-            status: 400,
-            headers: { 'Content-Type': 'application/json' },
-          });
+          return new Response(
+            JSON.stringify({ error: 'Invalid result item' }),
+            {
+              status: 400,
+              headers: { 'Content-Type': 'application/json' },
+            },
+          );
         }
 
         if (res.role !== 'target' && res.role !== 'latest') {
-          return new Response(JSON.stringify({ error: `Invalid role: ${res.role}` }), {
-            status: 400,
-            headers: { 'Content-Type': 'application/json' },
-          });
+          return new Response(
+            JSON.stringify({ error: `Invalid role: ${res.role}` }),
+            {
+              status: 400,
+              headers: { 'Content-Type': 'application/json' },
+            },
+          );
         }
 
         if (!expectedRoles.includes(res.role)) {
-          return new Response(JSON.stringify({ error: `Unexpected role: ${res.role}` }), {
-            status: 400,
-            headers: { 'Content-Type': 'application/json' },
-          });
+          return new Response(
+            JSON.stringify({ error: `Unexpected role: ${res.role}` }),
+            {
+              status: 400,
+              headers: { 'Content-Type': 'application/json' },
+            },
+          );
         }
 
         if (seenRoles.has(res.role)) {
-          return new Response(JSON.stringify({ error: `Duplicate role in results: ${res.role}` }), {
-            status: 400,
-            headers: { 'Content-Type': 'application/json' },
-          });
+          return new Response(
+            JSON.stringify({ error: `Duplicate role in results: ${res.role}` }),
+            {
+              status: 400,
+              headers: { 'Content-Type': 'application/json' },
+            },
+          );
         }
         seenRoles.add(res.role);
 
         if (!FINAL_STATUSES[res.status]) {
-          return new Response(JSON.stringify({ error: `Invalid status: ${res.status}` }), {
-            status: 400,
-            headers: { 'Content-Type': 'application/json' },
-          });
+          return new Response(
+            JSON.stringify({ error: `Invalid status: ${res.status}` }),
+            {
+              status: 400,
+              headers: { 'Content-Type': 'application/json' },
+            },
+          );
         }
 
         if (
@@ -590,13 +688,33 @@ export default {
           typeof res.patchBundleVersion !== 'string' ||
           typeof res.gitRevision !== 'string'
         ) {
-          return new Response(JSON.stringify({ error: 'Malformed result fields' }), {
-            status: 400,
-            headers: { 'Content-Type': 'application/json' },
-          });
+          return new Response(
+            JSON.stringify({ error: 'Malformed result fields' }),
+            {
+              status: 400,
+              headers: { 'Content-Type': 'application/json' },
+            },
+          );
         }
 
-        if (res.role === 'target' && res.versionName !== outstanding.targetVersion) {
+        if (
+          res.failureReason !== undefined &&
+          res.failureReason !== null &&
+          typeof res.failureReason !== 'string'
+        ) {
+          return new Response(
+            JSON.stringify({ error: 'Malformed failureReason field' }),
+            {
+              status: 400,
+              headers: { 'Content-Type': 'application/json' },
+            },
+          );
+        }
+
+        if (
+          res.role === 'target' &&
+          res.versionName !== outstanding.targetVersion
+        ) {
           return new Response(
             JSON.stringify({
               error: `Tested target version '${res.versionName}' does not match expected '${outstanding.targetVersion}'`,
@@ -604,23 +722,7 @@ export default {
             {
               status: 409,
               headers: { 'Content-Type': 'application/json' },
-            }
-          );
-        }
-
-        if (
-          res.role === 'latest' &&
-          outstanding.playVersion &&
-          res.versionName !== outstanding.playVersion
-        ) {
-          return new Response(
-            JSON.stringify({
-              error: `Tested latest version '${res.versionName}' does not match expected '${outstanding.playVersion}'`,
-            }),
-            {
-              status: 409,
-              headers: { 'Content-Type': 'application/json' },
-            }
+            },
           );
         }
 
@@ -636,22 +738,28 @@ export default {
           failedCount: res.failedCount,
           status: res.status,
           workflowRunUrl: res.workflowRunUrl || null,
+          failureReason:
+            typeof res.failureReason === 'string' ? res.failureReason : null,
         });
       }
-
       for (const rec of recordsToApply) {
-        if (rec.role === 'target') {
-          appRecord.targetCompatibility = rec;
-        } else {
-          appRecord.latestCompatibility = rec;
-        }
+        appRecord.targetCompatibility = rec;
+      }
+
+      if (submission.acquiredPlayVersion) {
+        const acquired = submission.acquiredPlayVersion.trim();
+        appRecord.playVersion = acquired;
+        appRecord.status = compareAppVersions(
+          appConfig.latestSupportedVersion,
+          acquired,
+        );
+        appRecord.playVersionReleaseUpdatedAt = appRecord.updatedAt ?? null;
       }
 
       appRecord.outstandingRequest = null;
       appRecord.outstandingRequestId = null;
 
       await saveAppRecord(env, submission.packageName, appRecord);
-
       return new Response(
         JSON.stringify({
           success: true,
@@ -661,16 +769,22 @@ export default {
         {
           status: 200,
           headers: { 'Content-Type': 'application/json' },
-        }
+        },
       );
     }
 
     // 2. On-demand refresh endpoint
     if (url.pathname === '/api/refresh' && request.method === 'POST') {
       const authHeader = request.headers.get('Authorization') || '';
-      const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
+      const token = authHeader.startsWith('Bearer ')
+        ? authHeader.slice(7).trim()
+        : '';
 
-      if (!env.REFRESH_SECRET || !token || !timingSafeEqual(token, env.REFRESH_SECRET)) {
+      if (
+        !env.REFRESH_SECRET ||
+        !token ||
+        !timingSafeEqual(token, env.REFRESH_SECRET)
+      ) {
         return new Response(JSON.stringify({ error: 'Unauthorized' }), {
           status: 401,
           headers: { 'Content-Type': 'application/json' },
@@ -701,12 +815,20 @@ export default {
 
     // 4. Per-package compatibility badge: /badges/compatibility/:packageName.svg
     if (url.pathname.startsWith('/badges/compatibility/')) {
-      const rawPkg = url.pathname.replace('/badges/compatibility/', '').replace(/\.svg$/, '');
+      const rawPkg = url.pathname
+        .replace('/badges/compatibility/', '')
+        .replace(/\.svg$/, '');
       const packageName = decodeURIComponent(rawPkg);
 
-      const appConfig = MONITORED_APPS.find((a) => a.packageName === packageName);
+      const appConfig = MONITORED_APPS.find(
+        (a) => a.packageName === packageName,
+      );
       if (!appConfig) {
-        const notFoundSvg = renderBadgeSvg('compatibility', 'app not found', '#999');
+        const notFoundSvg = renderBadgeSvg(
+          'compatibility',
+          'app not found',
+          '#999',
+        );
         return new Response(notFoundSvg, {
           status: 404,
           headers: {

@@ -138,7 +138,6 @@ def test_cli_unity_integration(tmp_path, capsys):
         parser.parse_args(["unity", str(apk_file)])
     assert exc_info.value.code == 2
 
-
     # CLI query formatted table
     args = parser.parse_args(
         ["unity", str(apk_file), "--gameobject", "Button_HelpCenter"]

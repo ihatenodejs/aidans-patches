@@ -48,7 +48,9 @@ def encode_branch(mnemonic: str, pc: int, target: int) -> int:
     """
     mnemonic_lower = mnemonic.strip().lower()
     if mnemonic_lower not in ("b", "bl"):
-        raise ValueError(f"Unsupported branch mnemonic: '{mnemonic}' (must be 'b' or 'bl')")
+        raise ValueError(
+            f"Unsupported branch mnemonic: '{mnemonic}' (must be 'b' or 'bl')"
+        )
 
     if pc % 4 != 0:
         raise ValueError(f"Program counter pc (0x{pc:x}) must be 4-byte aligned")
@@ -183,7 +185,9 @@ def assemble_statement(
         elif operands:
             target = int(operands, 0)
         else:
-            raise ValueError(f"Branch instruction '{mnemonic}' requires a target address")
+            raise ValueError(
+                f"Branch instruction '{mnemonic}' requires a target address"
+            )
         return encode_branch(mnemonic, pc, target)
 
     elif mnemonic == "ret":

@@ -73,7 +73,7 @@ export type PatchCompatibilityStatus =
 
 export interface CompatibilityRecord {
   requestId: string;
-  role: 'target' | 'latest';
+  role: 'target';
   versionName: string;
   versionCode: number;
   patchBundleVersion: string;
@@ -83,6 +83,15 @@ export interface CompatibilityRecord {
   failedCount: number;
   status: PatchCompatibilityStatus;
   workflowRunUrl?: string | null;
+  failureReason?: string | null;
+}
+
+export interface OutstandingCompatibilityRequest {
+  requestId: string;
+  targetVersion: string;
+  playVersion: string | null;
+  expectedRoles: ('target')[];
+  dispatchedAt: string;
 }
 
 export interface AppVersionStatus {
@@ -98,7 +107,8 @@ export interface AppVersionStatus {
   updatedOn?: string | null;
   status: FreshnessStatus;
   targetCompatibility?: CompatibilityRecord | null;
-  latestCompatibility?: CompatibilityRecord | null;
+  outstandingRequest?: OutstandingCompatibilityRequest | null;
+  outstandingRequestId?: string | null;
   playStoreUrl: string;
   iconUrl?: string | null;
 }

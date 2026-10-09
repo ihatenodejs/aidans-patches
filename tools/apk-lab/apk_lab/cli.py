@@ -26,13 +26,13 @@ def non_negative_float(val: str) -> float:
     if f < 0:
         raise argparse.ArgumentTypeError(f"Stale age must be non-negative, got {val}")
     return f
+
+
 def parse_int_auto(val: str) -> int:
     try:
         return int(val, 0)
     except ValueError:
         raise argparse.ArgumentTypeError(f"Invalid integer or hex value: {val}")
-
-
 
 
 def validate_dex_entry_name(name: str) -> str:
@@ -56,6 +56,8 @@ def materialize_split_member(
         while chunk := src.read(64 * 1024):
             dst.write(chunk)
     return dest
+
+
 def extract_native_libraries(
     apk_paths: list[Path], lib_dir: Path
 ) -> dict[str, list[str]]:
@@ -102,7 +104,6 @@ def extract_native_libraries(
                         arch_libs.append(filename)
 
     return extracted
-
 
 
 def print_json_or_file(data: Any, path: str | None = None) -> None:
@@ -332,7 +333,6 @@ def handle_analyze(args: argparse.Namespace) -> int:
             ]
         extracted_libs = extract_native_libraries(candidate_apks, lib_out)
 
-
         # 1. Smali disassembly (default or explicit)
         run_smali = args.smali or (not args.jadx and not args.apktool)
         if run_smali:
@@ -522,6 +522,8 @@ def handle_acquire(args: argparse.Namespace) -> int:
     except Exception as e:  # noqa: BLE001
         print(f"Acquisition error: {e}", file=sys.stderr)
         return ExitCode.INFRASTRUCTURE_FAILURE
+
+
 def handle_asm(args: argparse.Namespace) -> int:
     try:
         from apk_lab.asm import assemble_statement, format_instruction
@@ -540,6 +542,8 @@ def handle_asm(args: argparse.Namespace) -> int:
     except Exception as e:  # noqa: BLE001
         print(f"Assembly error: {e}", file=sys.stderr)
         return ExitCode.INFRASTRUCTURE_FAILURE
+
+
 def handle_il2cpp(args: argparse.Namespace) -> int:
     try:
         from apk_lab.il2cpp import analyze_il2cpp
@@ -571,6 +575,8 @@ def handle_il2cpp(args: argparse.Namespace) -> int:
     except Exception as e:  # noqa: BLE001
         print(f"IL2CPP analysis error: {e}", file=sys.stderr)
         return ExitCode.INFRASTRUCTURE_FAILURE
+
+
 def handle_unity(args: argparse.Namespace) -> int:
     try:
         from apk_lab.unity import inspect_unity_assets
@@ -607,12 +613,6 @@ def handle_unity(args: argparse.Namespace) -> int:
     except Exception as e:  # noqa: BLE001
         print(f"Unity asset inspection error: {e}", file=sys.stderr)
         return ExitCode.INFRASTRUCTURE_FAILURE
-
-
-
-
-
-
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -837,9 +837,6 @@ def build_parser() -> argparse.ArgumentParser:
         help="Output results as JSON (optionally to file path or '-' for stdout)",
     )
     p_unity.set_defaults(handler=handle_unity)
-
-
-
 
     return parser
 
