@@ -251,7 +251,7 @@ async function runFormat(checkOnly = false): Promise<boolean> {
     : 'Formatted Python sources';
   console.log(rPassed ? sym.ok : sym.err);
   if (!rPassed) {
-    console.log(c.dim + (rRes.stdout || rRes.stderr).trim() + c.reset);
+    printRawCommandOutput(rRes.stdout, rRes.stderr);
   }
   results.push({
     title: 'Python (Ruff format)',
@@ -436,7 +436,7 @@ async function runTypecheck(): Promise<boolean> {
   const wPassed = wRes.code === 0;
   console.log(wPassed ? sym.ok : sym.err);
   if (!wPassed) {
-    console.log(c.dim + (wRes.stdout || wRes.stderr).trim() + c.reset);
+    printRawCommandOutput(wRes.stdout, wRes.stderr);
   }
   results.push({
     title: 'Cloudflare Worker (tsc)',
@@ -452,7 +452,7 @@ async function runTypecheck(): Promise<boolean> {
   const sPassed = sRes.code === 0;
   console.log(sPassed ? sym.ok : sym.err);
   if (!sPassed) {
-    console.log(c.dim + (sRes.stdout || sRes.stderr).trim() + c.reset);
+    printRawCommandOutput(sRes.stdout, sRes.stderr);
   }
   results.push({
     title: 'Astro Site (astro check)',
@@ -477,7 +477,7 @@ async function runTypecheck(): Promise<boolean> {
   const pyPassed = pyRes.code === 0;
   console.log(pyPassed ? sym.ok : sym.err);
   if (!pyPassed) {
-    console.log(c.dim + (pyRes.stdout || pyRes.stderr).trim() + c.reset);
+    printRawCommandOutput(pyRes.stdout, pyRes.stderr);
   }
   results.push({
     title: 'APK Lab Python (mypy)',
@@ -497,7 +497,7 @@ async function runTypecheck(): Promise<boolean> {
   const gPassed = gRes.code === 0;
   console.log(gPassed ? sym.ok : sym.err);
   if (!gPassed) {
-    console.log(c.dim + (gRes.stdout || gRes.stderr).trim() + c.reset);
+    printRawCommandOutput(gRes.stdout, gRes.stderr);
   }
   results.push({
     title: 'Morphe Patches (Gradle)',
@@ -525,7 +525,7 @@ async function runTest(): Promise<boolean> {
   const pySummary = pySummaryMatch ? pySummaryMatch[1].trim() : pyPassed ? 'All tests passed' : 'Tests failed';
   console.log(pyPassed ? sym.ok : sym.err);
   if (!pyPassed) {
-    console.log(c.dim + (pyRes.stdout || pyRes.stderr).trim() + c.reset);
+    printRawCommandOutput(pyRes.stdout, pyRes.stderr);
   }
   results.push({
     title: 'APK Lab Suite (pytest)',
@@ -543,7 +543,7 @@ async function runTest(): Promise<boolean> {
   const wSummary = wSummaryMatch ? wSummaryMatch[1].trim() : wPassed ? 'All tests passed' : 'Tests failed';
   console.log(wPassed ? sym.ok : sym.err);
   if (!wPassed) {
-    console.log(c.dim + (wRes.stdout || wRes.stderr).trim() + c.reset);
+    printRawCommandOutput(wRes.stdout, wRes.stderr);
   }
   results.push({
     title: 'Worker Suite (Vitest)',
@@ -561,7 +561,7 @@ async function runTest(): Promise<boolean> {
   const sSummary = sSummaryMatch ? sSummaryMatch[1].trim() : sPassed ? 'All tests passed' : 'Tests failed';
   console.log(sPassed ? sym.ok : sym.err);
   if (!sPassed) {
-    console.log(c.dim + (sRes.stdout || sRes.stderr).trim() + c.reset);
+    printRawCommandOutput(sRes.stdout, sRes.stderr);
   }
   results.push({
     title: 'Site Suite (Bun test)',
@@ -577,7 +577,7 @@ async function runTest(): Promise<boolean> {
   const iconPassed = iconRes.code === 0;
   console.log(iconPassed ? sym.ok : sym.err);
   if (!iconPassed) {
-    console.log(c.dim + (iconRes.stdout || iconRes.stderr).trim() + c.reset);
+    printRawCommandOutput(iconRes.stdout, iconRes.stderr);
   }
   results.push({
     title: 'App Icons Verification',
