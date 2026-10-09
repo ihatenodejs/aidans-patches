@@ -1,8 +1,11 @@
 #!/usr/bin/env bun
 import { spawn } from 'node:child_process';
+import * as crypto from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
+const KTLINT_1_5_0_SHA256 =
+  'a16be01dcc480aab2f55f444b620142152f66e31564b3b9376506d624c28a2ad';
 // --- ANSI Styling ---
 const c = {
   reset: '\x1b[0m',
@@ -102,8 +105,17 @@ async function ensureKtlint(): Promise<string> {
   fs.mkdirSync(path.dirname(localBin), { recursive: true });
   const res = await fetch('https://github.com/pinterest/ktlint/releases/download/1.5.0/ktlint');
   if (!res.ok) throw new Error(`Failed to download ktlint: ${res.statusText}`);
-  const buf = await res.arrayBuffer();
-  fs.writeFileSync(localBin, Buffer.from(buf), { mode: 0o755 });
+  const buf = Buffer.from(await res.arrayBuffer());
+  const downloadedSha256 = crypto
+    .createHash('sha256')
+    .update(buf)
+    .digest('hex');
+  if (downloadedSha256 !== KTLINT_1_5_0_SHA256) {
+    throw new Error(
+      `ktlint 1.5.0 SHA-256 verification failed: expected ${KTLINT_1_5_0_SHA256}, got ${downloadedSha256}`,
+    );
+  }
+  fs.writeFileSync(localBin, buf, { mode: 0o755 });
   return localBin;
 }
 
@@ -150,6 +162,12 @@ function renderDiagnostics(diagnostics: Diagnostic[]): void {
     console.log(`  ${badge} ${c.bold}${loc}${c.reset}${rule} ${toolBadge}`);
     console.log(`    ${d.message}`);
   }
+}
+
+function printRawCommandOutput(stdout: string, stderr: string): void {
+  const combined = [stdout.trim(), stderr.trim()].filter(Boolean).join('\n');
+  if (!combined) return;
+  console.log(c.dim + combined + c.reset);
 }
 
 // ============================================================================
@@ -275,7 +293,7 @@ async function runLint(autoFix = false): Promise<boolean> {
       });
     }
   } catch {
-    // If not json or empty
+    printRawCommandOutput(oxRes.stdout, oxRes.stderr);
   }
   const oxErrors = oxDiags.filter((d) => d.severity === 'error').length;
   const oxWarns = oxDiags.filter((d) => d.severity === 'warning').length;
@@ -316,7 +334,7 @@ async function runLint(autoFix = false): Promise<boolean> {
       }
     }
   } catch {
-    // ignore parse error
+    printRawCommandOutput(rRes.stdout, rRes.stderr);
   }
   const rPassed = rRes.code === 0 && rDiags.length === 0;
   allDiagnostics.push(...rDiags);
@@ -357,7 +375,7 @@ async function runLint(autoFix = false): Promise<boolean> {
       }
     }
   } catch {
-    // ignore
+    printRawCommandOutput(kRes.stdout, kRes.stderr);
   }
   const kPassed = kRes.code === 0 && kDiags.length === 0;
   allDiagnostics.push(...kDiags);
