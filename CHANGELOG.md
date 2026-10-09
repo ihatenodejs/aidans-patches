@@ -1,3 +1,9 @@
+## [1.5.1](https://github.com/ihatenodejs/aidans-patches/compare/v1.5.0...v1.5.1) (2026-10-09)
+
+### 🐛 Bug Fixes
+
+* **ci:** set User-Agent in compatibility submission and reuse acquired artifact for target check if version matches ([1901351](https://github.com/ihatenodejs/aidans-patches/commit/1901351bfddb604a4674695a86d9826f6a0a0caf))
+
 ## [1.5.0](https://github.com/ihatenodejs/aidans-patches/compare/v1.4.0...v1.5.0) (2026-10-09)
 
 ### 🐛 Bug Fixes
