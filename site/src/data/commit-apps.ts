@@ -36,6 +36,10 @@ export const SCOPE_TO_APP_ID: Record<string, string> = {
   'navigate360-student': 'navigate360-student',
   navigate: 'navigate360-student',
   eab: 'navigate360-student',
+
+  // Geocaching
+  geocaching: 'geocaching',
+  groundspeak: 'geocaching',
 };
 
 export function resolveAppForScope(

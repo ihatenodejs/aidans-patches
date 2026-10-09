@@ -47,6 +47,10 @@ const BASELINE_PLAY_UPDATES: Record<string, { updatedAt: string; updatedOn: stri
     updatedAt: '2026-09-21T01:12:34.000Z',
     updatedOn: 'Sep 20, 2026',
   },
+  'com.groundspeak.geocaching.intro': {
+    updatedAt: '2026-10-02T22:05:05.000Z',
+    updatedOn: 'Oct 2, 2026',
+  },
   'com.tripledot.blackjack': {
     updatedAt: '2026-09-17T13:50:02.000Z',
     updatedOn: 'Sep 17, 2026',

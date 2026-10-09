@@ -41,6 +41,15 @@ export const PATCH_SOURCE_FILES: Record<string, string> = {
   'fizz:Replace Emoji Font with iOS': 'patches/src/main/kotlin/app/aidan/patches/fizz/customization/ReplaceEmojiFontWithIosPatch.kt',
   'fizz:Replace Emoji Font with iOS Asset': 'patches/src/main/kotlin/app/aidan/patches/fizz/customization/ReplaceEmojiFontWithIosPatch.kt',
 
+  // Geocaching
+  'geocaching:Local Premium': 'patches/src/main/kotlin/app/aidan/patches/geocaching/features/LocalPremiumPatch.kt',
+  'geocaching:OpenStreetMap Drop-in Replacement': 'patches/src/main/kotlin/app/aidan/patches/geocaching/customization/OpenStreetMapPatch.kt',
+  'geocaching:Remove Lists': 'patches/src/main/kotlin/app/aidan/patches/geocaching/features/RemoveListsPatch.kt',
+  'geocaching:Remove Lists Resource': 'patches/src/main/kotlin/app/aidan/patches/geocaching/features/RemoveListsPatch.kt',
+  'geocaching:Remove Tracking and Analytics': 'patches/src/main/kotlin/app/aidan/patches/geocaching/tracking/RemoveTrackingAndAnalyticsPatch.kt',
+  'geocaching:Unlock Cache Filter and Sorting Tools': 'patches/src/main/kotlin/app/aidan/patches/geocaching/features/UnlockFilterAndSortPatch.kt',
+  'geocaching:Unlock Experimental Features': 'patches/src/main/kotlin/app/aidan/patches/geocaching/features/UnlockExperimentalFeaturesPatch.kt',
+  'geocaching:Unlock Templates': 'patches/src/main/kotlin/app/aidan/patches/geocaching/features/UnlockTemplatesPatch.kt',
   // Navigate360 Student
   'navigate360-student:Remove Tracking and Telemetry': 'patches/src/main/kotlin/app/aidan/patches/navigate360/tracking/RemoveTrackingAndTelemetryPatch.kt',
   'navigate360-student:Remove Web Telemetry': 'patches/src/main/kotlin/app/aidan/patches/navigate360/tracking/RemoveWebTrackingAndTelemetryPatch.kt',
