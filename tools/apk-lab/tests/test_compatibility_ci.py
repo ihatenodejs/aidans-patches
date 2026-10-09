@@ -1,3 +1,5 @@
+import json
+import urllib.error
 from unittest.mock import MagicMock
 
 import pytest
@@ -574,3 +576,223 @@ def test_reconcile_and_test_missing_target_fixture_posts_error(monkeypatch, tmp_
     assert res[0]["role"] == "target"
     assert res[0]["status"] == "error"
     assert "No fixture slot matches target version" in res[0]["failureReason"]
+
+
+def test_reconcile_and_test_success_writes_submission_file_and_marker(
+    monkeypatch, tmp_path
+):
+    sub_file = tmp_path / "submission.json"
+    marker_file = tmp_path / "callback-marker"
+    monkeypatch.setenv("DISPATCH_REQUEST_ID", "req-persist-ok")
+    monkeypatch.setenv("COMPATIBILITY_STATUS_SECRET", "secret-test")
+    monkeypatch.setenv("WORKER_STATUS_URL", "https://worker.test")
+    monkeypatch.setenv("COMPATIBILITY_SUBMISSION_PATH", str(sub_file))
+    monkeypatch.setenv("COMPATIBILITY_CALLBACK_MARKER", str(marker_file))
+    monkeypatch.setattr(
+        "apk_lab.compatibility_ci.get_target_version_for_package",
+        lambda data, p: "1.0.0",
+    )
+    runner_temp = tmp_path / "runner_temp"
+    runner_temp.mkdir()
+    mpp_file = tmp_path / "bundle.mpp"
+    mpp_file.write_bytes(b"mpp")
+
+    target_meta = SlotMetadata(
+        role="target",
+        package_name="com.test.app",
+        version_name="1.0.0",
+        version_code=100,
+        container_type="APKM",
+        sha256="sha_target",
+        signer_sha256="sig",
+        size_bytes=100,
+        acquisition_source="apkeep",
+        timestamp="2026-10-06T00:00:00Z",
+    )
+    mock_r2 = MagicMock()
+    mock_r2.get_slot_metadata.side_effect = lambda pkg, role: (
+        target_meta if role == "target" else None
+    )
+
+    def mock_checker(
+        apk_path, mpp_path, expected_package=None, all_patches=False, force=False
+    ):
+        report = PatchCompatibilityReport(
+            artifact_sha256="sha",
+            package_name=expected_package,
+            version_name="1.0.0",
+            version_code=100,
+            patch_bundle_version="1.4.0",
+            git_revision="rev1",
+            tool_versions={},
+            overall_status="compatible",
+            total_cases=5,
+            passed_cases=5,
+            failed_cases=0,
+        )
+        return report, 0
+
+    exit_code = run_ci_reconcile_and_test(
+        pkg="com.test.app",
+        mpp_path=mpp_file,
+        runner_temp=runner_temp,
+        r2_mgr=mock_r2,
+        checker=mock_checker,
+        poster=lambda url, sec, sub: 200,
+        requested_roles=["target"],
+    )
+
+    assert exit_code == ExitCode.SUCCESS
+    assert sub_file.is_file()
+    saved_sub = json.loads(sub_file.read_text(encoding="utf-8"))
+    assert saved_sub["requestId"] == "req-persist-ok"
+    assert saved_sub["packageName"] == "com.test.app"
+    assert len(saved_sub["results"]) == 1
+    assert saved_sub["results"][0]["status"] == "compatible"
+    assert marker_file.is_file()
+    assert marker_file.read_text(encoding="utf-8") == "ok"
+
+
+def test_reconcile_and_test_transport_failure_leaves_submission_without_marker(
+    monkeypatch, tmp_path
+):
+    sub_file = tmp_path / "submission.json"
+    marker_file = tmp_path / "callback-marker"
+    monkeypatch.setenv("DISPATCH_REQUEST_ID", "req-persist-fail")
+    monkeypatch.setenv("COMPATIBILITY_STATUS_SECRET", "secret-test")
+    monkeypatch.setenv("WORKER_STATUS_URL", "https://worker.test")
+    monkeypatch.setenv("COMPATIBILITY_SUBMISSION_PATH", str(sub_file))
+    monkeypatch.setenv("COMPATIBILITY_CALLBACK_MARKER", str(marker_file))
+    monkeypatch.setattr(
+        "apk_lab.compatibility_ci.get_target_version_for_package",
+        lambda data, p: "1.0.0",
+    )
+    runner_temp = tmp_path / "runner_temp"
+    runner_temp.mkdir()
+    mpp_file = tmp_path / "bundle.mpp"
+    mpp_file.write_bytes(b"mpp")
+
+    target_meta = SlotMetadata(
+        role="target",
+        package_name="com.test.app",
+        version_name="1.0.0",
+        version_code=100,
+        container_type="APKM",
+        sha256="sha_target",
+        signer_sha256="sig",
+        size_bytes=100,
+        acquisition_source="apkeep",
+        timestamp="2026-10-06T00:00:00Z",
+    )
+    mock_r2 = MagicMock()
+    mock_r2.get_slot_metadata.side_effect = lambda pkg, role: (
+        target_meta if role == "target" else None
+    )
+
+    def mock_checker(
+        apk_path, mpp_path, expected_package=None, all_patches=False, force=False
+    ):
+        report = PatchCompatibilityReport(
+            artifact_sha256="sha",
+            package_name=expected_package,
+            version_name="1.0.0",
+            version_code=100,
+            patch_bundle_version="1.4.0",
+            git_revision="rev1",
+            tool_versions={},
+            overall_status="compatible",
+            total_cases=5,
+            passed_cases=5,
+            failed_cases=0,
+        )
+        return report, 0
+
+    def failing_poster(url, sec, sub):
+        raise urllib.error.URLError("Connection refused")
+
+    exit_code = run_ci_reconcile_and_test(
+        pkg="com.test.app",
+        mpp_path=mpp_file,
+        runner_temp=runner_temp,
+        r2_mgr=mock_r2,
+        checker=mock_checker,
+        poster=failing_poster,
+        requested_roles=["target"],
+    )
+
+    assert exit_code == ExitCode.INFRASTRUCTURE_FAILURE
+    assert sub_file.is_file()
+    saved_sub = json.loads(sub_file.read_text(encoding="utf-8"))
+    assert saved_sub["requestId"] == "req-persist-fail"
+    assert not marker_file.exists()
+
+
+def test_reconcile_and_test_non_2xx_poster_leaves_submission_without_marker(
+    monkeypatch, tmp_path
+):
+    sub_file = tmp_path / "submission.json"
+    marker_file = tmp_path / "callback-marker"
+    monkeypatch.setenv("DISPATCH_REQUEST_ID", "req-persist-500")
+    monkeypatch.setenv("COMPATIBILITY_STATUS_SECRET", "secret-test")
+    monkeypatch.setenv("WORKER_STATUS_URL", "https://worker.test")
+    monkeypatch.setenv("COMPATIBILITY_SUBMISSION_PATH", str(sub_file))
+    monkeypatch.setenv("COMPATIBILITY_CALLBACK_MARKER", str(marker_file))
+    monkeypatch.setattr(
+        "apk_lab.compatibility_ci.get_target_version_for_package",
+        lambda data, p: "1.0.0",
+    )
+    runner_temp = tmp_path / "runner_temp"
+    runner_temp.mkdir()
+    mpp_file = tmp_path / "bundle.mpp"
+    mpp_file.write_bytes(b"mpp")
+
+    target_meta = SlotMetadata(
+        role="target",
+        package_name="com.test.app",
+        version_name="1.0.0",
+        version_code=100,
+        container_type="APKM",
+        sha256="sha_target",
+        signer_sha256="sig",
+        size_bytes=100,
+        acquisition_source="apkeep",
+        timestamp="2026-10-06T00:00:00Z",
+    )
+    mock_r2 = MagicMock()
+    mock_r2.get_slot_metadata.side_effect = lambda pkg, role: (
+        target_meta if role == "target" else None
+    )
+
+    def mock_checker(
+        apk_path, mpp_path, expected_package=None, all_patches=False, force=False
+    ):
+        report = PatchCompatibilityReport(
+            artifact_sha256="sha",
+            package_name=expected_package,
+            version_name="1.0.0",
+            version_code=100,
+            patch_bundle_version="1.4.0",
+            git_revision="rev1",
+            tool_versions={},
+            overall_status="compatible",
+            total_cases=5,
+            passed_cases=5,
+            failed_cases=0,
+        )
+        return report, 0
+
+    exit_code = run_ci_reconcile_and_test(
+        pkg="com.test.app",
+        mpp_path=mpp_file,
+        runner_temp=runner_temp,
+        r2_mgr=mock_r2,
+        checker=mock_checker,
+        poster=lambda url, sec, sub: 500,
+        requested_roles=["target"],
+    )
+
+    assert exit_code == ExitCode.INFRASTRUCTURE_FAILURE
+    assert sub_file.is_file()
+    saved_sub = json.loads(sub_file.read_text(encoding="utf-8"))
+    assert saved_sub["requestId"] == "req-persist-500"
+    assert not marker_file.exists()

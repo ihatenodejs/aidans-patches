@@ -326,16 +326,40 @@ def run_ci_reconcile_and_test(
             )
             overall_exit = ExitCode.INVALID_ARTIFACT
     # 4. Post batched results only when both status_secret and dispatch_request_id are present
-    if status_secret and worker_url and dispatch_request_id:
+    submission: dict[str, Any] | None = None
+    if dispatch_request_id:
         submission = {
             "requestId": dispatch_request_id,
             "packageName": pkg,
             "acquiredPlayVersion": acquired_play_version,
             "results": results,
         }
+        submission_path_env = os.environ.get("COMPATIBILITY_SUBMISSION_PATH")
+        if submission_path_env:
+            sub_path = Path(submission_path_env)
+            sub_path.parent.mkdir(parents=True, exist_ok=True)
+            tmp_path = sub_path.with_name(f"{sub_path.name}.tmp.{os.getpid()}")
+            with open(tmp_path, "w", encoding="utf-8") as f:
+                json.dump(submission, f, indent=2)
+            os.replace(tmp_path, sub_path)
+
+    if status_secret and worker_url and dispatch_request_id and submission is not None:
         try:
             status_code = poster(worker_url, status_secret, submission)
-            print(f"Posted {len(results)} results to worker: HTTP {status_code}")
+            if 200 <= status_code < 300:
+                print(f"Posted {len(results)} results to worker: HTTP {status_code}")
+                marker_path_env = os.environ.get("COMPATIBILITY_CALLBACK_MARKER")
+                if marker_path_env:
+                    m_path = Path(marker_path_env)
+                    m_path.parent.mkdir(parents=True, exist_ok=True)
+                    m_path.write_text("ok", encoding="utf-8")
+            else:
+                print(
+                    f"Worker rejected results with status code HTTP {status_code}",
+                    file=sys.stderr,
+                )
+                if overall_exit == ExitCode.SUCCESS:
+                    overall_exit = ExitCode.INFRASTRUCTURE_FAILURE
         except (urllib.error.URLError, TimeoutError, OSError, ValueError) as err:
             print(f"Failed to post results to worker: {err}", file=sys.stderr)
             if overall_exit == ExitCode.SUCCESS:
@@ -343,7 +367,6 @@ def run_ci_reconcile_and_test(
     else:
         if not dispatch_request_id:
             print("No DISPATCH_REQUEST_ID provided; skipping worker callback.")
-
     return overall_exit
 
 

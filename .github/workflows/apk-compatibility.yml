@@ -2,13 +2,13 @@ name: APK Compatibility & Fixture Automation
 
 on:
   repository_dispatch:
-    types: ["apk-fixture-refresh"]
+    types: ['apk-fixture-refresh']
   workflow_dispatch:
     inputs:
       package_name:
         description: "Package name to test or 'all'"
         required: false
-        default: "all"
+        default: 'all'
         type: string
 
 permissions:
@@ -27,8 +27,8 @@ jobs:
       - name: Setup uv
         uses: astral-sh/setup-uv@v5
         with:
-          version: "latest"
-          python-version: "3.12"
+          version: 'latest'
+          python-version: '3.12'
 
       - name: Compute package list
         id: set-matrix
@@ -58,8 +58,8 @@ jobs:
       - name: Setup Java
         uses: actions/setup-java@v6.0.1
         with:
-          distribution: "temurin"
-          java-version: "21"
+          distribution: 'temurin'
+          java-version: '21'
 
       - name: Verify Android SDK Build Tools
         run: |
@@ -71,9 +71,9 @@ jobs:
       - name: Setup uv
         uses: astral-sh/setup-uv@v5
         with:
-          version: "latest"
+          version: 'latest'
           enable-cache: true
-          python-version: "3.12"
+          python-version: '3.12'
 
       - name: Sync apk-lab and tools
         run: |
@@ -94,15 +94,87 @@ jobs:
         run: |
           ./gradlew :patches:buildAndroid --no-daemon
       - name: Reconcile and Test Fixtures
+        id: reconcile-and-test
         run: |
           uv run --project tools/apk-lab python -m apk_lab.compatibility_ci run --package "${{ matrix.package }}"
         env:
           DISPATCH_REQUEST_ID: ${{ github.event.client_payload.requestId }}
           DISPATCH_EXPECTED_ROLES: ${{ join(github.event.client_payload.expectedRoles, ',') }}
           DISPATCH_PLAY_VERSION: ${{ github.event.client_payload.observedPlayVersion }}
+          COMPATIBILITY_SUBMISSION_PATH: ${{ runner.temp }}/compatibility-submission.json
+          COMPATIBILITY_CALLBACK_MARKER: ${{ runner.temp }}/compatibility-callback-complete
           R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
           R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
           APKEEP_EMAIL: ${{ secrets.APKEEP_EMAIL }}
           APKEEP_AAS_TOKEN: ${{ secrets.APKEEP_AAS_TOKEN }}
           COMPATIBILITY_STATUS_SECRET: ${{ secrets.COMPATIBILITY_STATUS_SECRET }}
+
+      - name: Report compatibility pipeline failure
+        if: ${{ always() && github.event_name == 'repository_dispatch' }}
+        env:
+          DISPATCH_REQUEST_ID: ${{ github.event.client_payload.requestId }}
+          DISPATCH_PACKAGE_NAME: ${{ matrix.package }}
+          DISPATCH_TARGET_VERSION: ${{ github.event.client_payload.targetVersion }}
+          COMPATIBILITY_STATUS_SECRET: ${{ secrets.COMPATIBILITY_STATUS_SECRET }}
+          WORKER_STATUS_URL: ${{ env.WORKER_STATUS_URL || 'https://worker.patch.p0ntus.com' }}
+          SUBMISSION_PATH: ${{ runner.temp }}/compatibility-submission.json
+          MARKER_PATH: ${{ runner.temp }}/compatibility-callback-complete
+        run: |
+          if [ -f "$MARKER_PATH" ]; then
+            echo "Compatibility results were already posted successfully."
+            exit 0
+          fi
+
+          if [ -z "$DISPATCH_REQUEST_ID" ] || [ -z "$COMPATIBILITY_STATUS_SECRET" ]; then
+            echo "Missing request ID or status secret; cannot report failure."
+            exit 0
+          fi
+
+          WORKER_ENDPOINT="${WORKER_STATUS_URL%/}/api/compatibility-results"
+
+          if [ -f "$SUBMISSION_PATH" ]; then
+            echo "Retrying posting saved submission payload..."
+            PAYLOAD_FILE="$SUBMISSION_PATH"
+          else
+            echo "Constructing fallback pipeline failure payload..."
+            PAYLOAD_FILE="${{ runner.temp }}/fallback-failure-submission.json"
+            RUN_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+
+            if [ -z "$DISPATCH_TARGET_VERSION" ] && [ -f "patches-list.json" ]; then
+              DISPATCH_TARGET_VERSION=$(grep -A 20 "\"packageName\": \"$DISPATCH_PACKAGE_NAME\"" patches-list.json | grep '"version":' | head -n 1 | sed -E 's/.*"version": "([^"]+)".*/\1/' || true)
+            fi
+
+            cat > "$PAYLOAD_FILE" <<EOF
+          {
+            "requestId": "$DISPATCH_REQUEST_ID",
+            "packageName": "$DISPATCH_PACKAGE_NAME",
+            "results": [
+              {
+                "role": "target",
+                "versionName": "$DISPATCH_TARGET_VERSION",
+                "versionCode": 0,
+                "patchBundleVersion": "unknown",
+                "gitRevision": "$GITHUB_SHA",
+                "status": "error",
+                "passedCount": 0,
+                "failedCount": 1,
+                "workflowRunUrl": "$RUN_URL",
+                "failureReason": "GitHub Actions failed before compatibility results were reported."
+              }
+            ]
+          }
+          EOF
+          fi
+
+          echo "Reporting terminal status to Worker..."
+          curl --fail-with-body \
+            --retry 3 \
+            --retry-delay 2 \
+            --retry-all-errors \
+            --silent --show-error \
+            -X POST "$WORKER_ENDPOINT" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $COMPATIBILITY_STATUS_SECRET" \
+            -H "User-Agent: aidans-patches-ci/1.0" \
+            -d @"$PAYLOAD_FILE"
