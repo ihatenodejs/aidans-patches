@@ -283,13 +283,13 @@ class ToolManager:
         else:
             cmd = [str(exe)] + extra_args
 
+        check = kwargs.pop("check", False)
         run_kwargs = {
             "capture_output": True,
             "text": True,
-            "check": False,
         }
         run_kwargs.update(kwargs)
-        return subprocess.run(cmd, **run_kwargs)
+        return subprocess.run(cmd, check=check, **run_kwargs)
 
 
 def check_host_prerequisites(

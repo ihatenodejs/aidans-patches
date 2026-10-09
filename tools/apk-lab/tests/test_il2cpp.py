@@ -23,7 +23,9 @@ def build_synthetic_metadata(
     corrupt_types_size: int | None = None,
 ) -> bytes:
     """Builds a minimal valid synthetic global-metadata.dat buffer."""
-    string_data = b"\x00TestNamespace\x00BlackjackApplication\x00OpenShop\x00OtherMethod\x00"
+    string_data = (
+        b"\x00TestNamespace\x00BlackjackApplication\x00OpenShop\x00OtherMethod\x00"
+    )
     string_offset = 256
     string_size = len(string_data)
 
@@ -39,26 +41,34 @@ def build_synthetic_metadata(
         # struct format: "<iiiiiiIHHHH"
         # name_idx, decl_type, return_type, returnParameterToken, param_start, gen_container, token, flags, iflags, slot, param_count
         # Nonzero sentinel 0x12345678 at offset 12 proves param_start comes from offset 16 (0) and param_count from 34 (1)
-        method0 = struct.pack("<iiiiiiIHHHH", 36, 0, 0, 0x12345678, 0, -1, 0, 0, 0, 0, 1)
-        method1 = struct.pack("<iiiiiiIHHHH", 45, 0, 0, 0x12345678, 0, -1, 0, 0, 0, 0, 0)
+        method0 = struct.pack(
+            "<iiiiiiIHHHH", 36, 0, 0, 0x12345678, 0, -1, 0, 0, 0, 0, 1
+        )
+        method1 = struct.pack(
+            "<iiiiiiIHHHH", 45, 0, 0, 0x12345678, 0, -1, 0, 0, 0, 0, 0
+        )
         methods_data = method0 + method1
     else:
         # Dummy method data for unsupported version testing
         methods_data = b"\x00" * 64
 
     methods_offset = string_offset + string_size + 4
-    methods_size = corrupt_methods_size if corrupt_methods_size is not None else len(methods_data)
+    methods_size = (
+        corrupt_methods_size if corrupt_methods_size is not None else len(methods_data)
+    )
 
     # Type definitions table (88 bytes per type)
     # Type 0: "BlackjackApplication", namespace="TestNamespace", methodStart=0, methodCount=2
     types_offset = methods_offset + len(methods_data) + 4
     type0_buf = bytearray(88)
     struct.pack_into("<i", type0_buf, 0, 15)  # nameIndex: "BlackjackApplication"
-    struct.pack_into("<i", type0_buf, 4, 1)   # namespaceIndex: "TestNamespace"
+    struct.pack_into("<i", type0_buf, 4, 1)  # namespaceIndex: "TestNamespace"
     struct.pack_into("<i", type0_buf, 36, 0)  # methodStart = 0
     struct.pack_into("<H", type0_buf, 64, 2)  # methodCount = 2
     types_data = bytes(type0_buf)
-    types_size = corrupt_types_size if corrupt_types_size is not None else len(types_data)
+    types_size = (
+        corrupt_types_size if corrupt_types_size is not None else len(types_data)
+    )
 
     total_len = types_offset + len(types_data) + 16
     buf = bytearray(total_len)
@@ -159,12 +169,17 @@ def test_il2cpp_unsupported_version_or_subversion():
 
 def test_il2cpp_table_size_not_whole_record():
     raw_bad_methods = build_synthetic_metadata(29, corrupt_methods_size=33)
-    with pytest.raises(ValueError, match="Methods table size .* not a multiple of record size"):
+    with pytest.raises(
+        ValueError, match="Methods table size .* not a multiple of record size"
+    ):
         Il2CppMetadata(raw_bad_methods)
 
     raw_bad_types = build_synthetic_metadata(29, corrupt_types_size=89)
-    with pytest.raises(ValueError, match="Type definitions table size .* not a multiple of record size"):
+    with pytest.raises(
+        ValueError, match="Type definitions table size .* not a multiple of record size"
+    ):
         Il2CppMetadata(raw_bad_types)
+
 
 def test_il2cpp_symbol_map_query():
     raw = build_synthetic_metadata()

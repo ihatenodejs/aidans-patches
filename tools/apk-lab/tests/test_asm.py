@@ -56,7 +56,9 @@ def test_encode_branch_out_of_range():
 
 
 def test_encode_branch_misaligned():
-    with pytest.raises(ValueError, match="Program counter pc .* must be 4-byte aligned"):
+    with pytest.raises(
+        ValueError, match="Program counter pc .* must be 4-byte aligned"
+    ):
         encode_branch("b", 1, 0x1000)
     with pytest.raises(ValueError, match="Target address .* must be 4-byte aligned"):
         encode_branch("b", 0x1000, 3)
@@ -149,7 +151,9 @@ def test_ret_rejections():
 
 def test_mov_immediate_validation():
     # Malformed plain numeric text produces unsupported-operand error with suppressed chaining
-    with pytest.raises(ValueError, match="Unsupported mov source operand: 'malformed'") as exc_info:
+    with pytest.raises(
+        ValueError, match="Unsupported mov source operand: 'malformed'"
+    ) as exc_info:
         encode_mov("x0", "malformed")
     assert exc_info.value.__cause__ is None
     assert exc_info.value.__suppress_context__ is True
@@ -160,6 +164,7 @@ def test_mov_immediate_validation():
     with pytest.raises(ValueError, match="exceeds supported range"):
         assemble_statement("mov x0, 65536")
 
+
 def test_format_kotlin_byte_array():
     # Boundary byte values: 0x00, 0x7f (no toByte), 0x80, 0xff (with toByte)
     data = bytes([0x00, 0x7F, 0x80, 0xFF])
@@ -168,7 +173,10 @@ def test_format_kotlin_byte_array():
 
     # Known ret instruction: c0 03 5f d6
     ret_bytes = 0xD65F03C0.to_bytes(4, "little")
-    assert format_kotlin_byte_array(ret_bytes) == "byteArrayOf(0xc0.toByte(), 0x03, 0x5f, 0xd6.toByte())"
+    assert (
+        format_kotlin_byte_array(ret_bytes)
+        == "byteArrayOf(0xc0.toByte(), 0x03, 0x5f, 0xd6.toByte())"
+    )
 
 
 def test_cli_asm_integration(capsys):

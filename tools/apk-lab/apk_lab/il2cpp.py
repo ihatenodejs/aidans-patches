@@ -71,6 +71,7 @@ SUPPORTED_LAYOUTS: dict[tuple[int, int], MetadataLayout] = {
     ),
 }
 
+
 @dataclass
 class Il2CppTypeDefinition:
     name: str
@@ -103,7 +104,9 @@ class Il2CppMetadata:
 
     def __init__(self, data: bytes, *, metadata_subversion: int = 0) -> None:
         if len(data) < 256:
-            raise ValueError(f"Metadata file too small ({len(data)} bytes, minimum 256)")
+            raise ValueError(
+                f"Metadata file too small ({len(data)} bytes, minimum 256)"
+            )
 
         self.data = data
         self.metadata_subversion = metadata_subversion
@@ -122,10 +125,16 @@ class Il2CppMetadata:
             )
         self.layout = layout
 
-        self.string_offset = struct.unpack_from("<I", data, layout.string_offset_header)[0]
+        self.string_offset = struct.unpack_from(
+            "<I", data, layout.string_offset_header
+        )[0]
         self.string_size = struct.unpack_from("<I", data, layout.string_size_header)[0]
-        self.methods_offset = struct.unpack_from("<I", data, layout.methods_offset_header)[0]
-        self.methods_size = struct.unpack_from("<I", data, layout.methods_size_header)[0]
+        self.methods_offset = struct.unpack_from(
+            "<I", data, layout.methods_offset_header
+        )[0]
+        self.methods_size = struct.unpack_from("<I", data, layout.methods_size_header)[
+            0
+        ]
         self.type_definitions_offset = struct.unpack_from(
             "<I", data, layout.type_definitions_offset_header
         )[0]
@@ -147,6 +156,7 @@ class Il2CppMetadata:
 
         self._parse_method_definitions()
         self._parse_type_definitions()
+
     def get_string_from_index(self, index: int) -> str:
         """Reads a null-terminated UTF-8 string from the string table at the given offset."""
         if index < 0 or index >= self.string_size:
@@ -241,6 +251,7 @@ class Il2CppMetadata:
                 )
             )
 
+
 class Il2CppSymbolMap:
     """Aggregates Il2Cpp types, method names, and provides fast symbol search."""
 
@@ -279,13 +290,17 @@ class Il2CppSymbolMap:
         results: list[Il2CppMethodMatch] = []
         for m in self.matches:
             full_sig = f"{m.namespace}.{m.type_name}.{m.method_name}"
-            if use_regex and pattern is not None and (
-                pattern.search(m.method_name)
-                or pattern.search(m.type_name)
-                or pattern.search(full_sig)
+            if (
+                use_regex
+                and pattern is not None
+                and (
+                    pattern.search(m.method_name)
+                    or pattern.search(m.type_name)
+                    or pattern.search(full_sig)
+                )
             ):
-                    results.append(m)
-                    continue
+                results.append(m)
+                continue
 
             if (
                 q_lower in m.method_name.lower()
