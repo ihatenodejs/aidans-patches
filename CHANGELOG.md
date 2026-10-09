@@ -1,3 +1,9 @@
+## [1.5.1](https://github.com/ihatenodejs/aidans-patches/compare/v1.5.0...v1.5.1) (2026-10-09)
+
+### 🐛 Bug Fixes
+
+* **ci:** set User-Agent in compatibility submission and reuse acquired artifact for target check if version matches ([1901351](https://github.com/ihatenodejs/aidans-patches/commit/1901351bfddb604a4674695a86d9826f6a0a0caf))
+
 ## [1.5.0-dev.3](https://github.com/ihatenodejs/aidans-patches/compare/v1.5.0-dev.2...v1.5.0-dev.3) (2026-10-09)
 
 ### 🐛 Bug Fixes
@@ -20,6 +26,16 @@
 ### 🐛 Bug Fixes
 
 * **site:** clean up status page, worker, and apk lab ([#16](https://github.com/ihatenodejs/aidans-patches/issues/16)) ([a666f02](https://github.com/ihatenodejs/aidans-patches/commit/a666f02c74b7c2a5f2d716df0a94f38ec127624c))
+
+## [1.5.0](https://github.com/ihatenodejs/aidans-patches/compare/v1.4.0...v1.5.0) (2026-10-09)
+
+### 🐛 Bug Fixes
+
+* **site:** clean up status page, worker, and apk lab ([#16](https://github.com/ihatenodejs/aidans-patches/issues/16)) ([a666f02](https://github.com/ihatenodejs/aidans-patches/commit/a666f02c74b7c2a5f2d716df0a94f38ec127624c))
+
+### ✨ New Features
+
+* **sezzle:** Added subscription removal patch and shortcut toggle ([47801e6](https://github.com/ihatenodejs/aidans-patches/commit/47801e691eca3274ceb00d21ac43932a48ca5545))
 
 ## [1.5.0-dev.1](https://github.com/ihatenodejs/aidans-patches/compare/v1.4.0...v1.5.0-dev.1) (2026-10-09)
 
