@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from apk_lab.acquisition import AcquisitionError
-from apk_lab.fixtures import FixtureError, R2FixtureManager, SlotMetadata
+from apk_lab.fixtures import R2FixtureManager, SlotMetadata
 from apk_lab.inspection import InspectionError
 from apk_lab.models import ExitCode, PatchCompatibilityReport
 from apk_lab.morphe import load_patches_list, run_compatibility_check
@@ -169,6 +169,7 @@ def post_compatibility_submission(
         headers={
             "Content-Type": "application/json",
             "Authorization": f"Bearer {status_secret}",
+            "User-Agent": "aidans-patches-ci/1.0",
         },
     )
     with urllib.request.urlopen(req, timeout=30) as resp:
@@ -223,6 +224,7 @@ def run_ci_reconcile_and_test(
 
     # 1. Acquire new latest if credentials present
     acquired_play_version: str | None = None
+    acquired_artifact_path: Path | None = None
     has_creds = bool(os.environ.get("APKEEP_EMAIL")) or bool(
         os.environ.get("R2_ACCESS_KEY_ID")
     )
@@ -236,6 +238,7 @@ def run_ci_reconcile_and_test(
             dl_dir = runner_temp / f"{pkg}-acquire"
             new_latest_path, src = acquirer(pkg, dl_dir)
             print(f"Acquired {pkg} via {src}: {new_latest_path}")
+            acquired_artifact_path = new_latest_path
             new_latest_meta, updated_target_meta = r2_mgr.rotate_slots_on_new_latest(
                 pkg,
                 new_latest_path,
@@ -275,7 +278,14 @@ def run_ci_reconcile_and_test(
         if target_slot_role is not None:
             target_file = runner_temp / f"{pkg}-target.apk"
             try:
-                r2_mgr.download_slot(pkg, target_slot_role, target_file)
+                if (
+                    acquired_artifact_path
+                    and acquired_play_version == target_version
+                    and acquired_artifact_path.exists()
+                ):
+                    target_file = acquired_artifact_path
+                else:
+                    r2_mgr.download_slot(pkg, target_slot_role, target_file)
                 t_report, t_code = checker(
                     target_file, mpp_path, expected_package=pkg, all_patches=True
                 )
