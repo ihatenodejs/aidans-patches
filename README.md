@@ -38,7 +38,7 @@ My [Morphe](https://morphe.software) patches
 ## 📱 Supported Applications & Patches
 
 <!-- PATCHES_START EXPANDED -->
-> **[v1.4.0](https://github.com/ihatenodejs/aidans-patches/releases/tag/v1.4.0)**&nbsp;&nbsp;•&nbsp;&nbsp;`main`&nbsp;&nbsp;•&nbsp;&nbsp;51 patches total
+> **[v1.4.0](https://github.com/ihatenodejs/aidans-patches/releases/tag/v1.4.0)**&nbsp;&nbsp;•&nbsp;&nbsp;`main`&nbsp;&nbsp;•&nbsp;&nbsp;52 patches total
 <details open>
 <summary>📦 SidelineSwap&nbsp;&nbsp;•&nbsp;&nbsp;4 patches</summary>
 <br>
@@ -104,7 +104,7 @@ My [Morphe](https://morphe.software) patches
 </details>
 
 <details open>
-<summary>📦 Sezzle&nbsp;&nbsp;•&nbsp;&nbsp;16 patches</summary>
+<summary>📦 Sezzle&nbsp;&nbsp;•&nbsp;&nbsp;17 patches</summary>
 <br>
 
 **🎯 Supported versions:**
@@ -115,7 +115,7 @@ My [Morphe](https://morphe.software) patches
 | 💊&nbsp;Patch | 📜&nbsp;Description | ⚙️&nbsp;Options |
 |----------|----------------|-----------|
 | [Clean Authentication](#clean-authentication) | Shows Google sign-in only and removes the unavailable phone sign-in controls. | • Inject patch warning |
-| [Configure Shortcuts](#configure-shortcuts) | Customizes items displayed in the Your Shortcuts carousel. | • Hide Refer a Friend<br>• Hide Giveaway<br>• Hide Offers<br>• Hide Rewards<br>• Hide Sezzle Mobile<br>• Hide Amazon Deals |
+| [Configure Shortcuts](#configure-shortcuts) | Customizes items displayed in the Your Shortcuts carousel. | • Hide Refer a Friend<br>• Hide Giveaway<br>• Hide Offers<br>• Hide Rewards<br>• Hide Sezzle Mobile<br>• Hide Amazon Deals<br>• Hide Pay Later Anywhere |
 | [Enable App Debugging](#enable-app-debugging) | Marks the app debuggable so patch developers can use ADB run-as after reinstalling. |  |
 | [Hide Sezzle Mobile](#hide-sezzle-mobile) | Hides Sezzle Mobile offers and account entry points. |  |
 | [Patch Consent Screen](#patch-consent-screen) | Requires consent to a patched-app warning before opening Sezzle authentication. |  |
@@ -123,6 +123,7 @@ My [Morphe](https://morphe.software) patches
 | [Remove Ads and Tracking from JS Bundle](#remove-ads-and-tracking-from-js-bundle) | Neutralizes post-payment reward and offer modals (Thanks network and Rokt placements) in the embedded Hermes JavaScript bundle. |  |
 | [Remove Promos & Giveaways](#remove-promos-giveaways) | Blocks in-app deal popups, giveaway screens, Knot card-linking dialogs, and marketing banners across the app. | • Block Merchant Deal Popovers<br>• Block Knot Account Linking Promos<br>• Block Wallet Marketing<br>• Block Playtime Marketing<br>• Block Referrals & Social<br>• Block Trivia<br>• Block Notification Prompts |
 | [Remove Rewards](#remove-rewards) | Removes Rewards navigation while keeping Account's Sezzle Points item and routing the Home shortcut to the same page. |  |
+| [Remove Sezzle Subscriptions](#remove-sezzle-subscriptions) | Removes references to Sezzle Anywhere and Sezzle Premium subscriptions in Account benefits, Wallet, and Orders help. |  |
 | [Replace AI Discover with Products](#replace-ai-discover-with-products) | Replaces the AI Discover navigation tab with Sezzle's original non-AI Products tab and removes the Sezzle AI callout in search. Includes an option to remove the Products tab completely. | • Remove Products Tab |
 | [Replace Shop with Home](#replace-shop-with-home) | Replaces the Shop bottom navigation tab with Home, a custom screen to replace the overly-commercial Shop screen. |  |
 | [Suppress In-App Updates and Rating Prompts](#suppress-in-app-updates-and-rating-prompts) | Neutralizes Hermes Redux update sagas, UpdateAppModal dialogs, Play Store URL redirects, trustFall tamper detection, and in-app rating prompts. | • Suppress Force Updates<br>• Bypass Hermes Tamper Checks<br>• Suppress Store Rating Prompts |

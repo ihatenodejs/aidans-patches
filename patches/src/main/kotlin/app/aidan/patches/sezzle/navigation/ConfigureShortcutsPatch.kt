@@ -154,6 +154,13 @@ val configureShortcutsPatch = rawResourcePatch(
         description = "Hides the Amazon Deals shortcut from the Your Shortcuts carousel."
     )
 
+    val hidePayLaterAnywhere = booleanOption(
+        key = "hidePayLaterAnywhere",
+        default = true,
+        title = "Hide Pay Later Anywhere",
+        description = "Hides the Pay Later Anywhere shortcut from the Your Shortcuts carousel."
+    )
+
     execute {
         val bundleFile = get("assets/index.android.bundle")
         if (!bundleFile.exists()) {
@@ -257,6 +264,10 @@ val configureShortcutsPatch = rawResourcePatch(
             tryExclude("amazonStore")
             tryExclude("deals")
             tryExclude("deal")
+        }
+        if (hidePayLaterAnywhere.value == true) {
+            tryExclude("anywhere")
+            tryExclude("sezzleAnywhere")
         }
 
         if (excludedItems.isNotEmpty()) {
