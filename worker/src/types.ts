@@ -6,14 +6,10 @@ export type FreshnessStatus =
   | 'unknown';
 
 export type PatchCompatibilityStatus =
-  | 'queued'
-  | 'running'
-  | 'compatible'
-  | 'incompatible'
-  | 'error'
-  | 'not-tested';
+  'queued' | 'running' | 'compatible' | 'incompatible' | 'error' | 'not-tested';
 
-export type FinalPatchCompatibilityStatus = 'compatible' | 'incompatible' | 'error';
+export type FinalPatchCompatibilityStatus =
+  'compatible' | 'incompatible' | 'error';
 
 export interface CompatibilityRecord {
   requestId: string;
@@ -34,7 +30,7 @@ export interface OutstandingCompatibilityRequest {
   requestId: string;
   targetVersion: string;
   playVersion: string | null;
-  expectedRoles: ('target')[];
+  expectedRoles: 'target'[];
   dispatchedAt: string;
 }
 
@@ -48,6 +44,7 @@ export interface AppVersionRecord {
   status: FreshnessStatus;
   supportedVersions: string[];
   latestSupportedVersion: string;
+  playVersionReleaseUpdatedAt?: string | null;
   targetCompatibility?: CompatibilityRecord | null;
   outstandingRequest?: OutstandingCompatibilityRequest | null;
   outstandingRequestId?: string | null;
@@ -94,6 +91,7 @@ export interface CompatibilityResultInput {
 export interface CompatibilityResultSubmission {
   requestId: string;
   packageName: string;
+  acquiredPlayVersion?: string | null;
   results: CompatibilityResultInput[];
 }
 

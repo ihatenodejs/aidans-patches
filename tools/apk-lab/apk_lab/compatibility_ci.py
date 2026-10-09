@@ -222,6 +222,7 @@ def run_ci_reconcile_and_test(
     target_slot: SlotMetadata | None = r2_mgr.get_slot_metadata(pkg, "target")
 
     # 1. Acquire new latest if credentials present
+    acquired_play_version: str | None = None
     has_creds = bool(os.environ.get("APKEEP_EMAIL")) or bool(
         os.environ.get("R2_ACCESS_KEY_ID")
     )
@@ -242,11 +243,12 @@ def run_ci_reconcile_and_test(
                 source=getattr(src, "value", str(src)),
             )
             latest_slot = new_latest_meta
+            if new_latest_meta and new_latest_meta.version_name:
+                acquired_play_version = new_latest_meta.version_name
             if updated_target_meta:
                 target_slot = updated_target_meta
         except (
             AcquisitionError,
-            FixtureError,
             InspectionError,
             OSError,
             ValueError,
@@ -318,6 +320,7 @@ def run_ci_reconcile_and_test(
         submission = {
             "requestId": dispatch_request_id,
             "packageName": pkg,
+            "acquiredPlayVersion": acquired_play_version,
             "results": results,
         }
         try:

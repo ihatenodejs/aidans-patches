@@ -176,9 +176,9 @@ def test_reconcile_and_test_uses_updated_target_and_posts_batched(
     assert secret == "secret-xyz"
     assert sub["requestId"] == "req-123"
     assert sub["packageName"] == "com.test.app"
+    assert sub["acquiredPlayVersion"] == "2.0.0"
     assert len(sub["results"]) == 1
     assert sub["results"][0]["role"] == "target"
-
 
 def test_reconcile_and_test_no_fixture_fails(monkeypatch, tmp_path):
     monkeypatch.delenv("APKEEP_EMAIL", raising=False)
@@ -200,6 +200,83 @@ def test_reconcile_and_test_no_fixture_fails(monkeypatch, tmp_path):
     )
     # Must exit nonzero because no fixture exists
     assert exit_code == ExitCode.INVALID_ARTIFACT
+
+def test_reconcile_and_test_acquisition_failure_posts_null_acquired_version(
+    monkeypatch, tmp_path
+):
+    monkeypatch.setenv("DISPATCH_REQUEST_ID", "req-failed-acq")
+    monkeypatch.setenv("COMPATIBILITY_STATUS_SECRET", "secret-xyz")
+    monkeypatch.setenv("WORKER_STATUS_URL", "https://worker.test")
+    monkeypatch.setenv("APKEEP_EMAIL", "u@test.com")
+    monkeypatch.setattr(
+        "apk_lab.compatibility_ci.get_target_version_for_package",
+        lambda data, p: "1.0.0",
+    )
+    runner_temp = tmp_path / "runner_temp"
+    runner_temp.mkdir()
+    mpp_file = tmp_path / "bundle.mpp"
+    mpp_file.write_bytes(b"mpp")
+
+    mock_r2 = MagicMock()
+    target_meta = SlotMetadata(
+        role="target",
+        package_name="com.test.app",
+        version_name="1.0.0",
+        version_code=100,
+        container_type="APKM",
+        sha256="sha_target",
+        signer_sha256="sig",
+        size_bytes=100,
+        acquisition_source="apkeep",
+        timestamp="2026-10-06T00:00:00Z",
+    )
+    mock_r2.get_slot_metadata.side_effect = lambda pkg, role: (
+        target_meta if role == "target" else None
+    )
+
+    def failing_acquirer(pkg, out_dir):
+        raise RuntimeError("Acquisition network failure")
+
+    def mock_checker(
+        apk_path, mpp_path, expected_package=None, all_patches=False, force=False
+    ):
+        report = PatchCompatibilityReport(
+            artifact_sha256="sha",
+            package_name=expected_package,
+            version_name="1.0.0",
+            version_code=100,
+            patch_bundle_version="1.4.0",
+            git_revision="rev1",
+            tool_versions={},
+            overall_status="compatible",
+            total_cases=5,
+            passed_cases=5,
+            failed_cases=0,
+        )
+        return report, 0
+
+    posted_submissions = []
+
+    def mock_poster(url, secret, submission):
+        posted_submissions.append((url, secret, submission))
+        return 200
+
+    exit_code = run_ci_reconcile_and_test(
+        pkg="com.test.app",
+        mpp_path=mpp_file,
+        runner_temp=runner_temp,
+        r2_mgr=mock_r2,
+        acquirer=failing_acquirer,
+        checker=mock_checker,
+        poster=mock_poster,
+    )
+
+    assert exit_code == ExitCode.SUCCESS
+    assert len(posted_submissions) == 1
+    _, _, sub = posted_submissions[0]
+    assert sub["acquiredPlayVersion"] is None
+    assert len(sub["results"]) == 1
+    assert sub["results"][0]["role"] == "target"
 
 
 def test_reconcile_and_test_compatibility_failure_surfaced(monkeypatch, tmp_path):
