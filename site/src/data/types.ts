@@ -64,12 +64,15 @@ export type FreshnessStatus =
   | 'unknown';
 
 export type PatchCompatibilityStatus =
-  | 'queued'
-  | 'running'
-  | 'compatible'
-  | 'incompatible'
-  | 'error'
-  | 'not-tested';
+  'queued' | 'running' | 'compatible' | 'incompatible' | 'error' | 'not-tested';
+
+export type FailureStage =
+  | 'acquisition'
+  | 'r2-lookup'
+  | 'r2-upload'
+  | 'r2-download'
+  | 'compatibility-check'
+  | 'pipeline';
 
 export interface CompatibilityRecord {
   requestId: string;
@@ -84,16 +87,17 @@ export interface CompatibilityRecord {
   status: PatchCompatibilityStatus;
   workflowRunUrl?: string | null;
   failureReason?: string | null;
+  failureStage?: FailureStage | null;
 }
 
 export interface OutstandingCompatibilityRequest {
   requestId: string;
   targetVersion: string;
   playVersion: string | null;
-  expectedRoles: ('target')[];
+  expectedRoles: 'target'[];
   dispatchedAt: string;
+  gitRevision?: string;
 }
-
 export interface AppVersionStatus {
   packageName: string;
   appName: string;
@@ -130,6 +134,14 @@ export interface ReleaseInfo {
   downloadUrl: string;
   rawChangelog: string;
   recentChanges: ReleaseChangeItem[];
+}
+
+export interface RawBundle {
+  version: string;
+  created_at: string;
+  description: string;
+  download_url: string;
+  signature_download_url?: string;
 }
 
 export interface RepositoryStats {

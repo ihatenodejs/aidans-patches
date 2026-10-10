@@ -24,7 +24,6 @@ val cleanAuthenticationPatch = rawResourcePatch(
         description = "Adds a patched-app caution warning below the Google sign-in message on the login screen."
     )
 
-
     execute {
         val bundleFile = get("assets/index.android.bundle")
         if (!bundleFile.exists()) return@execute

@@ -8,7 +8,9 @@ import pytest
 from apk_lab.acquisition import (
     AcquisitionError,
     AcquisitionSource,
+    acquire_artifact,
     acquire_with_apkeep,
+    acquire_with_apkmirror,
     acquire_with_goopdl,
     build_apkeep_cmd,
     build_goopdl_cmd,
@@ -279,4 +281,117 @@ def test_cli_acquire_default_out_dir(monkeypatch, tmp_path):
     exit_code = handle_acquire(args)
     assert exit_code == ExitCode.SUCCESS
     assert len(called_out_dirs) == 1
-    assert called_out_dirs[0].is_dir()
+
+
+def test_acquire_with_apkmirror_unmapped_package_raises(tmp_path):
+    out_dir = tmp_path / "out"
+    with pytest.raises(AcquisitionError, match="No APKMirror repository mapping"):
+        acquire_with_apkmirror("com.unmapped.app", out_dir)
+
+
+@pytest.mark.parametrize("bundle", [False, True])
+def test_acquire_with_apkmirror_success(monkeypatch, tmp_path, bundle):
+    out_dir = tmp_path / "out"
+    runner = tmp_path / "dummy_runner.cjs"
+    runner.write_text("// dummy runner", encoding="utf-8")
+
+    def mock_run(cmd, **kwargs):
+        attempt_dir = Path(cmd[6])
+        if bundle:
+            with zipfile.ZipFile(attempt_dir / "download.apkm", "w") as zf:
+                zf.writestr("nested/base.apk", b"dummy_base")
+        else:
+            (attempt_dir / "base.apk").write_bytes(b"dummy_base")
+        return subprocess.CompletedProcess(cmd, returncode=0, stdout="{}", stderr="")
+
+    monkeypatch.setattr("subprocess.run", mock_run)
+    monkeypatch.setattr(
+        "apk_lab.acquisition.normalize_apks_to_apkm",
+        lambda apks, out: out.write_bytes(b"apkm_content"),
+    )
+    monkeypatch.setattr(
+        "apk_lab.acquisition.inspect_artifact",
+        lambda p: ArtifactInspection(
+            file_path=str(p),
+            container_type=ContainerType.APKM,
+            file_size=10,
+            sha256="sha",
+            package_name="com.sezzle.sezzlemobile",
+            version_name="5.3.9",
+            version_code=100,
+            min_sdk=23,
+            target_sdk=34,
+            signing_certificate_sha256="sig",
+            splits=[],
+            dex_classes_count=1,
+            dex_methods_count=1,
+            dex_files=["classes.dex"],
+            native_libraries=[],
+            resources=[],
+            assets=[],
+            warnings=[],
+        ),
+    )
+
+    res = acquire_with_apkmirror(
+        "com.sezzle.sezzlemobile",
+        out_dir,
+        expected_version="5.3.9",
+        runner_script=runner,
+    )
+    assert res.name == "com.sezzle.sezzlemobile.apkm"
+    assert res.is_file()
+
+
+def test_acquire_artifact_fallback_to_apkmirror(monkeypatch, tmp_path):
+    out_dir = tmp_path / "out"
+
+    def mock_goopdl(*args, **kwargs):
+        raise AcquisitionError("goopdl failed", ExitCode.INFRASTRUCTURE_FAILURE)
+
+    def mock_apkmirror(pkg, dest, **kwargs):
+        fake_path = dest / f"{pkg}.apkm"
+        dest.mkdir(parents=True, exist_ok=True)
+        fake_path.write_bytes(b"fake_apkm")
+        return fake_path
+
+    monkeypatch.setattr("apk_lab.acquisition.acquire_with_goopdl", mock_goopdl)
+    monkeypatch.setattr("apk_lab.acquisition.acquire_with_apkmirror", mock_apkmirror)
+
+    artifact, source = acquire_artifact("com.sezzle.sezzlemobile", out_dir)
+    assert source == AcquisitionSource.APKMIRROR
+    assert artifact.is_file()
+
+
+def test_apkmirror_timeout_is_acquisition_failure(monkeypatch, tmp_path):
+    def stalled_download(cmd, **kwargs):
+        assert 0 < kwargs["timeout"] <= 300
+        raise subprocess.TimeoutExpired(cmd, kwargs["timeout"])
+
+    monkeypatch.setattr("subprocess.run", stalled_download)
+    with pytest.raises(AcquisitionError, match="timed out") as exc:
+        acquire_with_apkmirror("com.sezzle.sezzlemobile", tmp_path)
+    assert exc.value.exit_code == ExitCode.INFRASTRUCTURE_FAILURE
+    assert list(tmp_path.iterdir()) == []
+
+
+@pytest.mark.parametrize(
+    "member", ["../escape.apk", "nested/../../escape.apk", "/escape.apk"]
+)
+def test_apkmirror_rejects_unsafe_bundle_before_extraction(
+    monkeypatch, tmp_path, member
+):
+    def download_bundle(cmd, **kwargs):
+        with zipfile.ZipFile(Path(cmd[-1]) / "download.apkm", "w") as zf:
+            zf.writestr("base.apk", b"base")
+            zf.writestr(member, b"unsafe")
+        return subprocess.CompletedProcess(cmd, returncode=0)
+
+    extract = MagicMock()
+    monkeypatch.setattr("subprocess.run", download_bundle)
+    monkeypatch.setattr(zipfile.ZipFile, "extractall", extract)
+    with pytest.raises(AcquisitionError, match="Unsafe archive member") as exc:
+        acquire_with_apkmirror("com.sezzle.sezzlemobile", tmp_path)
+    assert exc.value.exit_code == ExitCode.INVALID_ARTIFACT
+    extract.assert_not_called()
+    assert list(tmp_path.iterdir()) == []

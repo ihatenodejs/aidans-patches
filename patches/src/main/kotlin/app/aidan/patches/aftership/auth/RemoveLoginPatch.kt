@@ -3,9 +3,9 @@ package app.aidan.patches.aftership.auth
 import app.aidan.patches.aftership.shared.Constants.COMPATIBILITY_AFTERSHIP
 import app.morphe.patcher.extensions.InstructionExtensions.addInstructions
 import app.morphe.patcher.patch.BytecodePatchContext
+import app.morphe.patcher.patch.PatchException
 import app.morphe.patcher.patch.bytecodePatch
 import app.morphe.patcher.patch.rawResourcePatch
-import app.morphe.patcher.patch.PatchException
 
 private const val LOGIN_REGISTER_ACTIVITY = "Lcom/aftership/shopper/views/login/LoginRegisterStateActivity;"
 private const val ACCOUNT_FRAGMENT = "LN5/k;"
@@ -194,6 +194,7 @@ private fun BytecodePatchContext.patchHomePresenter() {
     } catch (_: Exception) {
     }
 }
+
 /**
  * Makes the anonymous-login guide return no view and dismiss itself on start.
  * Missing targets are skipped and patching exceptions are suppressed.

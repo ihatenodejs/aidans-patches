@@ -12,7 +12,7 @@ function parseVersionSegments(v: string): number[] {
 
 export function compareAppVersions(
   targetVersion: string,
-  playVersion: string | null
+  playVersion: string | null,
 ): FreshnessStatus {
   if (!playVersion || playVersion.trim().toLowerCase().includes('varies')) {
     return 'unknown';

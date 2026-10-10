@@ -4,6 +4,7 @@ import argparse
 import json
 import re
 import shlex
+import subprocess
 import sys
 import tempfile
 import zipfile
@@ -364,7 +365,11 @@ def handle_analyze(args: argparse.Namespace) -> int:
             if args.classes:
                 for cls in args.classes:
                     jadx_args.extend(["--include-pkg", cls])
-            tool_mgr.run_tool_cmd("jadx", jadx_args, check=True)
+            res = tool_mgr.run_tool_cmd("jadx", jadx_args, check=False)
+            if res.returncode not in (0, 3):
+                raise subprocess.CalledProcessError(
+                    res.returncode, res.args, res.stdout, res.stderr
+                )
 
         # 3. Apktool decode (if requested)
         if args.apktool:

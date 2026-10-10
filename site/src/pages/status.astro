@@ -1,22 +1,33 @@
 ---
 import { Image } from 'astro:assets';
 import BaseLayout from '../layouts/BaseLayout.astro';
-import { getApps, getInitialVersionStatuses, getRepositoryStats, getLatestPlayRelease } from '../data/repo';
+import {
+  getApps,
+  getInitialVersionStatuses,
+  getRepositoryStats,
+  getLatestPlayRelease,
+} from '../data/repo';
 const apps = getApps();
 const initialStatuses = getInitialVersionStatuses();
 const stats = getRepositoryStats();
 const latestReleaseApp = getLatestPlayRelease();
-const workerUrl = import.meta.env.PUBLIC_WORKER_URL || 'https://worker.patch.p0ntus.com';
+const workerUrl =
+  import.meta.env.PUBLIC_WORKER_URL || 'https://worker.patch.p0ntus.com';
 
 function getNextCheckCountdown(): string {
   const now = new Date();
   const nextHour = (Math.floor(now.getUTCHours() / 6) + 1) * 6;
-  const nextCheck = new Date(Date.UTC(
-    now.getUTCFullYear(),
-    now.getUTCMonth(),
-    now.getUTCDate(),
-    0, 0, 0, 0
-  ));
+  const nextCheck = new Date(
+    Date.UTC(
+      now.getUTCFullYear(),
+      now.getUTCMonth(),
+      now.getUTCDate(),
+      0,
+      0,
+      0,
+      0,
+    ),
+  );
   nextCheck.setUTCHours(nextHour);
   if (nextCheck.getTime() <= now.getTime()) {
     nextCheck.setUTCHours(nextCheck.getUTCHours() + 6);
@@ -34,13 +45,17 @@ function formatRelativeTime(dateStr: string): string {
     const diffSec = Math.floor((now.getTime() - d.getTime()) / 1000);
     if (diffSec < 60) return 'just now';
     const diffMin = Math.floor(diffSec / 60);
-    if (diffMin < 60) return `${diffMin} ${diffMin === 1 ? 'minute' : 'minutes'} ago`;
+    if (diffMin < 60)
+      return `${diffMin} ${diffMin === 1 ? 'minute' : 'minutes'} ago`;
     const diffHours = Math.floor(diffMin / 60);
-    if (diffHours < 24) return `${diffHours} ${diffHours === 1 ? 'hour' : 'hours'} ago`;
+    if (diffHours < 24)
+      return `${diffHours} ${diffHours === 1 ? 'hour' : 'hours'} ago`;
     const diffDays = Math.floor(diffHours / 24);
-    if (diffDays < 30) return `${diffDays} ${diffDays === 1 ? 'day' : 'days'} ago`;
+    if (diffDays < 30)
+      return `${diffDays} ${diffDays === 1 ? 'day' : 'days'} ago`;
     const diffMonths = Math.floor(diffDays / 30);
-    if (diffMonths < 12) return `${diffMonths} ${diffMonths === 1 ? 'month' : 'months'} ago`;
+    if (diffMonths < 12)
+      return `${diffMonths} ${diffMonths === 1 ? 'month' : 'months'} ago`;
     return dateStr.split('T')[0];
   } catch {
     return dateStr;
@@ -49,33 +64,55 @@ function formatRelativeTime(dateStr: string): string {
 ---
 
 <BaseLayout
-  title="App Support & Status — Aidan's Morphe Patches"
-  description="Comparison of repository supported/tested patch targets against live Google Play versions."
+  title="App Compatibility & Status — Aidan's Morphe Patches"
+  description="Check real-time compatibility for all supported Android apps. See tested versions compared with the latest Google Play releases."
   currentPath="/status"
 >
-  <div class="px-4 sm:px-6 py-10 space-y-8">
+  <div
+    class="px-4 sm:px-6 py-10 space-y-8"
+    id="status-container"
+    data-worker-url={workerUrl}
+  >
     <!-- Header Section -->
     <div class="space-y-3">
       <h1 class="font-sans text-3xl font-extrabold tracking-tight text-white">
-        App Support &amp; Status
+        App Compatibility &amp; Status
       </h1>
       <p class="font-sans text-sm text-zinc-400 max-w-2xl leading-relaxed">
-        Tracks target stability across all {apps.length} applications. Patches guarantee compatibility with explicit target releases; target divergence reflects upstream store updates rather than broken patches.
+        See tested and supported versions across all {apps.length} apps. We
+        verify each release to ensure patches work smoothly, and check Google
+        Play regularly so you know when new updates arrive.
       </p>
     </div>
 
     <!-- Status Overview Cards (Clean values without secondary descriptions) -->
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-px bg-white/[0.08] bg-clip-padding border border-white/[0.08]">
       <div class="p-5 bg-[#080808] space-y-1">
-        <div class="font-mono text-[10px] text-zinc-500 uppercase tracking-wider">Monitored Apps</div>
-        <div class="text-2xl font-bold font-sans text-white">{apps.length} Applications</div>
+        <div class="font-mono text-[10px] text-zinc-500 uppercase tracking-wider">
+          Supported Apps
+        </div>
+        <div class="text-2xl font-bold font-sans text-white">
+          {apps.length} Applications
+        </div>
       </div>
       <div class="p-5 bg-[#080808] space-y-1">
-        <div class="font-mono text-[10px] text-zinc-500 uppercase tracking-wider">Next Check</div>
-        <div class="text-2xl font-bold font-mono text-white" id="countdown-timer">{getNextCheckCountdown()}</div>
+        <div
+          class="font-mono text-[10px] text-zinc-500 uppercase tracking-wider"
+          title="Scheduled check for Google Play updates and metadata"
+        >
+          Play Store Check
+        </div>
+        <div
+          class="text-2xl font-bold font-mono text-white"
+          id="countdown-timer"
+        >
+          {getNextCheckCountdown()}
+        </div>
       </div>
       <div class="p-5 bg-[#080808] space-y-1">
-        <div class="font-mono text-[10px] text-zinc-500 uppercase tracking-wider">Latest Release</div>
+        <div class="font-mono text-[10px] text-zinc-500 uppercase tracking-wider">
+          Latest App Update
+        </div>
         <div class="flex items-center gap-2.5 min-h-[32px]">
           {latestReleaseApp.iconUrl ? (
             <Image
@@ -96,15 +133,24 @@ function formatRelativeTime(dateStr: string): string {
             </span>
           )}
           <div class="flex items-baseline gap-2 min-w-0">
-            <span id="latest-release-name" class="text-2xl font-bold font-sans text-white truncate">
+            <span
+              id="latest-release-name"
+              class="text-2xl font-bold font-sans text-white truncate"
+            >
               {latestReleaseApp.appName}
             </span>
             <span
               id="latest-release-time"
               class="font-mono text-xs text-zinc-400 font-normal shrink-0"
-              title={latestReleaseApp.updatedOn ? `Updated on Google Play: ${latestReleaseApp.updatedOn}` : ''}
+              title={
+                latestReleaseApp.updatedOn
+                  ? `Updated on Google Play: ${latestReleaseApp.updatedOn}`
+                  : ''
+              }
             >
-              {latestReleaseApp.updatedAt ? formatRelativeTime(latestReleaseApp.updatedAt) : ''}
+              {latestReleaseApp.updatedAt
+                ? formatRelativeTime(latestReleaseApp.updatedAt)
+                : ''}
             </span>
           </div>
         </div>
@@ -122,13 +168,26 @@ function formatRelativeTime(dateStr: string): string {
             placeholder="Search applications..."
             class="w-full bg-zinc-900 border border-white/10 px-3 py-1.5 pl-8 text-xs font-mono text-white placeholder-zinc-500 rounded-sm focus:outline-none focus:border-white/30"
           />
-          <svg class="w-3.5 h-3.5 text-zinc-500 absolute left-2.5 top-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          <svg
+            class="w-3.5 h-3.5 text-zinc-500 absolute left-2.5 top-2.5"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="2"
+              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+            />
           </svg>
         </div>
 
-        <span class="font-mono text-[11px] text-zinc-500 shrink-0" id="last-updated-label">
-          Last Update: {stats.releaseDate}
+        <span
+          class="font-mono text-[11px] text-zinc-500 shrink-0"
+          id="last-updated-label"
+        >
+          Bundle released: {stats.releaseDate}
         </span>
       </div>
 
@@ -141,10 +200,18 @@ function formatRelativeTime(dateStr: string): string {
               <th class="py-3 px-4 sticky left-0 z-20 bg-zinc-950 shadow-[1px_0_0_rgba(255,255,255,0.08)]">
                 Application
               </th>
-              <th class="py-3 px-4 bg-zinc-950/60 whitespace-nowrap hidden md:table-cell">Target</th>
-              <th class="py-3 px-4 bg-zinc-950/60 whitespace-nowrap hidden sm:table-cell">Google Play</th>
-              <th class="py-3 px-4 bg-zinc-950/60 whitespace-nowrap">Tests Passed</th>
-              <th class="py-3 px-4 text-right sticky right-0 z-20 bg-zinc-950 shadow-[-1px_0_0_rgba(255,255,255,0.08)] whitespace-nowrap">Update Status</th>
+              <th class="py-3 px-4 bg-zinc-950/60 whitespace-nowrap hidden md:table-cell">
+                Target
+              </th>
+              <th class="py-3 px-4 bg-zinc-950/60 whitespace-nowrap hidden sm:table-cell">
+                Google Play
+              </th>
+              <th class="py-3 px-4 bg-zinc-950/60 whitespace-nowrap">
+                Tests Passed
+              </th>
+              <th class="py-3 px-4 text-right sticky right-0 z-20 bg-zinc-950 shadow-[-1px_0_0_rgba(255,255,255,0.08)] whitespace-nowrap">
+                Update Status
+              </th>
             </tr>
           </thead>
           <tbody class="divide-y divide-white/[0.06]" id="status-tbody">
@@ -171,7 +238,10 @@ function formatRelativeTime(dateStr: string): string {
                         {item.appName.charAt(0)}
                       </span>
                     )}
-                    <a href={`/patches#${item.appId}`} class="hover:text-zinc-200 transition-colors">
+                    <a
+                      href={`/patches#${item.appId}`}
+                      class="hover:text-zinc-200 transition-colors"
+                    >
                       {item.appName}
                     </a>
                   </div>
@@ -181,7 +251,7 @@ function formatRelativeTime(dateStr: string): string {
                   v{item.latestSupportedVersion}
                 </td>
                 <td class="py-3.5 px-4 text-zinc-400 play-version whitespace-nowrap hidden sm:table-cell">
-                  {item.playVersion ? `v${item.playVersion}` : (item.status !== 'not-on-play-store' && item.status !== 'check-failed' ? `v${item.latestSupportedVersion}` : '—')}
+                  {item.playVersion ? `v${item.playVersion}` : '—'}
                 </td>
 
                 <!-- Tests Passed Column -->
@@ -206,7 +276,10 @@ function formatRelativeTime(dateStr: string): string {
       </div>
 
       <!-- Empty Filter State -->
-      <div id="status-no-results" class="hidden p-8 text-center font-mono text-xs text-zinc-500 border-t border-white/[0.06]">
+      <div
+        id="status-no-results"
+        class="hidden p-8 text-center font-mono text-xs text-zinc-500 border-t border-white/[0.06]"
+      >
         No matching applications found.
       </div>
     </div>
@@ -214,12 +287,18 @@ function formatRelativeTime(dateStr: string): string {
     <!-- Refactored Explanatory Box (Icons, Clarity, Status Definitions & Update Context) -->
     <div class="p-6 border border-white/[0.08] bg-[#070707] rounded-sm space-y-6 text-xs text-zinc-300">
       <div class="flex items-center gap-2 text-white font-mono text-xs uppercase tracking-wider font-semibold">
-        <svg class="w-4 h-4 text-blue-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+        <svg
+          class="w-4 h-4 text-blue-400 shrink-0"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          stroke-width="2"
+        >
           <circle cx="12" cy="12" r="9" />
           <line x1="12" y1="8" x2="12.01" y2="8" />
           <polyline points="11 12 12 12 12 16 13 16" />
         </svg>
-        <span>Understanding Target Stability &amp; Automated Compatibility</span>
+        <span>How Version Compatibility Works</span>
       </div>
 
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pt-1">
@@ -229,7 +308,9 @@ function formatRelativeTime(dateStr: string): string {
             <span>Update Status</span>
           </div>
           <p class="text-zinc-400 leading-relaxed text-[11px]">
-            Compares Google Play's live web store release against the repository's pinned supported target. Upstream releases reflect vendor changes rather than broken patches.
+            Compares the latest release on Google Play against the version
+            tested here. When an app updates in the store, existing patches
+            usually continue to work without issues.
           </p>
         </div>
 
@@ -239,293 +320,286 @@ function formatRelativeTime(dateStr: string): string {
             <span>Tests Passed</span>
           </div>
           <p class="text-zinc-400 leading-relaxed text-[11px]">
-            Automated CI applies every compatible patch and option permutation to the pinned supported release, verifying Morphe success, APK validity, and Android SDK DEX integrity.
+            Automated tests run against the target APK whenever patch code
+            changes in the repository, verifying patch application, Cloudflare
+            artifact persistence, and DEX structural integrity.
           </p>
         </div>
       </div>
 
       <div class="p-3 bg-zinc-900/40 border border-white/[0.06] rounded-sm text-[11px] text-zinc-400 font-sans leading-relaxed">
-        <strong class="text-zinc-200">Note on Compatibility:</strong> &ldquo;Compatible&rdquo; indicates automated verification passed (Morphe bytecode/resource transformations, package integrity, and DEX structural checks). Device runtime behavior and UI flows remain verified via separate manual smoke tests.
+        <strong class="text-zinc-200">Note on Compatibility:</strong>{' '}
+        &ldquo;Compatible&rdquo; indicates automated verification passed (Morphe
+        bytecode/resource transformations, package integrity, and DEX structural
+        checks). Device runtime behavior and UI flows remain verified via
+        separate manual smoke tests.
       </div>
     </div>
   </div>
 
   <!-- Client-side hydration, countdown timer, and search filter script -->
-  <script is:inline define:vars={{ workerUrl }}>
-    (function () {
-      // 1. Live Countdown Timer to next UTC six-hour boundary
-      function updateCountdown() {
-        const now = new Date();
-        const nextHour = (Math.floor(now.getUTCHours() / 6) + 1) * 6;
-        const nextCheck = new Date(Date.UTC(
+  <script>
+    import { renderCompatBadgeHtml } from '../data/status';
+
+    const container = document.getElementById('status-container');
+    const workerUrl =
+      container?.getAttribute('data-worker-url') ||
+      'https://worker.patch.p0ntus.com';
+
+    // 1. Live Countdown Timer to next UTC six-hour boundary (for Google Play freshness)
+    function updateCountdown() {
+      const now = new Date();
+      const nextHour = (Math.floor(now.getUTCHours() / 6) + 1) * 6;
+      const nextCheck = new Date(
+        Date.UTC(
           now.getUTCFullYear(),
           now.getUTCMonth(),
           now.getUTCDate(),
-          0, 0, 0, 0
-        ));
-        nextCheck.setUTCHours(nextHour);
-        if (nextCheck.getTime() <= now.getTime()) {
-          nextCheck.setUTCHours(nextCheck.getUTCHours() + 6);
-        }
-        const diff = Math.max(0, nextCheck.getTime() - now.getTime());
-        const hours = Math.floor(diff / (1000 * 60 * 60));
-        const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-        const timerEl = document.getElementById('countdown-timer');
-        if (timerEl) {
-          timerEl.textContent = 'in ' + hours + 'h ' + mins + 'm';
-        }
+          0,
+          0,
+          0,
+          0,
+        ),
+      );
+      nextCheck.setUTCHours(nextHour);
+      if (nextCheck.getTime() <= now.getTime()) {
+        nextCheck.setUTCHours(nextCheck.getUTCHours() + 6);
       }
-      updateCountdown();
-      setInterval(updateCountdown, 30000);
-
-      // 2. Relative time helper
-      function formatRelative(dateStr) {
-        if (!dateStr) return 'Cached';
-        try {
-          const d = new Date(dateStr);
-          const now = new Date();
-          const diffSec = Math.floor((now.getTime() - d.getTime()) / 1000);
-          if (diffSec < 60) return 'just now';
-          const diffMin = Math.floor(diffSec / 60);
-          if (diffMin < 60) return diffMin + (diffMin === 1 ? ' minute ago' : ' minutes ago');
-          const diffHours = Math.floor(diffMin / 60);
-          if (diffHours < 24) return diffHours + (diffHours === 1 ? ' hour ago' : ' hours ago');
-          const diffDays = Math.floor(diffHours / 24);
-          if (diffDays < 30) return diffDays + (diffDays === 1 ? ' day ago' : ' days ago');
-          const diffMonths = Math.floor(diffDays / 30);
-          if (diffMonths < 12) return diffMonths + (diffMonths === 1 ? ' month ago' : ' months ago');
-          return dateStr.split('T')[0];
-        } catch {
-          return dateStr;
-        }
+      const diff = Math.max(0, nextCheck.getTime() - now.getTime());
+      const hours = Math.floor(diff / (1000 * 60 * 60));
+      const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      const timerEl = document.getElementById('countdown-timer');
+      if (timerEl) {
+        timerEl.textContent = 'in ' + hours + 'h ' + mins + 'm';
       }
+    }
+    updateCountdown();
+    setInterval(updateCountdown, 30000);
 
-      // 3. Search Filter
-      const searchInput = document.getElementById('status-search-input');
-      const rows = document.querySelectorAll('#status-tbody tr[data-package]');
-      const noResults = document.getElementById('status-no-results');
-
-      if (searchInput) {
-        searchInput.addEventListener('input', () => {
-          const query = searchInput.value.toLowerCase().trim();
-          let visible = 0;
-
-          rows.forEach((row) => {
-            const pkg = (row.getAttribute('data-package') || '').toLowerCase();
-            const name = (row.getAttribute('data-app-name') || '').toLowerCase();
-            const matches = !query || pkg.includes(query) || name.includes(query);
-            row.style.display = matches ? '' : 'none';
-            if (matches) visible++;
-          });
-
-          if (noResults) {
-            noResults.classList.toggle('hidden', visible > 0);
-          }
-        });
+    // 2. Relative time helper
+    function formatRelative(dateStr: string) {
+      if (!dateStr) return 'Cached';
+      try {
+        const d = new Date(dateStr);
+        const now = new Date();
+        const diffSec = Math.floor((now.getTime() - d.getTime()) / 1000);
+        if (diffSec < 60) return 'just now';
+        const diffMin = Math.floor(diffSec / 60);
+        if (diffMin < 60)
+          return diffMin + (diffMin === 1 ? ' minute ago' : ' minutes ago');
+        const diffHours = Math.floor(diffMin / 60);
+        if (diffHours < 24)
+          return diffHours + (diffHours === 1 ? ' hour ago' : ' hours ago');
+        const diffDays = Math.floor(diffHours / 24);
+        if (diffDays < 30)
+          return diffDays + (diffDays === 1 ? ' day ago' : ' days ago');
+        const diffMonths = Math.floor(diffDays / 30);
+        if (diffMonths < 12)
+          return diffMonths + (diffMonths === 1 ? ' month ago' : ' months ago');
+        return dateStr.split('T')[0];
+      } catch {
+        return dateStr;
       }
+    }
 
-      // 4. Compatibility Badge Renderer
-      function renderCompatBadge(compatRecord, defaultLabel, isQueued) {
-        if (!compatRecord) {
-          if (isQueued) {
-            return '<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-[10px] bg-amber-950/60 text-amber-400 border border-amber-800/40"><span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span><span>Queued</span></span>';
-          }
-          return '<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-[10px] bg-zinc-900 text-zinc-500 border border-white/10"><span>' + (defaultLabel || 'Not tested') + '</span></span>';
-        }
-        var s = compatRecord.status;
-        var passed = typeof compatRecord.passedCount === 'number' ? compatRecord.passedCount : 0;
-        var failed = typeof compatRecord.failedCount === 'number' ? compatRecord.failedCount : 0;
-        var total = passed + failed;
+    // 3. Search Filter
+    const searchInput = document.getElementById(
+      'status-search-input',
+    ) as HTMLInputElement | null;
+    const rows = document.querySelectorAll<HTMLTableRowElement>(
+      '#status-tbody tr[data-package]',
+    );
+    const noResults = document.getElementById('status-no-results');
 
-        var bg = 'bg-zinc-900';
-        var text = 'text-zinc-400';
-        var border = 'border-white/10';
-        var dot = 'bg-zinc-500';
-        var label = s;
-
-        if (s === 'queued') {
-          bg = 'bg-amber-950/60'; text = 'text-amber-400'; border = 'border-amber-800/40'; dot = 'bg-amber-400'; label = 'Queued';
-        } else if (s === 'running') {
-          bg = 'bg-amber-950/60'; text = 'text-amber-400'; border = 'border-amber-800/40'; dot = 'bg-amber-400'; label = 'Running';
-        } else if (total > 0) {
-          label = passed + '/' + total;
-          if (failed === 0 && (s === 'compatible' || passed > 0)) {
-            bg = 'bg-emerald-950/60'; text = 'text-emerald-400'; border = 'border-emerald-800/40'; dot = 'bg-emerald-400';
-          } else {
-            bg = 'bg-rose-950/60'; text = 'text-rose-400'; border = 'border-rose-800/40'; dot = 'bg-rose-400';
-          }
-        } else if (s === 'compatible') {
-          bg = 'bg-emerald-950/60'; text = 'text-emerald-400'; border = 'border-emerald-800/40'; dot = 'bg-emerald-400'; label = 'Compatible';
-        } else if (s === 'incompatible') {
-          bg = 'bg-rose-950/60'; text = 'text-rose-400'; border = 'border-rose-800/40'; dot = 'bg-rose-400'; label = 'Incompatible';
-        } else if (s === 'error') {
-          bg = 'bg-rose-950/60'; text = 'text-rose-400'; border = 'border-rose-800/40'; dot = 'bg-rose-400'; label = 'Error';
-        }
-
-        var titleAttr = '';
-        if (s === 'error' && compatRecord.failureReason) {
-          titleAttr = ' title="' + compatRecord.failureReason.replace(/"/g, '&quot;') + '"';
-        } else if (total > 0) {
-          titleAttr = ' title="' + passed + ' of ' + total + ' patch tests passed (' + s + ')"';
-        }
-
-        var content = '<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-[10px] ' + bg + ' ' + text + ' border ' + border + '"' + titleAttr + '><span class="w-1.5 h-1.5 rounded-full ' + dot + '"></span><span>' + label + '</span></span>';
-        if (compatRecord.workflowRunUrl) {
-          var linkTitle = (s === 'error' && compatRecord.failureReason)
-            ? ' title="' + compatRecord.failureReason.replace(/"/g, '&quot;') + '"'
-            : (total > 0 ? titleAttr : ' title="CI Run"');
-          return '<a href="' + compatRecord.workflowRunUrl + '" target="_blank" rel="noopener noreferrer" class="hover:opacity-80 transition-opacity"' + linkTitle + '>' + content + '</a>';
-        }
-        return content;
-      }
-
-      // 5. Hydrate from live Cloudflare Worker API with sessionStorage caching
-      const STATUS_CACHE_KEY = 'aidans_patches_status_cache';
-      const STATUS_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
-
-      function applyStatusData(data) {
-        if (!data || !data.apps) return;
-
-        const lastUpdatedEl = document.getElementById('last-updated-label');
-        if (lastUpdatedEl && data.updatedAt) {
-          lastUpdatedEl.textContent = 'Last Update: ' + formatRelative(data.updatedAt);
-        }
-
-        // Update Latest Release card if live data is available
-        const latestIconEl = document.getElementById('latest-release-icon');
-        const latestFallbackIconEl = document.getElementById('latest-release-fallback-icon');
-        const latestNameEl = document.getElementById('latest-release-name');
-        const latestTimeEl = document.getElementById('latest-release-time');
-
-        let latestApp = data.latestRelease;
-        if (!latestApp && data.apps) {
-          let maxTime = 0;
-          for (const [pkg, appData] of Object.entries(data.apps)) {
-            if (appData.updatedAt) {
-              const t = new Date(appData.updatedAt).getTime();
-              if (t > maxTime) {
-                maxTime = t;
-                const row = document.querySelector(`#status-tbody tr[data-package="${pkg}"]`);
-                const appName = appData.appName || (row ? row.querySelector('td a')?.textContent?.trim() : pkg);
-                latestApp = {
-                  packageName: pkg,
-                  appName: appName || pkg,
-                  iconUrl: appData.iconUrl || `/icons/${pkg}.png`,
-                  updatedAt: appData.updatedAt,
-                  updatedOn: appData.updatedOn,
-                };
-              }
-            }
-          }
-        }
-
-        if (latestApp) {
-          if (latestIconEl) {
-            const iconSrc = latestApp.iconUrl || `/icons/${latestApp.packageName}.png`;
-            latestIconEl.src = iconSrc;
-            latestIconEl.alt = latestApp.appName || 'Latest release icon';
-            latestIconEl.classList.remove('hidden');
-            if (latestFallbackIconEl) latestFallbackIconEl.classList.add('hidden');
-          }
-          if (latestNameEl && latestApp.appName) {
-            latestNameEl.textContent = latestApp.appName;
-          }
-          if (latestTimeEl) {
-            const timeText = latestApp.updatedAt
-              ? formatRelative(latestApp.updatedAt)
-              : (latestApp.updatedOn || '');
-            latestTimeEl.textContent = timeText;
-            if (latestApp.updatedOn) {
-              latestTimeEl.title = 'Updated on Google Play: ' + latestApp.updatedOn;
-            }
-          }
-        }
+    if (searchInput) {
+      searchInput.addEventListener('input', () => {
+        const query = searchInput.value.toLowerCase().trim();
+        let visible = 0;
 
         rows.forEach((row) => {
-          const pkg = row.getAttribute('data-package');
-          const appData = data.apps[pkg];
-          if (!appData) return;
-
-          const playCell = row.querySelector('.play-version');
-          const playFreshnessCell = row.querySelector('.play-freshness-cell');
-          const targetCompatCell = row.querySelector('.target-compat-cell');
-
-          const effectivePlayVersion = appData.playVersion || (
-            (appData.status !== 'not-on-play-store' && appData.status !== 'check-failed')
-              ? appData.latestSupportedVersion
-              : null
-          );
-
-          if (playCell) {
-            playCell.textContent = effectivePlayVersion ? 'v' + effectivePlayVersion : '—';
-          }
-
-          if (playFreshnessCell) {
-            let effectiveStatus = appData.status;
-            if (effectiveStatus === 'unknown' && effectivePlayVersion) {
-              effectiveStatus = (effectivePlayVersion === appData.latestSupportedVersion) ? 'up-to-date' : 'unknown';
-            }
-
-            if (effectiveStatus === 'up-to-date') {
-              playFreshnessCell.innerHTML = '<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-[10px] bg-emerald-950/60 text-emerald-400 border border-emerald-800/40"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span><span>Up to date</span></span>';
-            } else if (effectiveStatus === 'newer-available') {
-              playFreshnessCell.innerHTML = '<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-[10px] bg-amber-950/60 text-amber-400 border border-amber-800/40"><span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span><span>Newer available</span></span>';
-            } else if (effectiveStatus === 'not-on-play-store') {
-              playFreshnessCell.innerHTML = '<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-[10px] bg-zinc-900 text-zinc-500 border border-white/10"><span>Not on Play Store</span></span>';
-            } else if (effectiveStatus === 'check-failed') {
-              playFreshnessCell.innerHTML = '<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-[10px] bg-rose-950/60 text-rose-400 border border-rose-800/40"><span class="w-1.5 h-1.5 rounded-full bg-rose-400"></span><span>Check failed</span></span>';
-            } else {
-              playFreshnessCell.innerHTML = '<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-[10px] bg-zinc-900 text-zinc-400 border border-white/10"><span class="w-1.5 h-1.5 rounded-full bg-zinc-500"></span><span>Unknown</span></span>';
-            }
-          }
-
-          var isTargetQueued = Boolean(
-            !appData.targetCompatibility &&
-            appData.outstandingRequest &&
-            appData.outstandingRequest.expectedRoles &&
-            appData.outstandingRequest.expectedRoles.includes('target')
-          );
-
-          if (targetCompatCell) {
-            targetCompatCell.innerHTML = renderCompatBadge(appData.targetCompatibility, 'Not tested', isTargetQueued);
-          }
-
+          const pkg = (row.getAttribute('data-package') || '').toLowerCase();
+          const name = (row.getAttribute('data-app-name') || '').toLowerCase();
+          const matches = !query || pkg.includes(query) || name.includes(query);
+          row.style.display = matches ? '' : 'none';
+          if (matches) visible++;
         });
+
+        if (noResults) {
+          noResults.classList.toggle('hidden', visible > 0);
+        }
+      });
+    }
+    // 5. Hydrate from live Cloudflare Worker API with sessionStorage caching
+    const STATUS_CACHE_KEY = 'aidans_patches_status_cache';
+    const STATUS_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+    function applyStatusData(data: Record<string, any>) {
+      if (!data || !data.apps) return;
+
+      const lastUpdatedEl = document.getElementById('last-updated-label');
+      if (lastUpdatedEl && data.updatedAt) {
+        lastUpdatedEl.textContent =
+          'Version check updated: ' + formatRelative(data.updatedAt);
       }
 
-      (async function hydrate() {
-        try {
-          const cached = sessionStorage.getItem(STATUS_CACHE_KEY);
-          if (cached) {
-            try {
-              const parsed = JSON.parse(cached);
-              if (parsed && parsed.data && Date.now() - parsed.timestamp < STATUS_CACHE_TTL_MS) {
-                applyStatusData(parsed.data);
-                return;
-              }
-            } catch {
-              // Ignore invalid cache JSON
+      // Update Latest Release card if live data is available
+      const latestIconEl = document.getElementById(
+        'latest-release-icon',
+      ) as HTMLImageElement | null;
+      const latestFallbackIconEl = document.getElementById(
+        'latest-release-fallback-icon',
+      );
+      const latestNameEl = document.getElementById('latest-release-name');
+      const latestTimeEl = document.getElementById('latest-release-time');
+
+      let latestApp = data.latestRelease;
+      if (!latestApp && data.apps) {
+        let maxTime = 0;
+        for (const [pkg, rawAppData] of Object.entries(data.apps)) {
+          const appData = rawAppData as Record<string, any>;
+          if (appData.updatedAt) {
+            const t = new Date(appData.updatedAt).getTime();
+            if (t > maxTime) {
+              maxTime = t;
+              const row = document.querySelector(
+                `#status-tbody tr[data-package="${pkg}"]`,
+              );
+              const appName =
+                appData.appName ||
+                (row ? row.querySelector('td a')?.textContent?.trim() : pkg);
+              latestApp = {
+                packageName: pkg,
+                appName: appName || pkg,
+                iconUrl: appData.iconUrl || `/icons/${pkg}.png`,
+                updatedAt: appData.updatedAt,
+                updatedOn: appData.updatedOn,
+              };
             }
           }
-
-          const endpoint = (typeof workerUrl !== 'undefined' && workerUrl) ? new URL('/api/status', workerUrl).toString() : 'https://worker.patch.p0ntus.com/api/status';
-          const response = await fetch(endpoint);
-          if (!response.ok) return;
-
-          const data = await response.json();
-          if (!data || !data.apps) return;
-
-          try {
-            sessionStorage.setItem(STATUS_CACHE_KEY, JSON.stringify({ data, timestamp: Date.now() }));
-          } catch {
-            // Ignore storage quota / private browsing errors
-          }
-
-          applyStatusData(data);
-        } catch {
-          // Keep static fallback
         }
-      })();
+      }
+
+      if (latestApp) {
+        if (latestIconEl) {
+          const iconSrc =
+            latestApp.iconUrl || `/icons/${latestApp.packageName}.png`;
+          latestIconEl.src = iconSrc;
+          latestIconEl.alt = latestApp.appName || 'Latest release icon';
+          latestIconEl.classList.remove('hidden');
+          if (latestFallbackIconEl)
+            latestFallbackIconEl.classList.add('hidden');
+        }
+        if (latestNameEl && latestApp.appName) {
+          latestNameEl.textContent = latestApp.appName;
+        }
+        if (latestTimeEl) {
+          const timeText = latestApp.updatedAt
+            ? formatRelative(latestApp.updatedAt)
+            : latestApp.updatedOn || '';
+          latestTimeEl.textContent = timeText;
+          if (latestApp.updatedOn) {
+            latestTimeEl.title =
+              'Updated on Google Play: ' + latestApp.updatedOn;
+          }
+        }
+      }
+
+      rows.forEach((row) => {
+        const pkg = row.getAttribute('data-package');
+        if (!pkg) return;
+        const appData = (data.apps as Record<string, any>)[pkg];
+        if (!appData) return;
+        const playCell = row.querySelector('.play-version');
+        const playFreshnessCell = row.querySelector('.play-freshness-cell');
+        const targetCompatCell = row.querySelector('.target-compat-cell');
+
+        const effectivePlayVersion = appData.playVersion || null;
+
+        if (playCell) {
+          playCell.textContent = effectivePlayVersion
+            ? 'v' + effectivePlayVersion
+            : '—';
+        }
+
+        if (playFreshnessCell) {
+          const effectiveStatus = appData.status;
+
+          if (effectiveStatus === 'up-to-date') {
+            playFreshnessCell.innerHTML =
+              '<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-[10px] bg-emerald-950/60 text-emerald-400 border border-emerald-800/40"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span><span>Up to date</span></span>';
+          } else if (effectiveStatus === 'newer-available') {
+            playFreshnessCell.innerHTML =
+              '<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-[10px] bg-amber-950/60 text-amber-400 border border-amber-800/40"><span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span><span>Newer available</span></span>';
+          } else if (effectiveStatus === 'not-on-play-store') {
+            playFreshnessCell.innerHTML =
+              '<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-[10px] bg-zinc-900 text-zinc-500 border border-white/10"><span>Not on Play Store</span></span>';
+          } else if (effectiveStatus === 'check-failed') {
+            playFreshnessCell.innerHTML =
+              '<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-[10px] bg-rose-950/60 text-rose-400 border border-rose-800/40"><span class="w-1.5 h-1.5 rounded-full bg-rose-400"></span><span>Check failed</span></span>';
+          } else {
+            playFreshnessCell.innerHTML =
+              '<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-[10px] bg-zinc-900 text-zinc-400 border border-white/10"><span class="w-1.5 h-1.5 rounded-full bg-zinc-500"></span><span>Unknown</span></span>';
+          }
+        }
+
+        var isTargetQueued = Boolean(
+          appData.outstandingRequest &&
+          appData.outstandingRequest.expectedRoles &&
+          appData.outstandingRequest.expectedRoles.includes('target'),
+        );
+
+        if (targetCompatCell) {
+          targetCompatCell.innerHTML = renderCompatBadgeHtml(
+            appData.targetCompatibility,
+            'Not tested',
+            isTargetQueued,
+          );
+        }
+      });
+    }
+
+    (async function hydrate() {
+      try {
+        const cached = sessionStorage.getItem(STATUS_CACHE_KEY);
+        if (cached) {
+          try {
+            const parsed = JSON.parse(cached);
+            if (
+              parsed &&
+              parsed.data &&
+              Date.now() - parsed.timestamp < STATUS_CACHE_TTL_MS
+            ) {
+              applyStatusData(parsed.data);
+              return;
+            }
+          } catch {
+            // Ignore invalid cache JSON
+          }
+        }
+
+        const endpoint =
+          typeof workerUrl !== 'undefined' && workerUrl
+            ? new URL('/api/status', workerUrl).toString()
+            : 'https://worker.patch.p0ntus.com/api/status';
+        const response = await fetch(endpoint);
+        if (!response.ok) return;
+
+        const data = await response.json();
+        if (!data || !data.apps) return;
+
+        try {
+          sessionStorage.setItem(
+            STATUS_CACHE_KEY,
+            JSON.stringify({ data, timestamp: Date.now() }),
+          );
+        } catch {
+          // Ignore storage quota / private browsing errors
+        }
+
+        applyStatusData(data);
+      } catch {
+        // Keep static fallback
+      }
     })();
   </script>
 </BaseLayout>

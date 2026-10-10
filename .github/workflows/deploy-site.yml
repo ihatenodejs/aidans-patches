@@ -38,8 +38,18 @@ jobs:
         working-directory: site
         run: bun run check:icons
 
+      - name: Run Site Unit Tests
+        working-directory: site
+        run: bun test
+
+      - name: Typecheck Astro Site
+        working-directory: site
+        run: bun run check
+
       - name: Build Astro Static Site
         working-directory: site
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: bun run build
 
       - name: Deploy to Cloudflare Pages (Production)

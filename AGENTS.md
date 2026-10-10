@@ -4,7 +4,7 @@
 
 This repository develops binary bytecode, resource, and asset patches for Android applications using the **Morphe Patching Framework** (`app.morphe.patches` Gradle plugin v1.3.4, Morphe Patcher v1.14.0).
 
-The project patches eight Android applications:
+The project patches nine Android applications:
 1. **Sezzle: Buy Now, Pay Later** (`com.sezzle.sezzlemobile`, target `5.3.9`): Hybrid React Native Fabric application compiled to **Hermes Bytecode v98**. Patches eliminate ads and tracking SDKs, suppress CodePush OTA updates and root/tamper checks, sanitize authentication (Google SSO only, native `ConsentGate` modal), restructure navigation (replace Shop with Home, remove Rewards, customize shortcuts, replace AI Discover), unblock features (receipt scanner, custom launcher icons), expose internal developer settings, and ensure 16 KB page size compatibility on Android 15+.
 2. **SidelineSwap: Buy & Sell Gear** (`com.sidelineswap.android`, target `1.52.0`): Native Android (Kotlin/Java) marketplace app. Patches eliminate first-party and third-party tracking/analytics (Amplitude, Firebase Analytics, Crashlytics, Facebook App Events, Iterable, Braintree FPTI) and customize the primary brand accent color via Android XML resource modification.
 3. **AfterShip: Package Tracker** (`com.aftership.AfterShip`, target `5.25.8`): Native Android (Kotlin/Java) tracking app with native C++ libraries (`libandroidsig-lib.so`). Patches neutralize native APK signature verification (`checkApkSha`), remove login barriers (forcing permanent guest mode), strip promotional feedback and shipment sync entry points, zero AAID and ad/tracking SDKs, provide an OpenStreetMap/Leaflet map engine replacement, add multi-shipment copy tracking, and apply a pure AMOLED black theme.
@@ -13,6 +13,7 @@ The project patches eight Android applications:
 6. **Blackjack** (`com.tripledot.blackjack`, target `2.22.09`): Unity IL2CPP game compiled to native ARM64 (`libil2cpp.so`). Patches eliminate ads, six telemetry SDKs (Tripledot Analytics, Firebase, Crashlytics, Adjust, AppsFlyer, Unity Analytics), and notification permission requests; rewire defunct store buttons to a custom Android chip balance dialog (`ChipBalanceDialog`); install an in-game level skip touch interceptor (`SkipLevelDialog`); and enforce 16 KB page size alignment.
 7. **Adobe Scan: PDF Scanner, OCR** (`com.adobe.scan.android`, target `26.09.25`): Native Android (Kotlin/Java + Compose) scanning app. Patches bypass the mandatory Adobe ID / social sign-in gate on cold start, neutralize in-scanner save prompts and banners, preserve local scans without an account, replace Adobe Clean typography with the device system font, and remove Adobe, Branch, Facebook, Creative SDK, and Crashlytics telemetry, in-app ads, AAID and install-referrer collection, rating prompts, and dead telemetry settings.
 8. **Fizz** (`com.ashtoncofer.Buzz`, target `1.54.0`): Native Android (Kotlin/Java + Compose) social application. Patches bypass PairIP Play Integrity licensing verification, neutralize first-party event tracking and batch uploads (`ra.ga`, `jc.k0`), disable Mixpanel analytics, Airbridge and Adjust attribution SDKs, zero the Google Play Advertising ID (AAID), eliminate feed ads and sponsored marketplace listings, and provide options for silent DM screenshots and Sentry telemetry removal.
+9. **Geocaching** (`com.groundspeak.geocaching.intro`, target `10.21.0`): Native Android (Kotlin/Java + Compose) GPS exploration app. Patches eliminate first-party analytics (AnalyticsRepo, vm3, go3, AnalyticsWebInterface), Google Analytics / Firebase (Analytics, Crashlytics, Performance, In-App Messaging), Facebook App Events, Iterable marketing telemetry, Usercentrics telemetry, and zero the Google Play Advertising ID (AAID); remove the non-functional Lists tab from the bottom navigation bar; remove the Shop Geocaching promotional item and banner from the Profile screen; unlock advanced cache search filters and sorting tools without upgrade prompts; replace proprietary Google Maps tiles with community-driven OpenStreetMap tiles; enable local Premium membership status and remove upgrade promotions across map, profile, and settings screens; and unlock local geocache log templates and experimental beta features.
 
 ---
 
@@ -208,6 +209,30 @@ When `dependsOn` is declared, selecting the user-facing patch automatically trig
 python3 .github/scripts/generate_patches_readme.py <owner/repo> <branch> patches-list.json README.md
 ```
 
+### Code Quality, Linting & Unified Auditing
+```bash
+# Full project audit (runs format check, lint, typecheck, and all test suites)
+bun run audit
+
+# Code formatting (Prettier for web/configs/docs, Ruff for Python, ktlint for Kotlin)
+bun run format            # Reformat files in place
+bun run format:check      # Check formatting without modifying files
+
+# Code quality linting
+bun run lint              # Oxlint (Web/TS), Ruff (Python), ktlint (Kotlin)
+bun run lint:fix          # Apply automated fixes where supported
+
+# Strict multi-stack typecheck
+bun run typecheck         # Worker (tsc), Site (astro check), apk-lab (mypy), Patches (Gradle)
+
+# Unified test runner across all suites
+bun run test              # apk-lab (pytest), Worker (vitest), Site (bun test), app icon sync
+
+# Git pre-commit and pre-push hooks
+pre-commit run --all-files                          # Run commit hygiene, format & lint checks
+pre-commit run --hook-stage pre-push --all-files    # Run typecheck and full test suites
+```
+
 ### Patch Application & Artifact Tooling (`apk-lab`)
 ```bash
 # Setup toolchain and verify host environment
@@ -250,6 +275,7 @@ uv run --project tools/apk-lab apk-lab clean --package com.example.app
 - **Never Guess Compatibility**: Never mark a target version supported in `Constants.kt` from a metadata diff alone. A version is supported ONLY when `apk-lab check ... --all` executes every patch and boolean option permutation independently and passes Morphe result parsing and Android SDK DEX verification.
 - **New Patch Sequence**: `inspect` $\rightarrow$ targeted `analyze` $\rightarrow$ implement fail-fast bytecode hooks $\rightarrow$ compile `.mpp` $\rightarrow$ `check --all` $\rightarrow$ device smoke.
 - **App Update Sequence**: `compare` $\rightarrow$ forced failing `check --all --force` (capture failing baseline) $\rightarrow$ targeted `analyze` $\rightarrow$ remap anchors and models $\rightarrow$ compile `.mpp` $\rightarrow$ `check --all` $\rightarrow$ update compatibility and docs.
+- **Always Verify with Unified Audit**: After modifying any code across the repository, agents MUST run `bun run audit` (or at minimum `bun run lint`, `bun run typecheck`, and `bun run test`) before concluding or claiming completion. Never leave typecheck failures, lint errors, or unformatted code.
 ### Release Pipeline (Local Dry-Run)
 ```bash
 # Install release automation dependencies
@@ -412,12 +438,27 @@ Keep bytecode injection logic reusable and safe:
 | `extensions/extension/src/main/java/app/aidan/extension/fizz/FeedFilterBridge.java` | Native Android bridge filtering advertisements and marketplace listings from Home feed display items. |
 | `extensions/extension/src/main/java/app/aidan/extension/fizz/DeveloperMenuBridge.java` | Native Android bridge handling menu invocation, Mobile Studio flow trigger, and app restart. |
 | `extensions/extension/src/main/java/app/aidan/extension/fizz/DeveloperMenuDialog.java` | Native Android modal dialog presenting developer mod menu with Mobile Studio launcher. |
+| `patches/src/main/kotlin/app/aidan/patches/geocaching/shared/Constants.kt` | Geocaching package name (`com.groundspeak.geocaching.intro`), signature, APKM type, and Morphe `Compatibility` object. |
+| `patches/src/main/kotlin/app/aidan/patches/geocaching/tracking/RemoveTrackingAndAnalyticsPatch.kt` | Dalvik patch neutralizing first-party analytics (AnalyticsRepo, vm3, go3, AnalyticsWebInterface), Google Analytics / Firebase (Analytics, Crashlytics, Performance, In-App Messaging), Facebook App Events, Iterable marketing telemetry, Usercentrics telemetry, and zeroing AAID. |
+| `patches/src/main/kotlin/app/aidan/patches/geocaching/features/RemoveListsPatch.kt` | Resource patch removing the Lists option from the bottom navigation bar (`bottom_nav_menu.xml`). |
+| `patches/src/main/kotlin/app/aidan/patches/geocaching/features/UnlockFilterAndSortPatch.kt` | Dalvik patch unlocking advanced cache search filters and list/GeoTour sorting tools without prompting for Geocaching Premium. |
+| `patches/src/main/kotlin/app/aidan/patches/geocaching/features/LocalPremiumPatch.kt` | Dalvik patch enabling local Premium membership status across profile and account screens, and removing upgrade promotions, banners, and icons. |
+| `patches/src/main/kotlin/app/aidan/patches/geocaching/features/UnlockTemplatesPatch.kt` | Dalvik patch unlocking creation, editing, and application of geocache log templates without Geocaching Premium. |
+| `patches/src/main/kotlin/app/aidan/patches/geocaching/features/UnlockExperimentalFeaturesPatch.kt` | Dalvik patch unlocking beta and experimental features in Settings without Geocaching Premium. |
+| `patches/src/main/kotlin/app/aidan/patches/geocaching/customization/OpenStreetMapPatch.kt` | Dalvik patch replacing Google Maps with OpenStreetMap (MapLibre vector engine), unlocking OpenStreetMap styles and removing the Google watermark. |
+| `patches/src/main/kotlin/app/aidan/patches/geocaching/features/RemoveShopPatch.kt` | Dalvik patch removing the Shop Geocaching promotional item row and banner card from the Profile screen. |
+| `docs/geocaching/architecture.md` | Reverse engineering specification for Geocaching architecture, navigation, membership gates, and telemetry pipelines. |
+| `docs/geocaching/patches.md` | Patch specifications for Geocaching tracking removal, list unlocking, and cache filter/sorting tool unlocking. |
 | `tools/apk-lab/tools.lock.json` | Pinned external toolchain manifest (Morphe Desktop 1.18.0, JADX 1.5.6, Apktool 3.0.3, baksmali 3.0.10, apkeep 1.1.0). |
 | `tools/apk-lab/pyproject.toml` | Isolated Python 3.12 project configuration for the `apk-lab` CLI toolkit. |
 | `docs/apk-lab.md` | Complete reference specification, workflow guides, and storage rules for the `apk-lab` toolkit. |
 | `worker/src/apps.ts` | Dynamic target app metadata module deriving unique packages, targets, and signers from `patches-list.json`. |
 | `worker/src/badges.ts` | SVG badge generator for aggregate and per-package patch compatibility. |
-| `.github/workflows/apk-lab-tests.yml` | GitHub Actions workflow executing the 78-test pytest suite and Gradle patch compilation gate. |
+| `.github/workflows/apk-lab-tests.yml` | GitHub Actions workflow executing full multi-stack audit, typecheck, test suites, and Gradle patch compilation gate. |
+| `scripts/audit.ts` | Unified multi-language audit runner aggregating Prettier, Ruff, ktlint, Oxlint, tsc, astro check, mypy, Gradle, pytest, and vitest. |
+| `.pre-commit-config.yaml` | Git pre-commit (hygiene, format, lint) and pre-push (typecheck, tests) hook configuration. |
+| `.prettierrc.json` | Project-wide Prettier configuration supporting TypeScript, Astro, JSON, and YAML. |
+| `.oxlintrc.json` | High-performance Oxlint linter configuration enforcing code correctness and hygiene. |
 | `.github/workflows/apk-compatibility.yml` | GitHub Actions workflow acquiring APKs, rotating R2 slots, and testing target/latest compatibility. |
 ---
 
@@ -438,8 +479,9 @@ Keep bytecode injection logic reusable and safe:
   - Parallel execution and build caching are enabled in `gradle.properties`.
 - **Node.js, Bun & npm**:
   - Node.js LTS (`lts/*`) with standard `npm` for semantic-release.
-  - **Bun** is used for Cloudflare Worker runtime tests (`vitest`), types generation (`wrangler types`), and Astro site builds (`site/`).
-- **Repository Authentication**:
+  - **Bun** is the primary script, format, lint, and audit orchestrator (`scripts/audit.ts`), powering Cloudflare Worker tests (`vitest`), types generation (`wrangler types`), and Astro site checks (`site/`).
+- **Pre-commit**:
+  - Managed via `pre-commit` (configured in `.pre-commit-config.yaml`). Installed locally via `bun run prepare` or `pre-commit install && pre-commit install --hook-type pre-push`.
   - GitHub Packages registry (`maven.pkg.github.com/MorpheApp/registry`) requires authentication via `GITHUB_TOKEN` / `GITHUB_ACTOR` or `gpr.key` / `gpr.user` in `~/.gradle/gradle.properties`.
 
 ---
@@ -448,21 +490,26 @@ Keep bytecode injection logic reusable and safe:
 
 ### Testing Status
 - **Patch Core Tests**: There are no synthetic test sources in `patches/src/test` or `extensions/extension/src/test`. Patches transform proprietary closed-source APK binaries; synthetic tests provide little value compared to real-world APK application.
-- **Automated Tooling & Archive Tests**: The `tools/apk-lab` module includes a comprehensive pytest suite (`uv run --project tools/apk-lab pytest`, 78 tests) covering safe archive extraction, zip bomb rejection, path traversal rejection, container classification, split consistency, deterministic workspace IDs, tool checksums, Morphe result parsing, multi-split native library extraction, deterministic ARM64 instruction assembly, Unity IL2CPP metadata parsing, and Unity serialized asset inspection.
-- **Automated Worker Tests**: The `worker/` module includes a Vitest suite (`cd worker && bun run test`, 15 tests) testing app metadata derivation, Play Store scraper error handling, duplicate dispatch suppression, authenticated result ingestion, and badge SVG generation.
+- **Automated Tooling & Archive Tests**: The `tools/apk-lab` module includes a comprehensive pytest suite (`uv run --project tools/apk-lab pytest`, 95 tests) covering safe archive extraction, zip bomb rejection, path traversal rejection, container classification, split consistency, deterministic workspace IDs, tool checksums, Morphe result parsing, multi-split native library extraction, deterministic ARM64 instruction assembly, Unity IL2CPP metadata parsing, and Unity serialized asset inspection.
+- **Automated Worker Tests**: The `worker/` module includes a Vitest suite (`cd worker && bun run test`, 27 tests) testing app metadata derivation, Play Store scraper error handling, duplicate dispatch suppression, authenticated result ingestion, and badge SVG generation.
+- **Unified Repository Audit**: The root runner (`bun run audit`) verifies formatting, code quality linting, strict multi-stack typechecking, and all unit tests in a single command.
 - **Automated Compatibility Verification**: `apk-lab check <artifact> --mpp <bundle> --package <pkg> --all` runs live application of all declared patches and boolean option permutations, enforcing Morphe success and Android SDK DEX structural verification.
 
 ### Quality Assurance Strategy
-1. **Compilation Verification**:
+1. **Full Repository Audit**:
+   - Primary gate (`bun run audit`):
+     ```bash
+     bun run audit
+     ```
+   - Runs format check (Prettier, Ruff, ktlint), linting (Oxlint, Ruff, ktlint), strict typechecking (tsc, astro check, mypy, Gradle), and all automated test suites.
+2. **Compilation Verification**:
    - Primary CI validation (`release.yml`, `apk-lab-tests.yml`):
      ```bash
      ./gradlew :patches:buildAndroid clean --no-daemon
      ```
    - Validates that Kotlin sources, Java extension code, and `.mpp` packaging compile cleanly.
-2. **Tooling & Unit Test Gates**:
-   - Run `uv run --project tools/apk-lab pytest` to verify archive safety, tool caching, and workspace invariants.
-   - Run `cd worker && bun run test` to verify control plane endpoints, dispatch logic, and badge rendering.
-3. **Metadata Verification**:
+3. **Tooling & Unit Test Gates**:
+   - Run `bun run test` (or `uv run --project tools/apk-lab pytest` + `cd worker && bun run test` + `cd site && bun run test`) to verify tooling safety, control plane endpoints, dispatch logic, and badge rendering.
    - Run `./gradlew generatePatchesList` to verify that all patches instantiate cleanly, register valid compatibility objects, and serialize to `patches-list.json`.
 4. **Automated Patch Compatibility Testing (`apk-lab check`)**:
    - Apply the `.mpp` bundle across all compatible patches and option permutations:

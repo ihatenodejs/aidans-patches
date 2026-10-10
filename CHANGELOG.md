@@ -1,8 +1,62 @@
+## [1.6.0-dev.2](https://github.com/ihatenodejs/aidans-patches/compare/v1.6.0-dev.1...v1.6.0-dev.2) (2026-10-10)
+
+### 🐛 Bug Fixes
+
+* **apk-lab:** allowed jadx exit code 3 during analysis ([bf848ba](https://github.com/ihatenodejs/aidans-patches/commit/bf848ba47fc3b20f6de605cffe3896ed13ca2d8a))
+* **audit:** resolve post-merge quality gates, formatting, and task dependencies ([43be30e](https://github.com/ihatenodejs/aidans-patches/commit/43be30e5c3e25ef9dc939ad6ebedd297c7ff872a))
+
+### ✨ New Features
+
+* **geocaching:** added client-side map filtering and search fixes ([ff953c8](https://github.com/ihatenodejs/aidans-patches/commit/ff953c856a95cbcb7cacdd0ac6fed33dbc10a839))
+* **geocaching:** added OpenStreetMap style switching and previews ([b4bc94a](https://github.com/ihatenodejs/aidans-patches/commit/b4bc94a5ffb68b797fce644863cff850851cef67))
+* **geocaching:** added support and patches for Geocaching ([e9c822a](https://github.com/ihatenodejs/aidans-patches/commit/e9c822a62be2046c41cac8e4719cdd0d791ea16f))
+* **patches/main:** Added Geocaching Shop removal patch ([310ceb1](https://github.com/ihatenodejs/aidans-patches/commit/310ceb1a3fc3e242e93c5be2b5155dbb10db6b6c))
+
+## [1.6.0-dev.1](https://github.com/ihatenodejs/aidans-patches/compare/v1.5.1...v1.6.0-dev.1) (2026-10-09)
+
+### 🐛 Bug Fixes
+
+* **audit:** address review comments ([a28833d](https://github.com/ihatenodejs/aidans-patches/commit/a28833d7d2ed7458560a8444244898dba7c5abf9))
+* **ci:** reported terminal status to worker on pipeline failures ([9deac83](https://github.com/ihatenodejs/aidans-patches/commit/9deac838c87151580b8b71aa3b78ebeb38032107))
+* **ci:** resolve nitpick comments ([50b19a9](https://github.com/ihatenodejs/aidans-patches/commit/50b19a9a848a5b2afb50bfb3221014b26062bb8f))
+* **ci:** set User-Agent in compatibility submission and reuse acquired artifact for target check if version matches ([8384ed1](https://github.com/ihatenodejs/aidans-patches/commit/8384ed122976fa1cd99f094cec9fb37886cc5f62))
+* **site:** corrected test verification scope on status page ([1c9d6a4](https://github.com/ihatenodejs/aidans-patches/commit/1c9d6a40fa8a63187a6a65e067726bd23323be88))
+* **worker:** reduced outstanding request ttl to one scrape cycle ([9eaf4fd](https://github.com/ihatenodejs/aidans-patches/commit/9eaf4fded0cb188e056b6858edbad5a52d9a623e))
+
+### ✨ New Features
+
+* **compatibility:** Added APKMirror fallback and missing-APK status ([fc536ae](https://github.com/ihatenodejs/aidans-patches/commit/fc536ae5dcfaaac2b81b31d11591c83b6f18230e))
+* **compatibility:** added push matrix runs and failure stage tracking ([7f07e44](https://github.com/ihatenodejs/aidans-patches/commit/7f07e44e5a4718075cd4a0ba3d674d5570eeefb3))
+* **site:** added app name filtering to patch search ([b0a8796](https://github.com/ihatenodejs/aidans-patches/commit/b0a879641e8d09d2d6c131b11c5b46e937592081))
+
 ## [1.5.1](https://github.com/ihatenodejs/aidans-patches/compare/v1.5.0...v1.5.1) (2026-10-09)
 
 ### 🐛 Bug Fixes
 
 * **ci:** set User-Agent in compatibility submission and reuse acquired artifact for target check if version matches ([1901351](https://github.com/ihatenodejs/aidans-patches/commit/1901351bfddb604a4674695a86d9826f6a0a0caf))
+
+## [1.5.0-dev.3](https://github.com/ihatenodejs/aidans-patches/compare/v1.5.0-dev.2...v1.5.0-dev.3) (2026-10-09)
+
+### 🐛 Bug Fixes
+
+* **audit:** address review comments ([a28833d](https://github.com/ihatenodejs/aidans-patches/commit/a28833d7d2ed7458560a8444244898dba7c5abf9))
+* **ci:** reported terminal status to worker on pipeline failures ([9deac83](https://github.com/ihatenodejs/aidans-patches/commit/9deac838c87151580b8b71aa3b78ebeb38032107))
+* **ci:** resolve nitpick comments ([50b19a9](https://github.com/ihatenodejs/aidans-patches/commit/50b19a9a848a5b2afb50bfb3221014b26062bb8f))
+* **ci:** set User-Agent in compatibility submission and reuse acquired artifact for target check if version matches ([8384ed1](https://github.com/ihatenodejs/aidans-patches/commit/8384ed122976fa1cd99f094cec9fb37886cc5f62))
+* **site:** corrected test verification scope on status page ([1c9d6a4](https://github.com/ihatenodejs/aidans-patches/commit/1c9d6a40fa8a63187a6a65e067726bd23323be88))
+* **worker:** reduced outstanding request ttl to one scrape cycle ([9eaf4fd](https://github.com/ihatenodejs/aidans-patches/commit/9eaf4fded0cb188e056b6858edbad5a52d9a623e))
+
+### ✨ New Features
+
+* **compatibility:** Added APKMirror fallback and missing-APK status ([fc536ae](https://github.com/ihatenodejs/aidans-patches/commit/fc536ae5dcfaaac2b81b31d11591c83b6f18230e))
+* **compatibility:** added push matrix runs and failure stage tracking ([7f07e44](https://github.com/ihatenodejs/aidans-patches/commit/7f07e44e5a4718075cd4a0ba3d674d5570eeefb3))
+* **site:** added app name filtering to patch search ([b0a8796](https://github.com/ihatenodejs/aidans-patches/commit/b0a879641e8d09d2d6c131b11c5b46e937592081))
+
+## [1.5.0-dev.2](https://github.com/ihatenodejs/aidans-patches/compare/v1.5.0-dev.1...v1.5.0-dev.2) (2026-10-09)
+
+### 🐛 Bug Fixes
+
+* **site:** clean up status page, worker, and apk lab ([#16](https://github.com/ihatenodejs/aidans-patches/issues/16)) ([a666f02](https://github.com/ihatenodejs/aidans-patches/commit/a666f02c74b7c2a5f2d716df0a94f38ec127624c))
 
 ## [1.5.0](https://github.com/ihatenodejs/aidans-patches/compare/v1.4.0...v1.5.0) (2026-10-09)
 
