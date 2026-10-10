@@ -557,7 +557,12 @@ def monitor_application(
                 for line in list(log_queue):
                     line_pid = extract_logcat_pid(line)
                     is_pid_match = active_pid is not None and line_pid == active_pid
-                    is_am_anr = "ActivityManager" in line and package in line
+                    is_am_anr = "ActivityManager" in line and bool(
+                        re.search(
+                            rf"(?<![a-zA-Z0-9_.]){re.escape(package)}(?![a-zA-Z0-9_.])",
+                            line,
+                        )
+                    )
 
                     if is_pid_match or is_am_anr:
                         if "ANR in" in line or "BIND APPLICATION ANR" in line:

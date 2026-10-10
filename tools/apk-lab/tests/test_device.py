@@ -476,3 +476,78 @@ def test_extract_logcat_pid():
 
     invalid_line = "just some random text without pid"
     assert extract_logcat_pid(invalid_line) is None
+
+
+def test_monitor_activity_manager_anr_token_matching():
+    import io
+
+    calls = 0
+
+    def mock_run(args, **kwargs):
+        nonlocal calls
+        calls += 1
+        if "exit-info" in args:
+            return subprocess.CompletedProcess(
+                [], 0, "ApplicationExitInfo #0:\n timestamp=1000\n", ""
+            )
+        if "date" in args:
+            return subprocess.CompletedProcess([], 0, "1710000000 +0000\n", "")
+        if "pidof" in args:
+            return subprocess.CompletedProcess([], 0, "1234\n", "")
+        if "/task/" in " ".join(args):
+            return subprocess.CompletedProcess(
+                [],
+                0,
+                f"1234 (app) S 1 1 1 0 0 0 0 0 0 0 {10 + calls} {20 + calls} 0 0 20 0 1 0 100 100 10 0 0 0 0 0 0 0 0 0 0 0 0 0",
+                "",
+            )
+        if "/proc/stat" in " ".join(args):
+            return subprocess.CompletedProcess(
+                [], 0, f"cpu {1000 + calls * 100} 0 0 5000\ncpu0 500\n", ""
+            )
+        return subprocess.CompletedProcess([], 0, "", "")
+
+    # 1. ANR line for 'com.example.apple' must NOT match monitored 'com.example.app'
+    client_prefix = MagicMock()
+    client_prefix.run.side_effect = mock_run
+    mock_proc_prefix = MagicMock()
+    mock_proc_prefix.stdout = io.StringIO(
+        "1710000000.000 9999 9999 E ActivityManager: ANR in com.example.apple\n"
+    )
+    mock_proc_prefix.poll.return_value = 0
+    cm_prefix = MagicMock()
+    cm_prefix.__enter__.return_value = mock_proc_prefix
+    cm_prefix.__exit__.return_value = False
+    client_prefix.stream.return_value = cm_prefix
+
+    code_prefix = monitor_application(
+        client=client_prefix,
+        package="com.example.app",
+        serial="emulator-5554",
+        timeout=0.01,
+        poll_interval=0.002,
+    )
+    assert code_prefix == ExitCode.SUCCESS
+
+    # 2. ANR line for exact 'com.example.app' MUST match
+    calls = 0
+    client_exact = MagicMock()
+    client_exact.run.side_effect = mock_run
+    mock_proc_exact = MagicMock()
+    mock_proc_exact.stdout = io.StringIO(
+        "1710000000.000 9999 9999 E ActivityManager: ANR in com.example.app\n"
+    )
+    mock_proc_exact.poll.return_value = 0
+    cm_exact = MagicMock()
+    cm_exact.__enter__.return_value = mock_proc_exact
+    cm_exact.__exit__.return_value = False
+    client_exact.stream.return_value = cm_exact
+
+    code_exact = monitor_application(
+        client=client_exact,
+        package="com.example.app",
+        serial="emulator-5554",
+        timeout=0.01,
+        poll_interval=0.002,
+    )
+    assert code_exact == ExitCode.RUNTIME_FAILURE

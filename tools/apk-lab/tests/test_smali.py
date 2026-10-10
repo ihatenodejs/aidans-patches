@@ -221,3 +221,76 @@ move-wide/from16 v0, p1
     assert report.is_valid
     assert report.params_count == 3
     assert report.total_registers == 5
+
+
+def test_validate_smali_indented_label():
+    snippet = """
+    :again
+    const/4 v0, 0
+    goto :again
+"""
+    report = validate_smali_snippet(
+        snippet, locals_count=1, parameter_count=0, is_static=True
+    )
+    assert report.is_valid
+    assert not any(d.code == "MISSING_BRANCH_TARGET" for d in report.diagnostics)
+
+
+def test_validate_smali_method_descriptor_validation():
+    import pytest
+
+    snippet = "return-void"
+
+    # Missing return type
+    with pytest.raises(ValueError, match="Invalid method descriptor"):
+        validate_smali_snippet(
+            snippet, locals_count=0, is_static=True, descriptor="(I)"
+        )
+
+    # Trailing characters after return type
+    with pytest.raises(ValueError, match="Invalid method descriptor"):
+        validate_smali_snippet(
+            snippet, locals_count=0, is_static=True, descriptor="(I)V extra"
+        )
+
+    with pytest.raises(ValueError, match="Invalid method descriptor"):
+        validate_smali_snippet(
+            snippet, locals_count=0, is_static=True, descriptor="(I)VX"
+        )
+
+    # Explicitly empty descriptor
+    with pytest.raises(ValueError, match="Invalid method descriptor"):
+        validate_smali_snippet(snippet, locals_count=0, is_static=True, descriptor="")
+
+    # Valid descriptors
+    r1 = validate_smali_snippet(
+        snippet, locals_count=0, is_static=True, descriptor="()V"
+    )
+    assert r1.is_valid
+
+    r2 = validate_smali_snippet(
+        snippet,
+        locals_count=0,
+        is_static=True,
+        descriptor="(ILjava/lang/String;)[I",
+    )
+    assert r2.is_valid
+    assert r2.params_count == 2
+
+
+def test_validate_smali_assembler_oracle_unparsed_failure():
+    tm = MagicMock(spec=ToolManager)
+    tm.is_tool_installed.return_value = True
+
+    # Nonzero exit code with unformatted/fatal error output
+    err_out = "FATAL: Out of memory during assembly\n"
+    tm.run_tool_cmd.return_value = subprocess.CompletedProcess([], 1, "", err_out)
+
+    snippet = "const/4 v0, 1"
+    report = validate_smali_snippet(
+        snippet, locals_count=1, parameter_count=0, is_static=True, tool_manager=tm
+    )
+    assert not report.is_valid
+    err = next(d for d in report.diagnostics if d.code == "ASSEMBLER_ERROR")
+    assert err.line == 1
+    assert "Out of memory" in err.message

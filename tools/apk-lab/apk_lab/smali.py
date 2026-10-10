@@ -258,8 +258,8 @@ def strip_smali_comment(line: str) -> str:
             if ch == '"':
                 in_quote = True
             elif ch == "#":
-                return line[:idx].rstrip()
-    return line.rstrip()
+                return line[:idx].strip()
+    return line.strip()
 
 
 def split_smali_operands(operands_str: str) -> list[str]:
@@ -307,7 +307,7 @@ def parse_method_descriptor_params(descriptor: str) -> tuple[str, list[int]]:
     Returns (param_types_str, register_widths).
     For example, '(IJLjava/lang/String;D)V' returns ('IJLjava/lang/String;D', [1, 2, 1, 2]).
     """
-    m = re.match(r"^\((.*?)\)", descriptor.strip())
+    m = re.match(r"^\((.*?)\)(V|\[*(?:[ZBCSIFJD]|L[^;]+;))$", descriptor.strip())
     if not m:
         raise ValueError(
             f"Invalid method descriptor '{descriptor}', expected format like '(ILjava/lang/String;)V'"
@@ -362,7 +362,7 @@ def validate_smali_snippet(
     if locals_count < 0:
         raise ValueError("locals_count must be non-negative")
 
-    if descriptor:
+    if descriptor is not None:
         param_types_str, param_widths = parse_method_descriptor_params(descriptor)
         param_regs = sum(param_widths)
     else:
@@ -814,6 +814,7 @@ def validate_smali_snippet(
             )
             if proc.returncode != 0:
                 err_text = f"{proc.stderr}\n{proc.stdout}"
+                diagnostics_parsed = False
                 for err_line in err_text.splitlines():
                     match = re.search(r"\[(\d+),\d+\]\s*(.*)", err_line)
                     if match:
@@ -828,7 +829,17 @@ def validate_smali_snippet(
                                 message=msg,
                             )
                         )
-
+                        diagnostics_parsed = True
+                if not diagnostics_parsed:
+                    report.diagnostics.append(
+                        SmaliDiagnostic(
+                            line=1,
+                            severity="error",
+                            code="ASSEMBLER_ERROR",
+                            message=err_text.strip()
+                            or f"Smali assembler exited with code {proc.returncode}",
+                        )
+                    )
     return report
 
 
