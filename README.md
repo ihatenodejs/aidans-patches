@@ -42,7 +42,7 @@ My [Morphe](https://morphe.software) patches
 ## 📱 Supported Applications & Patches
 
 <!-- PATCHES_START EXPANDED -->
-> **[v1.6.0-dev.1](https://github.com/ihatenodejs/aidans-patches/releases/tag/v1.6.0-dev.1)**&nbsp;&nbsp;•&nbsp;&nbsp;`dev`&nbsp;&nbsp;•&nbsp;&nbsp;52 patches total
+> **[v1.6.0-dev.1](https://github.com/ihatenodejs/aidans-patches/releases/tag/v1.6.0-dev.1)**&nbsp;&nbsp;•&nbsp;&nbsp;`feat/geocaching/implement-support`&nbsp;&nbsp;•&nbsp;&nbsp;63 patches total
 <details open>
 <summary>📦 SidelineSwap&nbsp;&nbsp;•&nbsp;&nbsp;4 patches</summary>
 <br>
@@ -154,6 +154,31 @@ My [Morphe](https://morphe.software) patches
 | [Remove Tracking and Analytics](#remove-tracking-and-analytics) | Neutralizes first-party client event tracking, Mixpanel analytics, Airbridge and Adjust attribution SDKs, Google Advertising ID (AAID) collection, and bypasses PairIP Play Integrity verification, with options for silent DM screenshots and Sentry telemetry removal. | • Silent Screenshots<br>• Disable Crash Reporting |
 | [Replace Emoji Font with iOS](#replace-emoji-font-with-ios) | Replaces Android system emoji with iOS Apple Color Emoji across Compose UI, posts, comments, and direct messages. |  |
 | [Replace Emoji Font with iOS Asset](#replace-emoji-font-with-ios-asset) | Copies the packaged Apple Color Emoji font into the target APK assets. |  |
+
+</details>
+
+<details open>
+<summary>📦 Geocaching&nbsp;&nbsp;•&nbsp;&nbsp;11 patches</summary>
+<br>
+
+**🎯 Supported versions:**
+
+| 10.21.0 |
+| :---: |
+
+| 💊&nbsp;Patch | 📜&nbsp;Description | ⚙️&nbsp;Options |
+|----------|----------------|-----------|
+| [Local Premium](#local-premium) | Enables local Premium membership status across profile and account screens, removes upgrade promotions, banners, and icons, and preserves loaded non-traditional cache details. |  |
+| [OpenStreetMap Drop-in Replacement](#openstreetmap-drop-in-replacement) | Replaces Google Maps with OpenStreetMap (MapLibre vector engine) and adds in-app OpenStreetMap style switching and custom URL configuration to Map settings. |  |
+| [OpenStreetMap Preview Assets](#openstreetmap-preview-assets) | Replaces proprietary Google Map type preview webp images with rendered OpenStreetMap style thumbnails in a busy location. |  |
+| [OpenStreetMap Resource Strings](#openstreetmap-resource-strings) | Updates map type names and descriptions in strings.xml to reflect OpenStreetMap styles. |  |
+| [Remove Lists](#remove-lists) | Removes the Lists option from the bottom navigation bar. |  |
+| [Remove Lists Resource](#remove-lists-resource) | Removes the Lists option from bottom_nav_menu.xml. |  |
+| [Remove Shop](#remove-shop) | Removes the Shop Geocaching promotional section and link from the Profile screen. |  |
+| [Remove Tracking and Analytics](#remove-tracking-and-analytics) | Neutralizes first-party analytics (AnalyticsRepo), Google Analytics / Firebase (Analytics, Crashlytics, Performance, In-App Messaging), Facebook App Events, Iterable marketing telemetry, Usercentrics consent collection, and zeros the Google Play Advertising ID (AAID). | • Disable Firebase Crashlytics<br>• Disable Facebook Telemetry<br>• Disable Iterable Marketing Telemetry<br>• Disable Usercentrics Consent Telemetry |
+| [Unlock Cache Filter and Sorting Tools](#unlock-cache-filter-and-sorting-tools) | Unlocks advanced cache search filters and sorting options without prompting for Geocaching Premium. |  |
+| [Unlock Experimental Features](#unlock-experimental-features) | Unlocks beta and experimental features in Settings without Geocaching Premium. | • Unlock All Beta Projects |
+| [Unlock Templates](#unlock-templates) | Unlocks geocache log templates, allowing creating, editing, and applying custom log templates without Geocaching Premium. |  |
 
 </details>
 
