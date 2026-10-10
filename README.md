@@ -42,7 +42,7 @@ My [Morphe](https://morphe.software) patches
 ## 📱 Supported Applications & Patches
 
 <!-- PATCHES_START EXPANDED -->
-> **[v1.6.0-dev.1](https://github.com/ihatenodejs/aidans-patches/releases/tag/v1.6.0-dev.1)**&nbsp;&nbsp;•&nbsp;&nbsp;`main`&nbsp;&nbsp;•&nbsp;&nbsp;61 patches total
+> **[v1.6.0-dev.1](https://github.com/ihatenodejs/aidans-patches/releases/tag/v1.6.0-dev.1)**&nbsp;&nbsp;•&nbsp;&nbsp;`feat/geocaching/implement-support`&nbsp;&nbsp;•&nbsp;&nbsp;63 patches total
 <details open>
 <summary>📦 SidelineSwap&nbsp;&nbsp;•&nbsp;&nbsp;4 patches</summary>
 <br>
@@ -158,7 +158,7 @@ My [Morphe](https://morphe.software) patches
 </details>
 
 <details open>
-<summary>📦 Geocaching&nbsp;&nbsp;•&nbsp;&nbsp;9 patches</summary>
+<summary>📦 Geocaching&nbsp;&nbsp;•&nbsp;&nbsp;11 patches</summary>
 <br>
 
 **🎯 Supported versions:**
@@ -169,7 +169,9 @@ My [Morphe](https://morphe.software) patches
 | 💊&nbsp;Patch | 📜&nbsp;Description | ⚙️&nbsp;Options |
 |----------|----------------|-----------|
 | [Local Premium](#local-premium) | Enables local Premium membership status across profile and account screens, removes upgrade promotions, banners, and icons, and preserves loaded non-traditional cache details. |  |
-| [OpenStreetMap Drop-in Replacement](#openstreetmap-drop-in-replacement) | Replaces Google Maps with OpenStreetMap (MapLibre vector engine) across the main map and navigation screens, removing the Google watermark and rendering community-driven OpenStreetMap tiles. | • OpenStreetMap Style URL |
+| [OpenStreetMap Drop-in Replacement](#openstreetmap-drop-in-replacement) | Replaces Google Maps with OpenStreetMap (MapLibre vector engine) and adds in-app OpenStreetMap style switching and custom URL configuration to Map settings. |  |
+| [OpenStreetMap Preview Assets](#openstreetmap-preview-assets) | Replaces proprietary Google Map type preview webp images with rendered OpenStreetMap style thumbnails in a busy location. |  |
+| [OpenStreetMap Resource Strings](#openstreetmap-resource-strings) | Updates map type names and descriptions in strings.xml to reflect OpenStreetMap styles. |  |
 | [Remove Lists](#remove-lists) | Removes the Lists option from the bottom navigation bar. |  |
 | [Remove Lists Resource](#remove-lists-resource) | Removes the Lists option from bottom_nav_menu.xml. |  |
 | [Remove Shop](#remove-shop) | Removes the Shop Geocaching promotional section and link from the Profile screen. |  |

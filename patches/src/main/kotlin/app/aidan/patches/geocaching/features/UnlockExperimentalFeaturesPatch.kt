@@ -77,27 +77,23 @@ private fun BytecodePatchContext.removeExperimentalPremiumBadge() {
  * in LaunchDarkly b.i, making all experimental feature projects accessible and savable.
  */
 private fun BytecodePatchContext.unlockBetaFeatureFlags() {
-    val ldClass = mutableClassDefBy("Lcom/groundspeak/geocaching/intro/analytics/launchdarkly/b;")
+    val ldClass = mutableClassDefBy("Ll75;")
     val iMethod = ldClass.methods.firstOrNull {
-        it.name == "i" && it.returnType == "Z" && it.implementation != null
-    } ?: throw PatchException("LaunchDarkly b.i not found")
+        it.name == "E" && it.returnType == "Z" && it.implementation != null
+    } ?: throw PatchException("LaunchDarkly l75.E not found")
 
     val smali = """
         sget-object v0, Lcom/groundspeak/geocaching/intro/analytics/launchdarkly/LaunchDarklyFlag;->K:Lcom/groundspeak/geocaching/intro/analytics/launchdarkly/LaunchDarklyFlag;
-        if-ne p0, v0, :cond_check_t
-        const/4 v0, 0x1
-        return v0
-        :cond_check_t
+        if-eq p0, v0, :cond_is_true
         sget-object v0, Lcom/groundspeak/geocaching/intro/analytics/launchdarkly/LaunchDarklyFlag;->T:Lcom/groundspeak/geocaching/intro/analytics/launchdarkly/LaunchDarklyFlag;
-        if-ne p0, v0, :cond_check_b0
-        const/4 v0, 0x1
-        return v0
-        :cond_check_b0
+        if-eq p0, v0, :cond_is_true
         sget-object v0, Lcom/groundspeak/geocaching/intro/analytics/launchdarkly/LaunchDarklyFlag;->b0:Lcom/groundspeak/geocaching/intro/analytics/launchdarkly/LaunchDarklyFlag;
-        if-ne p0, v0, :cond_continue
+        if-eq p0, v0, :cond_is_true
+        goto :cond_not_beta
+        :cond_is_true
         const/4 v0, 0x1
         return v0
-        :cond_continue
+        :cond_not_beta
     """.trimIndent()
 
     iMethod.addInstructions(0, smali)

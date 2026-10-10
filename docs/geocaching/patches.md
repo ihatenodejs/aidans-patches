@@ -114,28 +114,50 @@ Unlocks all advanced cache search filters and sorting options, allowing users to
 ### Overview
 Replaces Google Maps with OpenStreetMap (MapLibre vector engine) across the main map and navigation screens. Completely eliminates the Google watermark logo and broken unauthenticated Google Maps canvases on re-signed builds, routing all map exploration, pins, clustering, cache preview sheets, bottom navigation trays, filters, search, and route navigation through the native MapLibre engine.
 
-### Configuration Options
-- `styleUrl` (default: `https://tiles.openfreemap.org/styles/bright`): URL of the MapLibre/OpenMapTiles style JSON defining OpenStreetMap tiles and layers. Compatible with public OpenFreeMap styles (`bright`, `liberty`, `positron`) and custom MapLibre style endpoints.
+### In-App Map Style Controls
+The map settings menu (`MapTypeSelectionFragment` and bottom sheet) is rewired from the defunct Google Map types ("Street", "Satellite", "Terrain", "Hybrid") into dynamic OpenStreetMap style options:
+- **Bright** (`https://tiles.openfreemap.org/styles/bright`): Colorful OpenMapTiles vector basemap.
+- **Liberty** (`https://tiles.openfreemap.org/styles/liberty`): Clean, detailed OpenStreetMap style.
+- **Positron** (`https://tiles.openfreemap.org/styles/positron`): Minimal, light basemap with muted tones.
+- **Dark** (`https://tiles.openfreemap.org/styles/dark`): Contrast dark mode vector tiles.
+- **Custom URL**: Prompts for any custom MapLibre vector style JSON endpoint and saves it locally.
+
+### Preview Thumbnails
+The legacy Google Map type thumbnail preview images (`map_preview_*.webp`) are replaced with rendered OpenStreetMap raster previews of a high-density location (Times Square / Midtown Manhattan, NYC) to accurately demonstrate each style's visual presentation.
+
+### Architectural Layers & Patches
+The OpenStreetMap integration is divided into three coordinated patches:
+1. **OpenStreetMap Drop-in Replacement** (`bytecodePatch`): Core Dalvik bytecode modifications routing all map deciders, view models, style requests, and settings interactions to MapLibre and `OsmStyleBridge`.
+2. **OpenStreetMap Resource Strings** (`resourcePatch`): Updates `res/values/strings.xml` to rename Map types to "Map styles" and replace legacy Google Map labels and descriptions with OpenStreetMap presets ("Bright", "Liberty", "Positron", "Dark", "Custom URL").
+3. **OpenStreetMap Preview Assets** (`resourcePatch`): Replaces legacy Google Map preview thumbnails in `res/drawable-xxhdpi/` with 240x240 rendered raster previews of Times Square / Midtown Manhattan, NYC for each style.
 
 ### Bytecode Modifications
-1. **User Map Preferences**:
-   - Target: `k4c.e()Lcom/groundspeak/geocaching/intro/map/type/MapType;`
-   - Injected with `sget-object v0, MapType->M:MapType; return-object v0;`, universally setting the preferred map mode to `TRAILS` (MapLibre).
-2. **Main Map Decider Fragment**:
-   - Target: `com.groundspeak.geocaching.intro.mainmap.map.MapDeciderFragment.onResume()`
-   - Intercepts `List.contains()` result to unconditionally force `0x1` (`true`), permanently routing navigation to `toMapLibreMapFragment` (`0x7f0a0579`).
-3. **Navigation View Model**:
-   - Target: `com.groundspeak.geocaching.intro.navigationmap.NavigationViewModel.h()Z`
-   - Injected with `const/4 v0, 0x1; return v0;`, ensuring `NavigationMapActivity` displays the MapLibre engine instead of Google Maps.
-4. **Style URL Redirection**:
-   - Targets: `t07`, `com.groundspeak.geocaching.intro.mainmap.map.n`, `com.groundspeak.geocaching.intro.navigationmap.NavigationViewModel`, and `dx1`.
-   - Replaces all occurrences of proprietary `https://maptiles.geocaching.com/vector/style.json` with the configured OpenStreetMap vector style URL.
-5. **FTUE Onboarding Neutralization & Redirection**:
-   - Targets: `i14.d(l3c, Z)Z` and `i14.e(l3c)Z`
-   - Injected with `const/4 v0, 0x0; return v0;`, neutralizing the first-time user experience suggestion flow checks so `MainActivity` does not route users to `OnboardingMapActivity`.
-   - Target: `com.groundspeak.geocaching.intro.onboarding.OnboardingMapActivity.onCreate(Bundle)`
-   - Injected with an immediate redirect to `MainActivity` with `MainActivity.SKIP_INITIAL_SUGGESTION_FLOW=true`, guaranteeing users are never trapped on broken unauthenticated Google Maps onboarding canvases without the top bar or bottom navigation bar.
-
+1. **Main Map Decider Fragment**:
+- Target: `com.groundspeak.geocaching.intro.mainmap.map.MapDeciderFragment.onResume()`
+- Intercepts `List.contains()` result to unconditionally force `0x1` (`true`), permanently routing navigation to `toMapLibreMapFragment` (`0x7f0a0579`).
+2. **Navigation View Model**:
+- Target: `com.groundspeak.geocaching.intro.navigationmap.NavigationViewModel.h()Z`
+- Injected with `const/4 v0, 0x1; return v0;`, ensuring `NavigationMapActivity` displays the MapLibre engine instead of Google Maps.
+3. **Dynamic Style URL Resolution**:
+- Targets: `t07`, `com.groundspeak.geocaching.intro.mainmap.map.n`, `com.groundspeak.geocaching.intro.navigationmap.NavigationViewModel`, and `dx1`.
+- Replaces hardcoded style references with `invoke-static OsmStyleBridge.getActiveStyleUrl()`, loading user-selected or custom style endpoints on demand.
+4. **Map Style Selection Interception & Live Style Reloading**:
+- Target: `MapTypeSelectionFragment.z`
+- Intercepts `l07` events and forwards the clicked map style ID to `OsmStyleBridge.onStyleSelected(fragment, mapTypeId)`.
+- Bypasses `w05.G` (Premium upsell gate), stores the selected style in SharedPreferences (`UserMapPrefs.OSM_STYLE_URL` and `UserMapPrefs.PREFERRED_MAP_TYPE`), prompts for a custom URL when "Custom URL" is chosen, and immediately reloads `MapLibreFragment.K` style without requiring app restarts.
+5. **Neutralize Google Maps Fallback Listener**:
+- Target: `hy6.invoke(Object, Object)`
+- Forces `List.contains()` result register to `0x1` (`true`), preventing the fragment result listener from navigating back to Google Maps (`0x7f0a0567`) when non-Trails styles are selected.
+6. **FTUE Onboarding Neutralization & Redirection Bypass**:
+- Targets: `i14.d(l3c, Z)Z` and `i14.e(l3c)Z`
+- Injected with `const/4 v0, 0x0; return v0;`, neutralizing first-time user suggestion flow checks.
+- Target: `com.groundspeak.geocaching.intro.onboarding.OnboardingMapActivity.onCreate(Bundle)`
+- Neutralizes `onDestroy` and injects an immediate redirect to `MainActivity` with `MainActivity.SKIP_INITIAL_SUGGESTION_FLOW=true`.
+- Target: `MainActivity.G(MainActivityVM$b, MainActivity$NavDestination)V`
+- Overrides `$c` (`OnboardingMapActivity`) and `b` (`PagingEducationActivity`) suggestion flow states with `$a` (`MainActivityVM$b$a`), guaranteeing `MainActivity` never bounces to `OnboardingMapActivity`.
+7. **Better Events Map Customization Toggle**:
+- Target: `com.groundspeak.geocaching.intro.analytics.launchdarkly.b.i(LaunchDarklyFlag)Z`
+- Forces `LaunchDarklyFlag.O` (`BETTER_EVENTS_MAP`) to return `true`, making the "Event dates" toggle visible in the Map settings sheet.
 ---
 
 ## 5. Local Premium
@@ -204,9 +226,8 @@ Unlocks beta and experimental features in Settings without a Geocaching Premium 
    - Target: `com.groundspeak.geocaching.intro.fragments.settings.p.<init>`
    - Replaces `const/4 v5, 0x1` with `const/4 v5, 0x0`, removing the locked "Premium" badge next to Experimental Features in Settings.
 3. **Beta Feature Flags**:
-   - Target: `com.groundspeak.geocaching.intro.analytics.launchdarkly.b.i(LaunchDarklyFlag)`
-   - When `unlockAllBetaFeatures` is enabled, intercepts `LaunchDarklyFlag.K` (`show-mobile-10-percent-menu`), `T` (`recent-log-icons`), and `b0` (`support-darkmode-webdescription`), returning `true` unconditionally so all beta features and their preferences populate and persist cleanly.
-
+   - Target: `Ll75.E(LaunchDarklyFlag)`
+   - When `unlockAllBetaFeatures` is enabled, intercepts `LaunchDarklyFlag.K` (`show-mobile-10-percent-menu`), `T` (`recent-log-icons`), and `b0` (`support-darkmode-webdescription`) in the high-level LaunchDarkly evaluation wrapper `l75.E`, returning `true` unconditionally so all beta features and their preferences populate and persist cleanly without interfering with application startup or LaunchDarkly initialization.
 ---
 
 ## 8. Remove Shop

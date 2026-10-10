@@ -644,7 +644,40 @@
     },
     {
       "name": "OpenStreetMap Drop-in Replacement",
-      "description": "Replaces Google Maps with OpenStreetMap (MapLibre vector engine) across the main map and navigation screens, removing the Google watermark and rendering community-driven OpenStreetMap tiles.",
+      "description": "Replaces Google Maps with OpenStreetMap (MapLibre vector engine) and adds in-app OpenStreetMap style switching and custom URL configuration to Map settings.",
+      "default": true,
+      "category": "Customization",
+      "dependencies": [
+        "OpenStreetMap Resource Strings",
+        "OpenStreetMap Preview Assets"
+      ],
+      "compatiblePackages": [
+        {
+          "packageName": "com.groundspeak.geocaching.intro",
+          "name": "Geocaching",
+          "description": null,
+          "apkFileType": "APKM",
+          "appIconColor": "#007D46",
+          "signatures": [
+            "7f000458070a8272e5960f2b3c9d3348372f31b0e600c86af34fc06e85f8db8c",
+            "6959a7790bff42cc28fbe41c20d457401e32f4854f414dbc390de9f1529c9295"
+          ],
+          "targets": [
+            {
+              "version": "10.21.0",
+              "versionCodes": null,
+              "isExperimental": false,
+              "minSdk": 29,
+              "description": null
+            }
+          ]
+        }
+      ],
+      "options": []
+    },
+    {
+      "name": "OpenStreetMap Preview Assets",
+      "description": "Replaces proprietary Google Map type preview webp images with rendered OpenStreetMap style thumbnails in a busy location.",
       "default": true,
       "category": "Customization",
       "dependencies": [],
@@ -670,17 +703,37 @@
           ]
         }
       ],
-      "options": [
+      "options": []
+    },
+    {
+      "name": "OpenStreetMap Resource Strings",
+      "description": "Updates map type names and descriptions in strings.xml to reflect OpenStreetMap styles.",
+      "default": true,
+      "category": "Customization",
+      "dependencies": [],
+      "compatiblePackages": [
         {
-          "key": "styleUrl",
-          "title": "OpenStreetMap Style URL",
-          "description": "URL of the MapLibre/OpenMapTiles style JSON defining OpenStreetMap tiles and layers. Examples: https://tiles.openfreemap.org/styles/bright, https://tiles.openfreemap.org/styles/liberty, https://tiles.openfreemap.org/styles/positron",
-          "required": false,
-          "type": "kotlin.String",
-          "default": "https://tiles.openfreemap.org/styles/bright",
-          "values": null
+          "packageName": "com.groundspeak.geocaching.intro",
+          "name": "Geocaching",
+          "description": null,
+          "apkFileType": "APKM",
+          "appIconColor": "#007D46",
+          "signatures": [
+            "7f000458070a8272e5960f2b3c9d3348372f31b0e600c86af34fc06e85f8db8c",
+            "6959a7790bff42cc28fbe41c20d457401e32f4854f414dbc390de9f1529c9295"
+          ],
+          "targets": [
+            {
+              "version": "10.21.0",
+              "versionCodes": null,
+              "isExperimental": false,
+              "minSdk": 29,
+              "description": null
+            }
+          ]
         }
-      ]
+      ],
+      "options": []
     },
     {
       "name": "Patch Consent Screen",
