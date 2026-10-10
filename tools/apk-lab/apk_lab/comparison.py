@@ -7,6 +7,7 @@ import zipfile
 from pathlib import Path
 from typing import Any
 
+from apk_lab.archives import materialize_split_member
 from apk_lab.inspection import InspectionError, inspect_artifact
 from apk_lab.models import ArtifactComparison, ContainerType, ExitCode
 from apk_lab.tools import ToolManager
@@ -70,15 +71,8 @@ def materialize_base_apk(artifact_path: Path, inspection: Any, dest_dir: Path) -
         )
 
     base_split = base_splits[0]
-    out_path = dest_dir / "base.apk"
-    with (
-        zipfile.ZipFile(artifact_path, "r") as container_zf,
-        container_zf.open(base_split.filename) as src,
-        open(out_path, "wb") as dst,
-    ):
-        while chunk := src.read(64 * 1024):
-            dst.write(chunk)
-    return out_path
+    with zipfile.ZipFile(artifact_path, "r") as container_zf:
+        return materialize_split_member(container_zf, base_split.filename, dest_dir)
 
 
 def locate_class_source(sources_dir: Path, fqcn: str) -> Path | None:

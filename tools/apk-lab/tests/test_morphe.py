@@ -222,3 +222,22 @@ def test_get_split_container_input_member_hashes(tmp_path):
         if name in member_map
     )
     assert changed_mod is True
+
+
+def test_build_morphe_patch_cmd_skips_none_options():
+    from apk_lab.morphe import build_morphe_patch_cmd
+
+    cmd = build_morphe_patch_cmd(
+        mpp_path="bundle.mpp",
+        patch_name="SamplePatch",
+        options={"optA": "valueA", "optB": None, "optC": True},
+        dependencies=[],
+        artifact_path="in.apk",
+        out_apk="out.apk",
+        result_json="result.json",
+        scratch_dir="scratch",
+    )
+    assert "-O" in cmd
+    assert "optA=valueA" in cmd
+    assert "optC=true" in cmd
+    assert not any("optB" in arg for arg in cmd)

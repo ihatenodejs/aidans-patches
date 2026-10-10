@@ -72,7 +72,10 @@ node_modules/
 .DS_Store
 
 # Agents
-.agents
+.agents/*
+!.agents/skills/
+.agents/skills/*
+!.agents/skills/apk-lab/
 .claude
 
 # Font assets

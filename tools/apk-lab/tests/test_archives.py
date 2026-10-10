@@ -6,9 +6,10 @@ import pytest
 from apk_lab.archives import (
     ArchiveSecurityError,
     inspect_safe_zip,
+    materialize_artifact_apks,
     safe_extract_all,
 )
-from apk_lab.models import ContainerType
+from apk_lab.models import ArtifactInspection, ContainerType, SplitInfo
 
 
 def create_in_memory_zip(entries: dict[str, bytes]) -> io.BytesIO:
@@ -142,3 +143,75 @@ def test_safe_extract_all_preexisting_symlink_sibling_rejected(tmp_path):
 
     # Outside file must remain untouched
     assert outside_file.read_text() == "outside safe data"
+
+
+def test_materialize_artifact_apks_plain_apk(tmp_path):
+    apk_file = tmp_path / "app.apk"
+    apk_file.write_bytes(b"PK\x03\x04fake_apk_content")
+    inspection = ArtifactInspection(
+        file_path=str(apk_file),
+        container_type=ContainerType.APK,
+        file_size=apk_file.stat().st_size,
+        sha256="fake_sha",
+        package_name="com.example.app",
+        version_name="1.0.0",
+        version_code=100,
+    )
+    with materialize_artifact_apks(apk_file, inspection) as materialized:
+        assert len(materialized) == 1
+        mat = materialized[0]
+        assert mat.path == apk_file.resolve()
+        assert mat.container_member is None
+        assert mat.split_name == "base"
+        assert mat.is_base is True
+
+
+def test_materialize_artifact_apks_split_container(tmp_path):
+    apkm_file = tmp_path / "app.apkm"
+    with zipfile.ZipFile(apkm_file, "w") as zf:
+        zf.writestr("splits/base.apk", b"base_apk_bytes")
+        zf.writestr("splits/config.xxhdpi.apk", b"config_apk_bytes")
+
+    inspection = ArtifactInspection(
+        file_path=str(apkm_file),
+        container_type=ContainerType.APKM,
+        file_size=apkm_file.stat().st_size,
+        sha256="container_sha",
+        package_name="com.example.app",
+        version_name="1.0.0",
+        version_code=100,
+        splits=[
+            SplitInfo(
+                filename="splits/base.apk",
+                split_name="base",
+                sha256="sha1",
+                size=14,
+                is_base=True,
+            ),
+            SplitInfo(
+                filename="splits/config.xxhdpi.apk",
+                split_name="split_config.xxhdpi",
+                sha256="sha2",
+                size=16,
+                is_base=False,
+            ),
+        ],
+    )
+    with materialize_artifact_apks(apkm_file, inspection) as materialized:
+        assert len(materialized) == 2
+        assert materialized[0].split_name == "base"
+        assert materialized[0].is_base is True
+        assert materialized[0].container_member == "splits/base.apk"
+        assert materialized[0].path.is_file()
+        assert materialized[0].path.read_bytes() == b"base_apk_bytes"
+
+        assert materialized[1].split_name == "split_config.xxhdpi"
+        assert materialized[1].is_base is False
+        assert materialized[1].container_member == "splits/config.xxhdpi.apk"
+        assert materialized[1].path.is_file()
+        assert materialized[1].path.read_bytes() == b"config_apk_bytes"
+
+        temp_parent = materialized[0].path.parent
+
+    # After context exits, temp directory should be cleaned up
+    assert not temp_parent.exists()
