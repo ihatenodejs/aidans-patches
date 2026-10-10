@@ -1,3 +1,14 @@
+## [1.6.0-dev.3](https://github.com/ihatenodejs/aidans-patches/compare/v1.6.0-dev.2...v1.6.0-dev.3) (2026-10-10)
+
+### 🐛 Bug Fixes
+
+* **tools/apk-lab:** fixed anr package matching and smali validation ([63e2b11](https://github.com/ihatenodejs/aidans-patches/commit/63e2b1178a6d82256c792be6bb3835de7472468d))
+* **tools/apk-lab:** fixed inspection, monitoring, and smali edge cases ([15c5aaa](https://github.com/ihatenodejs/aidans-patches/commit/15c5aaa701d42025a63ada5e5d8fd41d15811355))
+
+### ✨ New Features
+
+* **tools/apk-lab:** added deploy, monitor, and APK inspection commands ([fea8c0c](https://github.com/ihatenodejs/aidans-patches/commit/fea8c0cec079e21f18227e86a5f9f9fa1df17686))
+
 ## [1.6.0-dev.2](https://github.com/ihatenodejs/aidans-patches/compare/v1.6.0-dev.1...v1.6.0-dev.2) (2026-10-10)
 
 ### 🐛 Bug Fixes
