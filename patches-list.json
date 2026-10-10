@@ -1370,6 +1370,36 @@
       "options": []
     },
     {
+      "name": "Remove Shop",
+      "description": "Removes the Shop Geocaching promotional section and link from the Profile screen.",
+      "default": true,
+      "category": "Interface",
+      "dependencies": [],
+      "compatiblePackages": [
+        {
+          "packageName": "com.groundspeak.geocaching.intro",
+          "name": "Geocaching",
+          "description": null,
+          "apkFileType": "APKM",
+          "appIconColor": "#007D46",
+          "signatures": [
+            "7f000458070a8272e5960f2b3c9d3348372f31b0e600c86af34fc06e85f8db8c",
+            "6959a7790bff42cc28fbe41c20d457401e32f4854f414dbc390de9f1529c9295"
+          ],
+          "targets": [
+            {
+              "version": "10.21.0",
+              "versionCodes": null,
+              "isExperimental": false,
+              "minSdk": 29,
+              "description": null
+            }
+          ]
+        }
+      ],
+      "options": []
+    },
+    {
       "name": "Remove Tracking and Analytics",
       "description": "Neutralizes active advertising telemetry, analytics, attribution, and crash reporting.",
       "default": true,

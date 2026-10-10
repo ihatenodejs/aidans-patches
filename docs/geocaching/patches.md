@@ -11,6 +11,7 @@
 | **Local Premium** | `Interface` | `true` | Enables local Premium membership status across profile and account screens, and removes upgrade promotions, banners, and icons. |
 | **Unlock Templates** | `Features` | `true` | Unlocks geocache log templates, allowing creating, editing, and applying custom log templates without Geocaching Premium. |
 | **Unlock Experimental Features** | `Features` | `true` | Unlocks beta and experimental features in Settings without Geocaching Premium. |
+| **Remove Shop** | `Interface` | `true` | Removes the Shop Geocaching promotional section and link from the Profile screen. |
 
 ---
 
@@ -205,3 +206,17 @@ Unlocks beta and experimental features in Settings without a Geocaching Premium 
 3. **Beta Feature Flags**:
    - Target: `com.groundspeak.geocaching.intro.analytics.launchdarkly.b.i(LaunchDarklyFlag)`
    - When `unlockAllBetaFeatures` is enabled, intercepts `LaunchDarklyFlag.K` (`show-mobile-10-percent-menu`), `T` (`recent-log-icons`), and `b0` (`support-darkmode-webdescription`), returning `true` unconditionally so all beta features and their preferences populate and persist cleanly.
+
+---
+
+## 8. Remove Shop
+### Overview
+Removes the Shop Geocaching promotional item row and promotional card ("Everything you need to hide, play, and share", featured shop items/banners) from the Profile screen.
+
+### Bytecode Modifications
+1. **RemoteConfig Shop Link Gate**:
+   - Target: `eh9.h()Z`
+   - Injected with `const/4 v0, 0x1; return v0;`, unconditionally forcing `shopLinkIsHidden` to `true`. This causes `ProfileViewModel` (`q.<init>`) to initialize `ShopLinkData` with `isHidden = true`, cleanly eliminating the shop link from the profile domain model.
+2. **Profile Screen Composable**:
+   - Target: `com.groundspeak.geocaching.intro.profile.l.b`
+   - Injects `const/4 v$reg, 0x1` right before the `if-nez v$reg, :cond_54d` branch evaluating `ShopLinkData.isHidden` (`hda.a`), guaranteeing the composable unconditionally branches to skip both the Shop Geocaching row (`k19.n`) and the featured promotional banner card (`q.a`) without disrupting Compose slot table alignment.

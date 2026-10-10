@@ -42,7 +42,7 @@ My [Morphe](https://morphe.software) patches
 ## 📱 Supported Applications & Patches
 
 <!-- PATCHES_START EXPANDED -->
-> **[v1.6.0-dev.1](https://github.com/ihatenodejs/aidans-patches/releases/tag/v1.6.0-dev.1)**&nbsp;&nbsp;•&nbsp;&nbsp;`dev`&nbsp;&nbsp;•&nbsp;&nbsp;60 patches total
+> **[v1.6.0-dev.1](https://github.com/ihatenodejs/aidans-patches/releases/tag/v1.6.0-dev.1)**&nbsp;&nbsp;•&nbsp;&nbsp;`main`&nbsp;&nbsp;•&nbsp;&nbsp;61 patches total
 <details open>
 <summary>📦 SidelineSwap&nbsp;&nbsp;•&nbsp;&nbsp;4 patches</summary>
 <br>
@@ -158,7 +158,7 @@ My [Morphe](https://morphe.software) patches
 </details>
 
 <details open>
-<summary>📦 Geocaching&nbsp;&nbsp;•&nbsp;&nbsp;8 patches</summary>
+<summary>📦 Geocaching&nbsp;&nbsp;•&nbsp;&nbsp;9 patches</summary>
 <br>
 
 **🎯 Supported versions:**
@@ -172,6 +172,7 @@ My [Morphe](https://morphe.software) patches
 | [OpenStreetMap Drop-in Replacement](#openstreetmap-drop-in-replacement) | Replaces Google Maps with OpenStreetMap (MapLibre vector engine) across the main map and navigation screens, removing the Google watermark and rendering community-driven OpenStreetMap tiles. | • OpenStreetMap Style URL |
 | [Remove Lists](#remove-lists) | Removes the Lists option from the bottom navigation bar. |  |
 | [Remove Lists Resource](#remove-lists-resource) | Removes the Lists option from bottom_nav_menu.xml. |  |
+| [Remove Shop](#remove-shop) | Removes the Shop Geocaching promotional section and link from the Profile screen. |  |
 | [Remove Tracking and Analytics](#remove-tracking-and-analytics) | Neutralizes first-party analytics (AnalyticsRepo), Google Analytics / Firebase (Analytics, Crashlytics, Performance, In-App Messaging), Facebook App Events, Iterable marketing telemetry, Usercentrics consent collection, and zeros the Google Play Advertising ID (AAID). | • Disable Firebase Crashlytics<br>• Disable Facebook Telemetry<br>• Disable Iterable Marketing Telemetry<br>• Disable Usercentrics Consent Telemetry |
 | [Unlock Cache Filter and Sorting Tools](#unlock-cache-filter-and-sorting-tools) | Unlocks advanced cache search filters and sorting options without prompting for Geocaching Premium. |  |
 | [Unlock Experimental Features](#unlock-experimental-features) | Unlocks beta and experimental features in Settings without Geocaching Premium. | • Unlock All Beta Projects |
