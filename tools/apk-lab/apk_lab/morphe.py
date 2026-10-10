@@ -65,6 +65,12 @@ class PatchDef:
 
 
 @dataclass
+class PatchSelection:
+    definition: PatchDef
+    options: dict[str, Any]
+
+
+@dataclass
 class PatchTestCase:
     patch_name: str
     options: dict[str, Any]
@@ -79,13 +85,11 @@ def load_patches_list(path: Path | None = None) -> dict[str, Any]:
         return json.load(f)
 
 
-def get_compatible_patches(
+def parse_all_compatible_patches(
     package_name: str,
     patches_list_data: dict[str, Any],
-    requested_patches: list[str] | None = None,
-    all_patches: bool = False,
 ) -> list[PatchDef]:
-    """Finds all patches compatible with a package and filters by request."""
+    """Parses all patches compatible with a package in patches-list.json metadata order."""
     compatible: list[PatchDef] = []
     raw_patches = patches_list_data.get("patches", [])
 
@@ -110,21 +114,130 @@ def get_compatible_patches(
                 )
             )
 
-        p_def = PatchDef(
-            name=p["name"],
-            description=p.get("description", ""),
-            default=p.get("default", True),
-            dependencies=p.get("dependencies", []),
-            options=opts,
+        compatible.append(
+            PatchDef(
+                name=p["name"],
+                description=p.get("description", ""),
+                default=p.get("default", True),
+                dependencies=p.get("dependencies", []),
+                options=opts,
+            )
         )
-
-        if requested_patches:
-            if p_def.name in requested_patches:
-                compatible.append(p_def)
-        elif all_patches or p_def.default:
-            compatible.append(p_def)
-
     return compatible
+
+
+def get_compatible_patches(
+    package_name: str,
+    patches_list_data: dict[str, Any],
+    requested_patches: list[str] | None = None,
+    all_patches: bool = False,
+) -> list[PatchDef]:
+    """Finds all patches compatible with a package and filters by request."""
+    all_compat = parse_all_compatible_patches(package_name, patches_list_data)
+    if requested_patches:
+        return [p for p in all_compat if p.name in requested_patches]
+    if all_patches:
+        return all_compat
+    return [p for p in all_compat if p.default]
+
+
+def resolve_patch_selections(
+    package_name: str,
+    requested_patches: list[str] | None,
+    all_defaults: bool,
+    raw_options: list[str] | None,
+    patches_list_data: dict[str, Any],
+) -> list[PatchSelection]:
+    """Resolves and validates patch selections, dependencies, and option bindings.
+
+    --all means every compatible default: true patch.
+    Explicit names must resolve for the package.
+    Expands dependencies transitively, rejects cycles/missing dependencies.
+    Parses KEY=VALUE options against selected closure, fills defaults.
+    """
+    compat_list = parse_all_compatible_patches(package_name, patches_list_data)
+    compat_map: dict[str, PatchDef] = {p.name: p for p in compat_list}
+
+    if all_defaults:
+        initial_names = [p.name for p in compat_list if p.default]
+    else:
+        initial_names = requested_patches or []
+        for name in initial_names:
+            if name not in compat_map:
+                raise ValueError(
+                    f"Patch '{name}' is not compatible with or not found for package '{package_name}'"
+                )
+
+    # Transitive dependency expansion with cycle detection
+    selected_set: set[str] = set()
+    visiting: set[str] = set()
+
+    def visit(patch_name: str, chain: list[str]) -> None:
+        if patch_name in visiting:
+            cycle = " -> ".join(chain + [patch_name])
+            raise ValueError(f"Circular dependency detected: {cycle}")
+        if patch_name in selected_set:
+            return
+        if patch_name not in compat_map:
+            parent = chain[-1] if chain else "root"
+            raise ValueError(
+                f"Dependency '{patch_name}' required by '{parent}' is not found or not compatible with package '{package_name}'"
+            )
+        visiting.add(patch_name)
+        p_def = compat_map[patch_name]
+        for dep in p_def.dependencies:
+            visit(dep, chain + [patch_name])
+        visiting.remove(patch_name)
+        selected_set.add(patch_name)
+
+    for name in initial_names:
+        visit(name, [])
+
+    # Preserve metadata order, emit every patch once
+    ordered_patches = [p for p in compat_list if p.name in selected_set]
+
+    # Initialize option defaults for each selected patch
+    patch_options: dict[str, dict[str, Any]] = {}
+    for p in ordered_patches:
+        patch_options[p.name] = {opt.key: opt.default for opt in p.options}
+
+    # Parse raw options: KEY=VALUE
+    if raw_options:
+        for raw in raw_options:
+            if "=" not in raw:
+                raise ValueError(f"Invalid option format '{raw}', expected KEY=VALUE")
+            key, val_str = raw.split("=", 1)
+            matching = [
+                p for p in ordered_patches if any(opt.key == key for opt in p.options)
+            ]
+            if not matching:
+                raise ValueError(f"Unknown patch option '{key}'")
+            if len(matching) > 1:
+                names = [p.name for p in matching]
+                raise ValueError(
+                    f"Ambiguous patch option '{key}': declared by multiple selected patches ({names})"
+                )
+            p = matching[0]
+            opt_def = next(opt for opt in p.options if opt.key == key)
+            is_bool = isinstance(opt_def.default, bool) or "Boolean" in opt_def.type
+            if is_bool:
+                v_clean = val_str.strip().lower()
+                if v_clean == "true":
+                    coerced: Any = True
+                elif v_clean == "false":
+                    coerced = False
+                else:
+                    raise ValueError(
+                        f"Invalid boolean value '{val_str}' for option '{key}', must be 'true' or 'false'"
+                    )
+            else:
+                coerced = val_str
+            patch_options[p.name][key] = coerced
+
+    return [
+        PatchSelection(definition=p, options=patch_options[p.name])
+        for p in ordered_patches
+    ]
 
 
 def generate_test_cases(patch: PatchDef) -> list[PatchTestCase]:
@@ -275,36 +388,30 @@ def get_split_container_input_member_hashes(
     return hashes_map
 
 
-def build_morphe_patch_cmd(
+def build_morphe_patch_set_cmd(
     mpp_path: Path | str,
-    patch_name: str,
-    options: dict[str, Any],
-    dependencies: list[str],
+    selections: list[PatchSelection],
     artifact_path: Path | str,
     out_apk: Path | str,
     result_json: Path | str,
     scratch_dir: Path | str,
     force: bool = False,
 ) -> list[str]:
-    """Builds the exact argument list for morphe patch command with correct option binding."""
+    """Builds the exact argument list for morphe patch command applying multiple patches."""
     cmd = [
         "patch",
         "-p",
         str(Path(mpp_path).resolve()),
         "--exclusive",
     ]
-    # Target patch options must precede target patch selection so options bind to target
-    for k, v in sorted(options.items()):
-        if isinstance(v, bool):
-            val_str = "true" if v else "false"
-        else:
-            val_str = str(v)
-        cmd.extend(["-O", f"{k}={val_str}"])
-
-    cmd.extend(["-e", patch_name])
-
-    for dep in dependencies:
-        cmd.extend(["-e", dep])
+    for sel in selections:
+        for k, v in sorted(sel.options.items()):
+            if isinstance(v, bool):
+                val_str = "true" if v else "false"
+            else:
+                val_str = str(v)
+            cmd.extend(["-O", f"{k}={val_str}"])
+        cmd.extend(["-e", sel.definition.name])
 
     cmd.extend(
         [
@@ -323,6 +430,150 @@ def build_morphe_patch_cmd(
 
     cmd.append(str(Path(artifact_path).resolve()))
     return cmd
+
+
+def build_morphe_patch_cmd(
+    mpp_path: Path | str,
+    patch_name: str,
+    options: dict[str, Any],
+    dependencies: list[str],
+    artifact_path: Path | str,
+    out_apk: Path | str,
+    result_json: Path | str,
+    scratch_dir: Path | str,
+    force: bool = False,
+) -> list[str]:
+    """Builds the exact argument list for morphe patch command with correct option binding."""
+    selections = [
+        PatchSelection(
+            definition=PatchDef(
+                name=patch_name,
+                description="",
+                default=True,
+                dependencies=dependencies,
+                options=[],
+            ),
+            options=options,
+        )
+    ]
+    for dep in dependencies:
+        selections.append(
+            PatchSelection(
+                definition=PatchDef(
+                    name=dep,
+                    description="",
+                    default=True,
+                    dependencies=[],
+                    options=[],
+                ),
+                options={},
+            )
+        )
+    return build_morphe_patch_set_cmd(
+        mpp_path=mpp_path,
+        selections=selections,
+        artifact_path=artifact_path,
+        out_apk=out_apk,
+        result_json=result_json,
+        scratch_dir=scratch_dir,
+        force=force,
+    )
+
+
+def apply_patch_set(
+    tool_manager: ToolManager,
+    mpp_path: Path | str,
+    artifact_path: Path | str,
+    package_name: str,
+    selections: list[PatchSelection],
+    output_apk: Path | str,
+    scratch_dir: Path | str,
+    force: bool = False,
+) -> list[str]:
+    """Applies a resolved set of patches to an artifact using pinned Morphe.
+
+    Inspects input artifact, verifies package, runs Morphe, checks result.json,
+    verifies standalone output APK and its DEX files. Returns list of applied patch names.
+    """
+    in_path = Path(artifact_path).resolve()
+    mpp = Path(mpp_path).resolve()
+    out_apk = Path(output_apk).resolve()
+    scratch = Path(scratch_dir).resolve()
+    scratch.mkdir(parents=True, exist_ok=True)
+    result_json = scratch / "result.json"
+
+    inspection = inspect_artifact(in_path)
+    if inspection.package_name != package_name:
+        raise ValueError(
+            f"Artifact package '{inspection.package_name}' does not match expected '{package_name}'"
+        )
+
+    cmd = build_morphe_patch_set_cmd(
+        mpp_path=mpp,
+        selections=selections,
+        artifact_path=in_path,
+        out_apk=out_apk,
+        result_json=result_json,
+        scratch_dir=scratch,
+        force=force,
+    )
+
+    proc = tool_manager.run_tool_cmd(
+        "morphe",
+        cmd,
+        cwd=scratch,
+        capture_output=True,
+        check=False,
+    )
+
+    if not result_json.is_file():
+        err = (
+            proc.stderr[:500]
+            if proc.stderr
+            else (proc.stdout[:500] if proc.stdout else "")
+        )
+        raise RuntimeError(
+            f"Morphe result.json was not generated (exit code {proc.returncode}): {err}"
+        )
+
+    try:
+        result_data = json.loads(result_json.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as e:
+        raise RuntimeError(f"Corrupt Morphe result JSON: {e}")
+
+    failed_patches = result_data.get("failedPatches", [])
+    if proc.returncode != 0 or failed_patches:
+        err = (
+            "; ".join(f"{fp.get('name')}: {fp.get('reason')}" for fp in failed_patches)
+            or proc.stderr[:300]
+        )
+        raise RuntimeError(f"Morphe patching failed: {err}")
+
+    applied = [p.get("name") for p in result_data.get("appliedPatches", [])]
+    for sel in selections:
+        if sel.definition.name not in applied:
+            raise RuntimeError(
+                f"Patch '{sel.definition.name}' was not reported in applied patches: {applied}"
+            )
+
+    if not out_apk.is_file():
+        raise RuntimeError("Morphe reported success but output APK was not created")
+
+    out_inspection = inspect_artifact(out_apk)
+    if out_inspection.package_name != package_name:
+        raise RuntimeError(
+            f"Patched output package '{out_inspection.package_name}' does not match expected '{package_name}'"
+        )
+    if out_inspection.version_code != inspection.version_code:
+        raise RuntimeError(
+            f"Patched output version code '{out_inspection.version_code}' does not match input '{inspection.version_code}'"
+        )
+
+    dex_valid, dex_err = verify_sdk_dex(out_apk)
+    if not dex_valid:
+        raise RuntimeError(f"Patched APK DEX verification failed: {dex_err}")
+
+    return applied
 
 
 def run_single_patch_case(

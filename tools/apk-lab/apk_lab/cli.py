@@ -11,7 +11,11 @@ import zipfile
 from pathlib import Path
 from typing import Any
 
-from apk_lab.archives import ArchiveSecurityError, is_contained_path
+from apk_lab.archives import (
+    ArchiveSecurityError,
+    is_contained_path,
+    materialize_split_member,
+)
 from apk_lab.comparison import compare_artifacts, format_comparison_summary
 from apk_lab.inspection import InspectionError, inspect_artifact
 from apk_lab.models import ContainerType, ExitCode
@@ -29,6 +33,16 @@ def non_negative_float(val: str) -> float:
     return f
 
 
+def non_negative_int(val: str) -> int:
+    try:
+        n = int(val, 0)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"Invalid integer value: {val}")
+    if n < 0:
+        raise argparse.ArgumentTypeError(f"Value must be non-negative, got {val}")
+    return n
+
+
 def parse_int_auto(val: str) -> int:
     try:
         return int(val, 0)
@@ -41,22 +55,6 @@ def validate_dex_entry_name(name: str) -> str:
     if not re.match(r"^classes\d*\.dex$", name):
         raise ArchiveSecurityError(f"Invalid or unsafe DEX entry name: {name}")
     return name
-
-
-def materialize_split_member(
-    zf: zipfile.ZipFile, split_filename: str, extracted_dir: Path
-) -> Path:
-    """Safely extracts a split APK member into extracted_dir, creating parent directories."""
-    dest = (extracted_dir / split_filename).resolve()
-    if not is_contained_path(dest, extracted_dir, allow_equal=False):
-        raise ArchiveSecurityError(
-            f"Split member {split_filename} escapes extraction directory {extracted_dir}"
-        )
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    with zf.open(split_filename) as src, open(dest, "wb") as dst:
-        while chunk := src.read(64 * 1024):
-            dst.write(chunk)
-    return dest
 
 
 def extract_native_libraries(
@@ -620,6 +618,80 @@ def handle_unity(args: argparse.Namespace) -> int:
         return ExitCode.INFRASTRUCTURE_FAILURE
 
 
+def handle_deploy(args: argparse.Namespace) -> int:
+    try:
+        from apk_lab.deployment import run_deploy
+
+        return run_deploy(args)
+    except FileNotFoundError as e:
+        print(f"Deployment error: {e}", file=sys.stderr)
+        return ExitCode.USAGE_OR_TOOL_ERROR
+    except ValueError as e:
+        print(f"Deployment error: {e}", file=sys.stderr)
+        return ExitCode.USAGE_OR_TOOL_ERROR
+    except Exception as e:  # noqa: BLE001
+        print(f"Deployment error: {e}", file=sys.stderr)
+        return ExitCode.INFRASTRUCTURE_FAILURE
+
+
+def handle_monitor(args: argparse.Namespace) -> int:
+    try:
+        from apk_lab.device import run_monitor
+
+        return run_monitor(args)
+    except ValueError as e:
+        print(f"Monitor error: {e}", file=sys.stderr)
+        return ExitCode.USAGE_OR_TOOL_ERROR
+    except Exception as e:  # noqa: BLE001
+        print(f"Monitor error: {e}", file=sys.stderr)
+        return ExitCode.INFRASTRUCTURE_FAILURE
+
+
+def handle_inspect_code(args: argparse.Namespace) -> int:
+    try:
+        from apk_lab.code_inspection import run_inspect_code
+
+        return run_inspect_code(args)
+    except FileNotFoundError as e:
+        print(f"Code inspection error: {e}", file=sys.stderr)
+        return ExitCode.USAGE_OR_TOOL_ERROR
+    except ValueError as e:
+        print(f"Code inspection error: {e}", file=sys.stderr)
+        return ExitCode.USAGE_OR_TOOL_ERROR
+    except Exception as e:  # noqa: BLE001
+        print(f"Code inspection error: {e}", file=sys.stderr)
+        return ExitCode.INFRASTRUCTURE_FAILURE
+
+
+def handle_validate_smali(args: argparse.Namespace) -> int:
+    try:
+        from apk_lab.smali import run_validate_smali
+
+        return run_validate_smali(args)
+    except ValueError as e:
+        print(f"Smali validation error: {e}", file=sys.stderr)
+        return ExitCode.USAGE_OR_TOOL_ERROR
+    except Exception as e:  # noqa: BLE001
+        print(f"Smali validation error: {e}", file=sys.stderr)
+        return ExitCode.INFRASTRUCTURE_FAILURE
+
+
+def handle_res(args: argparse.Namespace) -> int:
+    try:
+        from apk_lab.resources import run_res
+
+        return run_res(args)
+    except FileNotFoundError as e:
+        print(f"Resource inspection error: {e}", file=sys.stderr)
+        return ExitCode.USAGE_OR_TOOL_ERROR
+    except ValueError as e:
+        print(f"Resource inspection error: {e}", file=sys.stderr)
+        return ExitCode.USAGE_OR_TOOL_ERROR
+    except Exception as e:  # noqa: BLE001
+        print(f"Resource inspection error: {e}", file=sys.stderr)
+        return ExitCode.INFRASTRUCTURE_FAILURE
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="apk-lab",
@@ -842,6 +914,132 @@ def build_parser() -> argparse.ArgumentParser:
         help="Output results as JSON (optionally to file path or '-' for stdout)",
     )
     p_unity.set_defaults(handler=handle_unity)
+
+    # deploy
+    p_deploy = subparsers.add_parser(
+        "deploy", help="Apply patches, sign with debug key, and install to device"
+    )
+    p_deploy.add_argument("artifact", help="Path to APK/APKM/XAPK/APKS artifact")
+    p_deploy.add_argument("--mpp", required=True, help="Path to patches .mpp file")
+    p_deploy.add_argument("--package", required=True, help="Expected package name")
+    g_patch = p_deploy.add_mutually_exclusive_group(required=True)
+    g_patch.add_argument(
+        "--all", action="store_true", help="Apply all default-compatible patches"
+    )
+    g_patch.add_argument(
+        "-e",
+        "--enable",
+        action="append",
+        default=[],
+        dest="enable",
+        help="Explicit patch name to enable (can be repeated)",
+    )
+    p_deploy.add_argument(
+        "-O",
+        "--option",
+        action="append",
+        default=[],
+        dest="options",
+        help="Patch option in KEY=VALUE format (can be repeated)",
+    )
+    p_deploy.add_argument("--device", help="Target ADB device serial")
+    p_deploy.add_argument(
+        "--launch", action="store_true", help="Launch main activity after installation"
+    )
+    g_install = p_deploy.add_mutually_exclusive_group()
+    g_install.add_argument(
+        "--reinstall",
+        action="store_true",
+        help="Reinstall preserving data (-r, default)",
+    )
+    g_install.add_argument(
+        "--clean-install",
+        action="store_true",
+        help="Clean install by uninstalling first",
+    )
+    p_deploy.add_argument("--out", help="Path to write signed output APK")
+    p_deploy.set_defaults(handler=handle_deploy)
+
+    # monitor
+    p_monitor = subparsers.add_parser(
+        "monitor", help="Monitor application process health, ANRs, and crashes"
+    )
+    p_monitor.add_argument("--package", required=True, help="Package name to monitor")
+    p_monitor.add_argument("--device", help="Target ADB device serial")
+    p_monitor.add_argument(
+        "--timeout",
+        type=non_negative_float,
+        default=None,
+        help="Monitoring timeout in seconds",
+    )
+    p_monitor.add_argument(
+        "--dump-threads",
+        action="store_true",
+        help="Capture thread dump on ANR or spin",
+    )
+    p_monitor.set_defaults(handler=handle_monitor)
+
+    # inspect-code
+    p_inspect_code = subparsers.add_parser(
+        "inspect-code",
+        help="Targeted class and method disassembly/decompilation and diff",
+    )
+    p_inspect_code.add_argument(
+        "artifact", help="Path to target APK/APKM/XAPK/APKS artifact"
+    )
+    p_inspect_code.add_argument(
+        "--class",
+        dest="class_name",
+        required=True,
+        help="Fully qualified class name (FQCN)",
+    )
+    p_inspect_code.add_argument("--method", help="Method name or descriptor")
+    p_inspect_code.add_argument(
+        "--format",
+        choices=["smali", "java"],
+        default="smali",
+        help="Output format (default: smali)",
+    )
+    p_inspect_code.add_argument(
+        "--compare", help="Path to unpatched artifact for side-by-side diff"
+    )
+    p_inspect_code.set_defaults(handler=handle_inspect_code)
+
+    # validate-smali
+    p_validate_smali = subparsers.add_parser(
+        "validate-smali",
+        help="Validate Smali instruction snippet registers, opcodes, and CFG",
+    )
+    p_validate_smali.add_argument(
+        "--snippet", required=True, help="Smali instruction snippet"
+    )
+    p_validate_smali.add_argument(
+        "--locals",
+        type=non_negative_int,
+        required=True,
+        help="Number of locals (.locals N)",
+    )
+    p_validate_smali.add_argument(
+        "--params",
+        type=non_negative_int,
+        required=True,
+        help="Number of declared parameters",
+    )
+    p_validate_smali.add_argument(
+        "--is-static", action="store_true", help="Whether the method is static"
+    )
+    p_validate_smali.set_defaults(handler=handle_validate_smali)
+
+    # res
+    p_res = subparsers.add_parser(
+        "res", help="Inspect and query resources across split APK containers"
+    )
+    p_res.add_argument("artifact", help="Path to APK/APKM/XAPK/APKS artifact")
+    p_res.add_argument(
+        "--query", required=True, help="Resource name, ID, or path query"
+    )
+    p_res.add_argument("--extract", help="Directory to extract matched file resources")
+    p_res.set_defaults(handler=handle_res)
 
     return parser
 
