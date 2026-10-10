@@ -189,3 +189,35 @@ bad_opcode
     err = next(d for d in report.diagnostics if d.code == "ASSEMBLER_SYNTAX_ERROR")
     assert err.line == 2
     assert "bad_opcode" in err.message
+
+
+def test_validate_smali_comment_stripping_with_hash_in_string():
+    from apk_lab.smali import strip_smali_comment
+
+    line = 'const-string v0, "Hello # world, test" # real comment'
+    stripped = strip_smali_comment(line)
+    assert stripped == 'const-string v0, "Hello # world, test"'
+
+    snippet = 'const-string v0, "Hello # world" # comment'
+    report = validate_smali_snippet(
+        snippet, locals_count=1, parameter_count=0, is_static=True
+    )
+    assert report.is_valid
+
+
+def test_validate_smali_method_descriptor_wide_types():
+    # Descriptor (IJ)V -> I is 1 register, J is 2 registers -> total 3 param registers
+    # Static method: p0=I, p1,p2=J -> total 3 param registers. With locals=2:
+    # v0, v1 = locals. p0 = v2, p1 = v3, p2 = v4.
+    snippet = """
+move-wide/from16 v0, p1
+"""
+    report = validate_smali_snippet(
+        snippet,
+        locals_count=2,
+        is_static=True,
+        descriptor="(IJ)V",
+    )
+    assert report.is_valid
+    assert report.params_count == 3
+    assert report.total_registers == 5

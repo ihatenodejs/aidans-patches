@@ -261,6 +261,49 @@ public class Foo {
         extract_method_from_class(java, "process(I)V", "java", "com.example.Foo")
 
 
+def test_parse_java_methods_braces_in_string_and_char_literals():
+    java = """
+package com.example;
+
+public class Foo {
+    private int field1 = 42;
+
+    public void process() {
+        String s = "closing brace } inside string";
+        char c = '{';
+        System.out.println(s + c);
+    }
+}
+"""
+    methods = parse_java_methods(java)
+    assert len(methods) == 1
+    m = methods[0]
+    assert m.name == "process"
+    assert "field1" not in m.declaration
+    assert "field1" not in m.content
+    assert m.declaration.startswith("public void process()")
+    assert 'String s = "closing brace } inside string";' in m.content
+    assert "char c = '{';" in m.content
+    assert "System.out.println(s + c);" in m.content
+    assert m.content.endswith("}")
+
+
+def test_compare_ambiguity_error_propagation(monkeypatch):
+    from apk_lab.code_inspection import AmbiguousMethodError
+
+    code_with_overloads = """
+package com.example;
+
+public class Foo {
+    public void bar(int x) {}
+    public void bar(String s) {}
+}
+"""
+    # extract_method_from_class with bare "bar" raises AmbiguousMethodError
+    with pytest.raises(AmbiguousMethodError):
+        extract_method_from_class(code_with_overloads, "bar", "java", "com.example.Foo")
+
+
 def test_diff_truncation_marker():
     old_lines = [f"line {i}\n" for i in range(600)]
     new_lines = [f"modified {i}\n" for i in range(600)]

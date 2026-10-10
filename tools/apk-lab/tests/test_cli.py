@@ -494,3 +494,50 @@ def test_resource_match_and_report_to_dict_and_human():
     null_report = ResourceQueryReport(query="test", matches=[null_match])
     null_human = null_report.format_human()
     assert "- | - | - | - | resourcePatch | equivalent" in null_human
+
+
+def test_handle_inspect_code_and_res_exception_handling(monkeypatch):
+    from argparse import Namespace
+
+    from apk_lab.archives import ArchiveSecurityError
+    from apk_lab.cli import handle_inspect_code, handle_res
+    from apk_lab.code_inspection import CodeInspectionError
+    from apk_lab.inspection import InspectionError
+    from apk_lab.models import ExitCode
+
+    args = Namespace(
+        artifact="dummy.apk",
+        class_name="com.example.Foo",
+        method="bar",
+        format="smali",
+        compare=None,
+        query="app_name",
+        extract=None,
+    )
+
+    # 1. CodeInspectionError -> exit_code
+    def raise_code_insp(a):
+        raise CodeInspectionError("custom err", exit_code=ExitCode.USAGE_OR_TOOL_ERROR)
+
+    monkeypatch.setattr("apk_lab.code_inspection.run_inspect_code", raise_code_insp)
+    monkeypatch.setattr("apk_lab.resources.run_res", raise_code_insp)
+    assert handle_inspect_code(args) == ExitCode.USAGE_OR_TOOL_ERROR
+    assert handle_res(args) == ExitCode.USAGE_OR_TOOL_ERROR
+
+    # 2. InspectionError -> exit_code
+    def raise_insp(a):
+        raise InspectionError("bad zip", exit_code=ExitCode.INVALID_ARTIFACT)
+
+    monkeypatch.setattr("apk_lab.code_inspection.run_inspect_code", raise_insp)
+    monkeypatch.setattr("apk_lab.resources.run_res", raise_insp)
+    assert handle_inspect_code(args) == ExitCode.INVALID_ARTIFACT
+    assert handle_res(args) == ExitCode.INVALID_ARTIFACT
+
+    # 3. ArchiveSecurityError -> ExitCode.INVALID_ARTIFACT
+    def raise_security(a):
+        raise ArchiveSecurityError("path traversal detected")
+
+    monkeypatch.setattr("apk_lab.code_inspection.run_inspect_code", raise_security)
+    monkeypatch.setattr("apk_lab.resources.run_res", raise_security)
+    assert handle_inspect_code(args) == ExitCode.INVALID_ARTIFACT
+    assert handle_res(args) == ExitCode.INVALID_ARTIFACT

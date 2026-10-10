@@ -405,3 +405,74 @@ def test_monitor_ctrl_c():
         poll_interval=0.001,
     )
     assert code == ExitCode.SUCCESS
+
+
+def test_parse_exit_info_formatted_timestamp_fixture():
+    dumpsys_real = """
+ApplicationExitInfo #0:
+  timestamp=2024-03-09 14:20:05.159
+  pid=12345
+  realUid=10123
+  package=com.example.app
+  process=com.example.app
+  reason=5 (CRASH_NATIVE)
+  subreason=0
+  status=139
+  description=SIGSEGV
+ApplicationExitInfo #1:
+  timestamp=2024-03-09 14:15:00.000
+  pid=12300
+  realUid=10123
+  package=com.example.app
+  process=com.example.app
+  reason=4 (CRASH)
+  status=1
+  description=java.lang.RuntimeException
+"""
+    from datetime import datetime, timezone
+
+    tz = timezone.utc
+    records = parse_exit_info_records(dumpsys_real, tz=tz)
+    assert len(records) == 2
+    expected_ts_0 = int(
+        datetime(2024, 3, 9, 14, 20, 5, 159000, tzinfo=tz).timestamp() * 1000
+    )
+    expected_ts_1 = int(
+        datetime(2024, 3, 9, 14, 15, 0, 0, tzinfo=tz).timestamp() * 1000
+    )
+    assert records[0].timestamp == expected_ts_0
+    assert records[1].timestamp == expected_ts_1
+    assert records[0].timestamp > records[1].timestamp
+    assert records[0].reason_code == 5
+    assert records[0].pid == 12345
+
+
+def test_monitor_adb_timeout_expired():
+    client = MagicMock()
+    client.run.side_effect = subprocess.TimeoutExpired(
+        cmd=["adb", "shell"], timeout=5.0
+    )
+
+    code = monitor_application(
+        client=client,
+        package="com.example.app",
+        serial="emulator-5554",
+        timeout=10.0,
+    )
+    assert code == ExitCode.INFRASTRUCTURE_FAILURE
+
+
+def test_extract_logcat_pid():
+    from apk_lab.device import extract_logcat_pid
+
+    epoch_line = "1710000005.123  1234  1234 E AndroidRuntime: FATAL EXCEPTION: main"
+    assert extract_logcat_pid(epoch_line) == 1234
+
+    threadtime_line = "03-09 14:20:05.123  5678  5678 E AndroidRuntime: FATAL"
+    assert extract_logcat_pid(threadtime_line) == 5678
+
+    brief_line = "E( 9999) Tag: msg"
+    assert extract_logcat_pid(brief_line) == 9999
+
+    invalid_line = "just some random text without pid"
+    assert extract_logcat_pid(invalid_line) is None

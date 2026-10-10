@@ -2,11 +2,15 @@ from __future__ import annotations
 
 import argparse
 import collections
+import datetime
+import logging
 import os
+import queue
 import re
 import shutil
 import subprocess
 import sys
+import threading
 import time
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -14,6 +18,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from apk_lab.models import ExitCode
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -299,7 +305,54 @@ def parse_proc_system_stat(stat_text: str) -> SystemStatInfo:
     )
 
 
-def parse_exit_info_records(dumpsys_output: str) -> list[ExitInfoRecord]:
+def get_device_timezone(
+    client: AdbClient, serial: str | None = None
+) -> datetime.tzinfo:
+    """Attempts to determine the device time zone via date +%z."""
+    try:
+        proc = client.run(["shell", "date", "+%z"], serial=serial, timeout=5.0)
+        tz_str = proc.stdout.strip()
+        if re.match(r"^[+-]\d{4}$", tz_str):
+            dt = datetime.datetime.strptime(tz_str, "%z")
+            if dt.tzinfo:
+                return dt.tzinfo
+    except (subprocess.SubprocessError, OSError, ValueError) as err:
+        logger.debug("Failed to query device timezone: %s", err)
+
+    return datetime.timezone.utc
+
+
+def extract_logcat_pid(line: str) -> int | None:
+    """Extracts PID integer from logcat line in epoch, threadtime, or brief format."""
+    parts = line.split()
+    if not parts:
+        return None
+    if re.match(r"^\d+\.\d+$", parts[0]) and len(parts) >= 2:
+        try:
+            return int(parts[1])
+        except ValueError:
+            return None
+    if (
+        len(parts) >= 3
+        and re.match(r"^\d{2}-\d{2}$", parts[0])
+        and re.match(r"^\d{2}:\d{2}:\d{2}", parts[1])
+    ):
+        try:
+            return int(parts[2])
+        except ValueError:
+            return None
+    m = re.match(r"^[A-Z]\(\s*(\d+)\)", line)
+    if m:
+        try:
+            return int(m.group(1))
+        except ValueError:
+            return None
+    return None
+
+
+def parse_exit_info_records(
+    dumpsys_output: str, tz: datetime.tzinfo | None = None
+) -> list[ExitInfoRecord]:
     """Parses dumpsys activity exit-info output into structured ExitInfoRecord entries."""
     records: list[ExitInfoRecord] = []
     blocks = re.split(r"(?=ApplicationExitInfo\s+#\d+:)", dumpsys_output)
@@ -313,10 +366,18 @@ def parse_exit_info_records(dumpsys_output: str) -> list[ExitInfoRecord]:
         index = int(header_match.group(1)) if header_match else len(records)
 
         timestamp = 0
-        ts_match = re.search(r"timestamp=(\d+)", block)
+        ts_match = re.search(
+            r"timestamp=(\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}(?:\.\d+)?|\d+)",
+            block,
+        )
         if ts_match:
-            timestamp = int(ts_match.group(1))
-
+            raw_ts = ts_match.group(1).strip()
+            if "-" in raw_ts:
+                use_tz = tz or datetime.timezone.utc
+                dt = datetime.datetime.fromisoformat(raw_ts).replace(tzinfo=use_tz)
+                timestamp = int(dt.timestamp() * 1000)
+            else:
+                timestamp = int(raw_ts)
         pid = 0
         pid_match = re.search(r"pid=(\d+)", block)
         if pid_match:
@@ -403,20 +464,38 @@ def monitor_application(
     start_monotonic = time.monotonic()
     deadline = start_monotonic + timeout if timeout is not None else None
 
-    # Capture initial exit-info baseline
-    init_exit_res = client.run(
-        ["shell", "dumpsys", "activity", "exit-info", package], serial=serial
-    )
-    baseline_records = parse_exit_info_records(init_exit_res.stdout)
-    baseline_ts = max((r.timestamp for r in baseline_records), default=0)
-
-    # Capture device epoch for logcat filtering
-    epoch_res = client.run(["shell", "date", "+%s"], serial=serial)
     try:
-        start_epoch_sec = int(epoch_res.stdout.strip())
-    except ValueError:
-        start_epoch_sec = int(time.time())
+        # Capture initial exit-info baseline
+        init_exit_res = client.run(
+            ["shell", "dumpsys", "activity", "exit-info", package],
+            serial=serial,
+            timeout=5.0,
+        )
 
+        # Capture device epoch and timezone offset for logcat and timestamp filtering
+        epoch_res = client.run(["shell", "date", "+%s %z"], serial=serial, timeout=5.0)
+        device_tz: datetime.tzinfo = datetime.timezone.utc
+        parts = epoch_res.stdout.strip().split()
+        if parts:
+            try:
+                start_epoch_sec = int(parts[0])
+            except ValueError:
+                start_epoch_sec = int(time.time())
+            if len(parts) >= 2 and re.match(r"^[+-]\d{4}$", parts[1]):
+                try:
+                    parsed_tz = datetime.datetime.strptime(parts[1], "%z").tzinfo
+                    if parsed_tz:
+                        device_tz = parsed_tz
+                except ValueError:
+                    pass
+        else:
+            start_epoch_sec = int(time.time())
+
+        baseline_records = parse_exit_info_records(init_exit_res.stdout, tz=device_tz)
+        baseline_ts = max((r.timestamp for r in baseline_records), default=0)
+    except subprocess.TimeoutExpired as e:
+        print(f"\nADB operation timed out: {e}", file=sys.stderr)
+        return ExitCode.INFRASTRUCTURE_FAILURE
     logcat_args = [
         "logcat",
         "-v",
@@ -443,24 +522,44 @@ def monitor_application(
 
         print(f"Monitoring process for package '{package}'...")
 
-        try:
-            while True:
-                # 1. Drain logcat buffer non-blocking
-                if logcat_proc.stdout:
-                    while True:
-                        import select
+        line_queue: queue.Queue[str | None] = queue.Queue()
 
-                        rlist, _, _ = select.select([logcat_proc.stdout], [], [], 0)
-                        if not rlist:
-                            break
-                        line = logcat_proc.stdout.readline()
+        def _logcat_reader() -> None:
+            if logcat_proc.stdout:
+                try:
+                    for line in iter(logcat_proc.stdout.readline, ""):
                         if not line:
                             break
-                        log_queue.append(line.strip())
+                        line_queue.put(line)
+                except (OSError, ValueError) as err:
+                    logger.debug("Logcat reader stream exception: %s", err)
+                finally:
+                    line_queue.put(None)
+
+        reader_thread = threading.Thread(target=_logcat_reader, daemon=True)
+        reader_thread.start()
+
+        try:
+            while True:
+                # 1. Drain logcat buffer non-blocking via reader queue
+                while True:
+                    try:
+                        raw_line = line_queue.get_nowait()
+                    except queue.Empty:
+                        break
+                    if raw_line is None:
+                        break
+                    stripped = raw_line.strip()
+                    if stripped:
+                        log_queue.append(stripped)
 
                 # Check log lines for immediate live ANR or crash events
                 for line in list(log_queue):
-                    if package in line or (active_pid and str(active_pid) in line):
+                    line_pid = extract_logcat_pid(line)
+                    is_pid_match = active_pid is not None and line_pid == active_pid
+                    is_am_anr = "ActivityManager" in line and package in line
+
+                    if is_pid_match or is_am_anr:
                         if "ANR in" in line or "BIND APPLICATION ANR" in line:
                             print(f"\nLive ANR detected: {line}", file=sys.stderr)
                             if dump_threads and active_pid:
@@ -476,81 +575,92 @@ def monitor_application(
                             print(f"\nLive Crash detected: {line}", file=sys.stderr)
                             return ExitCode.RUNTIME_FAILURE
 
-                # 2. Check for running PID
-                pid_out = client.run(["shell", "pidof", package], serial=serial).stdout
-                pids = parse_pidof_output(pid_out)
+                try:
+                    # 2. Check for running PID
+                    pid_out = client.run(
+                        ["shell", "pidof", package], serial=serial, timeout=5.0
+                    ).stdout
+                    pids = parse_pidof_output(pid_out)
 
-                if not pids:
-                    if active_pid is not None:
-                        # Process was running and just disappeared!
-                        print(f"\nProcess {active_pid} terminated.", file=sys.stderr)
-                        # Query dumpsys activity exit-info
-                        exit_res = client.run(
-                            ["shell", "dumpsys", "activity", "exit-info", package],
-                            serial=serial,
-                        )
-                        records = parse_exit_info_records(exit_res.stdout)
-                        new_records = [
-                            r
-                            for r in records
-                            if r.timestamp > baseline_ts
-                            and (r.package == package or r.pid == active_pid)
-                        ]
-                        if new_records:
-                            rec = new_records[0]
-                            desc = f": {rec.description}" if rec.description else ""
-                            sub = (
-                                f" (subreason {rec.subreason_code} {rec.subreason_name})"
-                                if rec.subreason_name
-                                else ""
-                            )
-                            if rec.reason_code in (4, 5, 6):
-                                print(
-                                    f"ApplicationExitInfo: reason={rec.reason_code} ({rec.reason_name}){sub}{desc}",
-                                    file=sys.stderr,
-                                )
-                                return ExitCode.RUNTIME_FAILURE
+                    if not pids:
+                        if active_pid is not None:
+                            # Process was running and just disappeared!
                             print(
-                                f"ApplicationExitInfo: reason={rec.reason_code} ({rec.reason_name}){sub}{desc}"
+                                f"\nProcess {active_pid} terminated.", file=sys.stderr
                             )
-                            return ExitCode.SUCCESS
+                            # Query dumpsys activity exit-info
+                            exit_res = client.run(
+                                ["shell", "dumpsys", "activity", "exit-info", package],
+                                serial=serial,
+                                timeout=5.0,
+                            )
+                            records = parse_exit_info_records(
+                                exit_res.stdout, tz=device_tz
+                            )
+                            new_records = [
+                                r
+                                for r in records
+                                if r.timestamp > baseline_ts
+                                and (r.package == package or r.pid == active_pid)
+                            ]
+                            if new_records:
+                                rec = new_records[0]
+                                desc = f": {rec.description}" if rec.description else ""
+                                sub = (
+                                    f" (subreason {rec.subreason_code} {rec.subreason_name})"
+                                    if rec.subreason_name
+                                    else ""
+                                )
+                                if rec.reason_code in (4, 5, 6):
+                                    print(
+                                        f"ApplicationExitInfo: reason={rec.reason_code} ({rec.reason_name}){sub}{desc}",
+                                        file=sys.stderr,
+                                    )
+                                    return ExitCode.RUNTIME_FAILURE
+                                print(
+                                    f"ApplicationExitInfo: reason={rec.reason_code} ({rec.reason_name}){sub}{desc}"
+                                )
+                                return ExitCode.SUCCESS
 
-                        print(
-                            "Process exited without ApplicationExitInfo record.",
-                            file=sys.stderr,
-                        )
-                        return ExitCode.RUNTIME_FAILURE
+                            print(
+                                "Process exited without ApplicationExitInfo record.",
+                                file=sys.stderr,
+                            )
+                            return ExitCode.RUNTIME_FAILURE
 
-                    # Process has not started yet
-                    if deadline is not None and time.monotonic() >= deadline:
-                        print(
-                            f"Startup timeout: package '{package}' did not start within timeout.",
-                            file=sys.stderr,
-                        )
-                        return ExitCode.RUNTIME_FAILURE
+                        # Process has not started yet
+                        if deadline is not None and time.monotonic() >= deadline:
+                            print(
+                                f"Startup timeout: package '{package}' did not start within timeout.",
+                                file=sys.stderr,
+                            )
+                            return ExitCode.RUNTIME_FAILURE
 
-                    time.sleep(poll_interval)
-                    continue
+                        time.sleep(poll_interval)
+                        continue
 
-                # Discovered PID
-                current_pid = pids[0]
-                if active_pid is None or active_pid != current_pid:
-                    active_pid = current_pid
-                    last_stat = None
-                    last_sys_stat = None
-                    spin_intervals = 0
-                    healthy_intervals = 0
-                    print(f"Attached to process PID {active_pid}")
+                    # Discovered PID
+                    current_pid = pids[0]
+                    if active_pid is None or active_pid != current_pid:
+                        active_pid = current_pid
+                        last_stat = None
+                        last_sys_stat = None
+                        spin_intervals = 0
+                        healthy_intervals = 0
+                        print(f"Attached to process PID {active_pid}")
 
-                # 3. Sample proc stats
-                stat_out = client.run(
-                    ["shell", "cat", f"/proc/{active_pid}/task/{active_pid}/stat"],
-                    serial=serial,
-                ).stdout
-                sys_stat_out = client.run(
-                    ["shell", "cat", "/proc/stat"], serial=serial
-                ).stdout
-
+                    # 3. Sample proc stats
+                    stat_out = client.run(
+                        ["shell", "cat", f"/proc/{active_pid}/task/{active_pid}/stat"],
+                        serial=serial,
+                        timeout=5.0,
+                    ).stdout
+                    sys_stat_out = client.run(
+                        ["shell", "cat", "/proc/stat"], serial=serial, timeout=5.0
+                    ).stdout
+                except subprocess.TimeoutExpired as e:
+                    print(f"\nADB polling operation timed out: {e}", file=sys.stderr)
+                    return ExitCode.INFRASTRUCTURE_FAILURE
                 try:
                     proc_stat = parse_proc_stat(stat_out)
                     sys_stat = parse_proc_system_stat(sys_stat_out)

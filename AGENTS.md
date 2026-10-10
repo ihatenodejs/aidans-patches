@@ -289,7 +289,7 @@ uv run --project tools/apk-lab apk-lab inspect-code patched.apk \
 # Validate Smali register bit-widths, opcodes, and CFG before injection
 uv run --project tools/apk-lab apk-lab validate-smali \
   --snippet "instance-of v0, p1, Lcom/example/Target;" \
-  --locals 20 \
+  --locals 2 \
   --params 2
 
 # Query and extract resources across multi-split APK containers

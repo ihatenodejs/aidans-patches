@@ -242,24 +242,143 @@ def parse_literal_int(tok: str) -> int:
     return int(clean, 0)
 
 
+def strip_smali_comment(line: str) -> str:
+    """Strips smali comments starting with # outside double-quoted strings."""
+    in_quote = False
+    escape = False
+    for idx, ch in enumerate(line):
+        if in_quote:
+            if escape:
+                escape = False
+            elif ch == "\\":
+                escape = True
+            elif ch == '"':
+                in_quote = False
+        else:
+            if ch == '"':
+                in_quote = True
+            elif ch == "#":
+                return line[:idx].rstrip()
+    return line.rstrip()
+
+
+def split_smali_operands(operands_str: str) -> list[str]:
+    """Splits smali operands by comma outside double-quoted strings and braces."""
+    tokens: list[str] = []
+    current: list[str] = []
+    in_quote = False
+    escape = False
+    brace_depth = 0
+    for ch in operands_str:
+        if in_quote:
+            current.append(ch)
+            if escape:
+                escape = False
+            elif ch == "\\":
+                escape = True
+            elif ch == '"':
+                in_quote = False
+        else:
+            if ch == '"':
+                in_quote = True
+                current.append(ch)
+            elif ch == "{":
+                brace_depth += 1
+                current.append(ch)
+            elif ch == "}":
+                brace_depth -= 1
+                current.append(ch)
+            elif ch == "," and brace_depth == 0:
+                tok = "".join(current).strip()
+                if tok:
+                    tokens.append(tok)
+                current = []
+            else:
+                current.append(ch)
+    tok = "".join(current).strip()
+    if tok:
+        tokens.append(tok)
+    return tokens
+
+
+def parse_method_descriptor_params(descriptor: str) -> tuple[str, list[int]]:
+    """Parses parameter types string and register widths from a Dalvik method descriptor.
+
+    Returns (param_types_str, register_widths).
+    For example, '(IJLjava/lang/String;D)V' returns ('IJLjava/lang/String;D', [1, 2, 1, 2]).
+    """
+    m = re.match(r"^\((.*?)\)", descriptor.strip())
+    if not m:
+        raise ValueError(
+            f"Invalid method descriptor '{descriptor}', expected format like '(ILjava/lang/String;)V'"
+        )
+    params_str = m.group(1)
+    widths: list[int] = []
+    i = 0
+    n = len(params_str)
+    while i < n:
+        start = i
+        while i < n and params_str[i] == "[":
+            i += 1
+        if i >= n:
+            raise ValueError(f"Unterminated array type in descriptor '{descriptor}'")
+        ch = params_str[i]
+        if ch == "L":
+            semi = params_str.find(";", i)
+            if semi == -1:
+                raise ValueError(f"Unterminated object descriptor in '{descriptor}'")
+            i = semi + 1
+            widths.append(1)
+        elif ch in "ZBCSIF":
+            i += 1
+            widths.append(1)
+        elif ch in "JD":
+            i += 1
+            widths.append(1 if start < i - 1 else 2)
+        else:
+            raise ValueError(
+                f"Unexpected character '{ch}' in method descriptor '{descriptor}'"
+            )
+    return params_str, widths
+
+
 def validate_smali_snippet(
     snippet: str,
     locals_count: int,
-    parameter_count: int,
+    parameter_count: int | None = None,
     is_static: bool = False,
+    descriptor: str | None = None,
     tool_manager: ToolManager | None = None,
 ) -> SmaliValidationReport:
-    """Performs static syntax, opcode constraint, CFG, and assembler validation on Smali snippet."""
+    """Performs static syntax, opcode constraint, CFG, and assembler validation on Smali snippet.
+
+    Parameter Width Limitations:
+    When validating via `parameter_count` (e.g. CLI `--params`), every parameter is assumed
+    to occupy a single register (e.g. 32-bit integer, reference). If validating a method
+    with 64-bit wide parameters ('J' for long or 'D' for double, each requiring 2 registers),
+    pass the exact method `descriptor` (e.g. '(IJLjava/lang/String;)V') instead so parameter
+    types and multi-register widths are accurately configured.
+    """
     if locals_count < 0:
         raise ValueError("locals_count must be non-negative")
-    if parameter_count < 0:
-        raise ValueError("parameter_count must be non-negative")
 
-    total_regs = locals_count + parameter_count + (0 if is_static else 1)
+    if descriptor:
+        param_types_str, param_widths = parse_method_descriptor_params(descriptor)
+        param_regs = sum(param_widths)
+    else:
+        if parameter_count is None:
+            parameter_count = 0
+        if parameter_count < 0:
+            raise ValueError("parameter_count must be non-negative")
+        param_regs = parameter_count
+        param_types_str = "".join(["Ljava/lang/Object;"] * parameter_count)
+
+    parameter_count = param_regs
+    total_regs = locals_count + param_regs + (0 if is_static else 1)
     report = SmaliValidationReport(
         snippet=snippet,
         locals_count=locals_count,
-        params_count=parameter_count,
+        params_count=param_regs,
         is_static=is_static,
         total_registers=total_regs,
     )
@@ -271,10 +390,7 @@ def validate_smali_snippet(
     instructions: list[tuple[int, str, list[str]]] = []
 
     for line_idx, raw_line in enumerate(lines, start=1):
-        line = raw_line.strip()
-        # Strip comments
-        if "#" in line:
-            line = line.split("#", 1)[0].strip()
+        line = strip_smali_comment(raw_line)
         if not line:
             continue
 
@@ -311,7 +427,7 @@ def validate_smali_snippet(
         operands_str = parts[1] if len(parts) > 1 else ""
 
         # Parse operand tokens
-        tokens = [t.strip() for t in operands_str.split(",") if t.strip()]
+        tokens = split_smali_operands(operands_str)
         instructions.append((line_idx, opcode, tokens))
 
     # Pass 1: Opcode and Register constraints
@@ -675,7 +791,7 @@ def validate_smali_snippet(
             out_dex = tmp_path / "classes.dex"
 
             # Construct synthetic class wrapper
-            param_types = "".join(["Ljava/lang/Object;"] * parameter_count)
+            param_types = param_types_str
             method_mods = "public static" if is_static else "public"
             synth_lines = [
                 ".class public LSynthetic;",
@@ -718,11 +834,16 @@ def validate_smali_snippet(
 
 def run_validate_smali(args: argparse.Namespace) -> int:
     """CLI handler for validate-smali subcommand."""
+    descriptor = getattr(args, "descriptor", None)
+    params = getattr(args, "params", None)
+    if params is None and descriptor is None:
+        params = 0
     report = validate_smali_snippet(
         snippet=args.snippet,
         locals_count=args.locals,
-        parameter_count=args.params,
+        parameter_count=params,
         is_static=args.is_static,
+        descriptor=descriptor,
     )
     print(report.format_human())
     return ExitCode.SUCCESS if report.is_valid else ExitCode.USAGE_OR_TOOL_ERROR

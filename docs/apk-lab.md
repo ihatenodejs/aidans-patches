@@ -251,7 +251,7 @@ Statically validates Smali instruction snippets prior to injecting them into Mor
 # Validate instruction format register widths
 uv run --project tools/apk-lab apk-lab validate-smali \
   --snippet "instance-of v0, p1, Lcom/example/Target;" \
-  --locals 20 \
+  --locals 2 \
   --params 2
 
 # Validate static method snippet with branch loop

@@ -27,6 +27,14 @@ class CodeInspectionError(Exception):
         self.exit_code = exit_code
 
 
+class MethodNotFoundError(CodeInspectionError):
+    """Raised when a requested method is not found in the class."""
+
+
+class AmbiguousMethodError(CodeInspectionError):
+    """Raised when multiple overloads match a bare method name."""
+
+
 @dataclass(frozen=True)
 class DexLocation:
     split: str
@@ -281,8 +289,11 @@ def parse_java_methods(java_text: str) -> list[ParsedMethod]:
                 in_string = False
                 cleaned.append('"')
                 i += 1
+            elif c == "\n":
+                cleaned.append("\n")
+                i += 1
             else:
-                cleaned.append(c)
+                cleaned.append(" ")
                 i += 1
             continue
 
@@ -294,11 +305,13 @@ def parse_java_methods(java_text: str) -> list[ParsedMethod]:
                 in_char = False
                 cleaned.append("'")
                 i += 1
+            elif c == "\n":
+                cleaned.append("\n")
+                i += 1
             else:
-                cleaned.append(c)
+                cleaned.append(" ")
                 i += 1
             continue
-
         # Normal code
         if c == "/" and nxt == "/":
             in_line_comment = True
@@ -357,25 +370,34 @@ def parse_java_methods(java_text: str) -> list[ParsedMethod]:
             if depth == 2:
                 # Potential method open brace!
                 # Look backwards from idx to find method signature
-                header = clean_str[
-                    class_start_idx + 1
-                    if method_start_idx == -1
-                    else method_start_idx : idx
-                ]
+                header_start = (
+                    class_start_idx + 1 if method_start_idx == -1 else method_start_idx
+                )
+                raw_header = clean_str[header_start:idx]
                 # Check if header contains a method declaration: e.g. `name(...)`
                 sig_match = re.search(
                     r"([A-Za-z0-9_$]+)\s*\([^)]*\)\s*(?:throws\s+[^{]+)?$",
-                    header.strip(),
+                    raw_header.rstrip(),
                 )
                 if sig_match:
                     method_name = sig_match.group(1)
                     method_sig = sig_match.group(0).strip()
-                    method_decl = java_text[
-                        class_start_idx + 1
-                        if method_start_idx == -1
-                        else method_start_idx : idx
-                    ].strip()
-                    method_start_idx = idx - len(method_decl)
+                    sig_start = sig_match.start()
+                    # Exclude intervening fields by finding the last statement (;) or
+                    # closing-brace (}) boundary before the method signature.
+                    last_semi = raw_header.rfind(";", 0, sig_start)
+                    last_brace = raw_header.rfind("}", 0, sig_start)
+                    boundary = max(last_semi, last_brace)
+                    start_offset = 0 if boundary == -1 else boundary + 1
+                    # Skip leading whitespace before recording declaration start
+                    while (
+                        start_offset < len(raw_header)
+                        and raw_header[start_offset].isspace()
+                    ):
+                        start_offset += 1
+                    decl_start_idx = header_start + start_offset
+                    method_decl = java_text[decl_start_idx:idx].strip()
+                    method_start_idx = decl_start_idx
                 else:
                     # Inner class or static initializer
                     method_start_idx = -1
@@ -431,14 +453,14 @@ def extract_method_from_class(
 
     if not matching:
         available = [m.signature for m in methods]
-        raise CodeInspectionError(
+        raise MethodNotFoundError(
             f"Method '{method_selector}' not found in class '{fqcn}'. Available methods: {available}",
             ExitCode.USAGE_OR_TOOL_ERROR,
         )
 
     if len(matching) > 1:
         overloads = [m.signature for m in matching]
-        raise CodeInspectionError(
+        raise AmbiguousMethodError(
             f"Ambiguous method name '{method_selector}' in class '{fqcn}'. Available overloads: {overloads}",
             ExitCode.USAGE_OR_TOOL_ERROR,
         )
@@ -559,14 +581,14 @@ def inspect_or_compare_code(
                 old_method = extract_method_from_class(
                     old_code, method, fmt, clean_fqcn
                 )
-            except CodeInspectionError:
+            except MethodNotFoundError:
                 old_method = None
 
             try:
                 new_method = extract_method_from_class(
                     new_code, method, fmt, clean_fqcn
                 )
-            except CodeInspectionError:
+            except MethodNotFoundError:
                 new_method = None
 
             if old_method is None and new_method is None:

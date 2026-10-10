@@ -406,6 +406,8 @@ def build_morphe_patch_set_cmd(
     ]
     for sel in selections:
         for k, v in sorted(sel.options.items()):
+            if v is None:
+                continue
             if isinstance(v, bool):
                 val_str = "true" if v else "false"
             else:

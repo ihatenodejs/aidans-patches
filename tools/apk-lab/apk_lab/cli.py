@@ -16,6 +16,7 @@ from apk_lab.archives import (
     is_contained_path,
     materialize_split_member,
 )
+from apk_lab.code_inspection import CodeInspectionError
 from apk_lab.comparison import compare_artifacts, format_comparison_summary
 from apk_lab.inspection import InspectionError, inspect_artifact
 from apk_lab.models import ContainerType, ExitCode
@@ -658,6 +659,15 @@ def handle_inspect_code(args: argparse.Namespace) -> int:
     except ValueError as e:
         print(f"Code inspection error: {e}", file=sys.stderr)
         return ExitCode.USAGE_OR_TOOL_ERROR
+    except CodeInspectionError as e:
+        print(f"Code inspection error: {e}", file=sys.stderr)
+        return e.exit_code
+    except InspectionError as e:
+        print(f"Inspection error: {e}", file=sys.stderr)
+        return e.exit_code
+    except ArchiveSecurityError as e:
+        print(f"Archive security error: {e}", file=sys.stderr)
+        return ExitCode.INVALID_ARTIFACT
     except Exception as e:  # noqa: BLE001
         print(f"Code inspection error: {e}", file=sys.stderr)
         return ExitCode.INFRASTRUCTURE_FAILURE
@@ -687,6 +697,15 @@ def handle_res(args: argparse.Namespace) -> int:
     except ValueError as e:
         print(f"Resource inspection error: {e}", file=sys.stderr)
         return ExitCode.USAGE_OR_TOOL_ERROR
+    except CodeInspectionError as e:
+        print(f"Code inspection error: {e}", file=sys.stderr)
+        return e.exit_code
+    except InspectionError as e:
+        print(f"Inspection error: {e}", file=sys.stderr)
+        return e.exit_code
+    except ArchiveSecurityError as e:
+        print(f"Archive security error: {e}", file=sys.stderr)
+        return ExitCode.INVALID_ARTIFACT
     except Exception as e:  # noqa: BLE001
         print(f"Resource inspection error: {e}", file=sys.stderr)
         return ExitCode.INFRASTRUCTURE_FAILURE
@@ -1022,8 +1041,12 @@ def build_parser() -> argparse.ArgumentParser:
     p_validate_smali.add_argument(
         "--params",
         type=non_negative_int,
-        required=True,
-        help="Number of declared parameters",
+        default=None,
+        help="Number of declared single-width parameters (assumes 1 register per param; use --descriptor for wide types)",
+    )
+    p_validate_smali.add_argument(
+        "--descriptor",
+        help="Method descriptor (e.g. '(IJLjava/lang/String;)V') defining exact parameter types and 64-bit wide register widths",
     )
     p_validate_smali.add_argument(
         "--is-static", action="store_true", help="Whether the method is static"

@@ -172,8 +172,8 @@ Package name=com.example.app id=7f
     )
 
     query = normalize_resource_query("0x7f080001")
-    matches = query_apk_resources([mat_base, mat_split], query)
-
+    matches, warnings = query_apk_resources([mat_base, mat_split], query)
+    assert len(warnings) == 0
     assert len(matches) == 2
     # Check Morphe modes
     for m in matches:
@@ -182,17 +182,41 @@ Package name=com.example.app id=7f
 
     # Query direct asset
     q_asset = normalize_resource_query("assets/bundle.js")
-    asset_matches = query_apk_resources([mat_base, mat_split], q_asset)
-    assert len(asset_matches) == 1
+    asset_matches, _ = query_apk_resources([mat_base, mat_split], q_asset)
     assert asset_matches[0].kind == "asset"
     assert asset_matches[0].morphe_mode == "rawResourcePatch"
 
     # Query manifest
     q_manifest = normalize_resource_query("AndroidManifest.xml")
-    man_matches = query_apk_resources([mat_base, mat_split], q_manifest)
-    assert len(man_matches) == 1
+    man_matches, _ = query_apk_resources([mat_base, mat_split], q_manifest)
     assert man_matches[0].kind == "manifest"
     assert man_matches[0].morphe_mode == "resourcePatch"
+
+
+def test_query_apk_resources_aapt2_nonzero_warning(tmp_path, monkeypatch):
+    apk = tmp_path / "base.apk"
+    with zipfile.ZipFile(apk, "w") as zf:
+        zf.writestr("AndroidManifest.xml", b"<manifest/>")
+    mat = MaterializedApk(
+        path=apk, split_name="base", is_base=True, container_member=None
+    )
+
+    def failing_aapt2(cmd, **kwargs):
+        return subprocess.CompletedProcess(
+            cmd, 1, "", "error: failed to dump resources"
+        )
+
+    monkeypatch.setattr(subprocess, "run", failing_aapt2)
+    monkeypatch.setattr(
+        "apk_lab.resources.find_build_tools_bin", lambda name: Path("/bin/aapt2")
+    )
+
+    q = normalize_resource_query("AndroidManifest.xml")
+    matches, warnings = query_apk_resources([mat], q)
+    assert len(matches) == 1
+    assert len(warnings) == 1
+    assert "aapt2 dump resources returned code 1 on split 'base'" in warnings[0]
+    assert "error: failed to dump resources" in warnings[0]
 
 
 def test_derive_split_dir_name():

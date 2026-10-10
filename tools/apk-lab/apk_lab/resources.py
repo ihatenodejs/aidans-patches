@@ -194,7 +194,6 @@ def enumerate_raw_zip_members(
                 kind = "library"
 
             if kind:
-                sha = compute_member_sha256(zf, name)
                 entries.append(
                     {
                         "split_name": mat_apk.split_name,
@@ -207,7 +206,7 @@ def enumerate_raw_zip_members(
                         "path": name,
                         "value": None,
                         "kind": kind,
-                        "sha256": sha,
+                        "sha256": None,
                     }
                 )
     return entries
@@ -216,15 +215,13 @@ def enumerate_raw_zip_members(
 def query_apk_resources(
     materialized_apks: list[MaterializedApk],
     parsed_query: ParsedQuery,
-) -> list[ResourceMatch]:
+) -> tuple[list[ResourceMatch], list[str]]:
     """Queries resources across all splits using aapt2 dump resources and raw member enumeration."""
     aapt2 = find_build_tools_bin("aapt2")
 
     arsc_entries: list[dict[str, Any]] = []
     raw_entries: list[dict[str, Any]] = []
-
-    # Map of (split_name, path) -> sha256
-    file_hashes: dict[tuple[str, str], str] = {}
+    warnings: list[str] = []
 
     for mat in materialized_apks:
         # 1. Run aapt2 dump resources
@@ -240,22 +237,20 @@ def query_apk_resources(
                 res.stdout, mat.split_name, mat.container_member
             )
             arsc_entries.extend(parsed)
+        else:
+            stderr_excerpt = res.stderr.strip()[:200]
+            warnings.append(
+                f"aapt2 dump resources returned code {res.returncode} on split '{mat.split_name}': {stderr_excerpt}"
+            )
 
         # 2. Raw member enumeration
         raw_list = enumerate_raw_zip_members(mat)
         raw_entries.extend(raw_list)
-        for r in raw_list:
-            if r["path"]:
-                file_hashes[(mat.split_name, r["path"])] = r["sha256"]
 
-    # Assign hashes to arsc file entries
+    # Assign kind to arsc entries
     for e in arsc_entries:
-        if e["path"]:
-            e["sha256"] = file_hashes.get((e["split_name"], e["path"]))
-        else:
-            e["sha256"] = None
         e["kind"] = "resource"
-
+        e["sha256"] = None
     # Merge matching entries
     candidates: list[dict[str, Any]] = []
 
@@ -301,6 +296,25 @@ def query_apk_resources(
                     for c in candidates
                 ):
                     candidates.append(r)
+
+    # Hash only the matched split-and-path pairs needed for duplicate_status and sha256
+    split_apk_map = {mat.split_name: mat.path for mat in materialized_apks}
+    file_hashes: dict[tuple[str, str], str] = {}
+
+    for c in candidates:
+        c_path = c.get("path")
+        c_split = c.get("split_name")
+        if c_path and c_split:
+            key = (c_split, c_path)
+            if key not in file_hashes:
+                apk_path = split_apk_map.get(c_split)
+                if apk_path and apk_path.is_file():
+                    with zipfile.ZipFile(apk_path, "r") as zf:
+                        try:
+                            file_hashes[key] = compute_member_sha256(zf, c_path)
+                        except KeyError:
+                            pass
+            c["sha256"] = file_hashes.get(key)
 
     # Grouping to calculate duplicate_status
     # Group ARSC by (package_name, resource_type, resource_name, qualifier)
@@ -400,7 +414,7 @@ def query_apk_resources(
             m.path or "",
         )
 
-    return sorted(results, key=sort_key)
+    return sorted(results, key=sort_key), warnings
 
 
 def derive_split_dir_name(split_name: str, container_member: str | None) -> str:
@@ -508,17 +522,19 @@ def inspect_resources_cli(
     inspection = inspect_artifact(artifact_path)
 
     with materialize_artifact_apks(artifact_path, inspection) as apks:
-        matches = query_apk_resources(apks, parsed_query)
+        matches, query_warnings = query_apk_resources(apks, parsed_query)
 
         extracted_paths: list[str] = []
-        warnings: list[str] = []
+        warnings: list[str] = list(query_warnings)
 
         if extract_dir:
-            extracted_paths, warnings = extract_matched_resources(
+            ext_paths, ext_warnings = extract_matched_resources(
                 extract_dir=extract_dir,
                 materialized_apks=apks,
                 matches=matches,
             )
+            extracted_paths.extend(ext_paths)
+            warnings.extend(ext_warnings)
 
         report = ResourceQueryReport(
             query=query_str,
