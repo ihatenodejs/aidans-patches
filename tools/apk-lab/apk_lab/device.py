@@ -319,7 +319,7 @@ def get_device_timezone(
     except (subprocess.SubprocessError, OSError, ValueError) as err:
         logger.debug("Failed to query device timezone: %s", err)
 
-    return datetime.timezone.utc
+    return datetime.UTC
 
 
 def extract_logcat_pid(line: str) -> int | None:
@@ -373,7 +373,7 @@ def parse_exit_info_records(
         if ts_match:
             raw_ts = ts_match.group(1).strip()
             if "-" in raw_ts:
-                use_tz = tz or datetime.timezone.utc
+                use_tz = tz or datetime.UTC
                 dt = datetime.datetime.fromisoformat(raw_ts).replace(tzinfo=use_tz)
                 timestamp = int(dt.timestamp() * 1000)
             else:
@@ -474,7 +474,7 @@ def monitor_application(
 
         # Capture device epoch and timezone offset for logcat and timestamp filtering
         epoch_res = client.run(["shell", "date", "+%s %z"], serial=serial, timeout=5.0)
-        device_tz: datetime.tzinfo = datetime.timezone.utc
+        device_tz: datetime.tzinfo = datetime.UTC
         parts = epoch_res.stdout.strip().split()
         if parts:
             try:

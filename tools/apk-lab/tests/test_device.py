@@ -429,9 +429,9 @@ ApplicationExitInfo #1:
   status=1
   description=java.lang.RuntimeException
 """
-    from datetime import datetime, timezone
+    from datetime import UTC, datetime
 
-    tz = timezone.utc
+    tz = UTC
     records = parse_exit_info_records(dumpsys_real, tz=tz)
     assert len(records) == 2
     expected_ts_0 = int(
