@@ -1,3 +1,17 @@
+## [1.6.0-dev.2](https://github.com/ihatenodejs/aidans-patches/compare/v1.6.0-dev.1...v1.6.0-dev.2) (2026-10-10)
+
+### 🐛 Bug Fixes
+
+* **apk-lab:** allowed jadx exit code 3 during analysis ([bf848ba](https://github.com/ihatenodejs/aidans-patches/commit/bf848ba47fc3b20f6de605cffe3896ed13ca2d8a))
+* **audit:** resolve post-merge quality gates, formatting, and task dependencies ([43be30e](https://github.com/ihatenodejs/aidans-patches/commit/43be30e5c3e25ef9dc939ad6ebedd297c7ff872a))
+
+### ✨ New Features
+
+* **geocaching:** added client-side map filtering and search fixes ([ff953c8](https://github.com/ihatenodejs/aidans-patches/commit/ff953c856a95cbcb7cacdd0ac6fed33dbc10a839))
+* **geocaching:** added OpenStreetMap style switching and previews ([b4bc94a](https://github.com/ihatenodejs/aidans-patches/commit/b4bc94a5ffb68b797fce644863cff850851cef67))
+* **geocaching:** added support and patches for Geocaching ([e9c822a](https://github.com/ihatenodejs/aidans-patches/commit/e9c822a62be2046c41cac8e4719cdd0d791ea16f))
+* **patches/main:** Added Geocaching Shop removal patch ([310ceb1](https://github.com/ihatenodejs/aidans-patches/commit/310ceb1a3fc3e242e93c5be2b5155dbb10db6b6c))
+
 ## [1.6.0-dev.1](https://github.com/ihatenodejs/aidans-patches/compare/v1.5.1...v1.6.0-dev.1) (2026-10-09)
 
 ### 🐛 Bug Fixes
