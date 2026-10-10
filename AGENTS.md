@@ -159,9 +159,9 @@ When `dependsOn` is declared, selecting the user-facing patch automatically trig
 │           └── sezzle/                    # ConsentGate.java
 ├── tools/apk-lab/                         # Deterministic APK lifecycle, analysis & compatibility toolkit
 │   ├── pyproject.toml                     # Python 3.12 project configuration with uv lock and CLI entry point
-│   ├── tools.lock.json                    # Pinned toolchain hashes (Morphe, JADX, Apktool, baksmali, apkeep)
-│   ├── apk_lab/                           # Python modules (inspection, comparison, morphe, workspace, fixtures, asm, il2cpp, unity)
-│   └── tests/                             # Automated pytest test suite (78 tests)
+│   ├── tools.lock.json                    # Pinned toolchain hashes (Morphe, JADX, Apktool, baksmali, smali, apkeep)
+│   ├── apk_lab/                           # Python modules (inspection, comparison, morphe, workspace, fixtures, asm, il2cpp, unity, deployment, device, code_inspection, smali, resources)
+│   └── tests/                             # Automated pytest test suite (179 tests)
 ├── worker/                                # Cloudflare Worker control plane (daily Play scraper, badges, dispatch)
 │   ├── wrangler.jsonc                     # Worker configuration & KV namespace binding
 │   └── src/                               # TypeScript sources (apps.ts derived from patches-list.json, badges.ts)
@@ -269,8 +269,34 @@ uv run --project tools/apk-lab apk-lab acquire com.example.app
 # Clean managed workspaces safely (never use raw rm -rf on workspaces)
 uv run --project tools/apk-lab apk-lab clean --package com.example.app
 
+# Deploy patched artifact to connected emulator or device with debug keystore signing
+uv run --project tools/apk-lab apk-lab deploy path/to/app.apkm \
+  --mpp patches/build/libs/patches-X.X.X.mpp \
+  --package com.example.app \
+  --all \
+  --launch
+
+# Monitor app process health, main thread CPU spin, ANRs, and crashes
+uv run --project tools/apk-lab apk-lab monitor --package com.example.app --timeout 10.0 --dump-threads
+
+# Inspect or diff targeted class or method bytecode without full decompilation
+uv run --project tools/apk-lab apk-lab inspect-code patched.apk \
+  --class com.example.app.MainActivity \
+  --method onCreate \
+  --format smali \
+  --compare unpatched.apk
+
+# Validate Smali register bit-widths, opcodes, and CFG before injection
+uv run --project tools/apk-lab apk-lab validate-smali \
+  --snippet "instance-of v0, p1, Lcom/example/Target;" \
+  --locals 20 \
+  --params 2
+
+# Query and extract resources across multi-split APK containers
+uv run --project tools/apk-lab apk-lab res path/to/app.apkm --query 0x7f08028e --extract /tmp/res
+
 ### Agent Operational Rules for APKs and Patches
-- **Start with apk-lab**: Always use `uv run --project tools/apk-lab apk-lab inspect|analyze|compare|check|asm|il2cpp|unity`. Never invent arbitrary unzipping/decompilation locations outside the managed `.apk-lab` workspace.
+- **Start with apk-lab**: Always use `uv run --project tools/apk-lab apk-lab inspect|analyze|compare|check|clean|fixtures|acquire|asm|il2cpp|unity|deploy|monitor|inspect-code|validate-smali|res`. Never invent arbitrary unzipping/decompilation locations outside the managed `.apk-lab` workspace.
 - **Safe Cleanup**: Never use raw `rm -rf` on workspace folders. Always use `apk-lab clean --run <path>` or `apk-lab clean --package <pkg>`, which verify `.marker.json` and refuse symlinks or escaped paths.
 - **Never Guess Compatibility**: Never mark a target version supported in `Constants.kt` from a metadata diff alone. A version is supported ONLY when `apk-lab check ... --all` executes every patch and boolean option permutation independently and passes Morphe result parsing and Android SDK DEX verification.
 - **New Patch Sequence**: `inspect` $\rightarrow$ targeted `analyze` $\rightarrow$ implement fail-fast bytecode hooks $\rightarrow$ compile `.mpp` $\rightarrow$ `check --all` $\rightarrow$ device smoke.
@@ -449,7 +475,12 @@ Keep bytecode injection logic reusable and safe:
 | `patches/src/main/kotlin/app/aidan/patches/geocaching/features/RemoveShopPatch.kt` | Dalvik patch removing the Shop Geocaching promotional item row and banner card from the Profile screen. |
 | `docs/geocaching/architecture.md` | Reverse engineering specification for Geocaching architecture, navigation, membership gates, and telemetry pipelines. |
 | `docs/geocaching/patches.md` | Patch specifications for Geocaching tracking removal, list unlocking, and cache filter/sorting tool unlocking. |
-| `tools/apk-lab/tools.lock.json` | Pinned external toolchain manifest (Morphe Desktop 1.18.0, JADX 1.5.6, Apktool 3.0.3, baksmali 3.0.10, apkeep 1.1.0). |
+| `tools/apk-lab/tools.lock.json` | Pinned external toolchain manifest (Morphe Desktop 1.18.0, JADX 1.5.6, Apktool 3.0.3, baksmali 3.0.10, smali 3.0.10, apkeep 1.1.0). |
+| `tools/apk-lab/apk_lab/deployment.py` | Deterministic patch application, alignment, debug key signing, and device installation/launch. |
+| `tools/apk-lab/apk_lab/device.py` | ADB client, device state resolution, process polling, logcat streaming, CPU spin/ANR detection, and dumpsys exit-info telemetry. |
+| `tools/apk-lab/apk_lab/code_inspection.py` | Targeted multi-DEX class localization, baksmali disassembly, JADX decompilation, method slicing, and diffing. |
+| `tools/apk-lab/apk_lab/smali.py` | Dalvik register mapping, opcode bit-width constraint validation, CFG reachability/cycle analysis, and synthetic assembler oracle. |
+| `tools/apk-lab/apk_lab/resources.py` | Cross-split ARSC resource parsing, raw member enumeration, duplicate conflict resolution, and safe preflight asset extraction. |
 | `tools/apk-lab/pyproject.toml` | Isolated Python 3.12 project configuration for the `apk-lab` CLI toolkit. |
 | `docs/apk-lab.md` | Complete reference specification, workflow guides, and storage rules for the `apk-lab` toolkit. |
 | `worker/src/apps.ts` | Dynamic target app metadata module deriving unique packages, targets, and signers from `patches-list.json`. |
@@ -473,7 +504,7 @@ Keep bytecode injection logic reusable and safe:
   - Configure path via `ANDROID_HOME` / `ANDROID_SDK_ROOT` environment variables or `sdk.dir=/path/to/sdk` in `local.properties`.
 - **Python & uv**:
   - Python 3.12+ managed via **uv** (`tools/apk-lab`).
-  - All APK lifecycle tasks (inspect, analyze, compare, check, clean, fixtures, acquire, asm, il2cpp, unity) must run via `uv run --project tools/apk-lab apk-lab <subcommand>`.
+- All APK lifecycle tasks (inspect, analyze, compare, check, clean, fixtures, acquire, asm, il2cpp, unity, deploy, monitor, inspect-code, validate-smali, res) must run via `uv run --project tools/apk-lab apk-lab <subcommand>`.
 - **Gradle**:
   - Use the bundled wrapper `./gradlew` (pinned to **Gradle 9.7.1** with SHA-256 verification).
   - Parallel execution and build caching are enabled in `gradle.properties`.
@@ -490,7 +521,7 @@ Keep bytecode injection logic reusable and safe:
 
 ### Testing Status
 - **Patch Core Tests**: There are no synthetic test sources in `patches/src/test` or `extensions/extension/src/test`. Patches transform proprietary closed-source APK binaries; synthetic tests provide little value compared to real-world APK application.
-- **Automated Tooling & Archive Tests**: The `tools/apk-lab` module includes a comprehensive pytest suite (`uv run --project tools/apk-lab pytest`, 95 tests) covering safe archive extraction, zip bomb rejection, path traversal rejection, container classification, split consistency, deterministic workspace IDs, tool checksums, Morphe result parsing, multi-split native library extraction, deterministic ARM64 instruction assembly, Unity IL2CPP metadata parsing, and Unity serialized asset inspection.
+- **Automated Tooling & Archive Tests**: The `tools/apk-lab` module includes a comprehensive pytest suite (`uv run --project tools/apk-lab pytest`, 179 tests) covering safe archive extraction, container classification, split consistency, deterministic workspace IDs, tool checksums, Morphe result parsing, multi-split native library extraction, deterministic ARM64 instruction assembly, Unity IL2CPP metadata parsing, Unity serialized asset inspection, deterministic debug signing and deployment, runtime process/spin/ANR monitoring, targeted class/method bytecode and AST diffing, Smali register bit-width and CFG validation, and cross-split resource lookup and extraction.
 - **Automated Worker Tests**: The `worker/` module includes a Vitest suite (`cd worker && bun run test`, 27 tests) testing app metadata derivation, Play Store scraper error handling, duplicate dispatch suppression, authenticated result ingestion, and badge SVG generation.
 - **Unified Repository Audit**: The root runner (`bun run audit`) verifies formatting, code quality linting, strict multi-stack typechecking, and all unit tests in a single command.
 - **Automated Compatibility Verification**: `apk-lab check <artifact> --mpp <bundle> --package <pkg> --all` runs live application of all declared patches and boolean option permutations, enforcing Morphe success and Android SDK DEX structural verification.

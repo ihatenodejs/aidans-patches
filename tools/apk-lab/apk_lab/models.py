@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum, IntEnum
-from typing import Any
+from typing import Any, Literal
 
 
 class ExitCode(IntEnum):
@@ -11,6 +11,7 @@ class ExitCode(IntEnum):
     USAGE_OR_TOOL_ERROR = 2
     INVALID_ARTIFACT = 3
     INFRASTRUCTURE_FAILURE = 4
+    RUNTIME_FAILURE = 5
 
 
 class ContainerType(str, Enum):
@@ -269,3 +270,111 @@ class DoctorReport:
             ],
             "credentialsPresent": self.credentials_present,
         }
+
+
+@dataclass
+class DeployResult:
+    output_apk: str
+    package_name: str
+    device_serial: str
+    applied_patches: list[str]
+    install_mode: Literal["reinstall", "clean-install"]
+    launch_component: str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "outputApk": self.output_apk,
+            "packageName": self.package_name,
+            "deviceSerial": self.device_serial,
+            "appliedPatches": list(self.applied_patches),
+            "installMode": self.install_mode,
+            "launchComponent": self.launch_component,
+        }
+
+    def format_human(self) -> str:
+        lines = [
+            f"Output APK: {self.output_apk}",
+            f"Package: {self.package_name}",
+            f"Device: {self.device_serial}",
+            f"Install mode: {self.install_mode}",
+            f"Applied patches: {', '.join(self.applied_patches) if self.applied_patches else 'none'}",
+        ]
+        if self.launch_component:
+            lines.append(f"Launched: {self.launch_component}")
+        return "\n".join(lines)
+
+
+@dataclass
+class ResourceMatch:
+    container_member: str | None
+    split_name: str
+    package_name: str | None
+    resource_id: str | None
+    resource_type: str | None
+    resource_name: str | None
+    qualifier: str | None
+    value: str | None
+    path: str | None
+    kind: Literal["resource", "asset", "library", "manifest"]
+    morphe_mode: Literal["resourcePatch", "rawResourcePatch"]
+    sha256: str | None
+    duplicate_status: Literal["unique", "equivalent", "conflict"]
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "containerMember": self.container_member,
+            "splitName": self.split_name,
+            "packageName": self.package_name,
+            "resourceId": self.resource_id,
+            "resourceType": self.resource_type,
+            "resourceName": self.resource_name,
+            "qualifier": self.qualifier,
+            "value": self.value,
+            "path": self.path,
+            "kind": self.kind,
+            "morpheMode": self.morphe_mode,
+            "sha256": self.sha256,
+            "duplicateStatus": self.duplicate_status,
+        }
+
+
+@dataclass
+class ResourceQueryReport:
+    query: str
+    matches: list[ResourceMatch] = field(default_factory=list)
+    extracted_paths: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "query": self.query,
+            "matches": [m.to_dict() for m in self.matches],
+            "extractedPaths": list(self.extracted_paths),
+            "warnings": list(self.warnings),
+        }
+
+    def format_human(self) -> str:
+        lines = [f"Found {len(self.matches)} matching resources:"]
+        for m in self.matches:
+            res_id = m.resource_id if m.resource_id is not None else "-"
+            if m.resource_type and m.resource_name:
+                type_name = f"{m.resource_type}/{m.resource_name}"
+            elif m.resource_name:
+                type_name = m.resource_name
+            elif m.resource_type:
+                type_name = m.resource_type
+            else:
+                type_name = "-"
+            qualifier = m.qualifier if m.qualifier is not None else "-"
+            split_path = f"{m.split_name}:{m.path}" if m.path is not None else "-"
+            lines.append(
+                f"{res_id} | {type_name} | {qualifier} | {split_path} | {m.morphe_mode} | {m.duplicate_status}"
+            )
+        if self.extracted_paths:
+            lines.append(f"Extracted {len(self.extracted_paths)} files:")
+            for ep in self.extracted_paths:
+                lines.append(f"  {ep}")
+        if self.warnings:
+            for w in self.warnings:
+                lines.append(f"Warning: {w}")
+        return "\n".join(lines)

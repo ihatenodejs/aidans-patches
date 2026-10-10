@@ -229,9 +229,9 @@ class ToolManager:
 
     def setup_profile(self, profile: str) -> list[ToolCheckResult]:
         if profile == "analysis":
-            tool_names = ["morphe", "jadx", "apktool", "baksmali"]
+            tool_names = ["morphe", "jadx", "apktool", "baksmali", "smali"]
         elif profile == "ci":
-            tool_names = ["morphe", "jadx", "apktool", "baksmali"]
+            tool_names = ["morphe", "jadx", "apktool", "baksmali", "smali"]
             # apkeep is only supported on linux-x86_64
             if self.is_platform_supported("apkeep"):
                 tool_names.append("apkeep")

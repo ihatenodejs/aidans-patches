@@ -6,13 +6,21 @@ import zipfile
 import pytest
 from apk_lab.archives import ArchiveSecurityError
 from apk_lab.cli import (
+    build_parser,
     extract_native_libraries,
     handle_analyze,
     materialize_split_member,
     non_negative_float,
+    non_negative_int,
     validate_dex_entry_name,
 )
-from apk_lab.models import AndroidManifestInfo, ExitCode
+from apk_lab.models import (
+    AndroidManifestInfo,
+    DeployResult,
+    ExitCode,
+    ResourceMatch,
+    ResourceQueryReport,
+)
 
 
 def test_validate_dex_entry_name_valid():
@@ -254,3 +262,235 @@ def test_analyze_extracts_native_libs(tmp_path, monkeypatch):
     extracted_so = run_dir / "lib" / "arm64-v8a" / "libgame.so"
     assert extracted_so.is_file()
     assert extracted_so.read_bytes() == b"binary_data_arm64"
+
+
+def test_non_negative_int_validator():
+    assert non_negative_int("0") == 0
+    assert non_negative_int("42") == 42
+    assert non_negative_int("0x10") == 16
+    with pytest.raises(argparse.ArgumentTypeError, match="non-negative"):
+        non_negative_int("-1")
+    with pytest.raises(argparse.ArgumentTypeError, match="Invalid integer"):
+        non_negative_int("abc")
+
+
+def test_parser_deploy_arguments():
+    parser = build_parser()
+    # Missing --all and -e fails
+    with pytest.raises(SystemExit):
+        parser.parse_args(
+            ["deploy", "app.apk", "--mpp", "p.mpp", "--package", "com.test"]
+        )
+
+    # --all works
+    args = parser.parse_args(
+        ["deploy", "app.apk", "--mpp", "p.mpp", "--package", "com.test", "--all"]
+    )
+    assert args.all is True
+    assert args.enable == []
+    assert args.artifact == "app.apk"
+    assert args.package == "com.test"
+
+    # -e works
+    args = parser.parse_args(
+        [
+            "deploy",
+            "app.apk",
+            "--mpp",
+            "p.mpp",
+            "--package",
+            "com.test",
+            "-e",
+            "Patch1",
+            "-e",
+            "Patch2",
+            "-O",
+            "key=val",
+            "--device",
+            "emulator-5554",
+            "--launch",
+            "--reinstall",
+            "--out",
+            "out.apk",
+        ]
+    )
+    assert args.all is False
+    assert args.enable == ["Patch1", "Patch2"]
+    assert args.options == ["key=val"]
+    assert args.device == "emulator-5554"
+    assert args.launch is True
+    assert args.reinstall is True
+    assert args.out == "out.apk"
+
+    # --reinstall and --clean-install mutually exclusive
+    with pytest.raises(SystemExit):
+        parser.parse_args(
+            [
+                "deploy",
+                "app.apk",
+                "--mpp",
+                "p.mpp",
+                "--package",
+                "com.test",
+                "--all",
+                "--reinstall",
+                "--clean-install",
+            ]
+        )
+
+
+def test_parser_monitor_arguments():
+    parser = build_parser()
+    args = parser.parse_args(
+        ["monitor", "--package", "com.test", "--timeout", "10.5", "--dump-threads"]
+    )
+    assert args.package == "com.test"
+    assert args.timeout == 10.5
+    assert args.dump_threads is True
+
+
+def test_parser_inspect_code_arguments():
+    parser = build_parser()
+    args = parser.parse_args(["inspect-code", "app.apk", "--class", "com.test.Foo"])
+    assert args.class_name == "com.test.Foo"
+    assert args.format == "smali"
+    assert args.method is None
+
+    args = parser.parse_args(
+        [
+            "inspect-code",
+            "app.apk",
+            "--class",
+            "com.test.Foo",
+            "--method",
+            "bar",
+            "--format",
+            "java",
+            "--compare",
+            "old.apk",
+        ]
+    )
+    assert args.format == "java"
+    assert args.method == "bar"
+    assert args.compare == "old.apk"
+
+
+def test_parser_validate_smali_arguments():
+    parser = build_parser()
+    args = parser.parse_args(
+        [
+            "validate-smali",
+            "--snippet",
+            "return-void",
+            "--locals",
+            "2",
+            "--params",
+            "1",
+            "--is-static",
+        ]
+    )
+    assert args.snippet == "return-void"
+    assert args.locals == 2
+    assert args.params == 1
+    assert args.is_static is True
+
+
+def test_parser_res_arguments():
+    parser = build_parser()
+    args = parser.parse_args(
+        ["res", "app.apk", "--query", "0x7f080001", "--extract", "/tmp/res"]
+    )
+    assert args.artifact == "app.apk"
+    assert args.query == "0x7f080001"
+    assert args.extract == "/tmp/res"
+
+
+def test_deploy_result_to_dict_and_human():
+    res = DeployResult(
+        output_apk="/path/to/patched.apk",
+        package_name="com.test.app",
+        device_serial="emulator-5554",
+        applied_patches=["PatchA", "PatchB"],
+        install_mode="reinstall",
+        launch_component="com.test.app/.MainActivity",
+    )
+    d = res.to_dict()
+    assert d["outputApk"] == "/path/to/patched.apk"
+    assert d["packageName"] == "com.test.app"
+    assert d["deviceSerial"] == "emulator-5554"
+    assert d["appliedPatches"] == ["PatchA", "PatchB"]
+    assert d["installMode"] == "reinstall"
+    assert d["launchComponent"] == "com.test.app/.MainActivity"
+
+    human = res.format_human()
+    assert "Output APK: /path/to/patched.apk" in human
+    assert "Package: com.test.app" in human
+    assert "Device: emulator-5554" in human
+    assert "Install mode: reinstall" in human
+    assert "Applied patches: PatchA, PatchB" in human
+    assert "Launched: com.test.app/.MainActivity" in human
+
+
+def test_resource_match_and_report_to_dict_and_human():
+    match = ResourceMatch(
+        container_member="splits/base.apk",
+        split_name="base",
+        package_name="com.test.app",
+        resource_id="0x7f08028e",
+        resource_type="drawable",
+        resource_name="map_preview",
+        qualifier="xxhdpi",
+        value=None,
+        path="res/drawable-xxhdpi/map_preview.webp",
+        kind="resource",
+        morphe_mode="resourcePatch",
+        sha256="abcd1234",
+        duplicate_status="unique",
+    )
+    d = match.to_dict()
+    assert d["resourceId"] == "0x7f08028e"
+    assert d["resourceType"] == "drawable"
+    assert d["resourceName"] == "map_preview"
+    assert d["qualifier"] == "xxhdpi"
+    assert d["path"] == "res/drawable-xxhdpi/map_preview.webp"
+    assert d["morpheMode"] == "resourcePatch"
+    assert d["duplicateStatus"] == "unique"
+
+    report = ResourceQueryReport(
+        query="0x7f08028e",
+        matches=[match],
+        extracted_paths=["/tmp/res/map_preview.webp"],
+        warnings=[],
+    )
+    rd = report.to_dict()
+    assert rd["query"] == "0x7f08028e"
+    assert len(rd["matches"]) == 1
+    assert rd["extractedPaths"] == ["/tmp/res/map_preview.webp"]
+
+    human = report.format_human()
+    assert "Found 1 matching resources:" in human
+    # Field order: ID | type/name | qualifier | split:path | Morphe mode | duplicate status
+    assert (
+        "0x7f08028e | drawable/map_preview | xxhdpi | base:res/drawable-xxhdpi/map_preview.webp | resourcePatch | unique"
+        in human
+    )
+
+    # Test null handling
+    null_match = ResourceMatch(
+        container_member=None,
+        split_name="base",
+        package_name=None,
+        resource_id=None,
+        resource_type=None,
+        resource_name=None,
+        qualifier=None,
+        value="123",
+        path=None,
+        kind="resource",
+        morphe_mode="resourcePatch",
+        sha256=None,
+        duplicate_status="equivalent",
+    )
+    null_report = ResourceQueryReport(query="test", matches=[null_match])
+    null_human = null_report.format_human()
+    assert "- | - | - | - | resourcePatch | equivalent" in null_human
