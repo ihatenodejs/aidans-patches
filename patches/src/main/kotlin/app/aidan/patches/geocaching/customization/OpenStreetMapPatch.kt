@@ -27,6 +27,9 @@ private const val OSM_STYLE_BRIDGE = "Lapp/aidan/extension/geocaching/OsmStyleBr
 private const val GOOGLE_MAP_FRAGMENT = "Lcom/groundspeak/geocaching/intro/mainmap/map/GoogleMapFragment;"
 private const val MAP_LIBRE_FRAGMENT = "Lcom/groundspeak/geocaching/intro/mainmap/map/MapLibreFragment;"
 private const val USER_MAP_PREFS = "Lk4c;"
+private const val MAP_SLIVER_VIEW = "Ly07;"
+private const val NAVIGATION_MAP_ACTIVITY = "Lcom/groundspeak/geocaching/intro/navigationmap/NavigationMapActivity;"
+private const val NAVIGATION_MAP_ACTIVITY_SETUP_MAP = "Lcom/groundspeak/geocaching/intro/navigationmap/NavigationMapActivity\$setUpMap\$2;"
 
 private object OsmPreviewResourceHolder
 
@@ -164,6 +167,12 @@ val openStreetMapPatch = bytecodePatch(
 
         // 12. Enable Better Events toggle on the map screen (BETTER_EVENTS_MAP flag)
         patchBetterEventsMapFlag()
+
+        // 13. Force details overview map (Ly07) to use MapLibre unconditionally
+        patchDetailsOverviewMap()
+
+        // 14. Force NavigationMapActivity to always display MapLibre and suppress GoogleMap setup
+        patchNavigationMapActivity()
     }
 }
 
@@ -501,6 +510,85 @@ private fun BytecodePatchContext.patchMapTypeFree() {
                     method.addInstructions(index, "const/4 v$reg, 0x0")
                     break
                 }
+            }
+        }
+    }
+}
+
+/**
+ * In details overview map (Ly07.g), forces the map type check to always succeed
+ * and routes directly to h() (MapLibre overview map) rather than Google Maps f().
+ */
+private fun BytecodePatchContext.patchDetailsOverviewMap() {
+    val sliverClass = mutableClassDefByOrNull(MAP_SLIVER_VIEW)
+        ?: throw PatchException("Class $MAP_SLIVER_VIEW not found")
+
+    val gMethod = sliverClass.methods.firstOrNull {
+        it.name == "g" && it.implementation != null
+    } ?: throw PatchException("Method g not found in $MAP_SLIVER_VIEW")
+
+    val instructions = gMethod.implementation?.instructions?.toList() ?: emptyList()
+    for ((index, instruction) in instructions.withIndex()) {
+        if (instruction is ReferenceInstruction) {
+            val methodRef = instruction.reference as? MethodReference
+            if (methodRef?.name == "contains" && methodRef.definingClass == "Ljava/util/List;") {
+                val moveResult = instructions.getOrNull(index + 1)
+                if (moveResult is OneRegisterInstruction) {
+                    val reg = moveResult.registerA
+                    gMethod.addInstructions(
+                        index + 2,
+                        """
+                            const/4 v$reg, 0x1
+                        """.trimIndent()
+                    )
+                    break
+                }
+            }
+        }
+    }
+}
+
+/**
+ * In NavigationMapActivity:
+ * 1. In L(Z)V, forces the boolean parameter to true at the very beginning so MapLibre MapView
+ *    is always made visible and Google Maps FragmentContainerView is hidden.
+ * 2. In NavigationMapActivity$setUpMap$2.invokeSuspend, redirects K(GoogleMap) to L(true).
+ */
+private fun BytecodePatchContext.patchNavigationMapActivity() {
+    val navActivityClass = mutableClassDefByOrNull(NAVIGATION_MAP_ACTIVITY)
+        ?: throw PatchException("Class $NAVIGATION_MAP_ACTIVITY not found")
+
+    val lMethod = navActivityClass.methods.firstOrNull {
+        it.name == "L" && it.parameterTypes == listOf("Z") && it.implementation != null
+    } ?: throw PatchException("Method L(Z)V not found in $NAVIGATION_MAP_ACTIVITY")
+
+    lMethod.addInstructions(
+        0,
+        """
+            const/4 p1, 0x1
+        """.trimIndent()
+    )
+
+    val setUpMapClass = mutableClassDefByOrNull(NAVIGATION_MAP_ACTIVITY_SETUP_MAP) ?: return
+    val invokeSuspendMethod = setUpMapClass.methods.firstOrNull {
+        it.name == "invokeSuspend" && it.implementation != null
+    } ?: return
+
+    val instructions = invokeSuspendMethod.implementation?.instructions?.toList() ?: emptyList()
+    for ((index, instruction) in instructions.withIndex()) {
+        if (instruction is ReferenceInstruction) {
+            val methodRef = instruction.reference as? MethodReference
+            if (methodRef?.name == "K" && methodRef.definingClass == NAVIGATION_MAP_ACTIVITY) {
+                invokeSuspendMethod.addInstructions(
+                    index,
+                    """
+                        const/4 v1, 0x1
+                        invoke-virtual {p0, v1}, $NAVIGATION_MAP_ACTIVITY->L(Z)V
+                        sget-object p0, Lszb;->a:Lszb;
+                        return-object p0
+                    """.trimIndent()
+                )
+                break
             }
         }
     }
