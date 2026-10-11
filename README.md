@@ -168,7 +168,7 @@ My [Morphe](https://morphe.software) patches
 
 | 💊&nbsp;Patch | 📜&nbsp;Description | ⚙️&nbsp;Options |
 |----------|----------------|-----------|
-| [Local Premium](#local-premium) | Enables local Premium membership status across profile and account screens, removes upgrade promotions, banners, and icons, and preserves loaded non-traditional cache details. |  |
+| [Local Premium](#local-premium) | Enables local Premium membership status across profile and account screens, removes upgrade promotions, banners, icons, and server-dependent profile statistics, and preserves loaded non-traditional cache details. |  |
 | [OpenStreetMap Drop-in Replacement](#openstreetmap-drop-in-replacement) | Replaces Google Maps with OpenStreetMap (MapLibre vector engine) and adds in-app OpenStreetMap style switching and custom URL configuration to Map settings. |  |
 | [OpenStreetMap Preview Assets](#openstreetmap-preview-assets) | Replaces proprietary Google Map type preview webp images with rendered OpenStreetMap style thumbnails in a busy location. |  |
 | [OpenStreetMap Resource Strings](#openstreetmap-resource-strings) | Updates map type names and descriptions in strings.xml to reflect OpenStreetMap styles. |  |

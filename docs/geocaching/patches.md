@@ -164,7 +164,7 @@ The OpenStreetMap integration is divided into three coordinated patches:
 Enables local Premium membership status across the application and removes upgrade promotions, canisters, and locked premium banners across primary exploration and configuration surfaces:
 1. Enables local Premium membership status in Account and Profile views, setting profile header membership to "Premium member" and account screen to "Membership type: Premium".
 2. Eliminates the floating map upgrade canister and pill button from the top-left corner of the map.
-3. Removes the promotional upgrade card ("Artwork Geocaching Premium", "Access it all", "Go Premium") from the bottom of the Profile screen while preserving the Statistics item.
+3. Removes the promotional upgrade card ("Artwork Geocaching Premium", "Access it all", "Go Premium") and the server-dependent Statistics item from the Profile screen.
 4. Removes the "Upgrade to Premium" menu row from the Settings screen.
 5. Removes the "Upgrade to Premium" button and spacer row from the Account screen while preserving "Disable or delete account".
 ### Bytecode Modifications
@@ -173,13 +173,14 @@ Enables local Premium membership status across the application and removes upgra
      - Intercepts `l3c.d()` checks by forcing move-result registers to `0x1` (`true`), ensuring StateFlow `r0` is initialized and maintained as `false`.
    - Target: `com.groundspeak.geocaching.intro.mainmap.map.i.b(im7, h24, tl1, I)`
      - Forces `Boolean.booleanValue()Z` result register to `0x0` (`false`), ensuring the Composable branches directly to group `-0x6f32da68` and cleanly emits nothing.
-2. **Profile Header & Bottom Promotional Card**:
+2. **Profile Header, Statistics & Bottom Promotional Card**:
    - Target: `com.groundspeak.geocaching.intro.profile.o.a(OwnProfileResponse)`
      - Replaces the `OwnProfileResponse.Profile.k()` membership-title result with `"Premium member"` before it populates the Profile header.
    - Target: `x29.invoke(Object, Object, Object)`
      - Intercepts `l3c.d()` check by forcing register `v5` to `0x1` (`true`), passing `z2 = true` to `com.groundspeak.geocaching.intro.profile.l.b`.
    - Target: `com.groundspeak.geocaching.intro.profile.l.b`
-     - Injects `const/16 v$p5Reg, 0x1` before the `if-nez p5, :cond_587` branch to guarantee unconditional execution of the premium branch, bypassing `q.b` while leaving `k19.p` (Statistics) untouched.
+     - Injects `const/16 v$p5Reg, 0x1` before the `if-nez p5, :cond_587` branch to guarantee unconditional execution of the premium branch, bypassing `q.b`.
+     - Neutralizes `u4c.f` (`iget-object`), `k19.p` (Statistics Composable), and the following `f.u` spacer with `nop`, cleanly eliminating the Statistics row which relies on unavailable server-side data.
 3. **Settings Screen Upgrade Row**:
    - Target: `com.groundspeak.geocaching.intro.fragments.settings.SettingsFragment.v(lg8, tl1, I)`
      - Intercepts `l3c.d()` check by forcing move-result register to `0x1` (`true`), taking branch `:cond_23a` and bypassing `e0.g` ("Upgrade to Premium").

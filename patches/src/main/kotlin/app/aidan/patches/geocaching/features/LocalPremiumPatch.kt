@@ -20,7 +20,7 @@ import com.android.tools.smali.dexlib2.iface.reference.StringReference
 
 val localPremiumPatch = bytecodePatch(
     name = "Local Premium",
-    description = "Enables local Premium membership status across profile and account screens, removes upgrade promotions, banners, and icons, and preserves loaded non-traditional cache details.",
+    description = "Enables local Premium membership status across profile and account screens, removes upgrade promotions, banners, icons, and server-dependent profile statistics, and preserves loaded non-traditional cache details.",
     default = true
 ) {
     category("Interface")
@@ -31,6 +31,7 @@ val localPremiumPatch = bytecodePatch(
         patchProfileMembershipLabel()
         patchMapUpgradeIcon()
         patchProfileUpgradeCard()
+        patchProfileStatisticsItem()
         patchSettingsFragment()
         patchAccountFragment()
         patchPreventCacheDetailsError()
@@ -231,8 +232,7 @@ private fun BytecodePatchContext.patchMapUpgradeIcon() {
 }
 
 /**
- * Removes the "Upgrade to premium" promotional card section at the bottom of the Profile screen
- * while leaving the Statistics item completely untouched.
+ * Removes the "Upgrade to premium" promotional card section at the bottom of the Profile screen.
  */
 private fun BytecodePatchContext.patchProfileUpgradeCard() {
     val x29Class = mutableClassDefBy("Lx29;")
@@ -262,6 +262,70 @@ private fun BytecodePatchContext.patchProfileUpgradeCard() {
             bMethod.addInstructions(branchIndex, "const/16 v$p5Reg, 0x1")
         }
     }
+}
+
+/**
+ * Removes the Statistics item row and its trailing spacer from the Profile screen.
+ *
+ * In `com.groundspeak.geocaching.intro.profile.l.b`, the Statistics item is rendered via
+ * `k19.p(Lu4c;->f:Lg29;, ...)`. When local Premium is active, this item appears on the Profile screen,
+ * but navigating into it results in an error screen because the statistics data relies on server-side
+ * processing unavailable to non-premium accounts.
+ *
+ * Neutralizing the `u4c.f` field access, the `k19.p` composable invocation, and the trailing spacer
+ * call (`f.u`) cleanly removes the Statistics row while preserving slot table alignment and leaving
+ * a single section spacer above Trackables.
+ */
+private fun BytecodePatchContext.patchProfileStatisticsItem() {
+    val profileClass = mutableClassDefBy("Lcom/groundspeak/geocaching/intro/profile/l;")
+    val bMethod = profileClass.methods.firstOrNull {
+        it.name == "b" && it.returnType == "V" && it.implementation != null && it.parameterTypes.size == 13
+    } ?: throw PatchException("com.groundspeak.geocaching.intro.profile.l.b not found")
+
+    val impl = bMethod.implementation ?: throw PatchException("Missing implementation in profile l.b")
+    val instructions = impl.instructions.toList()
+
+    val statsIndex = instructions.indexOfFirst { instruction ->
+        instruction.opcode == Opcode.INVOKE_STATIC &&
+            (instruction as? ReferenceInstruction)?.reference?.let { ref ->
+                (ref as? MethodReference)?.let { m ->
+                    m.definingClass == "Lk19;" && m.name == "p"
+                }
+            } == true
+    }
+    if (statsIndex < 0) {
+        throw PatchException("Could not find k19.p invocation in profile l.b")
+    }
+
+    val igetIndex = statsIndex - 1
+    val igetInst = instructions.getOrNull(igetIndex)
+    val isIgetStats = igetInst?.opcode == Opcode.IGET_OBJECT &&
+        (igetInst as? ReferenceInstruction)?.reference?.let { ref ->
+            (ref as? FieldReference)?.let { f ->
+                f.name == "f" && f.type == "Lg29;"
+            }
+        } == true
+
+    if (!isIgetStats) {
+        throw PatchException("Instruction preceding k19.p is not Lu4c;->f:Lg29; iget-object")
+    }
+
+    val spacerIndex = statsIndex + 1
+    val spacerInst = instructions.getOrNull(spacerIndex)
+    val isSpacer = spacerInst?.opcode == Opcode.INVOKE_STATIC &&
+        (spacerInst as? ReferenceInstruction)?.reference?.let { ref ->
+            (ref as? MethodReference)?.let { m ->
+                m.definingClass == "Lcom/groundspeak/geocaching/intro/ui/compose/f;" && m.name == "u"
+            }
+        } == true
+
+    if (!isSpacer) {
+        throw PatchException("Instruction following k19.p is not f.u spacer invoke-static")
+    }
+
+    bMethod.replaceInstruction(spacerIndex, "nop")
+    bMethod.replaceInstruction(statsIndex, "nop")
+    bMethod.replaceInstruction(igetIndex, "nop")
 }
 
 /**
