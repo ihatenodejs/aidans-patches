@@ -313,6 +313,95 @@ npx semantic-release --dry-run
 
 ---
 
+## Commit Conventions & App Scope Requirements
+
+The repository strictly enforces the [Conventional Commits](https://www.conventionalcommits.org/) specification (`<type>(<scope>): <description>`). Automated versioning, release changelog generation, and website UI icon presentation depend directly on adhering to these rules.
+
+### 1. Patch Commits MUST Use Application Scopes
+
+When committing features, fixes, bumps, or improvements to application patches, the scope inside the parentheses **MUST** be the canonical application identifier or one of its recognized aliases.
+
+**Invariant**: **NEVER** use generic or file-path scopes such as `fix(patches/main)`, `feat(patches)`, or bare unscoped commits like `fix: ...` when modifying patches.
+
+#### Allowed Application Scopes
+
+These scopes map directly to `site/src/data/commit-apps.ts` and resolve to application metadata and icon assets:
+
+| Target Application | Canonical Scope | Recognized Scope Aliases | Target Package Name |
+| --- | --- | --- | --- |
+| **Sezzle** | `sezzle` | `sezzlemobile` | `com.sezzle.sezzlemobile` |
+| **SidelineSwap** | `sidelineswap` | `sideline` | `com.sidelineswap.android` |
+| **AfterShip** | `aftership` | — | `com.aftership.AfterShip` |
+| **Canvas Student** | `canvas-student` | `canvas`, `candroid` | `com.instructure.candroid` |
+| **Navigate360 Student** | `navigate360-student` | `navigate360`, `navigate`, `eab` | `com.eab.se` |
+| **Blackjack** | `blackjack` | `tripledot` | `com.tripledot.blackjack` |
+| **Adobe Scan** | `adobe-scan` | `adobescan`, `adobe`, `scan` | `com.adobe.scan.android` |
+| **Fizz** | `fizz` | `buzz` | `com.ashtoncofer.Buzz` |
+| **Geocaching** | `geocaching` | `groundspeak` | `com.groundspeak.geocaching.intro` |
+
+### 2. Why Scopes are Mechanically Required (Site UI & CI)
+
+The application scope is not merely stylistic—it powers the automated release pipeline and documentation website:
+
+1. **Release Note Generation (`.releaserc`)**: During automated releases in CI (`.github/workflows/release.yml`), `semantic-release` runs `@semantic-release/release-notes-generator` with the `conventionalcommits` preset. Scoped commits are rendered into `CHANGELOG.md` and `patches-bundle.json` in the format:
+   ```markdown
+   * **<scope>:** <description> ([<hash>](<url>))
+   ```
+2. **Website Scope Resolution (`site/src/data/changelog.ts` & `repo.ts`)**:
+   - `parseChangelogSection` parses the markdown changelog and extracts `scope` from `**<scope>:**`.
+   - `resolveAppForScope(item.scope, apps)` looks up the extracted scope in `SCOPE_TO_APP_ID`.
+   - When matched, `repo.ts` resolves the application and binds `item.appIconUrl = matchedApp.iconUrl` (cached in `site/src/data/icons.ts` and `site/public/icons/`).
+3. **App Icon Presentation (`site/src/pages/index.astro`)**:
+   - The site index renders the 20×20 app icon badge beside each release item in the "Recent Updates" / changelog section (`change.appIconUrl`).
+   - If a commit modifying an app's patch uses an invalid or path-based scope (e.g. `fix(patches/main)` or `feat(patches)`), `resolveAppForScope` returns `null`. The site cannot bind the icon, causing the commit to render without its associated app icon and degrading visual presentation.
+
+### 3. Commit Types & Semantic Release Impact
+
+Release rules configured in `.releaserc`:
+
+| Type | Release Bump | Changelog Section | Intended Usage |
+| --- | --- | --- | --- |
+| `feat` | Minor (`v1.X.0`) | `✨ New Features` | New patch implementations or substantial user-facing patch capabilities. |
+| `fix` | Patch (`v1.X.Y`) | `🐛 Bug Fixes` | Bug fixes in existing patches, hook corrections, or Dalvik/HBC repair. |
+| `bump` | Patch (`v1.X.Y`) | `🚀 Updated App Support` | Target version bumps or verified version compatibility additions. |
+| `perf` | Patch (`v1.X.Y`) | `🔧 Improvements` | Patch performance optimizations, bundle shrinkage, or hook efficiency. |
+| `chore` | None / No Release | Hidden | Routine maintenance, dependencies, icon sync (`chore(icons)`). |
+| `docs` | None / No Release | Hidden | Documentation, reverse engineering notes, specs (`docs(apk-lab)`). |
+| `refactor` | None / No Release | Hidden | Code restructuring without behavioral changes. |
+| `style` | None / No Release | Hidden | Code formatting and whitespace adjustments. |
+| `test` | None / No Release | Hidden | Test additions or modifications across apk-lab, worker, or site. |
+| `ci` | None / No Release | Hidden | CI/CD workflow modifications or release automation fixes. |
+
+### 4. Non-Patch Scopes
+
+For repository work outside of specific application patches, use standard component scopes:
+- **APK Lab Tooling**: `tools/apk-lab` or `apk-lab` (e.g. `feat(tools/apk-lab): add deploy command`)
+- **Documentation Site**: `site` (e.g. `fix(site): corrected test verification scope on status page`)
+- **Worker Control Plane**: `worker` (e.g. `fix(worker): reduced outstanding request ttl`)
+- **CI / Workflows**: `ci` or `release` (e.g. `ci(release): configured GitHub Packages credentials`)
+- **Quality / Auditing**: `audit` (e.g. `chore(audit): added unified audit runner`)
+- **Documentation**: `docs` or `specs` (e.g. `docs(apk-lab): update CLI reference`)
+- **App Icons**: `icons` (e.g. `chore(icons): sync application icons from Google Play`)
+
+### 5. Historical Consistency & Anti-Patterns
+
+**Correct Patterns (Follow These)**:
+- `feat(geocaching): added OpenStreetMap style switching and previews`
+- `feat(sezzle): Added subscription removal patch and shortcut toggle`
+- `fix(blackjack): update to 2.22.09`
+- `feat(sidelineswap): Added payment sheet theming and address list fix`
+- `feat(fizz): added developer settings mod menu patch`
+- `feat(adobe-scan): added patch suite and documentation for adobe scan`
+- `fix(aftership): resolved checkpoint coordinates from geo entities`
+
+**Anti-Patterns (Never Repeat)**:
+- ❌ `fix(patches/main): fixed geocaching navigation map loading...` — Breaks app icon association on the website changelog. Use `fix(geocaching): ...` instead.
+- ❌ `feat(patches/main): Added Geocaching Shop removal patch` — Breaks app icon association. Use `feat(geocaching): ...` instead.
+- ❌ `Fix CodeRabbit issues in PR #21` — Omits conventional type and scope entirely. Use `fix(ci): ...` or `fix(<app>): ...`.
+- ❌ `fix(patches): update compatibility` — Generic `patches` scope does not resolve to an application icon. Use `bump(<app>): ...` or `fix(<app>): ...`.
+
+---
+
 ## Code Conventions & Common Patterns
 
 Do not use legacy `@Patch` or `@CompatiblePackage` annotations. Define patches as top-level Kotlin values using `bytecodePatch`, `rawResourcePatch`, or `resourcePatch`:
