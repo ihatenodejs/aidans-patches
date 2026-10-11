@@ -35,6 +35,7 @@ val localPremiumPatch = bytecodePatch(
         patchAccountFragment()
         patchPreventCacheDetailsError()
         patchPreventMapSearchError()
+        patchPreventNavigationLoadError()
     }
 }
 
@@ -406,4 +407,35 @@ private fun BytecodePatchContext.patchPreventMapSearchError() {
     } ?: return
     patchIncludeOwnedDisabledCachesToNull(hMethod)
     patchSanitizeFilterModel(hMethod)
+}
+
+/**
+ * In NavigationViewModel.l (loadCache), forces the second boolean parameter
+ * (startWithFullCacheData) to false so that NavigationViewModel always queries
+ * LegacyGeocacheRepo.b (loadCacheEnsuringWaypoints / local database) instead of
+ * LegacyGeocacheRepo.f (loadGeocacheLocallyWithServerFallback).
+ *
+ * Basic accounts get 403 Forbidden when requesting full server details for
+ * traditional and non-traditional caches alike on the navigation screen, which
+ * causes NavigationViewModel to emit "Unable to load geocache" and leaves the
+ * navigation destination at (0.0, 0.0). Using local cache data loads the coordinates
+ * that the map already holds, preventing the error and pointing navigation directly to the cache.
+ */
+private fun BytecodePatchContext.patchPreventNavigationLoadError() {
+    val navVmClass = mutableClassDefByOrNull("Lcom/groundspeak/geocaching/intro/navigationmap/NavigationViewModel;")
+        ?: return
+
+    val lMethod = navVmClass.methods.firstOrNull {
+        it.name == "l" &&
+            it.parameterTypes.size == 4 &&
+            it.parameterTypes[1] == "Z" &&
+            it.implementation != null
+    } ?: return
+
+    lMethod.addInstructions(
+        0,
+        """
+            const/4 p2, 0x0
+        """.trimIndent()
+    )
 }
