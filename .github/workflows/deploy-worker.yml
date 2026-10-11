@@ -46,7 +46,7 @@ jobs:
         working-directory: worker
         run: bun run test
 
-      - name: Deploy Cloudflare Worker (Version Freshness Cron)
+      - name: Deploy Aidan's Patches Worker
         if: env.DEPLOY_ENABLED == 'true'
         uses: cloudflare/wrangler-action@v3
         with:

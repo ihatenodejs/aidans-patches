@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "aidans-patches-version-checker",
+  "name": "aidans-patches-worker",
   "main": "src/index.ts",
   "compatibility_date": "2026-08-22",
   "compatibility_flags": ["nodejs_compat"],
@@ -9,12 +9,15 @@
       "enabled": true,
     },
   },
+  "vars": {
+    "GITHUB_REPO": "ihatenodejs/aidans-patches",
+  },
   "triggers": {
-    "crons": ["0 */6 * * *"],
+    "crons": ["0 */6 * * *", "15 0 * * *"],
   },
   "kv_namespaces": [
     {
-      "binding": "PLAY_VERSIONS_KV",
+      "binding": "PATCHES_KV",
       "id": "5c62cbcdc49749368cc3daba5aa87759",
     },
   ],

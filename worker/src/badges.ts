@@ -1,13 +1,5 @@
+import { escapeXml } from './svg';
 import type { PatchCompatibilityStatus } from './types';
-
-function escapeXml(unsafe: string): string {
-  return unsafe
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;');
-}
 
 export function getStatusColor(
   status: PatchCompatibilityStatus | 'mixed' | 'no-apk',

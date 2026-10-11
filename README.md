@@ -275,6 +275,11 @@ java -jar morphe-desktop.jar patch \
   base.apk
 ```
 
+## 📊 Statistics
+
+![Total Downloads](https://worker.patch.p0ntus.com/charts/total-downloads.svg)
+![Release Downloads](https://worker.patch.p0ntus.com/charts/release-downloads.svg)
+
 ## 📜 License
 
 Licensed under the [WTFPL](LICENSE) with warranty addendum.

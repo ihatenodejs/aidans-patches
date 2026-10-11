@@ -265,10 +265,10 @@ describe('Worker fetch endpoints', () => {
   it('serves GET /badges/compatibility.svg with image/svg+xml from seeded KV', async () => {
     const workerEnv: WorkerEnv = {
       ...env,
-      PLAY_VERSIONS_KV: env.PLAY_VERSIONS_KV,
+      PATCHES_KV: env.PATCHES_KV,
     };
 
-    await seedTestApps(env.PLAY_VERSIONS_KV);
+    await seedTestApps(env.PATCHES_KV);
 
     const req = new Request('http://localhost/badges/compatibility.svg', {
       method: 'GET',
@@ -286,10 +286,10 @@ describe('Worker fetch endpoints', () => {
   it('serves GET /badges/compatibility/com.ashtoncofer.Buzz.svg for specific package', async () => {
     const workerEnv: WorkerEnv = {
       ...env,
-      PLAY_VERSIONS_KV: env.PLAY_VERSIONS_KV,
+      PATCHES_KV: env.PATCHES_KV,
     };
 
-    await seedTestApps(env.PLAY_VERSIONS_KV);
+    await seedTestApps(env.PATCHES_KV);
 
     const req = new Request(
       'http://localhost/badges/compatibility/com.ashtoncofer.Buzz.svg',
@@ -328,10 +328,10 @@ describe('Worker fetch endpoints', () => {
     ) => {
       const workerEnv: WorkerEnv = {
         ...env,
-        PLAY_VERSIONS_KV: env.PLAY_VERSIONS_KV,
+        PATCHES_KV: env.PATCHES_KV,
       };
 
-      await seedTestApps(env.PLAY_VERSIONS_KV);
+      await seedTestApps(env.PATCHES_KV);
       const appRecord = {
         appName: 'Sezzle',
         playVersion: '5.3.13',
@@ -354,7 +354,7 @@ describe('Worker fetch endpoints', () => {
           failureReason,
         },
       };
-      await env.PLAY_VERSIONS_KV.put(
+      await env.PATCHES_KV.put(
         'app_version:com.sezzle.sezzlemobile',
         JSON.stringify(appRecord),
       );
@@ -377,7 +377,7 @@ describe('Worker fetch endpoints', () => {
   it('rejects unauthenticated POST /api/compatibility-results', async () => {
     const workerEnv: WorkerEnv = {
       ...env,
-      PLAY_VERSIONS_KV: env.PLAY_VERSIONS_KV,
+      PATCHES_KV: env.PATCHES_KV,
       COMPATIBILITY_STATUS_SECRET: 'test_secret_abc',
     };
 
@@ -394,7 +394,7 @@ describe('Worker fetch endpoints', () => {
   it('accepts authenticated batched POST /api/compatibility-results and updates per-package KV', async () => {
     const workerEnv: WorkerEnv = {
       ...env,
-      PLAY_VERSIONS_KV: env.PLAY_VERSIONS_KV,
+      PATCHES_KV: env.PATCHES_KV,
       COMPATIBILITY_STATUS_SECRET: 'test_secret_abc',
     };
 
@@ -413,7 +413,7 @@ describe('Worker fetch endpoints', () => {
         dispatchedAt: '2026-10-06T00:00:00Z',
       },
     };
-    await env.PLAY_VERSIONS_KV.put(
+    await env.PATCHES_KV.put(
       'app_version:com.ashtoncofer.Buzz',
       JSON.stringify(initialRecord),
     );
@@ -451,7 +451,7 @@ describe('Worker fetch endpoints', () => {
     expect(data.success).toBe(true);
 
     // Verify individual per-package KV key was updated
-    const savedRaw = await env.PLAY_VERSIONS_KV.get(
+    const savedRaw = await env.PATCHES_KV.get(
       'app_version:com.ashtoncofer.Buzz',
     );
     expect(savedRaw).not.toBeNull();
@@ -466,7 +466,7 @@ describe('Worker fetch endpoints', () => {
   it('accepts acquiredPlayVersion in callback and updates playVersion, status, and release marker', async () => {
     const workerEnv: WorkerEnv = {
       ...env,
-      PLAY_VERSIONS_KV: env.PLAY_VERSIONS_KV,
+      PATCHES_KV: env.PATCHES_KV,
       COMPATIBILITY_STATUS_SECRET: 'test_secret_abc',
     };
 
@@ -487,7 +487,7 @@ describe('Worker fetch endpoints', () => {
         dispatchedAt: '2026-10-06T00:00:00Z',
       },
     };
-    await env.PLAY_VERSIONS_KV.put(
+    await env.PATCHES_KV.put(
       'app_version:com.adobe.scan.android',
       JSON.stringify(initialRecord),
     );
@@ -522,7 +522,7 @@ describe('Worker fetch endpoints', () => {
     const res = await worker.fetch(req, workerEnv);
     expect(res.status).toBe(200);
 
-    const savedRaw = await env.PLAY_VERSIONS_KV.get(
+    const savedRaw = await env.PATCHES_KV.get(
       'app_version:com.adobe.scan.android',
     );
     const saved = JSON.parse(savedRaw!) as AppVersionRecord;
@@ -536,7 +536,7 @@ describe('Worker fetch endpoints', () => {
   it('rejects invalid non-string or empty acquiredPlayVersion in callback', async () => {
     const workerEnv: WorkerEnv = {
       ...env,
-      PLAY_VERSIONS_KV: env.PLAY_VERSIONS_KV,
+      PATCHES_KV: env.PATCHES_KV,
       COMPATIBILITY_STATUS_SECRET: 'test_secret_abc',
     };
 
@@ -561,7 +561,7 @@ describe('Worker fetch endpoints', () => {
   it('returns 409 Conflict when request ID is stale or replayed', async () => {
     const workerEnv: WorkerEnv = {
       ...env,
-      PLAY_VERSIONS_KV: env.PLAY_VERSIONS_KV,
+      PATCHES_KV: env.PATCHES_KV,
       COMPATIBILITY_STATUS_SECRET: 'test_secret_abc',
     };
 
@@ -580,7 +580,7 @@ describe('Worker fetch endpoints', () => {
         dispatchedAt: '2026-10-06T00:00:00Z',
       },
     };
-    await env.PLAY_VERSIONS_KV.put(
+    await env.PATCHES_KV.put(
       'app_version:com.ashtoncofer.Buzz',
       JSON.stringify(initialRecord),
     );
@@ -619,7 +619,7 @@ describe('Worker fetch endpoints', () => {
   it('rejects callback with version mismatch against outstanding request', async () => {
     const workerEnv: WorkerEnv = {
       ...env,
-      PLAY_VERSIONS_KV: env.PLAY_VERSIONS_KV,
+      PATCHES_KV: env.PATCHES_KV,
       COMPATIBILITY_STATUS_SECRET: 'test_secret_abc',
     };
 
@@ -638,7 +638,7 @@ describe('Worker fetch endpoints', () => {
         dispatchedAt: '2026-10-06T00:00:00Z',
       },
     };
-    await env.PLAY_VERSIONS_KV.put(
+    await env.PATCHES_KV.put(
       'app_version:com.ashtoncofer.Buzz',
       JSON.stringify(initialRecord),
     );
@@ -677,7 +677,7 @@ describe('Worker fetch endpoints', () => {
   it('accepts and persists failureReason in compatibility results', async () => {
     const workerEnv: WorkerEnv = {
       ...env,
-      PLAY_VERSIONS_KV: env.PLAY_VERSIONS_KV,
+      PATCHES_KV: env.PATCHES_KV,
       COMPATIBILITY_STATUS_SECRET: 'test_secret_abc',
     };
 
@@ -696,7 +696,7 @@ describe('Worker fetch endpoints', () => {
         dispatchedAt: '2026-10-06T00:00:00Z',
       },
     };
-    await env.PLAY_VERSIONS_KV.put(
+    await env.PATCHES_KV.put(
       'app_version:com.ashtoncofer.Buzz',
       JSON.stringify(initialRecord),
     );
@@ -731,7 +731,7 @@ describe('Worker fetch endpoints', () => {
     const res = await worker.fetch(req, workerEnv);
     expect(res.status).toBe(200);
 
-    const savedRaw = await env.PLAY_VERSIONS_KV.get(
+    const savedRaw = await env.PATCHES_KV.get(
       'app_version:com.ashtoncofer.Buzz',
     );
     const saved = JSON.parse(savedRaw!) as AppVersionRecord;
@@ -744,7 +744,7 @@ describe('Worker fetch endpoints', () => {
   it('rejects malformed non-string failureReason in compatibility results', async () => {
     const workerEnv: WorkerEnv = {
       ...env,
-      PLAY_VERSIONS_KV: env.PLAY_VERSIONS_KV,
+      PATCHES_KV: env.PATCHES_KV,
       COMPATIBILITY_STATUS_SECRET: 'test_secret_abc',
     };
 
@@ -763,7 +763,7 @@ describe('Worker fetch endpoints', () => {
         dispatchedAt: '2026-10-06T00:00:00Z',
       },
     };
-    await env.PLAY_VERSIONS_KV.put(
+    await env.PATCHES_KV.put(
       'app_version:com.ashtoncofer.Buzz',
       JSON.stringify(initialRecord),
     );
@@ -813,7 +813,7 @@ describe('Version check and self-healing dispatches', () => {
   it('rejects unauthenticated POST /api/compatibility-runs', async () => {
     const workerEnv: WorkerEnv = {
       ...env,
-      PLAY_VERSIONS_KV: env.PLAY_VERSIONS_KV,
+      PATCHES_KV: env.PATCHES_KV,
       COMPATIBILITY_STATUS_SECRET: 'test_secret_abc',
     };
 
@@ -830,7 +830,7 @@ describe('Version check and self-healing dispatches', () => {
   it('rejects malformed POST /api/compatibility-runs payload', async () => {
     const workerEnv: WorkerEnv = {
       ...env,
-      PLAY_VERSIONS_KV: env.PLAY_VERSIONS_KV,
+      PATCHES_KV: env.PATCHES_KV,
       COMPATIBILITY_STATUS_SECRET: 'test_secret_abc',
     };
 
@@ -859,7 +859,7 @@ describe('Version check and self-healing dispatches', () => {
     const pkg = 'com.ashtoncofer.Buzz';
     const workerEnv: WorkerEnv = {
       ...env,
-      PLAY_VERSIONS_KV: env.PLAY_VERSIONS_KV,
+      PATCHES_KV: env.PATCHES_KV,
       COMPATIBILITY_STATUS_SECRET: 'test_secret_abc',
     };
 
@@ -876,7 +876,7 @@ describe('Version check and self-healing dispatches', () => {
       targetCompatibility: null,
       outstandingRequest: null,
     };
-    await env.PLAY_VERSIONS_KV.put(
+    await env.PATCHES_KV.put(
       `app_version:${pkg}`,
       JSON.stringify(initialRecord),
     );
@@ -905,7 +905,7 @@ describe('Version check and self-healing dispatches', () => {
     expect(data.success).toBe(true);
     expect(data.queued).toBe(pkg);
 
-    const savedRaw = await env.PLAY_VERSIONS_KV.get(`app_version:${pkg}`);
+    const savedRaw = await env.PATCHES_KV.get(`app_version:${pkg}`);
     const saved = JSON.parse(savedRaw!) as AppVersionRecord;
     expect(saved.playVersion).toBe('1.54.0');
     expect(saved.iconUrl).toBe('https://example.com/icon.png');
@@ -917,7 +917,7 @@ describe('Version check and self-healing dispatches', () => {
     const pkg = 'com.new.awesomeapp';
     const workerEnv: WorkerEnv = {
       ...env,
-      PLAY_VERSIONS_KV: env.PLAY_VERSIONS_KV,
+      PATCHES_KV: env.PATCHES_KV,
       COMPATIBILITY_STATUS_SECRET: 'test_secret_abc',
     };
 
@@ -942,7 +942,7 @@ describe('Version check and self-healing dispatches', () => {
     const res = await worker.fetch(req, workerEnv);
     expect(res.status).toBe(200);
 
-    const savedRaw = await env.PLAY_VERSIONS_KV.get(`app_version:${pkg}`);
+    const savedRaw = await env.PATCHES_KV.get(`app_version:${pkg}`);
     expect(savedRaw).not.toBeNull();
     const saved = JSON.parse(savedRaw!) as AppVersionRecord;
     expect(saved.appName).toBe('Awesome App');
@@ -980,7 +980,7 @@ describe('Version check and self-healing dispatches', () => {
     const resultRes = await worker.fetch(resultReq, workerEnv);
     expect(resultRes.status).toBe(200);
 
-    const afterResultRaw = await env.PLAY_VERSIONS_KV.get(`app_version:${pkg}`);
+    const afterResultRaw = await env.PATCHES_KV.get(`app_version:${pkg}`);
     const afterResult = JSON.parse(afterResultRaw!) as AppVersionRecord;
     expect(afterResult.targetCompatibility?.status).toBe('compatible');
     expect(afterResult.outstandingRequest).toBeNull();
@@ -990,7 +990,7 @@ describe('Version check and self-healing dispatches', () => {
     const pkg = 'com.ashtoncofer.Buzz';
     const workerEnv: WorkerEnv = {
       ...env,
-      PLAY_VERSIONS_KV: env.PLAY_VERSIONS_KV,
+      PATCHES_KV: env.PATCHES_KV,
       COMPATIBILITY_STATUS_SECRET: 'test_secret_abc',
     };
 
@@ -1010,7 +1010,7 @@ describe('Version check and self-healing dispatches', () => {
         gitRevision: 'correct_git_revision_123',
       },
     };
-    await env.PLAY_VERSIONS_KV.put(
+    await env.PATCHES_KV.put(
       `app_version:${pkg}`,
       JSON.stringify(initialRecord),
     );
@@ -1049,7 +1049,7 @@ describe('Version check and self-healing dispatches', () => {
     const pkg = 'com.ashtoncofer.Buzz';
     const workerEnv: WorkerEnv = {
       ...env,
-      PLAY_VERSIONS_KV: env.PLAY_VERSIONS_KV,
+      PATCHES_KV: env.PATCHES_KV,
       COMPATIBILITY_STATUS_SECRET: 'test_secret_abc',
     };
 
@@ -1069,7 +1069,7 @@ describe('Version check and self-healing dispatches', () => {
         gitRevision: 'rev123',
       },
     };
-    await env.PLAY_VERSIONS_KV.put(
+    await env.PATCHES_KV.put(
       `app_version:${pkg}`,
       JSON.stringify(initialRecord),
     );
@@ -1103,7 +1103,7 @@ describe('Version check and self-healing dispatches', () => {
     const res = await worker.fetch(req, workerEnv);
     expect(res.status).toBe(200);
 
-    const savedRaw = await env.PLAY_VERSIONS_KV.get(`app_version:${pkg}`);
+    const savedRaw = await env.PATCHES_KV.get(`app_version:${pkg}`);
     const saved = JSON.parse(savedRaw!) as AppVersionRecord;
     expect(saved.targetCompatibility?.failureStage).toBe('acquisition');
 
@@ -1123,7 +1123,7 @@ describe('Version check and self-healing dispatches', () => {
     const pkg = 'com.ashtoncofer.Buzz';
     const workerEnv: WorkerEnv = {
       ...env,
-      PLAY_VERSIONS_KV: env.PLAY_VERSIONS_KV,
+      PATCHES_KV: env.PATCHES_KV,
       COMPATIBILITY_STATUS_SECRET: 'test_secret_abc',
     };
 
@@ -1143,7 +1143,7 @@ describe('Version check and self-healing dispatches', () => {
         gitRevision: 'rev123',
       },
     };
-    await env.PLAY_VERSIONS_KV.put(
+    await env.PATCHES_KV.put(
       `app_version:${pkg}`,
       JSON.stringify(initialRecord),
     );
@@ -1183,7 +1183,7 @@ describe('Version check and self-healing dispatches', () => {
     const pkg = 'com.ashtoncofer.Buzz';
     const workerEnv: WorkerEnv = {
       ...env,
-      PLAY_VERSIONS_KV: env.PLAY_VERSIONS_KV,
+      PATCHES_KV: env.PATCHES_KV,
     };
 
     const initialRecord: AppVersionRecord = {
@@ -1207,7 +1207,7 @@ describe('Version check and self-healing dispatches', () => {
       },
       outstandingRequest: null,
     };
-    await env.PLAY_VERSIONS_KV.put(
+    await env.PATCHES_KV.put(
       `app_version:${pkg}`,
       JSON.stringify(initialRecord),
     );
@@ -1233,7 +1233,7 @@ describe('Version check and self-healing dispatches', () => {
 
       expect(githubCalled).toBe(false);
 
-      const savedRaw = await env.PLAY_VERSIONS_KV.get(`app_version:${pkg}`);
+      const savedRaw = await env.PATCHES_KV.get(`app_version:${pkg}`);
       const saved = JSON.parse(savedRaw!) as AppVersionRecord;
       expect(saved.playVersion).toBe('1.55.0');
       expect(saved.status).toBe('newer-available');

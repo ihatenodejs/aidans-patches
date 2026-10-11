@@ -1,5 +1,5 @@
 {
-  "name": "aidans-patches-version-checker",
+  "name": "aidans-patches-worker",
   "version": "1.0.0",
   "type": "module",
   "private": true,

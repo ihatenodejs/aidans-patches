@@ -4,16 +4,20 @@ Scope: the Cloudflare Worker under `worker/`.
 
 ## Architecture & Data Flow
 
-- `src/index.ts`: fetch/cron entrypoint, KV reads/writes, status aggregation, compatibility dispatch/result APIs, and badge routes.
+- `src/index.ts`: fetch/cron entrypoint, KV reads/writes, status aggregation, compatibility dispatch/result APIs, badge routes, and statistics chart endpoints.
 - `src/apps.ts`: imports root `../patches-list.json` and derives monitored packages, targets, signers, package types, and patch names.
 - `src/scraper.ts`: Play Store version acquisition.
 - `src/comparator.ts`: version comparison.
 - `src/badges.ts`: deterministic SVG badge rendering.
-- `src/types.ts`: binding and payload contracts.
-- `wrangler.jsonc`: Worker name/routes, compatibility settings, six-hour cron, and `PLAY_VERSIONS_KV` binding.
+- `src/download-statistics.ts`: GitHub release download aggregation and history persistence.
+- `src/statistics-charts.ts`: deterministic SVG download chart rendering.
+- `src/svg.ts`: shared SVG XML escaping helper.
+- `src/types.ts`: binding, payload, and download statistics contracts.
+- `wrangler.jsonc`: Worker name/routes, compatibility settings, six-hour freshness cron, daily statistics cron, and `PATCHES_KV` binding.
 - `test/index.spec.ts`: Vitest Worker-pool integration suite.
+- `test/download-statistics.spec.ts`: Vitest download statistics collection and chart integration suite.
 
-Flow: scheduled or requested version checks scrape current Play metadata → records persist in KV → compatibility CI dispatch/results update package state → public API/badge responses read the aggregated payload. Root patch metadata determines which apps and versions exist.
+Flow: scheduled version checks (every 6 hours) scrape Play metadata → records persist in KV → compatibility CI dispatch/results update package state → public API/badge responses read the aggregated payload. Scheduled download statistics (daily at 00:15 UTC) aggregate GitHub release assets into KV → public chart routes render SVG download trends. Root patch metadata determines which apps and versions exist.
 
 ## Runtime & Commands
 

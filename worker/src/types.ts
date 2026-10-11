@@ -118,3 +118,26 @@ export interface WorkerEnv extends Env {
   REFRESH_SECRET?: string;
   COMPATIBILITY_STATUS_SECRET?: string;
 }
+
+export interface DownloadAssetRecord {
+  releaseTag: string;
+  downloadCount: number;
+}
+
+export interface DownloadSnapshot {
+  date: string;
+  totalDownloads: number;
+}
+
+export interface DownloadStatistics {
+  updatedAt: string;
+  assets: Record<string, DownloadAssetRecord>;
+  history: DownloadSnapshot[];
+}
+
+export interface ReleaseLineDownloads {
+  label: string;
+  totalDownloads: number;
+  major: number;
+  minor: number;
+}

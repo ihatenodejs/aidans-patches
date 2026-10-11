@@ -15,10 +15,20 @@ import { fetchGooglePlayApp } from './scraper';
 import { compareAppVersions } from './comparator';
 import { MONITORED_APPS } from './apps';
 import { getStatusColor, renderBadgeSvg } from './badges';
+import {
+  deriveReleaseLineDownloads,
+  loadDownloadStatistics,
+  refreshDownloadStatistics,
+} from './download-statistics';
+import {
+  renderErrorChartSvg,
+  renderReleaseDownloadsChartSvg,
+  renderTotalDownloadsChartSvg,
+} from './statistics-charts';
 
 let memoryCache: { payload: KVVersionPayload; expiresAt: number } | null = null;
 const MEMORY_CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour fallback
-export const OUTSTANDING_REQUEST_TTL_MS = 36 * 60 * 60 * 1000; // 36 hours TTL (exceeds max 24h queue + 6h execution)
+const OUTSTANDING_REQUEST_TTL_MS = 36 * 60 * 60 * 1000; // 36 hours TTL (exceeds max 24h queue + 6h execution)
 
 const PUBLIC_CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -43,8 +53,8 @@ export async function loadAppRecord(
   env: WorkerEnv,
   packageName: string,
 ): Promise<AppVersionRecord | null> {
-  if (!env.PLAY_VERSIONS_KV) return null;
-  const raw = await env.PLAY_VERSIONS_KV.get(appRecordKey(packageName));
+  if (!env.PATCHES_KV) return null;
+  const raw = await env.PATCHES_KV.get(appRecordKey(packageName));
   if (!raw) return null;
   try {
     return JSON.parse(raw) as AppVersionRecord;
@@ -58,11 +68,8 @@ export async function saveAppRecord(
   packageName: string,
   record: AppVersionRecord,
 ): Promise<void> {
-  if (env.PLAY_VERSIONS_KV) {
-    await env.PLAY_VERSIONS_KV.put(
-      appRecordKey(packageName),
-      JSON.stringify(record),
-    );
+  if (env.PATCHES_KV) {
+    await env.PATCHES_KV.put(appRecordKey(packageName), JSON.stringify(record));
   }
   memoryCache = null;
 }
@@ -407,13 +414,26 @@ const VALID_FAILURE_STAGES: Record<string, true> = {
   pipeline: true,
 };
 
+export async function runScheduledTasks(
+  cron: string,
+  env: WorkerEnv,
+): Promise<void> {
+  if (cron === '0 */6 * * *') {
+    await performVersionCheck(env);
+  } else if (cron === '15 0 * * *') {
+    await refreshDownloadStatistics(env);
+  } else {
+    console.warn(JSON.stringify({ event: 'unknown_cron', cron }));
+  }
+}
+
 export default {
   async scheduled(
     event: ScheduledEvent,
     env: WorkerEnv,
     ctx: ExecutionContext,
   ): Promise<void> {
-    ctx.waitUntil(performVersionCheck(env));
+    ctx.waitUntil(runScheduledTasks(event.cron, env));
   },
 
   async fetch(request: Request, env: WorkerEnv): Promise<Response> {
@@ -873,6 +893,76 @@ export default {
         headers: {
           'Content-Type': 'image/svg+xml; charset=utf-8',
           'Cache-Control': 'public, max-age=300',
+        },
+      });
+    }
+
+    // 5. Download Statistics Charts
+    if (
+      url.pathname === '/charts/total-downloads.svg' &&
+      request.method === 'GET'
+    ) {
+      let stats = await loadDownloadStatistics(env);
+      if (!stats) {
+        try {
+          stats = await refreshDownloadStatistics(env);
+        } catch (err) {
+          console.error('Failed to initialize download statistics', err);
+          const errorSvg = renderErrorChartSvg(
+            'Total Downloads',
+            'Download statistics temporarily unavailable',
+          );
+          return new Response(errorSvg, {
+            status: 503,
+            headers: {
+              'Content-Type': 'image/svg+xml; charset=utf-8',
+              'Cache-Control': 'no-store',
+            },
+          });
+        }
+      }
+
+      const svg = renderTotalDownloadsChartSvg(stats.history, stats.updatedAt);
+      return new Response(svg, {
+        status: 200,
+        headers: {
+          'Content-Type': 'image/svg+xml; charset=utf-8',
+          'Cache-Control': 'public, max-age=3600, s-maxage=3600',
+        },
+      });
+    }
+
+    if (
+      url.pathname === '/charts/release-downloads.svg' &&
+      request.method === 'GET'
+    ) {
+      let stats = await loadDownloadStatistics(env);
+      if (!stats) {
+        try {
+          stats = await refreshDownloadStatistics(env);
+        } catch (err) {
+          console.error('Failed to initialize download statistics', err);
+          const errorSvg = renderErrorChartSvg(
+            'Release Downloads',
+            'Download statistics temporarily unavailable',
+          );
+          return new Response(errorSvg, {
+            status: 503,
+            headers: {
+              'Content-Type': 'image/svg+xml; charset=utf-8',
+              'Cache-Control': 'no-store',
+            },
+          });
+        }
+      }
+
+      const lines = deriveReleaseLineDownloads(stats.assets);
+      const svg = renderReleaseDownloadsChartSvg(lines, stats.updatedAt);
+      return new Response(svg, {
+        status: 200,
+        headers: {
+          'Content-Type': 'image/svg+xml; charset=utf-8',
+          'Cache-Control': 'public, max-age=3600, s-maxage=3600',
         },
       });
     }
