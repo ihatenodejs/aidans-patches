@@ -49,7 +49,6 @@ val unlockCustomAppIconsPatch = rawResourcePatch(
             hideAppearanceLockBytes
         )
 
-
         editor.updateFooterHash()
         bundleFile.writeBytes(editor.toByteArray())
     }

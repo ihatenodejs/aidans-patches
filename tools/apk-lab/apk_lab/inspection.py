@@ -486,6 +486,11 @@ def inspect_artifact(artifact_path: str | Path) -> ArtifactInspection:
                 )
             )
 
+        if base_manifest is None:
+            raise InspectionError(
+                f"Base APK manifest not found in {path}",
+                ExitCode.INVALID_ARTIFACT,
+            )
         return ArtifactInspection(
             file_path=str(path),
             container_type=safe_report.container_type,

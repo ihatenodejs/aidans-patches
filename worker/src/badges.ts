@@ -1,15 +1,9 @@
+import { escapeXml } from './svg';
 import type { PatchCompatibilityStatus } from './types';
 
-function escapeXml(unsafe: string): string {
-  return unsafe
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;');
-}
-
-export function getStatusColor(status: PatchCompatibilityStatus | 'mixed'): string {
+export function getStatusColor(
+  status: PatchCompatibilityStatus | 'mixed' | 'no-apk',
+): string {
   switch (status) {
     case 'compatible':
       return '#34D399'; // green
@@ -24,7 +18,11 @@ export function getStatusColor(status: PatchCompatibilityStatus | 'mixed'): stri
   }
 }
 
-export function renderBadgeSvg(label: string, status: string, color: string): string {
+export function renderBadgeSvg(
+  label: string,
+  status: string,
+  color: string,
+): string {
   const safeLabel = escapeXml(label);
   const safeStatus = escapeXml(status);
 

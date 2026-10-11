@@ -14,7 +14,6 @@ private const val PLATFORM_TYPEFACES = "Lwj/a;"
 private const val EMOJI_FONT_BRIDGE = "Lapp/aidan/extension/emoji/EmojiFontBridge;"
 private object FontResourceHolder
 
-
 @Suppress("unused")
 val replaceEmojiFontWithIosResourcePatch = rawResourcePatch(
     name = "Replace Emoji Font with iOS Asset",

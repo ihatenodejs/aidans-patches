@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -219,7 +219,7 @@ class R2FixtureManager:
             signer_sha256=inspection.signing_certificate_sha256,
             size_bytes=inspection.file_size,
             acquisition_source="manual",
-            timestamp=datetime.now(timezone.utc).isoformat(),
+            timestamp=datetime.now(UTC).isoformat(),
         )
 
         self.upload_slot(package, role, path, metadata)
@@ -251,7 +251,7 @@ class R2FixtureManager:
             signer_sha256=new_insp.signing_certificate_sha256,
             size_bytes=new_insp.file_size,
             acquisition_source=source,
-            timestamp=datetime.now(timezone.utc).isoformat(),
+            timestamp=datetime.now(UTC).isoformat(),
         )
 
         current_latest_meta = self.get_slot_metadata(package, "latest")

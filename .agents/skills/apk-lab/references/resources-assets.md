@@ -1,0 +1,181 @@
+# Resources, Unity Assets, ARM64 Assembly & IL2CPP
+
+Inspect and query Android resources across multi-split containers, inspect Unity serialized assets and GameObjects, encode ARM64 machine code instructions, and extract stripped Unity IL2CPP symbols.
+
+---
+
+## 1. `res` — Cross-Split Resource Table & Raw Member Inspector
+
+Resolves resource entries, layout IDs, and raw members across the base APK and all configuration splits (`split_config.xxhdpi.apk`), detects duplicates across splits, and recommends the appropriate Morphe patch mode.
+
+### Supported Query Formats
+- **Hex Resource ID**: `0x7f08028e` (looks up in ARSC tables via AAPT2).
+- **Type/Name Reference**: `@drawable/map_preview_trails` or `drawable/map_preview_trails`.
+- **Package-Prefixed Reference**: `com.example.app:string/app_name`.
+- **Archive Path**: `res/drawable-xxhdpi/icon.webp`, `assets/index.android.bundle`, `lib/arm64-v8a/libfoo.so`, or `AndroidManifest.xml`.
+- **Bare Name**: `map_preview_trails` (matches resource name or file basename).
+
+### Invariants & Output Intelligence
+- **Morphe Mode Guidance**:
+  - `AndroidManifest.xml` and files under `res/...` advise `resourcePatch` (`document(...)` for XML DOM manipulation, `get(...)` for binary resources).
+  - Files under `assets/...` and `lib/...` advise `rawResourcePatch` (raw ZIP asset manipulation).
+- **Duplicate Status Across Splits**:
+  - `unique`: Resource or file exists in exactly one split APK.
+  - `equivalent`: Resource or file exists in multiple splits with identical SHA-256 or scalar value.
+  - `conflict`: Resource or file exists in multiple splits with **differing hashes or values** (requires careful split targeting).
+- **Extraction Preflight**:
+  - When `--extract <dir>` is supplied, preflights all targets into `<extract_dir>/<split_slug>-<hash8>/...`.
+  - Refuses extraction if any destination escapes the target directory, is a symlink, collides with another matched file, or already exists on disk.
+
+### CLI Invocation
+
+```bash
+# Query by resource ID
+uv run --project tools/apk-lab apk-lab res path/to/app.apkm --query 0x7f08028e
+
+# Query by type and name
+uv run --project tools/apk-lab apk-lab res path/to/app.apkm --query @drawable/brand_logo
+
+# Query by file path and safely extract matched files to disk
+uv run --project tools/apk-lab apk-lab res path/to/app.apkm \
+  --query res/drawable-xxhdpi/brand_logo.webp \
+  --extract /tmp/extracted_resources
+```
+
+### Exit Codes
+- `0`: Query executed successfully.
+- `2`: Artifact not found, invalid query format, extraction safety error, or build tool failure.
+
+---
+
+## 2. `unity` — Unity Serialized Asset & GameObject Inspector
+
+Parses Unity serialized asset files (`assets/bin/Data/*.assets`, `*.assets.split*`, `globalgamemanagers`) across single APKs and split containers (APKM, APKS, XAPK). Locates `GameObject` records by name, reports containing asset splits, and computes the exact byte offset and value of the `m_IsActive` boolean property.
+
+### Purpose for Patching
+In Unity games, disabling unwanted promotional buttons, help centers, or ad prompts can be accomplished by setting the GameObject's `m_IsActive` byte to `0x00` in the serialized asset file via a Morphe `rawResourcePatch`. This tool finds the exact file offset.
+
+### CLI Invocation
+
+```bash
+# Locate GameObject and calculate active-state byte offset
+uv run --project tools/apk-lab apk-lab unity path/to/game.apkm --gameobject Button_HelpCenter
+
+# Output matches as JSON
+uv run --project tools/apk-lab apk-lab unity path/to/game.apkm --gameobject Button_HelpCenter --json -
+```
+
+### CLI Arguments
+- `artifact` (required positional): Path to APK or split bundle.
+- `--gameobject` / `-g` (required): Case-sensitive name of the Unity `GameObject`.
+- `--json [PATH|-]`: Output structured JSON report.
+
+### Exit Codes
+- `0`: Inspection succeeded.
+- `2`: Artifact not found or invalid argument.
+
+---
+
+## 3. `asm` — ARM64 Assembler & Branch Relocator
+
+Encodes ARM64 machine instructions and computes 26-bit relative branch relocations (`b`, `bl`), register returns (`ret`), and register moves (`mov`/`movz`). Formats output deterministically for direct use in Morphe Kotlin patches.
+
+### Capabilities
+- **Branch Relocation**: Computes relative PC offset for `b` and `bl` instructions:
+  $$\text{imm26} = \frac{\text{target} - \text{pc}}{4}$$
+  Enforces 4-byte alignment and range $[-134217728, +134217724]$ ($\pm 128\text{ MiB}$).
+- **Returns**: `ret` with optional 64-bit register (default `x30` / `lr`).
+- **Register Moves**: `mov` / `movz` with destination register (`x0..x30`, `w0..w30`), source register (`xzr`, `wzr`), or 16-bit immediate ($0..65535$).
+- **Morphe Kotlin Format**: Generates Kotlin `byteArrayOf(...)` arrays where bytes $> 127$ are formatted with `.toByte()` casting for signed byte compatibility in Java/Kotlin.
+
+### CLI Invocation
+
+```bash
+# Calculate relative branch and encode to little-endian hex bytes
+uv run --project tools/apk-lab apk-lab asm "bl 0x3c98ce4" --pc 0x1fcf6e8
+# Output: 7f 25 73 94
+
+# Calculate branch with explicit target override
+uv run --project tools/apk-lab apk-lab asm "b" --pc 0x1000 --target 0x2000
+# Output: 00 04 00 14
+
+# Encode return instruction directly to Morphe Kotlin byteArrayOf syntax
+uv run --project tools/apk-lab apk-lab asm "ret" --format kotlin
+# Output: byteArrayOf(0xc0.toByte(), 0x03, 0x5f, 0xd6.toByte())
+
+# Encode immediate register move
+uv run --project tools/apk-lab apk-lab asm "mov w1, #1" --format hex
+# Output: 21 00 80 52
+```
+
+### CLI Arguments
+- `statement` (required positional): ARM64 instruction (e.g. `"bl 0x3c98ce4"`, `"ret"`, `"mov w1, #1"`).
+- `--pc INT|HEX`: Program counter address (default: `0`).
+- `--target INT|HEX`: Explicit branch target address (overrides operand in statement).
+- `--format {hex,kotlin,int,bytes}`: Output formatting (default: `hex`).
+
+### Exit Codes
+- `0`: Assembly succeeded.
+- `2`: Syntax error, unaligned address, out-of-range branch or immediate, or invalid format.
+
+---
+
+## 4. `il2cpp` — Unity IL2CPP Metadata Querying
+
+Extracts and parses Unity `assets/bin/Data/Managed/Metadata/global-metadata.dat` (supported layouts: version 29 and 31) across single APKs and split bundles. Enables instant querying of stripped C# type definitions, method signatures, parameter counts, and namespaces without external tooling.
+
+### CLI Invocation
+
+```bash
+# Query symbols matching a method name substring or regex
+uv run --project tools/apk-lab apk-lab il2cpp path/to/game.apkm --query OpenShop
+
+# Export all symbols or matches to JSON file
+uv run --project tools/apk-lab apk-lab il2cpp path/to/game.apkm --query "Blackjack.*" --json symbols.json
+```
+
+### CLI Arguments
+- `artifact` (required positional): Path to APK or split bundle.
+- `--query` / `-q`: Case-insensitive regex or substring query. Searches namespace, type name, and method signatures.
+- `--json [PATH|-]`: Output structured JSON array.
+
+### Exit Codes
+- `0`: Query succeeded.
+- `2`: Artifact not found, `global-metadata.dat` missing, or unsupported metadata version.
+
+---
+
+## 5. Python API Reference
+
+```python
+from pathlib import Path
+from apk_lab.resources import query_apk_resources, normalize_resource_query
+from apk_lab.unity import inspect_unity_assets
+from apk_lab.asm import assemble_statement, format_instruction
+from apk_lab.il2cpp import analyze_il2cpp
+from apk_lab.archives import materialize_artifact_apks
+from apk_lab.inspection import inspect_artifact
+
+# Resource Querying
+artifact = Path("app.apkm")
+parsed_query = normalize_resource_query("@drawable/brand_logo")
+with materialize_artifact_apks(artifact, inspect_artifact(artifact)) as mat_apks:
+    matches = query_apk_resources(mat_apks, parsed_query)
+    for m in matches:
+        print(f"Match: {m.path} ({m.morphe_mode}) status={m.duplicate_status}")
+
+# Unity GameObject Offset Lookup
+unity_matches = inspect_unity_assets(artifact, name_filter="Button_HelpCenter")
+for u in unity_matches:
+    print(f"File: {u['file_path']} Offset: {hex(u['m_is_active_offset'])} Active: {u['m_is_active_value']}")
+
+# ARM64 Assembly & Relocation
+opcode = assemble_statement("bl 0x3c98ce4", pc=0x1fcf6e8)
+kotlin_syntax = format_instruction(opcode, fmt="kotlin")
+print(kotlin_syntax)  # byteArrayOf(0x7f, 0x25, 0x73, 0x94.toByte())
+
+# IL2CPP Metadata Query
+symbols = analyze_il2cpp(artifact, query="OpenShop")
+for s in symbols:
+    print(f"{s['namespace']}.{s['type']}::{s['method']}(params={s['parameter_count']})")
+```

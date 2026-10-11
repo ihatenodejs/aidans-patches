@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import os
+import tempfile
 import zipfile
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import BinaryIO
 
-from apk_lab.models import ContainerType, MemberInfo
+from apk_lab.models import ArtifactInspection, ContainerType, MemberInfo
 
 
 class ArchiveSecurityError(Exception):
@@ -227,3 +230,67 @@ def read_member_bytes(archive_path: Path | str, member_name: str) -> bytes:
     """Reads a single member's bytes into memory."""
     with zipfile.ZipFile(archive_path, "r") as zf:
         return zf.read(member_name)
+
+
+def materialize_split_member(
+    zf: zipfile.ZipFile, split_filename: str, extracted_dir: Path
+) -> Path:
+    """Safely extracts a split APK member into extracted_dir, creating parent directories."""
+    dest = (extracted_dir / split_filename).resolve()
+    if not is_contained_path(dest, extracted_dir, allow_equal=False):
+        raise ArchiveSecurityError(
+            f"Split member {split_filename} escapes extraction directory {extracted_dir}"
+        )
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    with zf.open(split_filename) as src, open(dest, "wb") as dst:
+        while chunk := src.read(64 * 1024):
+            dst.write(chunk)
+    return dest
+
+
+@dataclass(frozen=True)
+class MaterializedApk:
+    path: Path
+    container_member: str | None
+    split_name: str
+    is_base: bool
+
+
+@contextmanager
+def materialize_artifact_apks(
+    artifact_path: Path | str,
+    inspection: ArtifactInspection,
+) -> Iterator[list[MaterializedApk]]:
+    """Context manager yielding deterministic MaterializedApk rows.
+
+    A plain APK yields a single row using the original path, container_member=None,
+    split_name="base", is_base=True.
+    APKM/XAPK/APKS members are safely extracted and ordered by inspection.splits.
+    """
+    path = Path(artifact_path).resolve()
+    if inspection.container_type == ContainerType.APK or not inspection.splits:
+        yield [
+            MaterializedApk(
+                path=path,
+                container_member=None,
+                split_name="base",
+                is_base=True,
+            )
+        ]
+        return
+
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        dest_dir = Path(tmp_dir)
+        materialized: list[MaterializedApk] = []
+        with zipfile.ZipFile(path, "r") as zf:
+            for split in inspection.splits:
+                dest = materialize_split_member(zf, split.filename, dest_dir)
+                materialized.append(
+                    MaterializedApk(
+                        path=dest,
+                        container_member=split.filename,
+                        split_name=split.split_name,
+                        is_base=split.is_base,
+                    )
+                )
+        yield materialized

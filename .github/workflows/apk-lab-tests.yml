@@ -1,5 +1,4 @@
-name: APK Lab Tests & Build Verification
-
+name: Test & Audit Verification Gate
 on:
   push:
     branches: ["main"]
@@ -11,6 +10,9 @@ jobs:
   test:
     name: Test & Build Gate
     runs-on: ubuntu-latest
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GITHUB_ACTOR: ${{ github.actor }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -23,6 +25,11 @@ jobs:
           distribution: "temurin"
           java-version: "21"
 
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
       - name: Cache font assets
         uses: actions/cache@v4
         with:
@@ -31,6 +38,17 @@ jobs:
           restore-keys: |
             emoji-font-
 
+
+      - name: Install root dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Install worker dependencies
+        working-directory: worker
+        run: bun install --frozen-lockfile
+
+      - name: Install site dependencies
+        working-directory: site
+        run: bun install --frozen-lockfile
       - name: Setup uv
         uses: astral-sh/setup-uv@v5
         with:
@@ -41,9 +59,17 @@ jobs:
       - name: Sync apk-lab dependencies
         run: uv sync --locked --project tools/apk-lab
 
-      - name: Run apk-lab tests
-        run: uv run --project tools/apk-lab pytest
+      - name: Audit formatting
+        run: bun run format:check
 
+      - name: Audit code quality & lint
+        run: bun run lint
+
+      - name: Audit types across all stacks
+        run: bun run typecheck
+
+      - name: Run all test suites
+        run: bun run test
       - name: Build and verify patches
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

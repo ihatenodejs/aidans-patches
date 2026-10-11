@@ -9,6 +9,12 @@ on:
       - 'patches-list.json'
       - '.github/workflows/deploy-worker.yml'
   workflow_dispatch:
+  workflow_call:
+    secrets:
+      CLOUDFLARE_API_TOKEN:
+        required: false
+      CLOUDFLARE_ACCOUNT_ID:
+        required: false
 
 permissions:
   contents: read
@@ -36,7 +42,11 @@ jobs:
         working-directory: worker
         run: bun run check
 
-      - name: Deploy Cloudflare Worker (Version Freshness Cron)
+      - name: Run Worker Unit Tests
+        working-directory: worker
+        run: bun run test
+
+      - name: Deploy Aidan's Patches Worker
         if: env.DEPLOY_ENABLED == 'true'
         uses: cloudflare/wrangler-action@v3
         with:

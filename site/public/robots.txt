@@ -1,2 +1,4 @@
 User-agent: *
 Allow: /
+
+Sitemap: https://patch.p0ntus.com/sitemap.xml

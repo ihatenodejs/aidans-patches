@@ -3,12 +3,12 @@ package app.aidan.patches.sidelineswap.customization
 import app.aidan.patches.sidelineswap.shared.COMPATIBILITY_SIDELINESWAP
 import app.morphe.patcher.extensions.InstructionExtensions.addInstructions
 import app.morphe.patcher.extensions.InstructionExtensions.replaceInstruction
-import com.android.tools.smali.dexlib2.iface.instruction.formats.Instruction21c
-import com.android.tools.smali.dexlib2.iface.reference.StringReference
-import app.morphe.patcher.patch.PatchException
 import app.morphe.patcher.patch.BytecodePatchContext
+import app.morphe.patcher.patch.PatchException
 import app.morphe.patcher.patch.bytecodePatch
 import app.morphe.patcher.patch.resourcePatch
+import com.android.tools.smali.dexlib2.iface.instruction.formats.Instruction21c
+import com.android.tools.smali.dexlib2.iface.reference.StringReference
 import org.w3c.dom.Document
 import org.w3c.dom.Element
 
@@ -228,7 +228,9 @@ private fun BytecodePatchContext.patchEmblemLabelColor() {
         if (inst is Instruction21c) {
             val ref = inst.reference
             ref is StringReference && ref.string.equals("#253C32", ignoreCase = true)
-        } else false
+        } else {
+            false
+        }
     }
 
     if (targetIndex < 0) {
@@ -442,7 +444,6 @@ private fun app.morphe.patcher.patch.ResourcePatchContext.patchStrings() {
         }
     }
 }
-
 
 private fun app.morphe.patcher.patch.ResourcePatchContext.patchLayouts() {
     var totalSurfaceCount = 0

@@ -167,7 +167,6 @@ private fun BytecodePatchContext.returnNullObject(
     }
 }
 
-
 /**
  * Makes implemented doWork overloads returning Object return a new WorkManager success
  * result without executing their original bodies. Absent classes or matches are skipped.
@@ -188,4 +187,3 @@ private fun BytecodePatchContext.returnWorkerSuccess(classDescriptor: String) {
         }
     }
 }
-

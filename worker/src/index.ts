@@ -2,9 +2,12 @@ import type {
   AppVersionRecord,
   CompatibilityRecord,
   CompatibilityResultSubmission,
+  CompatibilityRunStart,
+  FailureStage,
   FreshnessStatus,
   KVVersionPayload,
   LatestReleaseSummary,
+  OutstandingCompatibilityRequest,
   PatchCompatibilityStatus,
   WorkerEnv,
 } from './types';
@@ -12,22 +15,26 @@ import { fetchGooglePlayApp } from './scraper';
 import { compareAppVersions } from './comparator';
 import { MONITORED_APPS } from './apps';
 import { getStatusColor, renderBadgeSvg } from './badges';
+import {
+  deriveReleaseLineDownloads,
+  loadDownloadStatistics,
+  refreshDownloadStatistics,
+} from './download-statistics';
+import {
+  renderErrorChartSvg,
+  renderReleaseDownloadsChartSvg,
+  renderTotalDownloadsChartSvg,
+} from './statistics-charts';
 
 let memoryCache: { payload: KVVersionPayload; expiresAt: number } | null = null;
 const MEMORY_CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour fallback
-const OUTSTANDING_REQUEST_TTL_MS = 12 * 60 * 60 * 1000; // 12 hours TTL (two 6-hour scrape cycles)
+const OUTSTANDING_REQUEST_TTL_MS = 36 * 60 * 60 * 1000; // 36 hours TTL (exceeds max 24h queue + 6h execution)
 
 const PUBLIC_CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type',
 };
-
-function delay(ms: number): Promise<void> {
-  const { promise, resolve } = Promise.withResolvers<void>();
-  setTimeout(resolve, ms);
-  return promise;
-}
 
 export function timingSafeEqual(a: string, b: string): boolean {
   if (a.length !== b.length) return false;
@@ -46,8 +53,8 @@ export async function loadAppRecord(
   env: WorkerEnv,
   packageName: string,
 ): Promise<AppVersionRecord | null> {
-  if (!env.PLAY_VERSIONS_KV) return null;
-  const raw = await env.PLAY_VERSIONS_KV.get(appRecordKey(packageName));
+  if (!env.PATCHES_KV) return null;
+  const raw = await env.PATCHES_KV.get(appRecordKey(packageName));
   if (!raw) return null;
   try {
     return JSON.parse(raw) as AppVersionRecord;
@@ -61,11 +68,8 @@ export async function saveAppRecord(
   packageName: string,
   record: AppVersionRecord,
 ): Promise<void> {
-  if (env.PLAY_VERSIONS_KV) {
-    await env.PLAY_VERSIONS_KV.put(
-      appRecordKey(packageName),
-      JSON.stringify(record),
-    );
+  if (env.PATCHES_KV) {
+    await env.PATCHES_KV.put(appRecordKey(packageName), JSON.stringify(record));
   }
   memoryCache = null;
 }
@@ -150,98 +154,6 @@ export async function loadStatusPayload(
   return payload;
 }
 
-export async function dispatchCompatibilityCheck(
-  env: WorkerEnv,
-  requestId: string,
-  packageName: string,
-  observedPlayVersion: string | null,
-  targetVersion: string,
-  expectedRoles: 'target'[],
-): Promise<boolean> {
-  if (!env.GITHUB_DISPATCH_TOKEN) {
-    return false;
-  }
-
-  const repo = env.GITHUB_REPO || 'ihatenodejs/aidans-patches';
-  const eventType = env.DISPATCH_EVENT_TYPE || 'apk-fixture-refresh';
-  const url = `https://api.github.com/repos/${repo}/dispatches`;
-
-  const payload = JSON.stringify({
-    event_type: eventType,
-    client_payload: {
-      requestId,
-      packageName,
-      observedPlayVersion,
-      targetVersion,
-      expectedRoles,
-    },
-  });
-
-  for (let attempt = 0; attempt < 3; attempt++) {
-    try {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${env.GITHUB_DISPATCH_TOKEN}`,
-          Accept: 'application/vnd.github+json',
-          'User-Agent': 'aidans-patches-worker-dispatcher',
-          'Content-Type': 'application/json',
-        },
-        body: payload,
-      });
-
-      if (response.status === 204 || response.ok) {
-        console.info(
-          JSON.stringify({
-            event: 'dispatch_success',
-            packageName,
-            requestId,
-            expectedRoles,
-          }),
-        );
-        return true;
-      }
-
-      if (response.status === 429 || response.status >= 500) {
-        await delay(1000 * (attempt + 1));
-        continue;
-      }
-
-      console.error(
-        JSON.stringify({
-          event: 'dispatch_rejected',
-          packageName,
-          requestId,
-          status: response.status,
-        }),
-      );
-      return false;
-    } catch (err) {
-      if (attempt === 2) {
-        console.error(
-          JSON.stringify({
-            event: 'dispatch_network_error',
-            packageName,
-            requestId,
-            error: err instanceof Error ? err.message : String(err),
-          }),
-        );
-        return false;
-      }
-      await delay(1000 * (attempt + 1));
-    }
-  }
-
-  console.error(
-    JSON.stringify({
-      event: 'dispatch_failed',
-      packageName,
-      requestId,
-    }),
-  );
-  return false;
-}
-
 export async function performVersionCheck(
   env: WorkerEnv,
 ): Promise<KVVersionPayload> {
@@ -293,26 +205,10 @@ export async function performVersionCheck(
       targetCompat = null;
     }
 
-    const requiresAcquisition =
-      !scraped.isNotFound &&
-      !scraped.rawError &&
-      !scraped.playVersion &&
-      (!priorRecord?.playVersion ||
-        priorRecord.playVersionReleaseUpdatedAt !== scraped.updatedAt);
-
-    const expectedRoles: 'target'[] = [];
-    if (
-      !targetCompat ||
-      targetCompat.status === 'error' ||
-      requiresAcquisition
-    ) {
-      expectedRoles.push('target');
-    }
     let outstandingRequest = priorRecord?.outstandingRequest ?? null;
     if (
       outstandingRequest &&
-      (outstandingRequest.targetVersion !== app.latestSupportedVersion ||
-        outstandingRequest.playVersion !== playVersion)
+      outstandingRequest.targetVersion !== app.latestSupportedVersion
     ) {
       outstandingRequest = null;
     }
@@ -326,31 +222,6 @@ export async function performVersionCheck(
         Date.now() - dispatchedTime > OUTSTANDING_REQUEST_TTL_MS;
       if (isStaleOrInvalid) {
         outstandingRequest = null;
-      }
-    }
-
-    if (expectedRoles.length > 0 && !outstandingRequest) {
-      const requestId = crypto.randomUUID();
-      const dispatchedAt = now;
-      let dispatchOk = false;
-      if (env.GITHUB_DISPATCH_TOKEN) {
-        dispatchOk = await dispatchCompatibilityCheck(
-          env,
-          requestId,
-          app.packageName,
-          playVersion,
-          app.latestSupportedVersion,
-          expectedRoles,
-        );
-      }
-      if (dispatchOk) {
-        outstandingRequest = {
-          requestId,
-          targetVersion: app.latestSupportedVersion,
-          playVersion,
-          expectedRoles,
-          dispatchedAt,
-        };
       }
     }
 
@@ -502,11 +373,59 @@ function isCompatibilityResultSubmission(
   return true;
 }
 
+function isCompatibilityRunStart(val: unknown): val is CompatibilityRunStart {
+  if (!val || typeof val !== 'object') return false;
+  const obj = val as Record<string, unknown>;
+  if (typeof obj.requestId !== 'string' || !obj.requestId.trim()) return false;
+  if (typeof obj.packageName !== 'string' || !obj.packageName.trim())
+    return false;
+  if (typeof obj.appName !== 'string' || !obj.appName.trim()) return false;
+  if (typeof obj.targetVersion !== 'string' || !obj.targetVersion.trim())
+    return false;
+  if (typeof obj.gitRevision !== 'string' || !obj.gitRevision.trim())
+    return false;
+  if (
+    !Array.isArray(obj.supportedVersions) ||
+    obj.supportedVersions.length === 0
+  )
+    return false;
+  if (
+    !obj.supportedVersions.every(
+      (v): v is string => typeof v === 'string' && v.trim().length > 0,
+    )
+  )
+    return false;
+  if (!obj.supportedVersions.includes(obj.targetVersion)) return false;
+  return true;
+}
+
 const FINAL_STATUSES: Record<string, true> = {
   compatible: true,
   incompatible: true,
   error: true,
 };
+
+const VALID_FAILURE_STAGES: Record<string, true> = {
+  acquisition: true,
+  'r2-lookup': true,
+  'r2-upload': true,
+  'r2-download': true,
+  'compatibility-check': true,
+  pipeline: true,
+};
+
+export async function runScheduledTasks(
+  cron: string,
+  env: WorkerEnv,
+): Promise<void> {
+  if (cron === '0 */6 * * *') {
+    await performVersionCheck(env);
+  } else if (cron === '15 0 * * *') {
+    await refreshDownloadStatistics(env);
+  } else {
+    console.warn(JSON.stringify({ event: 'unknown_cron', cron }));
+  }
+}
 
 export default {
   async scheduled(
@@ -514,7 +433,7 @@ export default {
     env: WorkerEnv,
     ctx: ExecutionContext,
   ): Promise<void> {
-    ctx.waitUntil(performVersionCheck(env));
+    ctx.waitUntil(runScheduledTasks(event.cron, env));
   },
 
   async fetch(request: Request, env: WorkerEnv): Promise<Response> {
@@ -527,7 +446,95 @@ export default {
       });
     }
 
-    // 1. Authenticated compatibility test result ingestion
+    // 1. Authenticated compatibility run start registration
+    if (
+      url.pathname === '/api/compatibility-runs' &&
+      request.method === 'POST'
+    ) {
+      const authHeader = request.headers.get('Authorization') || '';
+      const token = authHeader.startsWith('Bearer ')
+        ? authHeader.slice(7).trim()
+        : '';
+
+      if (
+        !env.COMPATIBILITY_STATUS_SECRET ||
+        !token ||
+        !timingSafeEqual(token, env.COMPATIBILITY_STATUS_SECRET)
+      ) {
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+          status: 401,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+
+      let rawBody: unknown;
+      try {
+        rawBody = await request.json();
+      } catch {
+        return new Response(JSON.stringify({ error: 'Malformed JSON' }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+
+      if (!isCompatibilityRunStart(rawBody)) {
+        return new Response(
+          JSON.stringify({ error: 'Invalid run-start submission format' }),
+          {
+            status: 400,
+            headers: { 'Content-Type': 'application/json' },
+          },
+        );
+      }
+
+      const body = rawBody as CompatibilityRunStart;
+      const prior = await loadAppRecord(env, body.packageName);
+      const now = new Date().toISOString();
+
+      const outstandingRequest: OutstandingCompatibilityRequest = {
+        requestId: body.requestId,
+        targetVersion: body.targetVersion,
+        playVersion: prior?.playVersion ?? null,
+        expectedRoles: ['target'],
+        dispatchedAt: now,
+        gitRevision: body.gitRevision,
+      };
+
+      const updatedRecord: AppVersionRecord = {
+        appName: body.appName,
+        playVersion: prior?.playVersion ?? null,
+        iconUrl: prior?.iconUrl ?? null,
+        updatedAt: prior?.updatedAt ?? null,
+        updatedOn: prior?.updatedOn ?? null,
+        checkedAt: prior?.checkedAt ?? now,
+        status: prior?.status ?? 'unknown',
+        supportedVersions: body.supportedVersions,
+        latestSupportedVersion: body.targetVersion,
+        playVersionReleaseUpdatedAt: prior?.playVersionReleaseUpdatedAt ?? null,
+        targetCompatibility:
+          prior && prior.latestSupportedVersion === body.targetVersion
+            ? (prior.targetCompatibility ?? null)
+            : null,
+        outstandingRequest,
+        outstandingRequestId: body.requestId,
+      };
+
+      await saveAppRecord(env, body.packageName, updatedRecord);
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          queued: body.packageName,
+          requestId: body.requestId,
+        }),
+        {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        },
+      );
+    }
+
+    // 2. Authenticated compatibility test result ingestion
     if (
       url.pathname === '/api/compatibility-results' &&
       request.method === 'POST'
@@ -569,19 +576,6 @@ export default {
       }
 
       const submission = rawBody;
-      const appConfig = MONITORED_APPS.find(
-        (a) => a.packageName === submission.packageName,
-      );
-      if (!appConfig) {
-        return new Response(
-          JSON.stringify({ error: 'Unknown or unmonitored package' }),
-          {
-            status: 400,
-            headers: { 'Content-Type': 'application/json' },
-          },
-        );
-      }
-
       const appRecord = await loadAppRecord(env, submission.packageName);
       if (!appRecord) {
         return new Response(
@@ -621,7 +615,6 @@ export default {
       }
 
       const seenRoles = new Set<string>();
-      // FINAL_STATUSES static lookup table declared at module level
       const recordsToApply: CompatibilityRecord[] = [];
 
       for (const res of submission.results) {
@@ -698,6 +691,36 @@ export default {
         }
 
         if (
+          outstanding.gitRevision &&
+          res.gitRevision !== outstanding.gitRevision
+        ) {
+          return new Response(
+            JSON.stringify({
+              error: `Result git revision '${res.gitRevision}' does not match outstanding '${outstanding.gitRevision}'`,
+            }),
+            {
+              status: 409,
+              headers: { 'Content-Type': 'application/json' },
+            },
+          );
+        }
+
+        if (
+          res.failureStage !== undefined &&
+          res.failureStage !== null &&
+          (typeof res.failureStage !== 'string' ||
+            !VALID_FAILURE_STAGES[res.failureStage])
+        ) {
+          return new Response(
+            JSON.stringify({ error: 'Malformed failureStage field' }),
+            {
+              status: 400,
+              headers: { 'Content-Type': 'application/json' },
+            },
+          );
+        }
+
+        if (
           res.failureReason !== undefined &&
           res.failureReason !== null &&
           typeof res.failureReason !== 'string'
@@ -740,6 +763,10 @@ export default {
           workflowRunUrl: res.workflowRunUrl || null,
           failureReason:
             typeof res.failureReason === 'string' ? res.failureReason : null,
+          failureStage:
+            typeof res.failureStage === 'string'
+              ? (res.failureStage as FailureStage)
+              : null,
         });
       }
       for (const rec of recordsToApply) {
@@ -750,7 +777,7 @@ export default {
         const acquired = submission.acquiredPlayVersion.trim();
         appRecord.playVersion = acquired;
         appRecord.status = compareAppVersions(
-          appConfig.latestSupportedVersion,
+          appRecord.latestSupportedVersion,
           acquired,
         );
         appRecord.playVersionReleaseUpdatedAt = appRecord.updatedAt ?? null;
@@ -840,15 +867,102 @@ export default {
 
       const record = await loadAppRecord(env, packageName);
       const targetStatus = record?.targetCompatibility?.status || 'not-tested';
-      const label = `${appConfig.name} compatibility`;
-      const color = getStatusColor(targetStatus);
-      const svg = renderBadgeSvg(label, targetStatus, color);
+      const stage = record?.targetCompatibility?.failureStage;
+      const reasonLower = (
+        record?.targetCompatibility?.failureReason || ''
+      ).toLowerCase();
+      const isNoApk =
+        targetStatus === 'error' &&
+        (stage === 'acquisition' ||
+          (stage == null &&
+            (reasonLower.includes('no fixture slot') ||
+              reasonLower.includes('no apk') ||
+              reasonLower.includes('missing fixture') ||
+              ((record?.targetCompatibility?.passedCount ?? 0) === 0 &&
+                (record?.targetCompatibility?.failedCount ?? 0) === 0) ||
+              ((record?.targetCompatibility?.passedCount ?? 0) === 0 &&
+                (record?.targetCompatibility?.failedCount ?? 0) <= 1 &&
+                reasonLower.includes('fixture')))));
 
+      const badgeStatus = isNoApk ? 'no apk' : targetStatus;
+      const label = `${appConfig.name} compatibility`;
+      const color = isNoApk ? '#EF4444' : getStatusColor(targetStatus);
+      const svg = renderBadgeSvg(label, badgeStatus, color);
       return new Response(svg, {
         status: 200,
         headers: {
           'Content-Type': 'image/svg+xml; charset=utf-8',
           'Cache-Control': 'public, max-age=300',
+        },
+      });
+    }
+
+    // 5. Download Statistics Charts
+    if (
+      url.pathname === '/charts/total-downloads.svg' &&
+      request.method === 'GET'
+    ) {
+      let stats = await loadDownloadStatistics(env);
+      if (!stats) {
+        try {
+          stats = await refreshDownloadStatistics(env);
+        } catch (err) {
+          console.error('Failed to initialize download statistics', err);
+          const errorSvg = renderErrorChartSvg(
+            'Total Downloads',
+            'Download statistics temporarily unavailable',
+          );
+          return new Response(errorSvg, {
+            status: 503,
+            headers: {
+              'Content-Type': 'image/svg+xml; charset=utf-8',
+              'Cache-Control': 'no-store',
+            },
+          });
+        }
+      }
+
+      const svg = renderTotalDownloadsChartSvg(stats.history, stats.updatedAt);
+      return new Response(svg, {
+        status: 200,
+        headers: {
+          'Content-Type': 'image/svg+xml; charset=utf-8',
+          'Cache-Control': 'public, max-age=3600, s-maxage=3600',
+        },
+      });
+    }
+
+    if (
+      url.pathname === '/charts/release-downloads.svg' &&
+      request.method === 'GET'
+    ) {
+      let stats = await loadDownloadStatistics(env);
+      if (!stats) {
+        try {
+          stats = await refreshDownloadStatistics(env);
+        } catch (err) {
+          console.error('Failed to initialize download statistics', err);
+          const errorSvg = renderErrorChartSvg(
+            'Release Downloads',
+            'Download statistics temporarily unavailable',
+          );
+          return new Response(errorSvg, {
+            status: 503,
+            headers: {
+              'Content-Type': 'image/svg+xml; charset=utf-8',
+              'Cache-Control': 'no-store',
+            },
+          });
+        }
+      }
+
+      const lines = deriveReleaseLineDownloads(stats.assets);
+      const svg = renderReleaseDownloadsChartSvg(lines, stats.updatedAt);
+      return new Response(svg, {
+        status: 200,
+        headers: {
+          'Content-Type': 'image/svg+xml; charset=utf-8',
+          'Cache-Control': 'public, max-age=3600, s-maxage=3600',
         },
       });
     }
