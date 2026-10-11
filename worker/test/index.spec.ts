@@ -1,6 +1,6 @@
 import { env } from 'cloudflare:test';
 import { describe, expect, it, vi } from 'vitest';
-import { deriveMonitoredApps, MONITORED_APPS } from '../src/apps';
+import { deriveMonitoredApps } from '../src/apps';
 import { compareAppVersions } from '../src/comparator';
 import { renderBadgeSvg } from '../src/badges';
 import worker, {
@@ -302,6 +302,77 @@ describe('Worker fetch endpoints', () => {
     const body = await res.text();
     expect(body).toContain('Fizz compatibility');
   });
+  it.each([
+    [undefined, 0, 0, '', 'no apk'],
+    [null, 2, 3, 'No fixture slot matches target', 'no apk'],
+    [undefined, 0, 1, 'Failed fixture retrieval', 'no apk'],
+    ['acquisition', 2, 3, '', 'no apk'],
+    ...[
+      'r2-lookup',
+      'r2-upload',
+      'r2-download',
+      'compatibility-check',
+      'pipeline',
+    ].flatMap((stage) => [
+      [stage, 0, 0, '', 'error'],
+      [stage, 0, 1, 'Missing fixture: no APK', 'error'],
+    ]),
+  ])(
+    'renders failure stage %s with counts %s/%s and reason %s as %s',
+    async (
+      failureStage,
+      passedCount,
+      failedCount,
+      failureReason,
+      expectedStatus,
+    ) => {
+      const workerEnv: WorkerEnv = {
+        ...env,
+        PLAY_VERSIONS_KV: env.PLAY_VERSIONS_KV,
+      };
+
+      await seedTestApps(env.PLAY_VERSIONS_KV);
+      const appRecord = {
+        appName: 'Sezzle',
+        playVersion: '5.3.13',
+        checkedAt: new Date().toISOString(),
+        status: 'newer-available' as const,
+        supportedVersions: ['5.3.9'],
+        latestSupportedVersion: '5.3.9',
+        targetCompatibility: {
+          requestId: 'req-test',
+          role: 'target' as const,
+          versionName: '5.3.9',
+          versionCode: 0,
+          patchBundleVersion: '1.5.1',
+          gitRevision: 'rev1',
+          testedAt: new Date().toISOString(),
+          passedCount,
+          failedCount,
+          status: 'error' as const,
+          failureStage,
+          failureReason,
+        },
+      };
+      await env.PLAY_VERSIONS_KV.put(
+        'app_version:com.sezzle.sezzlemobile',
+        JSON.stringify(appRecord),
+      );
+
+      const req = new Request(
+        'http://localhost/badges/compatibility/com.sezzle.sezzlemobile.svg',
+        { method: 'GET' },
+      );
+      const res = await worker.fetch(req, workerEnv);
+
+      expect(res.status).toBe(200);
+      const body = await res.text();
+      expect(body).toContain('Sezzle compatibility');
+      expect(body).toContain(expectedStatus as string);
+      if (expectedStatus === 'error') expect(body).not.toContain('no apk');
+      expect(body).toContain('#EF4444');
+    },
+  );
 
   it('rejects unauthenticated POST /api/compatibility-results', async () => {
     const workerEnv: WorkerEnv = {
@@ -739,265 +810,65 @@ describe('Version check and self-healing dispatches', () => {
     </html>
   `;
 
-  interface GitHubDispatchPayload {
-    event_type: string;
-    client_payload: {
-      requestId: string;
-      packageName: string;
-      observedPlayVersion: string | null;
-      targetVersion: string;
-      expectedRoles: 'target'[];
+  it('rejects unauthenticated POST /api/compatibility-runs', async () => {
+    const workerEnv: WorkerEnv = {
+      ...env,
+      PLAY_VERSIONS_KV: env.PLAY_VERSIONS_KV,
+      COMPATIBILITY_STATUS_SECRET: 'test_secret_abc',
     };
-  }
 
-  function mockFetchWithPlayVersion(
-    pkg: string,
-    pkgVersion: string,
-    dispatchedBodies: GitHubDispatchPayload[],
-    githubStatus = 204,
-  ) {
-    return vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = typeof input === 'string' ? input : input.toString();
-      if (url.includes('play.google.com')) {
-        const matched = MONITORED_APPS.find((a) =>
-          url.includes(encodeURIComponent(a.packageName)),
-        );
-        const ver =
-          matched?.packageName === pkg
-            ? pkgVersion
-            : (matched?.latestSupportedVersion ?? '1.0.0');
-        return new Response(MOCK_PLAY_HTML(ver), { status: 200 });
-      }
-      if (url.includes('api.github.com')) {
-        if (init?.body) {
-          dispatchedBodies.push(
-            JSON.parse(String(init.body)) as GitHubDispatchPayload,
-          );
-        }
-        if (githubStatus >= 400) {
-          return new Response(JSON.stringify({ message: 'GitHub error' }), {
-            status: githubStatus,
-          });
-        }
-        return new Response(null, { status: githubStatus });
-      }
-      return new Response('Not found', { status: 404 });
+    const req = new Request('http://localhost/api/compatibility-runs', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ packageName: 'com.ashtoncofer.Buzz' }),
     });
-  }
 
-  async function seedMonitoredAppsStable(
-    kv: KVNamespace,
-    skipPackage?: string,
-  ) {
-    for (const app of MONITORED_APPS) {
-      if (app.packageName === skipPackage) continue;
-      const record: AppVersionRecord = {
-        appName: app.name,
-        playVersion: app.latestSupportedVersion,
-        iconUrl: null,
-        updatedAt: '2026-10-06T00:00:00Z',
-        updatedOn: 'Oct 6, 2026',
-        checkedAt: '2026-10-06T00:00:00Z',
-        status: 'up-to-date',
-        supportedVersions: app.supportedVersions,
-        latestSupportedVersion: app.latestSupportedVersion,
-        targetCompatibility: {
-          requestId: 'seed-req',
-          role: 'target',
-          versionName: app.latestSupportedVersion,
-          versionCode: 100,
-          patchBundleVersion: '1.4.0',
-          gitRevision: 'rev1',
-          testedAt: '2026-10-06T00:00:00Z',
-          passedCount: 5,
-          failedCount: 0,
-          status: 'compatible',
-        },
-        outstandingRequest: null,
-      };
-      await kv.put(`app_version:${app.packageName}`, JSON.stringify(record));
-    }
-  }
-
-  it('fresh outstanding request prevents duplicate dispatch', async () => {
-    const pkg = 'com.ashtoncofer.Buzz';
-    const workerEnv: WorkerEnv = {
-      ...env,
-      PLAY_VERSIONS_KV: env.PLAY_VERSIONS_KV,
-      GITHUB_DISPATCH_TOKEN: 'gh_dispatch_token_123',
-    };
-
-    await seedMonitoredAppsStable(env.PLAY_VERSIONS_KV, pkg);
-
-    const freshTime = new Date(Date.now() - 3600_000).toISOString();
-    const initialRecord: AppVersionRecord = {
-      appName: 'Fizz',
-      playVersion: '1.54.0',
-      checkedAt: freshTime,
-      status: 'up-to-date',
-      supportedVersions: ['1.54.0'],
-      latestSupportedVersion: '1.54.0',
-      targetCompatibility: null,
-      outstandingRequest: {
-        requestId: 'fresh-id-456',
-        targetVersion: '1.54.0',
-        playVersion: '1.54.0',
-        expectedRoles: ['target'],
-        dispatchedAt: freshTime,
-      },
-    };
-    await env.PLAY_VERSIONS_KV.put(
-      `app_version:${pkg}`,
-      JSON.stringify(initialRecord),
-    );
-
-    const dispatchedBodies: GitHubDispatchPayload[] = [];
-    const originalFetch = globalThis.fetch;
-    try {
-      globalThis.fetch = mockFetchWithPlayVersion(
-        pkg,
-        '1.54.0',
-        dispatchedBodies,
-        204,
-      );
-
-      await performVersionCheck(workerEnv);
-
-      expect(dispatchedBodies).toHaveLength(0);
-
-      const savedRaw = await env.PLAY_VERSIONS_KV.get(`app_version:${pkg}`);
-      const saved = JSON.parse(savedRaw!) as AppVersionRecord;
-      expect(saved.outstandingRequest?.requestId).toBe('fresh-id-456');
-    } finally {
-      globalThis.fetch = originalFetch;
-    }
+    const res = await worker.fetch(req, workerEnv);
+    expect(res.status).toBe(401);
   });
 
-  it('outstanding request older than 12 hours is replaced with a new dispatch', async () => {
-    const pkg = 'com.ashtoncofer.Buzz';
+  it('rejects malformed POST /api/compatibility-runs payload', async () => {
     const workerEnv: WorkerEnv = {
       ...env,
       PLAY_VERSIONS_KV: env.PLAY_VERSIONS_KV,
-      GITHUB_DISPATCH_TOKEN: 'gh_dispatch_token_123',
+      COMPATIBILITY_STATUS_SECRET: 'test_secret_abc',
     };
 
-    await seedMonitoredAppsStable(env.PLAY_VERSIONS_KV, pkg);
-
-    const staleTime = new Date(Date.now() - 13 * 3600_000).toISOString();
-    const initialRecord: AppVersionRecord = {
-      appName: 'Fizz',
-      playVersion: '1.54.0',
-      checkedAt: staleTime,
-      status: 'up-to-date',
-      supportedVersions: ['1.54.0'],
-      latestSupportedVersion: '1.54.0',
-      targetCompatibility: null,
-      outstandingRequest: {
-        requestId: 'stale-id-789',
-        targetVersion: '1.54.0',
-        playVersion: '1.54.0',
-        expectedRoles: ['target'],
-        dispatchedAt: staleTime,
+    // Missing targetVersion in supportedVersions
+    const req = new Request('http://localhost/api/compatibility-runs', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer test_secret_abc',
       },
-    };
-    await env.PLAY_VERSIONS_KV.put(
-      `app_version:${pkg}`,
-      JSON.stringify(initialRecord),
-    );
+      body: JSON.stringify({
+        requestId: 'req-1',
+        packageName: 'com.ashtoncofer.Buzz',
+        appName: 'Fizz',
+        targetVersion: '2.0.0',
+        supportedVersions: ['1.0.0'],
+        gitRevision: 'sha123',
+      }),
+    });
 
-    const dispatchedBodies: GitHubDispatchPayload[] = [];
-    const originalFetch = globalThis.fetch;
-    try {
-      globalThis.fetch = mockFetchWithPlayVersion(
-        pkg,
-        '1.54.0',
-        dispatchedBodies,
-        204,
-      );
-
-      await performVersionCheck(workerEnv);
-
-      expect(dispatchedBodies).toHaveLength(1);
-      const newRequestId = dispatchedBodies[0].client_payload.requestId;
-      expect(newRequestId).not.toBe('stale-id-789');
-
-      const savedRaw = await env.PLAY_VERSIONS_KV.get(`app_version:${pkg}`);
-      const saved = JSON.parse(savedRaw!) as AppVersionRecord;
-      expect(saved.outstandingRequest?.requestId).toBe(newRequestId);
-      expect(saved.outstandingRequest?.expectedRoles).toEqual(['target']);
-    } finally {
-      globalThis.fetch = originalFetch;
-    }
+    const res = await worker.fetch(req, workerEnv);
+    expect(res.status).toBe(400);
   });
 
-  it('outstanding request with invalid dispatchedAt is replaced with a new dispatch', async () => {
+  it('registers run-start for known app and preserves existing Play metadata', async () => {
     const pkg = 'com.ashtoncofer.Buzz';
     const workerEnv: WorkerEnv = {
       ...env,
       PLAY_VERSIONS_KV: env.PLAY_VERSIONS_KV,
-      GITHUB_DISPATCH_TOKEN: 'gh_dispatch_token_123',
+      COMPATIBILITY_STATUS_SECRET: 'test_secret_abc',
     };
-
-    await seedMonitoredAppsStable(env.PLAY_VERSIONS_KV, pkg);
 
     const initialRecord: AppVersionRecord = {
       appName: 'Fizz',
       playVersion: '1.54.0',
-      checkedAt: '2026-10-06T00:00:00Z',
-      status: 'up-to-date',
-      supportedVersions: ['1.54.0'],
-      latestSupportedVersion: '1.54.0',
-      targetCompatibility: null,
-      outstandingRequest: {
-        requestId: 'invalid-time-id',
-        targetVersion: '1.54.0',
-        playVersion: '1.54.0',
-        expectedRoles: ['target'],
-        dispatchedAt: 'not-a-valid-date-string',
-      },
-    };
-    await env.PLAY_VERSIONS_KV.put(
-      `app_version:${pkg}`,
-      JSON.stringify(initialRecord),
-    );
-
-    const dispatchedBodies: GitHubDispatchPayload[] = [];
-    const originalFetch = globalThis.fetch;
-    try {
-      globalThis.fetch = mockFetchWithPlayVersion(
-        pkg,
-        '1.54.0',
-        dispatchedBodies,
-        204,
-      );
-
-      await performVersionCheck(workerEnv);
-
-      expect(dispatchedBodies).toHaveLength(1);
-      const newRequestId = dispatchedBodies[0].client_payload.requestId;
-      expect(newRequestId).not.toBe('invalid-time-id');
-
-      const savedRaw = await env.PLAY_VERSIONS_KV.get(`app_version:${pkg}`);
-      const saved = JSON.parse(savedRaw!) as AppVersionRecord;
-      expect(saved.outstandingRequest?.requestId).toBe(newRequestId);
-    } finally {
-      globalThis.fetch = originalFetch;
-    }
-  });
-
-  it('repository-dispatch body contains the exact expected roles', async () => {
-    const pkg = 'com.ashtoncofer.Buzz';
-    const workerEnv: WorkerEnv = {
-      ...env,
-      PLAY_VERSIONS_KV: env.PLAY_VERSIONS_KV,
-      GITHUB_DISPATCH_TOKEN: 'gh_dispatch_token_123',
-    };
-
-    await seedMonitoredAppsStable(env.PLAY_VERSIONS_KV, pkg);
-
-    const initialRecord: AppVersionRecord = {
-      appName: 'Fizz',
-      playVersion: '1.54.0',
+      iconUrl: 'https://example.com/icon.png',
+      updatedAt: '2026-10-06T00:00:00Z',
+      updatedOn: 'Oct 6, 2026',
       checkedAt: '2026-10-06T00:00:00Z',
       status: 'up-to-date',
       supportedVersions: ['1.54.0'],
@@ -1010,271 +881,368 @@ describe('Version check and self-healing dispatches', () => {
       JSON.stringify(initialRecord),
     );
 
-    const dispatchedBodies: GitHubDispatchPayload[] = [];
-    const originalFetch = globalThis.fetch;
-    try {
-      globalThis.fetch = mockFetchWithPlayVersion(
-        pkg,
-        '1.55.0',
-        dispatchedBodies,
-        204,
-      );
-
-      await performVersionCheck(workerEnv);
-
-      expect(dispatchedBodies).toHaveLength(1);
-      const payload = dispatchedBodies[0].client_payload;
-      expect(payload.expectedRoles).toEqual(['target']);
-      expect(payload.packageName).toBe('com.ashtoncofer.Buzz');
-      expect(payload.targetVersion).toBe('1.54.0');
-      expect(payload.observedPlayVersion).toBe('1.55.0');
-    } finally {
-      globalThis.fetch = originalFetch;
-    }
-  });
-
-  it('failed GitHub dispatch does not persist an outstanding request', async () => {
-    const pkg = 'com.ashtoncofer.Buzz';
-    const workerEnv: WorkerEnv = {
-      ...env,
-      PLAY_VERSIONS_KV: env.PLAY_VERSIONS_KV,
-      GITHUB_DISPATCH_TOKEN: 'gh_dispatch_token_123',
-    };
-
-    await seedMonitoredAppsStable(env.PLAY_VERSIONS_KV, pkg);
-
-    const initialRecord: AppVersionRecord = {
+    const runStartPayload = {
+      requestId: 'run-start-uuid',
+      packageName: pkg,
       appName: 'Fizz',
-      playVersion: '1.54.0',
-      checkedAt: '2026-10-06T00:00:00Z',
-      status: 'up-to-date',
+      targetVersion: '1.54.0',
       supportedVersions: ['1.54.0'],
-      latestSupportedVersion: '1.54.0',
-      targetCompatibility: null,
-      outstandingRequest: null,
+      gitRevision: 'git_commit_sha_123',
     };
-    await env.PLAY_VERSIONS_KV.put(
-      `app_version:${pkg}`,
-      JSON.stringify(initialRecord),
-    );
 
-    const originalFetch = globalThis.fetch;
-    try {
-      globalThis.fetch = mockFetchWithPlayVersion(pkg, '1.54.0', [], 401);
+    const req = new Request('http://localhost/api/compatibility-runs', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer test_secret_abc',
+      },
+      body: JSON.stringify(runStartPayload),
+    });
 
-      await performVersionCheck(workerEnv);
+    const res = await worker.fetch(req, workerEnv);
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as { success?: boolean; queued?: string };
+    expect(data.success).toBe(true);
+    expect(data.queued).toBe(pkg);
 
-      const savedRaw = await env.PLAY_VERSIONS_KV.get(`app_version:${pkg}`);
-      const saved = JSON.parse(savedRaw!) as AppVersionRecord;
-      expect(saved.outstandingRequest).toBeNull();
-      expect(saved.outstandingRequestId).toBeNull();
-    } finally {
-      globalThis.fetch = originalFetch;
-    }
+    const savedRaw = await env.PLAY_VERSIONS_KV.get(`app_version:${pkg}`);
+    const saved = JSON.parse(savedRaw!) as AppVersionRecord;
+    expect(saved.playVersion).toBe('1.54.0');
+    expect(saved.iconUrl).toBe('https://example.com/icon.png');
+    expect(saved.outstandingRequest?.requestId).toBe('run-start-uuid');
+    expect(saved.outstandingRequest?.gitRevision).toBe('git_commit_sha_123');
   });
-  it('handles HTML without version token: dispatches target acquisition, clears on callback, and re-dispatches on new release timestamp', async () => {
-    const pkg = 'com.adobe.scan.android';
+
+  it('initializes unknown new app on POST /api/compatibility-runs and shows queued status', async () => {
+    const pkg = 'com.new.awesomeapp';
     const workerEnv: WorkerEnv = {
       ...env,
       PLAY_VERSIONS_KV: env.PLAY_VERSIONS_KV,
-      GITHUB_DISPATCH_TOKEN: 'gh_dispatch_token_123',
-      COMPATIBILITY_STATUS_SECRET: 'secret_compat_123',
+      COMPATIBILITY_STATUS_SECRET: 'test_secret_abc',
     };
 
-    await seedMonitoredAppsStable(env.PLAY_VERSIONS_KV, pkg);
+    const runStartPayload = {
+      requestId: 'new-app-run-id',
+      packageName: pkg,
+      appName: 'Awesome App',
+      targetVersion: '1.0.0',
+      supportedVersions: ['1.0.0'],
+      gitRevision: 'sha_new_app',
+    };
 
-    const mockAdobePlayHtml = (updatedDateStr: string) => `
-      <html>
-        <head>
-          <meta property="og:image" content="https://play-lh.googleusercontent.com/icon.png">
-        </head>
-        <body>
-          <div>Updated on</div><div>${updatedDateStr}</div>
-        </body>
-      </html>
-    `;
-
-    let currentUpdateDate = 'Oct 5, 2026';
-    const dispatchedBodies: GitHubDispatchPayload[] = [];
-
-    const customFetch = vi.fn(
-      async (input: RequestInfo | URL, init?: RequestInit) => {
-        const url = typeof input === 'string' ? input : input.toString();
-        if (url.includes('play.google.com')) {
-          if (url.includes(encodeURIComponent(pkg))) {
-            return new Response(mockAdobePlayHtml(currentUpdateDate), {
-              status: 200,
-            });
-          }
-          const matched = MONITORED_APPS.find((a) =>
-            url.includes(encodeURIComponent(a.packageName)),
-          );
-          return new Response(
-            MOCK_PLAY_HTML(matched?.latestSupportedVersion ?? '1.0.0'),
-            { status: 200 },
-          );
-        }
-        if (url.includes('api.github.com')) {
-          if (init?.body) {
-            dispatchedBodies.push(
-              JSON.parse(String(init.body)) as GitHubDispatchPayload,
-            );
-          }
-          return new Response(null, { status: 204 });
-        }
-        return new Response('Not found', { status: 404 });
+    const req = new Request('http://localhost/api/compatibility-runs', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer test_secret_abc',
       },
-    );
+      body: JSON.stringify(runStartPayload),
+    });
 
-    const originalFetch = globalThis.fetch;
-    try {
-      globalThis.fetch = customFetch;
+    const res = await worker.fetch(req, workerEnv);
+    expect(res.status).toBe(200);
 
-      // Phase 1: Initial performVersionCheck with no prior record -> dispatches target acquisition
-      await env.PLAY_VERSIONS_KV.delete(`app_version:${pkg}`);
-      await performVersionCheck(workerEnv);
+    const savedRaw = await env.PLAY_VERSIONS_KV.get(`app_version:${pkg}`);
+    expect(savedRaw).not.toBeNull();
+    const saved = JSON.parse(savedRaw!) as AppVersionRecord;
+    expect(saved.appName).toBe('Awesome App');
+    expect(saved.latestSupportedVersion).toBe('1.0.0');
+    expect(saved.outstandingRequest?.requestId).toBe('new-app-run-id');
+    expect(saved.outstandingRequest?.gitRevision).toBe('sha_new_app');
 
-      expect(dispatchedBodies).toHaveLength(1);
-      expect(dispatchedBodies[0].client_payload.packageName).toBe(pkg);
-      expect(dispatchedBodies[0].client_payload.observedPlayVersion).toBeNull();
-      expect(dispatchedBodies[0].client_payload.expectedRoles).toEqual([
-        'target',
-      ]);
-
-      const initialRaw = await env.PLAY_VERSIONS_KV.get(`app_version:${pkg}`);
-      const initialSaved = JSON.parse(initialRaw!) as AppVersionRecord;
-      expect(initialSaved.playVersion).toBeNull();
-      expect(initialSaved.status).toBe('unknown');
-      expect(initialSaved.outstandingRequest).not.toBeNull();
-      const requestId = initialSaved.outstandingRequest!.requestId;
-
-      // Phase 2: Callback with acquiredPlayVersion: '26.09.25'
-      const callbackReq = new Request(
-        'http://localhost/api/compatibility-results',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: 'Bearer secret_compat_123',
-          },
-          body: JSON.stringify({
-            requestId,
-            packageName: pkg,
-            acquiredPlayVersion: '26.09.25',
-            results: [
-              {
-                role: 'target',
-                versionName: '26.09.25',
-                versionCode: 260925,
-                patchBundleVersion: '1.4.0',
-                gitRevision: 'git_abc',
-                status: 'compatible',
-                passedCount: 8,
-                failedCount: 0,
-              },
-            ],
-          }),
-        },
-      );
-      const callbackRes = await worker.fetch(callbackReq, workerEnv);
-      expect(callbackRes.status).toBe(200);
-
-      const afterCallbackRaw = await env.PLAY_VERSIONS_KV.get(
-        `app_version:${pkg}`,
-      );
-      const afterCallbackSaved = JSON.parse(
-        afterCallbackRaw!,
-      ) as AppVersionRecord;
-      expect(afterCallbackSaved.playVersion).toBe('26.09.25');
-      expect(afterCallbackSaved.status).toBe('up-to-date');
-      expect(afterCallbackSaved.targetCompatibility?.status).toBe('compatible');
-      expect(afterCallbackSaved.playVersionReleaseUpdatedAt).toBe(
-        afterCallbackSaved.updatedAt,
-      );
-      expect(afterCallbackSaved.outstandingRequest).toBeNull();
-
-      // Phase 3: Next scrape cycle with SAME update date -> NO new dispatch
-      dispatchedBodies.length = 0;
-      await performVersionCheck(workerEnv);
-      expect(dispatchedBodies).toHaveLength(0);
-
-      // Phase 4: Next scrape cycle with CHANGED update date -> new target acquisition dispatch
-      currentUpdateDate = 'Nov 1, 2026';
-      await performVersionCheck(workerEnv);
-      expect(dispatchedBodies).toHaveLength(1);
-      expect(dispatchedBodies[0].client_payload.packageName).toBe(pkg);
-      expect(dispatchedBodies[0].client_payload.expectedRoles).toEqual([
-        'target',
-      ]);
-    } finally {
-      globalThis.fetch = originalFetch;
-    }
-  });
-
-  it('leaves marker stale on null acquiredPlayVersion so subsequent cycle retries', async () => {
-    const pkg = 'com.adobe.scan.android';
-    const workerEnv: WorkerEnv = {
-      ...env,
-      PLAY_VERSIONS_KV: env.PLAY_VERSIONS_KV,
-      COMPATIBILITY_STATUS_SECRET: 'secret_compat_123',
-    };
-
-    const initialRecord: AppVersionRecord = {
-      appName: 'Adobe Scan: PDF Scanner, OCR',
-      checkedAt: '2026-10-06T00:00:00Z',
-      status: 'unknown',
-      supportedVersions: ['26.09.25'],
-      latestSupportedVersion: '26.09.25',
-      playVersion: null,
-      updatedAt: '2026-10-05T00:00:00Z',
-      playVersionReleaseUpdatedAt: null,
-      outstandingRequest: {
-        requestId: 'req-null-acq',
-        targetVersion: '26.09.25',
-        playVersion: null,
-        expectedRoles: ['target'],
-        dispatchedAt: '2026-10-06T00:00:00Z',
-      },
-    };
-    await env.PLAY_VERSIONS_KV.put(
-      `app_version:${pkg}`,
-      JSON.stringify(initialRecord),
-    );
-
-    const callbackReq = new Request(
+    // Results can then be submitted for this new app
+    const resultReq = new Request(
       'http://localhost/api/compatibility-results',
       {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: 'Bearer secret_compat_123',
+          Authorization: 'Bearer test_secret_abc',
         },
         body: JSON.stringify({
-          requestId: 'req-null-acq',
+          requestId: 'new-app-run-id',
           packageName: pkg,
-          acquiredPlayVersion: null,
           results: [
             {
               role: 'target',
-              versionName: '26.09.25',
-              versionCode: 260925,
-              patchBundleVersion: '1.4.0',
-              gitRevision: 'git_abc',
+              versionName: '1.0.0',
+              versionCode: 10,
+              patchBundleVersion: '1.5.0',
+              gitRevision: 'sha_new_app',
               status: 'compatible',
-              passedCount: 8,
+              passedCount: 3,
               failedCount: 0,
             },
           ],
         }),
       },
     );
-    const res = await worker.fetch(callbackReq, workerEnv);
+    const resultRes = await worker.fetch(resultReq, workerEnv);
+    expect(resultRes.status).toBe(200);
+
+    const afterResultRaw = await env.PLAY_VERSIONS_KV.get(`app_version:${pkg}`);
+    const afterResult = JSON.parse(afterResultRaw!) as AppVersionRecord;
+    expect(afterResult.targetCompatibility?.status).toBe('compatible');
+    expect(afterResult.outstandingRequest).toBeNull();
+  });
+
+  it('rejects POST /api/compatibility-results when gitRevision does not match run-start', async () => {
+    const pkg = 'com.ashtoncofer.Buzz';
+    const workerEnv: WorkerEnv = {
+      ...env,
+      PLAY_VERSIONS_KV: env.PLAY_VERSIONS_KV,
+      COMPATIBILITY_STATUS_SECRET: 'test_secret_abc',
+    };
+
+    const initialRecord: AppVersionRecord = {
+      appName: 'Fizz',
+      playVersion: '1.54.0',
+      checkedAt: '2026-10-06T00:00:00Z',
+      status: 'up-to-date',
+      supportedVersions: ['1.54.0'],
+      latestSupportedVersion: '1.54.0',
+      outstandingRequest: {
+        requestId: 'req-git-rev-test',
+        targetVersion: '1.54.0',
+        playVersion: '1.54.0',
+        expectedRoles: ['target'],
+        dispatchedAt: '2026-10-06T00:00:00Z',
+        gitRevision: 'correct_git_revision_123',
+      },
+    };
+    await env.PLAY_VERSIONS_KV.put(
+      `app_version:${pkg}`,
+      JSON.stringify(initialRecord),
+    );
+
+    const req = new Request('http://localhost/api/compatibility-results', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer test_secret_abc',
+      },
+      body: JSON.stringify({
+        requestId: 'req-git-rev-test',
+        packageName: pkg,
+        results: [
+          {
+            role: 'target',
+            versionName: '1.54.0',
+            versionCode: 100,
+            patchBundleVersion: '1.4.0',
+            gitRevision: 'wrong_git_revision_456',
+            status: 'compatible',
+            passedCount: 5,
+            failedCount: 0,
+          },
+        ],
+      }),
+    });
+
+    const res = await worker.fetch(req, workerEnv);
+    expect(res.status).toBe(409);
+    const body = (await res.json()) as { error?: string };
+    expect(body.error).toContain('Result git revision');
+  });
+
+  it('persists failureStage on error result and serves in public status payload', async () => {
+    const pkg = 'com.ashtoncofer.Buzz';
+    const workerEnv: WorkerEnv = {
+      ...env,
+      PLAY_VERSIONS_KV: env.PLAY_VERSIONS_KV,
+      COMPATIBILITY_STATUS_SECRET: 'test_secret_abc',
+    };
+
+    const initialRecord: AppVersionRecord = {
+      appName: 'Fizz',
+      playVersion: '1.54.0',
+      checkedAt: '2026-10-06T00:00:00Z',
+      status: 'up-to-date',
+      supportedVersions: ['1.54.0'],
+      latestSupportedVersion: '1.54.0',
+      outstandingRequest: {
+        requestId: 'req-fail-stage',
+        targetVersion: '1.54.0',
+        playVersion: '1.54.0',
+        expectedRoles: ['target'],
+        dispatchedAt: '2026-10-06T00:00:00Z',
+        gitRevision: 'rev123',
+      },
+    };
+    await env.PLAY_VERSIONS_KV.put(
+      `app_version:${pkg}`,
+      JSON.stringify(initialRecord),
+    );
+
+    const req = new Request('http://localhost/api/compatibility-results', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer test_secret_abc',
+      },
+      body: JSON.stringify({
+        requestId: 'req-fail-stage',
+        packageName: pkg,
+        results: [
+          {
+            role: 'target',
+            versionName: '1.54.0',
+            versionCode: 0,
+            patchBundleVersion: '1.4.0',
+            gitRevision: 'rev123',
+            status: 'error',
+            passedCount: 0,
+            failedCount: 1,
+            failureStage: 'acquisition',
+            failureReason: 'Artifact not available on APKMirror or Play',
+          },
+        ],
+      }),
+    });
+
+    const res = await worker.fetch(req, workerEnv);
     expect(res.status).toBe(200);
 
     const savedRaw = await env.PLAY_VERSIONS_KV.get(`app_version:${pkg}`);
     const saved = JSON.parse(savedRaw!) as AppVersionRecord;
-    expect(saved.playVersion).toBeNull();
-    expect(saved.playVersionReleaseUpdatedAt).toBeNull();
-    expect(saved.outstandingRequest).toBeNull();
+    expect(saved.targetCompatibility?.failureStage).toBe('acquisition');
+
+    // Public status endpoint returns the failureStage
+    const statusReq = new Request('http://localhost/api/status', {
+      method: 'GET',
+    });
+    const statusRes = await worker.fetch(statusReq, workerEnv);
+    expect(statusRes.status).toBe(200);
+    const statusPayload = (await statusRes.json()) as KVVersionPayload;
+    expect(statusPayload.apps[pkg].targetCompatibility?.failureStage).toBe(
+      'acquisition',
+    );
+  });
+
+  it('rejects invalid failureStage in result submission', async () => {
+    const pkg = 'com.ashtoncofer.Buzz';
+    const workerEnv: WorkerEnv = {
+      ...env,
+      PLAY_VERSIONS_KV: env.PLAY_VERSIONS_KV,
+      COMPATIBILITY_STATUS_SECRET: 'test_secret_abc',
+    };
+
+    const initialRecord: AppVersionRecord = {
+      appName: 'Fizz',
+      playVersion: '1.54.0',
+      checkedAt: '2026-10-06T00:00:00Z',
+      status: 'up-to-date',
+      supportedVersions: ['1.54.0'],
+      latestSupportedVersion: '1.54.0',
+      outstandingRequest: {
+        requestId: 'req-bad-stage',
+        targetVersion: '1.54.0',
+        playVersion: '1.54.0',
+        expectedRoles: ['target'],
+        dispatchedAt: '2026-10-06T00:00:00Z',
+        gitRevision: 'rev123',
+      },
+    };
+    await env.PLAY_VERSIONS_KV.put(
+      `app_version:${pkg}`,
+      JSON.stringify(initialRecord),
+    );
+
+    const req = new Request('http://localhost/api/compatibility-results', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer test_secret_abc',
+      },
+      body: JSON.stringify({
+        requestId: 'req-bad-stage',
+        packageName: pkg,
+        results: [
+          {
+            role: 'target',
+            versionName: '1.54.0',
+            versionCode: 0,
+            patchBundleVersion: '1.4.0',
+            gitRevision: 'rev123',
+            status: 'error',
+            passedCount: 0,
+            failedCount: 1,
+            failureStage: 'invalid-stage-name',
+          },
+        ],
+      }),
+    });
+
+    const res = await worker.fetch(req, workerEnv);
+    expect(res.status).toBe(400);
+    const data = (await res.json()) as { error?: string };
+    expect(data.error).toContain('failureStage');
+  });
+
+  it('scheduled performVersionCheck updates Google Play freshness only without making any GitHub dispatch calls', async () => {
+    const pkg = 'com.ashtoncofer.Buzz';
+    const workerEnv: WorkerEnv = {
+      ...env,
+      PLAY_VERSIONS_KV: env.PLAY_VERSIONS_KV,
+    };
+
+    const initialRecord: AppVersionRecord = {
+      appName: 'Fizz',
+      playVersion: '1.53.0',
+      checkedAt: '2026-10-06T00:00:00Z',
+      status: 'up-to-date',
+      supportedVersions: ['1.54.0'],
+      latestSupportedVersion: '1.54.0',
+      targetCompatibility: {
+        requestId: 'req-prior',
+        role: 'target',
+        versionName: '1.54.0',
+        versionCode: 100,
+        patchBundleVersion: '1.4.0',
+        gitRevision: 'rev1',
+        testedAt: '2026-10-06T00:00:00Z',
+        passedCount: 5,
+        failedCount: 0,
+        status: 'compatible',
+      },
+      outstandingRequest: null,
+    };
+    await env.PLAY_VERSIONS_KV.put(
+      `app_version:${pkg}`,
+      JSON.stringify(initialRecord),
+    );
+
+    let githubCalled = false;
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn(async (input: RequestInfo | URL) => {
+      const url = typeof input === 'string' ? input : input.toString();
+      if (url.includes('api.github.com')) {
+        githubCalled = true;
+        throw new Error(
+          'GitHub API should never be called during scheduled check',
+        );
+      }
+      if (url.includes('play.google.com')) {
+        return new Response(MOCK_PLAY_HTML('1.55.0'), { status: 200 });
+      }
+      return new Response('Not found', { status: 404 });
+    });
+
+    try {
+      await performVersionCheck(workerEnv);
+
+      expect(githubCalled).toBe(false);
+
+      const savedRaw = await env.PLAY_VERSIONS_KV.get(`app_version:${pkg}`);
+      const saved = JSON.parse(savedRaw!) as AppVersionRecord;
+      expect(saved.playVersion).toBe('1.55.0');
+      expect(saved.status).toBe('newer-available');
+      // Target compatibility result preserved from prior check
+      expect(saved.targetCompatibility?.status).toBe('compatible');
+      // No outstanding request created
+      expect(saved.outstandingRequest).toBeNull();
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 });

@@ -1,7 +1,7 @@
 /*
  * Special thanks to samuelngs for AppleColorEmoji-Linux.ttf, which is
  * used as the source for the Apple Color Emoji font asset.
- * 
+ *
  * Find their repo here: https://github.com/samuelngs/apple-emoji-ttf
  */
 

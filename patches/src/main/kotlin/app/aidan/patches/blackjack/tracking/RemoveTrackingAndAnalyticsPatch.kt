@@ -19,6 +19,7 @@ val removeTrackingAndAnalyticsPatch = rawResourcePatch(
         val library = get("lib/arm64-v8a/libil2cpp.so")
         if (!library.exists()) throw PatchException("Missing arm64 IL2CPP library")
         val bytes = library.readBytes()
+
         /**
          * Writes an ARM64 return at byte [offset] in the in-memory library after checking
          * [expected], or does nothing if already patched. [target] identifies errors;

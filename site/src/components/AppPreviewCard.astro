@@ -36,9 +36,7 @@ const { app, className = '', loading = 'lazy' } = Astro.props;
       </div>
     )}
     <div>
-      <h4 class="font-sans text-sm font-semibold text-white">
-        {app.name}
-      </h4>
+      <h4 class="font-sans text-sm font-semibold text-white">{app.name}</h4>
       <span class="font-mono text-[10px] text-zinc-500 block truncate max-w-[140px] sm:max-w-[180px]">
         {app.packageName}
       </span>
@@ -48,7 +46,9 @@ const { app, className = '', loading = 'lazy' } = Astro.props;
   <div class="pt-2 flex items-center justify-between text-xs font-mono">
     <div class="text-zinc-400">
       <span class="text-zinc-200 font-semibold">{app.patchCount}</span>
-      <span class="text-zinc-500 text-[11px] ml-0.5">{app.patchCount === 1 ? 'patch' : 'patches'}</span>
+      <span class="text-zinc-500 text-[11px] ml-0.5">
+        {app.patchCount === 1 ? 'patch' : 'patches'}
+      </span>
     </div>
 
     <div class="flex items-center text-zinc-400">

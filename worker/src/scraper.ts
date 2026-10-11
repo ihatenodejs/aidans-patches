@@ -17,8 +17,7 @@ const PRIMARY_VERSION_PATTERN =
 const SECONDARY_VERSION_PATTERN =
   /\[\[\["([0-9]+\.[0-9]+(?:\.[0-9]+)*[^"]*)"\]\]/;
 
-const OG_IMAGE_PATTERN =
-  /<meta\s+property="og:image"\s+content="([^"]+)"/i;
+const OG_IMAGE_PATTERN = /<meta\s+property="og:image"\s+content="([^"]+)"/i;
 
 const HTML_UPDATE_DATE_PATTERN =
   /Updated on<\/div>\s*<div[^>]*>([^<]+)<\/div>/i;
@@ -27,10 +26,10 @@ const JSON_UPDATE_DATE_PATTERN =
   /\[\["([A-Za-z]{3}\s+\d{1,2},\s+\d{4})",\[(\d+),/;
 
 export async function fetchGooglePlayApp(
-  packageName: string
+  packageName: string,
 ): Promise<ScrapedAppInfo> {
   const url = `https://play.google.com/store/apps/details?id=${encodeURIComponent(
-    packageName
+    packageName,
   )}&hl=en&gl=US`;
 
   try {

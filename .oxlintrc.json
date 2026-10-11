@@ -1,0 +1,24 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "unicorn", "oxc"],
+  "categories": {
+    "correctness": "error"
+  },
+  "rules": {
+    "typescript/triple-slash-reference": "off",
+    "unicorn/consistent-function-scoping": "off",
+    "unicorn/no-array-sort": "off",
+    "eslint/no-await-in-loop": "off",
+    "eslint/no-unused-vars": "warn",
+    "eslint/no-useless-escape": "error"
+  },
+  "ignorePatterns": [
+    "dist/**",
+    ".astro/**",
+    "build/**",
+    "node_modules/**",
+    "target/**",
+    ".gradle/**",
+    ".venv/**"
+  ]
+}

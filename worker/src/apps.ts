@@ -83,7 +83,9 @@ export function deriveMonitoredApps(data: unknown): TargetAppConfig[] {
 
     for (const cp of patch.compatiblePackages) {
       if (!cp.packageName) {
-        throw new Error(`Patch "${patch.name}" has compatible package missing packageName`);
+        throw new Error(
+          `Patch "${patch.name}" has compatible package missing packageName`,
+        );
       }
 
       const existing = appMap.get(cp.packageName);
@@ -111,12 +113,12 @@ export function deriveMonitoredApps(data: unknown): TargetAppConfig[] {
       } else {
         if (existing.name !== cp.name) {
           throw new Error(
-            `Conflicting app name for package ${cp.packageName}: "${existing.name}" vs "${cp.name}"`
+            `Conflicting app name for package ${cp.packageName}: "${existing.name}" vs "${cp.name}"`,
           );
         }
         if (existing.apkFileType !== cp.apkFileType) {
           throw new Error(
-            `Conflicting apkFileType for package ${cp.packageName}: "${existing.apkFileType}" vs "${cp.apkFileType}"`
+            `Conflicting apkFileType for package ${cp.packageName}: "${existing.apkFileType}" vs "${cp.apkFileType}"`,
           );
         }
         if (Array.isArray(cp.signatures)) {
@@ -136,9 +138,13 @@ export function deriveMonitoredApps(data: unknown): TargetAppConfig[] {
 
   const result: TargetAppConfig[] = [];
   for (const entry of appMap.values()) {
-    const sortedVersions = Array.from(entry.supportedVersions).sort(compareVersionStrings);
+    const sortedVersions = Array.from(entry.supportedVersions).sort(
+      compareVersionStrings,
+    );
     if (sortedVersions.length === 0) {
-      throw new Error(`Package ${entry.packageName} has no supported versions declared`);
+      throw new Error(
+        `Package ${entry.packageName} has no supported versions declared`,
+      );
     }
     const latestSupportedVersion = sortedVersions[sortedVersions.length - 1];
 
@@ -158,4 +164,5 @@ export function deriveMonitoredApps(data: unknown): TargetAppConfig[] {
   return result;
 }
 
-export const MONITORED_APPS: TargetAppConfig[] = deriveMonitoredApps(rawPatchesList);
+export const MONITORED_APPS: TargetAppConfig[] =
+  deriveMonitoredApps(rawPatchesList);

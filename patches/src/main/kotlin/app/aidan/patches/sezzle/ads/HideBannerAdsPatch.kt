@@ -8,7 +8,6 @@ import app.morphe.patcher.patch.PatchException
 import app.morphe.patcher.patch.bytecodePatch
 import app.morphe.patcher.patch.rawResourcePatch
 
-
 private val CAN_SHOW_AD_SELECTOR_SUFFIX_BYTES = byteArrayOf(
     0x02, 0x01, 0x00, 0x3b,
     0x01, 0x01, 0x01, 0x5e, 0x01, 0x01, 0x0b, 0x93.toByte(),
@@ -190,6 +189,7 @@ val removeAdsAndTrackingFromJsBundlePatch = rawResourcePatch(
         bundleFile.writeBytes(editor.toByteArray())
     }
 }
+
 @Suppress("unused")
 val removeAdsAndTrackingPatch = bytecodePatch(
     name = "Remove Ads and Tracking",

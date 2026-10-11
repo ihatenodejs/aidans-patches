@@ -131,7 +131,8 @@ private fun BytecodePatchContext.patchSplashActivity() {
     val initIndex = implementation.instructions.indexOfFirst { instruction ->
         val ref = (instruction as? ReferenceInstruction)?.reference as? MethodReference
         (instruction.opcode == Opcode.INVOKE_DIRECT || instruction.opcode == Opcode.INVOKE_DIRECT_RANGE) &&
-            ref?.definingClass == SPLASH_ARGS_CLASS && ref.name == "<init>"
+            ref?.definingClass == SPLASH_ARGS_CLASS &&
+            ref.name == "<init>"
     }
     if (initIndex < 0) {
         throw PatchException("SplashActivity.a constructor call not found in $SPLASH_ACTIVITY.a0")
@@ -586,7 +587,6 @@ private fun BytecodePatchContext.removeSaveAsWord() {
         }
     }
 }
-
 
 /**
  * Suppresses the "Waiting to upload..." status indicator on Home and Files screens

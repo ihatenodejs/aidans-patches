@@ -87,7 +87,6 @@ val removeUselessPromotionalItemsPatch = bytecodePatch(
         description = "Removes the Open in Adobe Acrobat option from file option menus and the preview screen."
     )
 
-
     execute {
         val selectedResourceIds = buildList {
             if (removeAbout.value != false) add(RES_ABOUT)
@@ -357,4 +356,3 @@ private fun BytecodePatchContext.removeOpenInAcrobat() {
         }
     }
 }
-
