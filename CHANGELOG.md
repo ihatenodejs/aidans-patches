@@ -1,3 +1,9 @@
+## [1.6.0-dev.6](https://github.com/ihatenodejs/aidans-patches/compare/v1.6.0-dev.5...v1.6.0-dev.6) (2026-10-11)
+
+### ✨ New Features
+
+* **worker:** added release download statistics and SVG chart endpoints ([60fafd7](https://github.com/ihatenodejs/aidans-patches/commit/60fafd7c57cf97862b1bd4de99bce8cd1d34f77e))
+
 ## [1.6.0-dev.5](https://github.com/ihatenodejs/aidans-patches/compare/v1.6.0-dev.4...v1.6.0-dev.5) (2026-10-11)
 
 ### 🐛 Bug Fixes
