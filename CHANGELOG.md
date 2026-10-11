@@ -1,3 +1,9 @@
+## [1.6.0-dev.5](https://github.com/ihatenodejs/aidans-patches/compare/v1.6.0-dev.4...v1.6.0-dev.5) (2026-10-11)
+
+### 🐛 Bug Fixes
+
+* **geocaching:** removed server-dependent profile statistics in local premium patch ([ee9aa13](https://github.com/ihatenodejs/aidans-patches/commit/ee9aa134b6459452b30b80fc68a89892c330f3bf))
+
 ## [1.6.0-dev.4](https://github.com/ihatenodejs/aidans-patches/compare/v1.6.0-dev.3...v1.6.0-dev.4) (2026-10-11)
 
 ### 🐛 Bug Fixes
