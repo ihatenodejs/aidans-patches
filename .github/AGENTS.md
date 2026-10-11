@@ -1,0 +1,48 @@
+# Repository Guidelines
+
+Scope: CI workflows, release/deploy automation, issue templates, and Python generator scripts under `.github/`.
+
+## Workflow Map
+
+- `workflows/apk-lab-tests.yml`: installs locked root/Worker/site/Python dependencies, runs format/lint/typecheck/tests, then the clean Gradle patch build gate.
+- `workflows/apk-compatibility.yml`: builds `.mpp`/metadata, computes affected packages, reconciles private fixtures, runs real compatibility checks, and reports terminal status.
+- `workflows/release.yml`: Java/Node release pipeline, semantic-release, provenance attestation, and site/Worker release handoff.
+- `workflows/deploy-worker.yml`: Worker typecheck/test and conditional Wrangler deployment.
+- `workflows/deploy-site.yml`: icon check, tests, Astro check/build, and conditional Pages deployment.
+- `workflows/sync-app-icons.yml`: scheduled/manual icon synchronization in a PR targeting `dev`.
+
+Use pinned actions and least-privilege `permissions`. Preserve path filters and release handoffs when moving generated inputs; they determine whether metadata reaches Worker/site.
+
+## Generator Scripts
+
+- `scripts/generate_patches_readme.py`: rewrites only the README block between `PATCHES_START` and `PATCHES_END` from `patches-list.json`.
+- `scripts/sync_app_icons.py`: check or synchronize `site/public/icons/<package>.png` and `site/src/data/icons.ts` from patch metadata/Play images.
+- `scripts/prepare_emoji_font.py`: downloads a pinned source, verifies SHA-256, transforms/checks the font, and writes a generated build resource/cache.
+
+Python scripts follow Ruff formatting/lint rules, validate paths/input shape, fail with actionable errors, and must not print secret values.
+
+## Release and Generated Assets
+
+`.releaserc` owns the release sequence:
+
+1. `./gradlew generatePatchesList` builds patch artifacts and metadata.
+2. Release version is applied to `patches-list.json`.
+3. The README generated patch block is refreshed.
+4. Semantic release updates/commits `CHANGELOG.md`, `gradle.properties`, `patches-bundle.json`, `patches-list.json`, and `README.md`.
+5. The `.mpp` release asset is published/attested; main releases hand off site and Worker deployments.
+
+Do not hand-edit release-generated files to simulate a release. Do not run release, deployment, fixture mutation, PR creation, or secret/binding changes unless explicitly requested.
+
+## Secrets and Cloud Boundaries
+
+- Reference secret names only; never log values or copy them into fixtures/config.
+- Keep private R2 fixtures and APK artifacts outside commits.
+- Compatibility callbacks must report terminal failure without leaking credentials; preserve retry/idempotency behavior.
+- Cloudflare account/binding changes are infrastructure mutations, not test setup.
+
+## Verification
+
+- For workflow YAML, verify syntax, action inputs, permissions, path filters, job dependencies, and the exact local command each step wraps.
+- For generators, run targeted tests/check-only modes and inspect output boundaries. Use temporary inputs for mutation tests.
+- Run `bun run format:check`, `bun run lint`, and the affected root phase; finish code changes with `bun run audit`.
+- A local semantic-release dry run is release-specific and may install/update dependencies: `npm install && npx semantic-release --dry-run`. Never publish/deploy as verification.
