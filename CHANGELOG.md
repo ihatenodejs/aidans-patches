@@ -1,3 +1,9 @@
+## [1.6.0-dev.4](https://github.com/ihatenodejs/aidans-patches/compare/v1.6.0-dev.3...v1.6.0-dev.4) (2026-10-11)
+
+### 🐛 Bug Fixes
+
+* **patches/main:** fixed geocaching navigation map loading and MapLibre routing ([76f393e](https://github.com/ihatenodejs/aidans-patches/commit/76f393e8215354631a166145ad74146153f81f8c))
+
 ## [1.6.0-dev.3](https://github.com/ihatenodejs/aidans-patches/compare/v1.6.0-dev.2...v1.6.0-dev.3) (2026-10-10)
 
 ### 🐛 Bug Fixes
