@@ -1,3 +1,13 @@
+## [1.7.0-dev.1](https://github.com/ihatenodejs/aidans-patches/compare/v1.6.1-dev.1...v1.7.0-dev.1) (2026-10-12)
+
+### 🐛 Bug Fixes
+
+* **release:** update bun lockfile for semantic-release github plugin ([cea934f](https://github.com/ihatenodejs/aidans-patches/commit/cea934f8955192f773b46ea402fed80045e8c641))
+
+### ✨ New Features
+
+* **geocaching:** added experimental map sheet support for osm styles ([1f29c32](https://github.com/ihatenodejs/aidans-patches/commit/1f29c327d9c847bc34cad0dbb7970b331d0375e5))
+
 ## [1.6.1-dev.1](https://github.com/ihatenodejs/aidans-patches/compare/v1.6.0...v1.6.1-dev.1) (2026-10-12)
 
 ### 🐛 Bug Fixes
