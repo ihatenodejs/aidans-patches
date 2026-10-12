@@ -8,6 +8,7 @@ Scope: Morphe patch definitions and patch metadata generation under `patches/`.
 - `src/main/kotlin/app/aidan/patches/<app>/shared/Constants.kt`: package, target, signer/type, and `Compatibility` metadata.
 - `src/main/kotlin/util/PatchListGenerator.kt`: reflects compiled declarations into root `patches-list.json`.
 - `build.gradle.kts`: bundle metadata, Apple Color Emoji resource preparation, `buildAndroid`, and `generatePatchesList` integration.
+- If adding a new build input outside `patches/` or `extensions/` (e.g. asset files, generators, Gradle scripts), add its path to `.github/workflows/release.yml` `paths:` so release CI triggers.
 
 Read `docs/<app>/architecture.md` and `docs/<app>/patches.md` before changing an app. Use generated `../patches-list.json` for the current public inventory; do not hard-code patch counts.
 

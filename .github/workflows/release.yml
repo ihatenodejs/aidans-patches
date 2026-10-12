@@ -3,7 +3,19 @@ name: Release
 on:
   workflow_dispatch:
   push:
-
+    branches:
+      - main
+      - dev
+    paths:
+      - 'patches/**'
+      - 'extensions/**'
+      - 'gradle/**'
+      - 'build.gradle.kts'
+      - 'settings.gradle.kts'
+      - 'gradle.properties'
+      - '.releaserc'
+      - '.github/scripts/prepare_emoji_font.py'
+      - '.github/workflows/release.yml'
 jobs:
   release:
     name: Release

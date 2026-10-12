@@ -6,7 +6,7 @@ Scope: CI workflows, release/deploy automation, issue templates, and Python gene
 
 - `workflows/apk-lab-tests.yml`: installs locked root/Worker/site/Python dependencies, runs format/lint/typecheck/tests, then the clean Gradle patch build gate.
 - `workflows/apk-compatibility.yml`: builds `.mpp`/metadata, computes affected packages, reconciles private fixtures, runs real compatibility checks, and reports terminal status.
-- `workflows/release.yml`: Java/Node release pipeline, semantic-release, provenance attestation, and site/Worker release handoff.
+- `workflows/release.yml`: Java/Node release pipeline and semantic-release, gated by paths to patch build inputs; site and Worker deploy handoffs trigger only on published releases.
 - `workflows/deploy-worker.yml`: Worker typecheck/test and conditional Wrangler deployment.
 - `workflows/deploy-site.yml`: icon check, tests, Astro check/build, and conditional Pages deployment.
 - `workflows/sync-app-icons.yml`: scheduled/manual icon synchronization in a PR targeting `dev`.
@@ -23,7 +23,7 @@ Python scripts follow Ruff formatting/lint rules, validate paths/input shape, fa
 
 ## Release and Generated Assets
 
-`.releaserc` owns the release sequence:
+`.releaserc` owns the release sequence and configures non-application scopes (`site`, `worker`, `apk-lab`, etc.) with `release: false` so only patch changes trigger releases:
 
 1. `./gradlew generatePatchesList` builds patch artifacts and metadata.
 2. Release version is applied to `patches-list.json`.
