@@ -1,3 +1,9 @@
+## [1.7.0-dev.1](https://github.com/ihatenodejs/aidans-patches/compare/v1.6.0...v1.7.0-dev.1) (2026-10-12)
+
+### ✨ New Features
+
+* **site:** added ViewMoreAppsCard and Crosshair components ([b66cb3d](https://github.com/ihatenodejs/aidans-patches/commit/b66cb3d1d7746bc24ad4f5964d4cbbfc0cc5a4e2))
+
 ## [1.6.0](https://github.com/ihatenodejs/aidans-patches/compare/v1.5.1...v1.6.0) (2026-10-11)
 
 ### 🐛 Bug Fixes
