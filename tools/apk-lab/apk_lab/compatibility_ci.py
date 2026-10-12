@@ -353,7 +353,10 @@ def run_ci_reconcile_and_test(
 
     dispatch_request_id = (os.environ.get("DISPATCH_REQUEST_ID") or "").strip()
     status_secret = os.environ.get("COMPATIBILITY_STATUS_SECRET")
-    worker_url = os.environ.get("WORKER_STATUS_URL", "https://worker.patch.p0ntus.com")
+    worker_url = os.environ.get(
+        "WORKER_STATUS_URL",
+        "https://aidans-patches-worker.aidan-is-confused.workers.dev",
+    )
 
     results: list[dict[str, Any]] = []
     overall_exit = ExitCode.SUCCESS
@@ -673,7 +676,8 @@ def main(argv: list[str] | None = None) -> int:
         meta = get_package_run_metadata(data, args.package)
         status_secret = os.environ.get("COMPATIBILITY_STATUS_SECRET")
         worker_url = os.environ.get(
-            "WORKER_STATUS_URL", "https://worker.patch.p0ntus.com"
+            "WORKER_STATUS_URL",
+            "https://aidans-patches-worker.aidan-is-confused.workers.dev",
         )
         if not status_secret:
             print(

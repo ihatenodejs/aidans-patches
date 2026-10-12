@@ -43,6 +43,7 @@ Do not hand-edit release-generated files to simulate a release. Do not run relea
 ## Verification
 
 - For workflow YAML, verify syntax, action inputs, permissions, path filters, job dependencies, and the exact local command each step wraps.
+- To test workflows locally with `act`, point `DOCKER_HOST` to the active daemon socket (e.g. `unix://${HOME}/.orbstack/run/docker.sock` for OrbStack), target the workflow via `-W`, and use `-P ubuntu-latest=catthehacker/ubuntu:act-latest` (pass `-n` for dry-run simulation of step resolution and action cloning). Note that dynamic outputs in chained matrix jobs (`fromJson(needs...outputs)`) require upstream execution.
 - For generators, run targeted tests/check-only modes and inspect output boundaries. Use temporary inputs for mutation tests.
 - Run `bun run format:check`, `bun run lint`, and the affected root phase; finish code changes with `bun run audit`.
 - A local semantic-release dry run is release-specific and may install/update dependencies: `npm install && npx semantic-release --dry-run`. Never publish/deploy as verification.

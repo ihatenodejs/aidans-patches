@@ -48,7 +48,7 @@ jobs:
 
       - name: Deploy Aidan's Patches Worker
         if: env.DEPLOY_ENABLED == 'true'
-        uses: cloudflare/wrangler-action@v3
+        uses: cloudflare/wrangler-action@v4
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

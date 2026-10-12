@@ -36,7 +36,7 @@ jobs:
           java-version: '21'
 
       - name: Setup uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v7
         with:
           version: 'latest'
           python-version: '3.12'
@@ -48,7 +48,7 @@ jobs:
           ./gradlew generatePatchesList --no-daemon
 
       - name: Upload Patch Bundle & Metadata Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: patches-bundle
           path: |
@@ -83,7 +83,7 @@ jobs:
     env:
       COMPATIBILITY_REQUEST_ID: ${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.package }}
       DISPATCH_PACKAGE_NAME: ${{ matrix.package }}
-      WORKER_STATUS_URL: ${{ vars.WORKER_STATUS_URL || 'https://worker.patch.p0ntus.com' }}
+      WORKER_STATUS_URL: ${{ vars.WORKER_STATUS_URL || 'https://aidans-patches-worker.aidan-is-confused.workers.dev' }}
       COMPATIBILITY_STATUS_SECRET: ${{ secrets.COMPATIBILITY_STATUS_SECRET }}
     steps:
       - name: Checkout
@@ -91,8 +91,13 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Setup Java
+        uses: actions/setup-java@v6.0.1
+        with:
+          distribution: 'temurin'
+          java-version: '21'
       - name: Download Patch Bundle & Metadata Artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: patches-bundle
 
@@ -105,7 +110,7 @@ jobs:
           }
 
       - name: Setup uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v7
         with:
           version: 'latest'
           enable-cache: true
@@ -162,7 +167,7 @@ jobs:
           DISPATCH_REQUEST_ID: ${{ env.COMPATIBILITY_REQUEST_ID }}
           DISPATCH_PACKAGE_NAME: ${{ matrix.package }}
           COMPATIBILITY_STATUS_SECRET: ${{ secrets.COMPATIBILITY_STATUS_SECRET }}
-          WORKER_STATUS_URL: ${{ vars.WORKER_STATUS_URL || 'https://worker.patch.p0ntus.com' }}
+          WORKER_STATUS_URL: ${{ vars.WORKER_STATUS_URL || 'https://aidans-patches-worker.aidan-is-confused.workers.dev' }}
           SUBMISSION_PATH: ${{ runner.temp }}/compatibility-submission.json
           MARKER_PATH: ${{ runner.temp }}/compatibility-callback-complete
         run: |
