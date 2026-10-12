@@ -1,3 +1,13 @@
+## [1.6.1-dev.1](https://github.com/ihatenodejs/aidans-patches/compare/v1.6.0...v1.6.1-dev.1) (2026-10-12)
+
+### 🐛 Bug Fixes
+
+* **geocaching:** neutralized server sync for experimental features ([ab635cb](https://github.com/ihatenodejs/aidans-patches/commit/ab635cb6170d5ba5fb1e821f4f5e2c9c4e59c7b2))
+
+### ✨ New Features
+
+* **site:** added ViewMoreAppsCard and Crosshair components ([b66cb3d](https://github.com/ihatenodejs/aidans-patches/commit/b66cb3d1d7746bc24ad4f5964d4cbbfc0cc5a4e2))
+
 ## [1.7.0-dev.1](https://github.com/ihatenodejs/aidans-patches/compare/v1.6.0...v1.7.0-dev.1) (2026-10-12)
 
 ### ✨ New Features
