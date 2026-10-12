@@ -30,10 +30,39 @@ val unlockExperimentalFeaturesPatch = bytecodePatch(
     execute {
         patchExperimentalSettingsGate()
         removeExperimentalPremiumBadge()
+        neutralizeExperimentalServerSync()
         if (unlockAllBetaFeatures.value == true) {
             unlockBetaFeatureFlags()
         }
     }
+}
+
+/**
+ * Neutralizes remote server synchronization for experimental features in ExperimentalRepo.
+ * By default, saving a feature attempts to POST to /mobile/v1/user/settings/mobileexperiments,
+ * which returns HTTP 403 Forbidden for non-beta/Basic accounts. Furthermore, whenever the app
+ * resumes or navigates to the map, ExperimentalRepo.syncFeatures queries the backend and silently
+ * overwrites all local experimental preferences back to false.
+ *
+ * Neutralizing both methods preserves user toggles strictly within local SharedPreferences.
+ */
+private fun BytecodePatchContext.neutralizeExperimentalServerSync() {
+    val expRepoClass = mutableClassDefBy("Lcom/groundspeak/geocaching/intro/experimentalfeatures/e;")
+    val saveMethod = expRepoClass.methods.firstOrNull {
+        it.name == "a" && it.returnType == "Ljava/lang/Object;" && it.implementation != null
+    } ?: throw PatchException("ExperimentalRepo.a (saveFeatureToServer) not found")
+
+    val syncMethod = expRepoClass.methods.firstOrNull {
+        it.name == "b" && it.returnType == "Ljava/lang/Object;" && it.implementation != null
+    } ?: throw PatchException("ExperimentalRepo.b (syncFeatures) not found")
+
+    val smali = """
+        sget-object v0, Lszb;->a:Lszb;
+        return-object v0
+    """.trimIndent()
+
+    saveMethod.addInstructions(0, smali)
+    syncMethod.addInstructions(0, smali)
 }
 
 /**
