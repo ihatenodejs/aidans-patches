@@ -1,0 +1,52 @@
+---
+interface Props {
+  position?:
+    | 'top-left'
+    | 'top-right'
+    | 'bottom-left'
+    | 'bottom-right'
+    | 'left'
+    | 'right';
+  className?: string;
+  size?: number;
+}
+
+const { position = 'top-left', className = '', size = 19 } = Astro.props;
+
+const positionClasses: Record<string, string> = {
+  'top-left': 'top-0 left-0 -translate-x-1/2 -translate-y-1/2',
+  'top-right': 'top-0 right-0 translate-x-1/2 -translate-y-1/2',
+  'bottom-left': 'bottom-0 left-0 -translate-x-1/2 translate-y-1/2',
+  'bottom-right': 'bottom-0 right-0 translate-x-1/2 translate-y-1/2',
+  left: 'top-1/2 left-0 -translate-x-1/2 -translate-y-1/2',
+  right: 'top-1/2 right-0 translate-x-1/2 -translate-y-1/2',
+};
+
+const center = size / 2;
+---
+
+<svg
+  class={`absolute ${positionClasses[position] || ''} pointer-events-none select-none z-10 text-zinc-500 ${className}`}
+  style={`width: ${size}px; height: ${size}px;`}
+  viewBox={`0 0 ${size} ${size}`}
+  fill="none"
+  xmlns="http://www.w3.org/2000/svg"
+  aria-hidden="true"
+>
+  <line
+    x1={center}
+    y1="0"
+    x2={center}
+    y2={size}
+    stroke="currentColor"
+    stroke-width="1"
+  />
+  <line
+    x1="0"
+    y1={center}
+    x2={size}
+    y2={center}
+    stroke="currentColor"
+    stroke-width="1"
+  />
+</svg>

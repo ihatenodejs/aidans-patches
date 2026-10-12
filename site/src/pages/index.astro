@@ -3,6 +3,7 @@ import { Image } from 'astro:assets';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import StatsStrip from '../components/StatsStrip.astro';
 import AppPreviewCard from '../components/AppPreviewCard.astro';
+import ViewMoreAppsCard from '../components/ViewMoreAppsCard.astro';
 import BentoCard from '../components/BentoCard.astro';
 import MockConfig from '../components/MockConfig.astro';
 import PatchCodeViewer from '../components/PatchCodeViewer.astro';
@@ -83,14 +84,11 @@ const workerUrl =
   <StatsStrip />
 
   <!-- 3. Built Around The Apps I Actually Use -->
-  <section class="p-6 md:p-8 space-y-6">
+  <section class="p-4 sm:p-6 md:p-8 space-y-6">
     <div class="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
       <div>
-        <div class="font-mono text-[11px] uppercase tracking-wider text-zinc-500 mb-1">
-          Supported Apps
-        </div>
         <h2 class="font-sans text-xl font-bold tracking-tight text-white">
-          Apps you can customize
+          Supported apps
         </h2>
       </div>
       <a
@@ -101,14 +99,34 @@ const workerUrl =
       </a>
     </div>
 
-    <!-- 8-App Preview Grid (Strict 1px grid lines via gap, zero border stacking) -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-px bg-white/[0.08] bg-clip-padding border border-white/[0.08] overflow-hidden">
-      {apps.map((app, index) => (
-        <AppPreviewCard
-          app={app}
-          className={index >= 4 ? 'hidden sm:flex' : ''}
-        />
+    <!-- App Preview Grid: 2 rows on desktop (with View More at 2,4), 2 rows on mobile (with View More at 2,2) -->
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-px bg-white/[0.08] bg-clip-padding border border-white/[0.08] overflow-hidden">
+      {apps.slice(0, 3).map((app) => (
+        <AppPreviewCard app={app} />
       ))}
+
+      <!-- Mobile View More Card (Row 2, Col 2 on <lg) -->
+      <ViewMoreAppsCard
+        count={apps.length - 3}
+        totalApps={apps.length}
+        totalPatches={totalPatches}
+        remainingApps={apps.slice(3)}
+        className="flex lg:hidden"
+      />
+
+      <!-- Desktop-only apps (completes Row 1 Col 4 and Row 2 Cols 1-3) -->
+      {apps.slice(3, 7).map((app) => (
+        <AppPreviewCard app={app} className="hidden lg:flex" />
+      ))}
+
+      <!-- Desktop View More Card (Row 2, Col 4 on >=lg) -->
+      <ViewMoreAppsCard
+        count={apps.length - 7}
+        totalApps={apps.length}
+        totalPatches={totalPatches}
+        remainingApps={apps.slice(7)}
+        className="hidden lg:flex"
+      />
     </div>
   </section>
 
@@ -121,13 +139,13 @@ const workerUrl =
         Capabilities
       </div>
       <h2 class="font-sans text-xl font-bold tracking-tight text-white">
-        What the patches can do
+        What can patches do for you?
       </h2>
     </div>
 
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
       <!-- Bento Cell 1: Privacy -->
-      <BentoCard title="Privacy & Tracker Blocking" withCrosshair={true}>
+      <BentoCard title="Privacy & Tracker Blocking">
         <svg
           slot="icon"
           class="w-4 h-4 text-emerald-400 shrink-0"
@@ -149,14 +167,16 @@ const workerUrl =
         </p>
         <div class="grid grid-cols-2 gap-2 p-3 bg-zinc-950/80 border border-white/[0.06] rounded-sm font-mono text-[11px]">
           {[
-            'Braze',
+            'Amplitude',
+            'AppLovin MAX',
             'AppsFlyer',
+            'Braze',
             'Firebase Analytics',
             'FullStory',
             'Facebook SDK',
-            'mParticle',
-            'AppLovin MAX',
             'Google AAID',
+            'mParticle',
+            'Rokt',
           ].map((provider) => (
             <div class="flex items-center gap-2 text-zinc-300">
               <svg
@@ -179,7 +199,7 @@ const workerUrl =
       </BentoCard>
 
       <!-- Bento Cell 2: Customization -->
-      <BentoCard title="Custom Themes & Styling" withCrosshair={true}>
+      <BentoCard title="Custom Themes & Styling">
         <svg
           slot="icon"
           class="w-4 h-4 text-violet-400 shrink-0"
@@ -281,7 +301,7 @@ const workerUrl =
       </BentoCard>
 
       <!-- Bento Cell 3: Feature Unlocks & Enhancements -->
-      <BentoCard title="Unlock Hidden Features" withCrosshair={true}>
+      <BentoCard title="Unlock Hidden Features">
         <svg
           slot="icon"
           class="w-4 h-4 text-blue-400 shrink-0"
@@ -371,10 +391,7 @@ const workerUrl =
       </BentoCard>
 
       <!-- Bento Cell 4: Developer & Low-Level -->
-      <BentoCard
-        title="Developer Tools & Advanced Controls"
-        withCrosshair={true}
-      >
+      <BentoCard title="Developer Tools & Advanced Controls">
         <svg
           slot="icon"
           class="w-4 h-4 text-amber-400 shrink-0"
@@ -437,10 +454,10 @@ const workerUrl =
     <div class="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
       <div>
         <div class="font-mono text-[11px] uppercase tracking-wider text-zinc-500 mb-1">
-          Tested Compatibility
+          Verified
         </div>
         <h2 class="font-sans text-xl font-bold tracking-tight text-white">
-          App Compatibility &amp; Update Status
+          App Compatibility &amp; Updates
         </h2>
       </div>
       <a
@@ -534,8 +551,8 @@ const workerUrl =
       <div class="p-4 border-t border-white/[0.06] bg-zinc-950 text-[11px] text-zinc-400">
         <p class="leading-relaxed">
           We thoroughly test every patch against specific app releases so they
-          run reliably. When an app updates on Google Play, existing patches
-          usually continue to work, and we verify each new version.
+          run reliably. When an app updates on Google Play, we'll update our
+          patches if needed.
         </p>
       </div>
     </div>
@@ -568,10 +585,10 @@ const workerUrl =
   <section class="hidden md:block p-6 md:p-8 space-y-6">
     <div>
       <div class="font-mono text-[11px] uppercase tracking-wider text-zinc-500 mb-1">
-        Open Source
+        Free Forever
       </div>
       <h2 class="font-sans text-xl font-bold tracking-tight text-white">
-        100% Open source &amp; safe
+        100% open source &amp; safe
       </h2>
       <p class="text-xs text-zinc-400 mt-1 max-w-2xl leading-relaxed">
         Every patch is completely transparent and open source. You can inspect

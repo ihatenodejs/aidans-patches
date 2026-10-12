@@ -1,0 +1,528 @@
+---
+import { Image } from 'astro:assets';
+import type { App } from '../data/types';
+
+interface Props {
+  count: number;
+  totalApps: number;
+  totalPatches?: number;
+  remainingApps?: App[];
+  className?: string;
+}
+
+const {
+  count,
+  totalApps,
+  totalPatches,
+  remainingApps = [],
+  className = '',
+} = Astro.props;
+
+const title =
+  count > 0
+    ? `View ${count} more ${count === 1 ? 'app' : 'apps'}`
+    : 'View all apps';
+
+// Layout rules for additional app icons:
+// - <= 3 additional apps: show all real app icons (no +X icon tile)
+// - > 3 additional apps: show 2 real app icons + 1 tile with +X
+const showPlusTile = count > 3;
+const previewCount = count <= 3 ? count : 2;
+const previewApps = remainingApps
+  .filter((a) => a.iconUrl)
+  .slice(0, previewCount);
+const plusCount = count === 4 ? 1 : count - 2;
+---
+
+<a
+  href="/patches"
+  data-smoke-card
+  class={`group relative p-3.5 sm:p-5 hover:shadow-[0_0_25px_rgba(63,27,71,0.25)] transition-all duration-150 flex flex-col justify-between overflow-hidden ${className}`}
+  style="background-color: #040206; background-image: radial-gradient(circle at 30% 20%, rgba(63, 27, 71, 0.35), transparent 70%), radial-gradient(circle at 80% 80%, rgba(28, 10, 34, 0.30), transparent 70%);"
+>
+  <!-- Smoke canvas layer -->
+  <canvas
+    data-smoke-canvas
+    aria-hidden="true"
+    class="absolute inset-0 w-full h-full pointer-events-none"
+  ></canvas>
+
+  <!-- Inset solid hover border highlight -->
+  <div class="absolute inset-0 border border-transparent group-hover:border-[rgba(92,41,102,0.40)] pointer-events-none transition-colors duration-150"></div>
+
+  <!-- Top row: Mini avatars stack + arrow action button -->
+  <div class="relative z-10 flex items-center justify-between gap-2 min-w-0">
+    <div class="flex items-center -space-x-1.5 shrink-0">
+      {previewApps.map((app) => (
+        <Image
+          src={app.iconUrl!}
+          alt={app.name}
+          width={28}
+          height={28}
+          class="w-7 h-7 rounded-md object-cover border border-[#090909] bg-zinc-900 shrink-0 ring-1 ring-white/15"
+        />
+      ))}
+      {showPlusTile && plusCount > 0 && (
+        <div class="w-7 h-7 rounded-md border border-[#090909] bg-zinc-800 text-white shrink-0 ring-1 ring-white/20 flex items-center justify-center font-sans text-xs font-bold leading-none select-none z-10 transition-colors group-hover:bg-zinc-700 group-hover:ring-white/30">
+          +{plusCount}
+        </div>
+      )}
+    </div>
+
+    <!-- Interactive circular arrow affordance (color change to white only) -->
+    <div class="w-6 h-6 rounded-full bg-white/[0.08] border border-white/15 flex items-center justify-center text-zinc-300 group-hover:bg-white group-hover:text-black group-hover:border-white transition-colors duration-150 shrink-0">
+      <svg
+        class="w-3 h-3"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+        stroke-width="2.5"
+      >
+        <path
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"
+        ></path>
+      </svg>
+    </div>
+  </div>
+
+  <!-- Bottom: Clear CTA headline -->
+  <div class="relative z-10 pt-2">
+    <h4 class="font-sans text-sm font-semibold text-white group-hover:text-white transition-colors truncate">
+      {title}
+    </h4>
+  </div>
+</a>
+
+<script>
+  const VERTEX_SHADER_SOURCE = `
+attribute vec2 aPosition;
+varying vec2 vUv;
+void main() {
+  vUv = (aPosition + 1.0) * 0.5;
+  gl_Position = vec4(aPosition, 0.0, 1.0);
+}
+`;
+
+  const FRAGMENT_SHADER_SOURCE = `
+precision mediump float;
+
+varying vec2 vUv;
+
+uniform vec2 uResolution;
+uniform float uTime;
+
+uniform vec2 uFlow;       // smoothed fluid momentum
+uniform vec2 uPointer;    // smoothed aspect-corrected pointer position
+uniform vec2 uPointerVel; // smoothed pointer velocity vector
+uniform float uActivity;  // smoothed pointer activity [0, 1]
+
+// 2D Simplex Noise
+vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+vec2 mod289(vec2 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+vec3 permute(vec3 x) { return mod289(((x * 34.0) + 1.0) * x); }
+
+float snoise(vec2 v) {
+  const vec4 C = vec4(0.211324865405187, 0.366025403784439,
+                     -0.577350269189626, 0.024390243902439);
+  vec2 i  = floor(v + dot(v, C.yy));
+  vec2 x0 = v -   i + dot(i, C.xx);
+  vec2 i1 = (x0.x > x0.y) ? vec2(1.0, 0.0) : vec2(0.0, 1.0);
+  vec4 x12 = x0.xyxy + C.xxzz;
+  x12.xy -= i1;
+  i = mod289(i);
+  vec3 p = permute(permute(i.y + vec3(0.0, i1.y, 1.0)) + i.x + vec3(0.0, i1.x, 1.0));
+  vec3 m = max(0.5 - vec3(dot(x0,x0), dot(x12.xy,x12.xy), dot(x12.zw,x12.zw)), 0.0);
+  m = m*m;
+  m = m*m;
+  vec3 x = 2.0 * fract(p * C.www) - 1.0;
+  vec3 h = abs(x) - 0.5;
+  vec3 ox = floor(x + 0.5);
+  vec3 a0 = x - ox;
+  m *= 1.79284291400159 - 0.85373472095314 * (a0*a0 + h*h);
+  vec3 g;
+  g.x  = a0.x  * x0.x  + h.x  * x0.y;
+  g.yz = a0.yz * x12.xz + h.yz * x12.yw;
+  return 130.0 * dot(m, g);
+}
+
+// Broad, slow, silky ribbon sheet
+float silkSheet(vec2 p, float t, vec2 seed) {
+  vec2 q = p + seed;
+
+  // Slow, calm laminar swirl
+  vec2 w = vec2(
+    snoise(q * 0.75 + vec2(t * 0.012, seed.x)),
+    snoise(q * 0.75 + vec2(seed.y, -t * 0.010))
+  ) * 0.55;
+
+  float n = abs(snoise(q + w));
+  float crease = exp(-n * 10.0);
+  float veil = exp(-n * 3.0) * 0.5;
+  return crease + veil;
+}
+
+void main() {
+  float aspect = uResolution.x / max(uResolution.y, 1.0);
+  vec2 p = vUv - 0.5;
+  p.x *= aspect;
+
+  // Gentle, calm fluid wake
+  vec2 delta = p - uPointer;
+  float d2 = dot(delta, delta);
+  float bell = exp(-d2 * 6.0) * uActivity;
+
+  // Soft, calm fluid displacement
+  vec2 drag = uPointerVel * (bell * 0.18);
+  vec2 swirl = vec2(-delta.y, delta.x) * (bell * 0.15);
+  vec2 momentum = uFlow * 0.10;
+
+  p += drag + swirl + momentum;
+
+  // Very slow, calm laminar drift
+  vec2 flow = vec2(uTime * 0.005, uTime * 0.0025);
+  vec2 q = p * 1.1 + flow;
+
+  float s1 = silkSheet(q, uTime, vec2(0.0, 0.0));
+  float s2 = silkSheet(q * 0.9 + vec2(1.8, 2.3), uTime * 1.05, vec2(3.4, 5.1));
+  float s3 = silkSheet(q * 1.05 + vec2(-2.1, 1.4), uTime * 0.95, vec2(7.2, 1.9));
+
+  float smoke = s1 * 0.55 + s2 * 0.40 + s3 * 0.35;
+
+  // Exact dark purple palette matched to aidan.jpeg:
+  // Shadows: #040206 (2, 0, 5)
+  // Deep plum veil: #1c0a22 (28, 10, 34)
+  // Main aidan.jpeg purple: #3f1b47 (63, 27, 71)
+  // Luminous fold: #5c2966 (92, 41, 102)
+  vec3 bg = vec3(4.0, 2.0, 6.0) / 255.0;            // #040206
+  vec3 deepPlum = vec3(28.0, 10.0, 34.0) / 255.0;  // #1c0a22
+  vec3 aidanPurple = vec3(63.0, 27.0, 71.0) / 255.0; // #3f1b47 (aidan.jpeg dominant)
+  vec3 foldGlow = vec3(92.0, 41.0, 102.0) / 255.0;   // #5c2966
+
+  vec3 col = bg;
+  col = mix(col, deepPlum, clamp(smoke * 0.9, 0.0, 1.0));
+  col = mix(col, aidanPurple, smoothstep(0.18, 0.55, smoke));
+  col = mix(col, foldGlow, smoothstep(0.55, 1.05, smoke) * 0.9);
+
+  gl_FragColor = vec4(col, 1.0);
+}
+`;
+
+  function createShader(
+    gl: WebGLRenderingContext,
+    type: number,
+    source: string,
+  ): WebGLShader | null {
+    const shader = gl.createShader(type);
+    if (!shader) return null;
+    gl.shaderSource(shader, source);
+    gl.compileShader(shader);
+    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+      gl.deleteShader(shader);
+      return null;
+    }
+    return shader;
+  }
+
+  function initSmokeCard(card: HTMLElement): void {
+    if (card.dataset.smokeInitialized === 'true') return;
+    card.dataset.smokeInitialized = 'true';
+
+    const canvas = card.querySelector<HTMLCanvasElement>('[data-smoke-canvas]');
+    if (!canvas) return;
+
+    const gl = canvas.getContext('webgl', {
+      alpha: true,
+      antialias: false,
+      depth: false,
+      stencil: false,
+      preserveDrawingBuffer: false,
+      powerPreference: 'low-power',
+    });
+    if (!gl) return;
+
+    const positionBuffer = gl.createBuffer();
+    if (!positionBuffer) return;
+    gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+    gl.bufferData(
+      gl.ARRAY_BUFFER,
+      new Float32Array([-1.0, -1.0, 3.0, -1.0, -1.0, 3.0]),
+      gl.STATIC_DRAW,
+    );
+
+    const vertShader = createShader(gl, gl.VERTEX_SHADER, VERTEX_SHADER_SOURCE);
+    const fragShader = createShader(
+      gl,
+      gl.FRAGMENT_SHADER,
+      FRAGMENT_SHADER_SOURCE,
+    );
+    if (!vertShader || !fragShader) return;
+
+    const program = gl.createProgram();
+    if (!program) return;
+    gl.attachShader(program, vertShader);
+    gl.attachShader(program, fragShader);
+    gl.linkProgram(program);
+    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+      gl.deleteProgram(program);
+      return;
+    }
+
+    const posAttrLoc = gl.getAttribLocation(program, 'aPosition');
+    if (posAttrLoc === -1) return;
+    gl.enableVertexAttribArray(posAttrLoc);
+    gl.vertexAttribPointer(posAttrLoc, 2, gl.FLOAT, false, 0, 0);
+
+    const uResolutionLoc = gl.getUniformLocation(program, 'uResolution');
+    const uTimeLoc = gl.getUniformLocation(program, 'uTime');
+    const uFlowLoc = gl.getUniformLocation(program, 'uFlow');
+    const uPointerLoc = gl.getUniformLocation(program, 'uPointer');
+    const uPointerVelLoc = gl.getUniformLocation(program, 'uPointerVel');
+    const uActivityLoc = gl.getUniformLocation(program, 'uActivity');
+
+    let width = 0;
+    let height = 0;
+    let animFrameId: number | null = null;
+    let isIntersecting = false;
+    let isDocVisible = document.visibilityState === 'visible';
+    const mediaQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+    let isReducedMotion = mediaQuery.matches;
+
+    let accumulatedTime = 0;
+    let lastFrameTime = 0;
+
+    let flowX = 0;
+    let flowY = 0;
+
+    // Smoothed rendered state
+    let pointerX = 0;
+    let pointerY = 0;
+    let pointerVx = 0;
+    let pointerVy = 0;
+    let activity = 0;
+
+    // Target state from input events
+    let targetX = 0;
+    let targetY = 0;
+    let targetActive = false;
+
+    function renderFrame(time: number): void {
+      if (width <= 0 || height <= 0 || !gl) return;
+      gl.useProgram(program);
+      gl.uniform2f(uResolutionLoc, width, height);
+      gl.uniform1f(uTimeLoc, time);
+      gl.uniform2f(uFlowLoc, flowX, flowY);
+      gl.uniform2f(uPointerLoc, pointerX, pointerY);
+      gl.uniform2f(uPointerVelLoc, pointerVx, pointerVy);
+      gl.uniform1f(uActivityLoc, activity);
+      gl.drawArrays(gl.TRIANGLES, 0, 3);
+    }
+
+    function updateAnimationState(): void {
+      const shouldAnimate = isIntersecting && isDocVisible && !isReducedMotion;
+      if (shouldAnimate) {
+        if (animFrameId === null) {
+          lastFrameTime = performance.now();
+          const loop = (now: number): void => {
+            const dt = Math.min((now - lastFrameTime) / 1000, 0.1);
+            lastFrameTime = now;
+            accumulatedTime += dt;
+            if (!gl) return;
+
+            // Slow, calm, gentle chase
+            if (targetActive) {
+              const lerp = 1.0 - Math.exp(-dt * 6.0);
+              const prevX = pointerX;
+              const prevY = pointerY;
+              pointerX += (targetX - pointerX) * lerp;
+              pointerY += (targetY - pointerY) * lerp;
+
+              // Smooth derivative velocity:
+              const vx = (pointerX - prevX) / Math.max(dt, 0.001);
+              const vy = (pointerY - prevY) / Math.max(dt, 0.001);
+              const vSpeed = Math.hypot(vx, vy);
+              const maxV = 1.2;
+              const vScale = vSpeed > maxV ? maxV / vSpeed : 1.0;
+
+              pointerVx += (vx * vScale - pointerVx) * lerp;
+              pointerVy += (vy * vScale - pointerVy) * lerp;
+
+              // Slow, gentle momentum accumulation:
+              flowX += pointerVx * dt * 0.4;
+              flowY += pointerVy * dt * 0.4;
+              const fSpeed = Math.hypot(flowX, flowY);
+              if (fSpeed > 0.8) {
+                flowX = (flowX / fSpeed) * 0.8;
+                flowY = (flowY / fSpeed) * 0.8;
+              }
+
+              activity = Math.min(1.0, activity + (vSpeed * 0.2 + 0.15) * lerp);
+            } else {
+              pointerVx *= Math.exp(-dt * 2.0);
+              pointerVy *= Math.exp(-dt * 2.0);
+              activity *= Math.exp(-dt * 1.5);
+            }
+
+            // Calm decay of momentum
+            flowX *= Math.exp(-dt * 0.8);
+            flowY *= Math.exp(-dt * 0.8);
+
+            renderFrame(accumulatedTime);
+            animFrameId = requestAnimationFrame(loop);
+          };
+          animFrameId = requestAnimationFrame(loop);
+        }
+      } else {
+        if (animFrameId !== null) {
+          cancelAnimationFrame(animFrameId);
+          animFrameId = null;
+        }
+        if (isReducedMotion && isIntersecting && isDocVisible) {
+          flowX = 0;
+          flowY = 0;
+          pointerVx = 0;
+          pointerVy = 0;
+          activity = 0;
+          renderFrame(1.0);
+        }
+      }
+    }
+
+    function onPointerEnter(e: PointerEvent): void {
+      const rect = card.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) return;
+      const aspect = rect.width / rect.height;
+      targetX = ((e.clientX - rect.left) / rect.width - 0.5) * aspect;
+      targetY = 0.5 - (e.clientY - rect.top) / rect.height;
+      pointerX = targetX;
+      pointerY = targetY;
+      pointerVx = 0;
+      pointerVy = 0;
+      targetActive = true;
+      activity = 0.2;
+    }
+
+    function onPointerMove(e: PointerEvent): void {
+      const rect = card.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) return;
+      const aspect = rect.width / rect.height;
+      targetX = ((e.clientX - rect.left) / rect.width - 0.5) * aspect;
+      targetY = 0.5 - (e.clientY - rect.top) / rect.height;
+      targetActive = true;
+    }
+
+    function onPointerLeave(): void {
+      targetActive = false;
+    }
+
+    let pointerListenersAttached = false;
+
+    function attachPointerListeners(): void {
+      if (pointerListenersAttached) return;
+      card.addEventListener('pointerenter', onPointerEnter, { passive: true });
+      card.addEventListener('pointermove', onPointerMove, { passive: true });
+      card.addEventListener('pointerleave', onPointerLeave, { passive: true });
+      pointerListenersAttached = true;
+    }
+
+    function detachPointerListeners(): void {
+      if (!pointerListenersAttached) return;
+      card.removeEventListener('pointerenter', onPointerEnter);
+      card.removeEventListener('pointermove', onPointerMove);
+      card.removeEventListener('pointerleave', onPointerLeave);
+      pointerListenersAttached = false;
+      targetActive = false;
+      flowX = 0;
+      flowY = 0;
+      pointerVx = 0;
+      pointerVy = 0;
+      activity = 0;
+    }
+
+    if (!isReducedMotion) {
+      attachPointerListeners();
+    }
+
+    const handleMotionChange = (e: MediaQueryListEvent): void => {
+      isReducedMotion = e.matches;
+      if (isReducedMotion) {
+        detachPointerListeners();
+      } else {
+        attachPointerListeners();
+      }
+      updateAnimationState();
+    };
+
+    mediaQuery.addEventListener('change', handleMotionChange);
+
+    const resizeObserver = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const cardW =
+          entry.borderBoxSize?.[0]?.inlineSize ??
+          card.getBoundingClientRect().width;
+        const cardH =
+          entry.borderBoxSize?.[0]?.blockSize ??
+          card.getBoundingClientRect().height;
+        if (cardW <= 0 || cardH <= 0) continue;
+
+        const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+        const displayW = Math.round(cardW * dpr);
+        const displayH = Math.round(cardH * dpr);
+
+        if (canvas.width !== displayW || canvas.height !== displayH) {
+          canvas.width = displayW;
+          canvas.height = displayH;
+          width = displayW;
+          height = displayH;
+          gl.viewport(0, 0, displayW, displayH);
+          if (isReducedMotion || animFrameId === null) {
+            renderFrame(accumulatedTime);
+          }
+        }
+      }
+    });
+    resizeObserver.observe(card);
+
+    const intersectionObserver = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          isIntersecting = entry.isIntersecting;
+          updateAnimationState();
+        }
+      },
+      { threshold: 0 },
+    );
+    intersectionObserver.observe(card);
+
+    const handleVisibilityChange = (): void => {
+      isDocVisible = document.visibilityState === 'visible';
+      updateAnimationState();
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    canvas.addEventListener('webglcontextlost', (e) => {
+      e.preventDefault();
+      if (animFrameId !== null) {
+        cancelAnimationFrame(animFrameId);
+        animFrameId = null;
+      }
+    });
+  }
+
+  function initAllSmokeCards(): void {
+    document
+      .querySelectorAll<HTMLElement>('[data-smoke-card]')
+      .forEach((card) => {
+        initSmokeCard(card);
+      });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initAllSmokeCards);
+  } else {
+    initAllSmokeCards();
+  }
+
+  document.addEventListener('astro:page-load', initAllSmokeCards);
+</script>
