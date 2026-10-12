@@ -141,10 +141,10 @@ The OpenStreetMap integration is divided into three coordinated patches:
 3. **Dynamic Style URL Resolution**:
 - Targets: `t07`, `com.groundspeak.geocaching.intro.mainmap.map.n`, `com.groundspeak.geocaching.intro.navigationmap.NavigationViewModel`, and `dx1`.
 - Replaces hardcoded style references with `invoke-static OsmStyleBridge.getActiveStyleUrl()`, loading user-selected or custom style endpoints on demand.
-4. **Map Style Selection Interception & Live Style Reloading**:
-- Target: `MapTypeSelectionFragment.z`
-- Intercepts `l07` events and forwards the clicked map style ID to `OsmStyleBridge.onStyleSelected(fragment, mapTypeId)`.
-- Bypasses `w05.G` (Premium upsell gate), stores the selected style in SharedPreferences (`UserMapPrefs.OSM_STYLE_URL` and `UserMapPrefs.PREFERRED_MAP_TYPE`), prompts for a custom URL when "Custom URL" is chosen, and immediately reloads `MapLibreFragment.K` style without requiring app restarts.
+4. **Map Style Selection Interception (Screen & Experimental Bottom Sheet)**:
+- Targets: `MapTypeSelectionFragment.z` (full-screen dialog) and `ky6.invoke(Object)` (`MapLibreFragment` Compose bottom sheet used when Experimental "Adjustable Highly Favorited" is enabled).
+- Intercepts map style clicks (`l07` in `MapTypeSelectionFragment.z` and `MapType` in `ky6.invoke`) and forwards `(fragment, mapTypeId)` to `OsmStyleBridge.onStyleSelected(fragment, mapTypeId)`.
+- Bypasses `w05.G` (Premium upsell gate) and the Google Maps fallback navigation (`0x7f0a0567`), stores the selected style in SharedPreferences (`UserMapPrefs.OSM_STYLE_URL` and `UserMapPrefs.PREFERRED_MAP_TYPE`), prompts for a custom URL when "Custom URL" is chosen, dismisses either `MapTypeSelectionFragment` or the Compose bottom sheet (`SharedMapViewModel.k0`), and prompts to restart the app.
 5. **Neutralize Google Maps Fallback Listener**:
 - Target: `hy6.invoke(Object, Object)`
 - Forces `List.contains()` result register to `0x1` (`true`), preventing the fragment result listener from navigating back to Google Maps (`0x7f0a0567`) when non-Trails styles are selected.
@@ -156,8 +156,8 @@ The OpenStreetMap integration is divided into three coordinated patches:
 - Target: `MainActivity.G(MainActivityVM$b, MainActivity$NavDestination)V`
 - Overrides `$c` (`OnboardingMapActivity`) and `b` (`PagingEducationActivity`) suggestion flow states with `$a` (`MainActivityVM$b$a`), guaranteeing `MainActivity` never bounces to `OnboardingMapActivity`.
 7. **Better Events Map Customization Toggle**:
-- Target: `com.groundspeak.geocaching.intro.analytics.launchdarkly.b.i(LaunchDarklyFlag)Z`
-- Forces `LaunchDarklyFlag.O` (`BETTER_EVENTS_MAP`) to return `true`, making the "Event dates" toggle visible in the Map settings sheet.
+- Targets: `le7.invoke` and `r07.a`
+- Forces `LaunchDarklyFlag.O` (`BETTER_EVENTS_MAP`) evaluation to `true`, making the "Event dates" toggle visible in both the Map settings screen and experimental bottom sheet.
 ---
 
 ## 5. Local Premium

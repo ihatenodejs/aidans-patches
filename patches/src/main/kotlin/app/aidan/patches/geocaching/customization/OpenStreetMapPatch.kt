@@ -153,6 +153,9 @@ val openStreetMapPatch = bytecodePatch(
         // 7. Rewire MapTypeSelectionFragment to handle style selection via OsmStyleBridge
         patchMapTypeSelectionFragment()
 
+        // 7b. Rewire MapLibreFragment's experimental bottom sheet style callback (ky6) to OsmStyleBridge
+        patchMapLibreSheetStyleSelection()
+
         // 8. Prevent MapLibreFragment listener from redirecting to GoogleMap on non-Trails selection
         patchMapLibreFragmentResultListener()
 
@@ -387,6 +390,37 @@ private fun BytecodePatchContext.patchMapTypeSelectionFragment() {
 }
 
 /**
+ * Rewires MapLibreFragment's map settings bottom sheet callback (ky6, case 6) — used when
+ * Experimental "Adjustable Highly Favorited" is enabled — to invoke
+ * OsmStyleBridge.onStyleSelected(fragment, mapTypeId) instead of navigating back to Google Maps.
+ */
+private fun BytecodePatchContext.patchMapLibreSheetStyleSelection() {
+    val ky6Class = mutableClassDefByOrNull("Lky6;")
+        ?: throw PatchException("Class Lky6; not found")
+    val invokeMethod = ky6Class.methods.firstOrNull { it.name == "invoke" && it.implementation != null }
+        ?: throw PatchException("Method invoke not found in Lky6;")
+
+    val instructions = invokeMethod.implementation?.instructions?.toList() ?: emptyList()
+    for ((index, inst) in instructions.withIndex()) {
+        if (inst.opcode == Opcode.INVOKE_STATIC &&
+            (inst as? ReferenceInstruction)?.reference?.toString() == "Lw05;->G($MAP_TYPE)Z"
+        ) {
+            invokeMethod.addInstructions(
+                index,
+                """
+                    iget v0, p1, $MAP_TYPE->A:I
+                    invoke-static {p0, v0}, $OSM_STYLE_BRIDGE->onStyleSelected(Ljava/lang/Object;I)V
+                    sget-object p0, Lszb;->a:Lszb;
+                    return-object p0
+                """.trimIndent()
+            )
+            return
+        }
+    }
+    throw PatchException("Could not find Lw05;->G($MAP_TYPE)Z in Lky6;.invoke")
+}
+
+/**
  * Patches MapLibreFragment's fragment result listener (hy6) to prevent it from navigating
  * back to Google Maps when any map style is selected.
  */
@@ -420,18 +454,30 @@ private fun BytecodePatchContext.patchMapLibreFragmentResultListener() {
  * so the Event Dates option appears on the Map settings sheet.
  */
 private fun BytecodePatchContext.patchBetterEventsMapFlag() {
-    val le7Class = mutableClassDefByOrNull("Lle7;") ?: return
-    val invokeMethod = le7Class.methods.firstOrNull { it.name == "invoke" && it.implementation != null } ?: return
-    val insts = invokeMethod.implementation?.instructions?.toList() ?: return
-
-    for ((index, inst) in insts.withIndex()) {
-        if (inst.opcode == Opcode.SGET_OBJECT && (inst as? ReferenceInstruction)?.reference?.toString()?.contains("LaunchDarklyFlag;->O") == true) {
-            val next = insts.getOrNull(index + 2)
-            if (next is OneRegisterInstruction && next.opcode == Opcode.MOVE_RESULT) {
-                val reg = next.registerA
-                invokeMethod.addInstructions(index + 3, "const/4 v$reg, 0x1")
-                break
+    for (className in listOf("Lle7;", "Lr07;")) {
+        val targetClass = mutableClassDefByOrNull(className)
+            ?: throw PatchException("Class $className not found")
+        var patched = false
+        for (method in targetClass.methods) {
+            val insts = method.implementation?.instructions?.toList() ?: continue
+            for ((index, inst) in insts.withIndex()) {
+                if (inst.opcode == Opcode.SGET_OBJECT &&
+                    (inst as? ReferenceInstruction)?.reference?.toString()?.contains("LaunchDarklyFlag;->O") == true
+                ) {
+                    val next = insts.getOrNull(index + 2)
+                    if (next is OneRegisterInstruction && next.opcode == Opcode.MOVE_RESULT) {
+                        val reg = next.registerA
+                        val constInsn = if (reg < 16) "const/4 v$reg, 0x1" else "const/16 v$reg, 0x1"
+                        method.addInstructions(index + 3, constInsn)
+                        patched = true
+                        break
+                    }
+                }
             }
+            if (patched) break
+        }
+        if (!patched) {
+            throw PatchException("Could not find LaunchDarklyFlag.O check in $className")
         }
     }
 }
