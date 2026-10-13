@@ -42,7 +42,7 @@ My [Morphe](https://morphe.software) patches
 ## 📱 Supported Applications & Patches
 
 <!-- PATCHES_START EXPANDED -->
-> **[v1.7.0](https://github.com/ihatenodejs/aidans-patches/releases/tag/v1.7.0)**&nbsp;&nbsp;•&nbsp;&nbsp;`main`&nbsp;&nbsp;•&nbsp;&nbsp;60 patches total
+> **[v1.8.0-dev.1](https://github.com/ihatenodejs/aidans-patches/releases/tag/v1.8.0-dev.1)**&nbsp;&nbsp;•&nbsp;&nbsp;`dev`&nbsp;&nbsp;•&nbsp;&nbsp;61 patches total
 <details open>
 <summary>📦 SidelineSwap&nbsp;&nbsp;•&nbsp;&nbsp;4 patches</summary>
 <br>
@@ -180,7 +180,7 @@ My [Morphe](https://morphe.software) patches
 </details>
 
 <details open>
-<summary>📦 Adobe Scan&nbsp;&nbsp;•&nbsp;&nbsp;5 patches</summary>
+<summary>📦 Adobe Scan&nbsp;&nbsp;•&nbsp;&nbsp;6 patches</summary>
 <br>
 
 **🎯 Supported versions:**
@@ -191,6 +191,7 @@ My [Morphe](https://morphe.software) patches
 | 💊&nbsp;Patch | 📜&nbsp;Description | ⚙️&nbsp;Options |
 |----------|----------------|-----------|
 | [Remove Ads and Tracking](#remove-ads-and-tracking) | Disables Adobe, Branch, Facebook, Creative SDK, and Crashlytics telemetry; removes in-app ads and review prompts; blocks install-referrer collection; and zeroes the Google Play Advertising ID. | • Remove Settings |
+| [Remove Attribution](#remove-attribution) | Names new scans 'Scan on [date]' instead of 'Adobe Scan [date]' and removes the attribution text from shared files. | • Remove Scan Name Attribution<br>• Remove Share Attribution Text |
 | [Remove Login](#remove-login) | Starts Adobe Scan in its existing account-free local workspace and removes account sign-in gates; Adobe cloud features are unavailable. | • Clean Up Auth Components<br>• Remove Link Sharing<br>• Remove Edit Text<br>• Remove Move<br>• Remove Save as Word Doc |
 | [Remove Useless/Promotional Items](#remove-useless-promotional-items) | Removes promotional, feedback, and support items from Settings and file menus. | • About Adobe Scan<br>• Help<br>• Rate App<br>• Online Support Forum<br>• Share This App<br>• Fill & Sign<br>• Open in Adobe Acrobat |
 | [Unlock Premium](#unlock-premium) | Enables locally executable premium OCR, editing, compression, and page-organization tools without cloud or GenAI access. | • Remove Broken Features<br>• Enable Cloud Tools (Experimental) |

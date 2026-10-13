@@ -1,3 +1,9 @@
+## [1.8.0-dev.1](https://github.com/ihatenodejs/aidans-patches/compare/v1.7.0...v1.8.0-dev.1) (2026-10-13)
+
+### ✨ New Features
+
+* **adobe-scan:** added remove attribution patch ([726f4f4](https://github.com/ihatenodejs/aidans-patches/commit/726f4f4ae2526707581faf8f285eb63feb57c282))
+
 ## [1.7.0](https://github.com/ihatenodejs/aidans-patches/compare/v1.6.0...v1.7.0) (2026-10-13)
 
 ### 🐛 Bug Fixes
