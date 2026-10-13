@@ -1,0 +1,242 @@
+package app.aidan.patches.pay365.tracking
+
+import app.aidan.patches.pay365.shared.COMPATIBILITY_365_PAY
+import app.morphe.patcher.extensions.InstructionExtensions.addInstructions
+import app.morphe.patcher.patch.BytecodePatchContext
+import app.morphe.patcher.patch.booleanOption
+import app.morphe.patcher.patch.bytecodePatch
+import com.android.tools.smali.dexlib2.Opcode
+
+@Suppress("unused")
+val removeTrackingPatch = bytecodePatch(
+    name = "Remove Tracking",
+    description = "Neutralizes diagnostic telemetry, event logging, and user tracking (Firebase Analytics, Crashlytics, Instana APM, Branch Metrics, and OneSignal session and outcome tracking).",
+    default = true
+) {
+    category("Privacy")
+    compatibleWith(COMPATIBILITY_365_PAY)
+
+    val disableFirebaseAnalytics = booleanOption(
+        key = "disableFirebaseAnalytics",
+        default = true,
+        title = "Disable Firebase Analytics",
+        description = "Blocks React Native Firebase Analytics and Google Play AppMeasurement event tracking."
+    )
+
+    val disableCrashlytics = booleanOption(
+        key = "disableCrashlytics",
+        default = true,
+        title = "Disable Firebase Crashlytics",
+        description = "Neutralizes Firebase Crashlytics crash reporting and diagnostic logging."
+    )
+
+    val disableInstana = booleanOption(
+        key = "disableInstana",
+        default = true,
+        title = "Disable Instana APM",
+        description = "Neutralizes Instana End-User Monitoring (EUM) and background telemetry workers."
+    )
+
+    val disableBranch = booleanOption(
+        key = "disableBranch",
+        default = true,
+        title = "Disable Branch Metrics",
+        description = "Neutralizes Branch Metrics attribution and event tracking."
+    )
+
+    val disableOneSignalTracking = booleanOption(
+        key = "disableOneSignalTracking",
+        default = true,
+        title = "Disable OneSignal Telemetry",
+        description = "Blocks OneSignal custom events, session outcomes, tags, and location tracking."
+    )
+
+    execute {
+        if (disableFirebaseAnalytics.value != false) {
+            resolvePromiseNull(
+                "Lio/invertase/firebase/analytics/ReactNativeFirebaseAnalyticsModule;",
+                "logEvent",
+                "setAnalyticsCollectionEnabled",
+                "setUserProperties",
+                "setUserId",
+                "setUserProperty",
+                "setDefaultEventParameters",
+                "resetAnalyticsData",
+                "setConsent"
+            )
+            disableVoidMethods(
+                "Lcom/google/android/gms/measurement/AppMeasurement;",
+                "logEventInternal"
+            )
+            disableVoidMethods(
+                "Lcom/google/firebase/analytics/FirebaseAnalytics;",
+                "logEvent",
+                "setAnalyticsCollectionEnabled",
+                "setUserId",
+                "setUserProperty",
+                "resetAnalyticsData"
+            )
+        }
+
+        if (disableCrashlytics.value != false) {
+            disableVoidMethods(
+                "Lio/invertase/firebase/crashlytics/ReactNativeFirebaseCrashlyticsModule;",
+                "log",
+                "recordError",
+                "sendUnsentReports",
+                "deleteUnsentReports"
+            )
+            resolvePromiseNull(
+                "Lio/invertase/firebase/crashlytics/ReactNativeFirebaseCrashlyticsModule;",
+                "logPromise",
+                "recordErrorPromise",
+                "setCrashlyticsCollectionEnabled",
+                "setUserId",
+                "setAttribute",
+                "setAttributes"
+            )
+            disableVoidMethods(
+                "Lcom/google/firebase/crashlytics/FirebaseCrashlytics;",
+                "log",
+                "recordException",
+                "sendUnsentReports",
+                "deleteUnsentReports",
+                "setCrashlyticsCollectionEnabled",
+                "setCustomKey",
+                "setUserId"
+            )
+        }
+
+        if (disableInstana.value != false) {
+            disableVoidMethods(
+                "Lcom/instana/rn/InstanaEumModule;",
+                "setup",
+                "reportEvent",
+                "setUserID",
+                "setUserEmail",
+                "setUserName",
+                "setMeta",
+                "setView",
+                "setCollectionEnabled"
+            )
+            stubWorkerSuccess("Lcom/instana/android/core/event/worker/EventWorker;")
+            stubWorkerSuccess("Lcom/instana/android/performance/network/NetworkUsageWorker;")
+        }
+
+        if (disableBranch.value != false) {
+            resolvePromiseNull(
+                "Lio/branch/rnbranch/RNBranchModule;",
+                "logEvent",
+                "setIdentityAsync",
+                "registerView"
+            )
+            disableVoidMethods(
+                "Lio/branch/rnbranch/RNBranchModule;",
+                "setIdentity",
+                "addFacebookPartnerParameter",
+                "setRequestMetadataKey",
+                "clearPartnerParameters"
+            )
+        }
+
+        if (disableOneSignalTracking.value != false) {
+            disableVoidMethods(
+                "Lcom/onesignal/rnonesignalandroid/RNOneSignal;",
+                "trackEvent",
+                "addOutcome",
+                "addOutcomeWithValue",
+                "addUniqueOutcome",
+                "addTag",
+                "addTags",
+                "setLocationShared"
+            )
+            disableVoidMethods(
+                "Lcom/onesignal/session/internal/SessionManager;",
+                "addOutcome",
+                "addOutcomeWithValue",
+                "addUniqueOutcome"
+            )
+            returnNullObject(
+                "Lcom/onesignal/location/internal/controller/impl/GmsLocationController;",
+                "getLastLocation",
+                "Landroid/location/Location;"
+            )
+        }
+    }
+}
+
+private fun BytecodePatchContext.resolvePromiseNull(
+    classDescriptor: String,
+    vararg methodNames: String
+) {
+    val mutableClass = mutableClassDefByOrNull(classDescriptor) ?: return
+    val methodSet = methodNames.toSet()
+    for (method in mutableClass.methods) {
+        if (method.name in methodSet && method.returnType == "V" && method.implementation != null) {
+            val params = method.parameterTypes
+            val promiseIndex = params.indexOf("Lcom/facebook/react/bridge/Promise;")
+            if (promiseIndex != -1) {
+                val promiseReg = "p${promiseIndex + 1}"
+                method.addInstructions(
+                    0,
+                    """
+                    const/4 v0, 0x0
+                    invoke-interface {$promiseReg, v0}, Lcom/facebook/react/bridge/Promise;->resolve(Ljava/lang/Object;)V
+                    return-void
+                    """.trimIndent()
+                )
+            }
+        }
+    }
+}
+
+private fun BytecodePatchContext.disableVoidMethods(
+    classDescriptor: String,
+    vararg methodNames: String
+) {
+    val mutableClass = mutableClassDefByOrNull(classDescriptor) ?: return
+    val methodSet = methodNames.toSet()
+    for (method in mutableClass.methods) {
+        if (method.name in methodSet && method.returnType == "V" && method.implementation != null) {
+            val firstInst = method.implementation?.instructions?.firstOrNull()
+            if (firstInst?.opcode != Opcode.RETURN_VOID) {
+                method.addInstructions(0, "return-void")
+            }
+        }
+    }
+}
+
+private fun BytecodePatchContext.stubWorkerSuccess(classDescriptor: String) {
+    val mutableClass = mutableClassDefByOrNull(classDescriptor) ?: return
+    for (method in mutableClass.methods) {
+        if (method.name == "doWork" && method.returnType == "Landroidx/work/ListenableWorker\$Result;" && method.implementation != null) {
+            method.addInstructions(
+                0,
+                """
+                invoke-static {}, Landroidx/work/ListenableWorker${'$'}Result;->success()Landroidx/work/ListenableWorker${'$'}Result;
+                move-result-object v0
+                return-object v0
+                """.trimIndent()
+            )
+        }
+    }
+}
+
+private fun BytecodePatchContext.returnNullObject(
+    classDescriptor: String,
+    methodName: String,
+    returnType: String
+) {
+    val mutableClass = mutableClassDefByOrNull(classDescriptor) ?: return
+    for (method in mutableClass.methods) {
+        if (method.name == methodName && method.returnType == returnType && method.implementation != null) {
+            method.addInstructions(
+                0,
+                """
+                const/4 v0, 0x0
+                return-object v0
+                """.trimIndent()
+            )
+        }
+    }
+}

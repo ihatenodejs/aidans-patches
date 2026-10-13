@@ -3,6 +3,7 @@ export const APP_ICONS: Record<string, string> = {
   'com.adobe.scan.android': '/icons/com.adobe.scan.android.png',
   'com.aftership.AfterShip': '/icons/com.aftership.AfterShip.png',
   'com.ashtoncofer.Buzz': '/icons/com.ashtoncofer.Buzz.png',
+  'com.avinside': '/icons/com.avinside.png',
   'com.eab.se': '/icons/com.eab.se.png',
   'com.groundspeak.geocaching.intro':
     '/icons/com.groundspeak.geocaching.intro.png',

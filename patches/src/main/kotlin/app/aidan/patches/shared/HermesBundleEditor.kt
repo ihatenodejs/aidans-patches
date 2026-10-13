@@ -1,11 +1,14 @@
-package app.aidan.patches.sezzle.shared
+package app.aidan.patches.shared
 
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.security.MessageDigest
 
 /**
- * Utility for reading and in-place patching of Hermes bytecode bundles (HBC v98+).
+ * Utility for reading and in-place patching of Hermes bytecode bundles (HBC v96+).
+ *
+ * Function header lookup, matching, in-place byte patching, and SHA-1 footer calculation
+ * support HBC v96+, while header redirection remains HBC v98+ only.
  */
 class HermesBundleEditor(private val data: ByteArray) {
 

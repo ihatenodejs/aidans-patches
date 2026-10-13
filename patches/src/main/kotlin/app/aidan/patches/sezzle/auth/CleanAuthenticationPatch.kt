@@ -1,7 +1,7 @@
 package app.aidan.patches.sezzle.auth
 
 import app.aidan.patches.sezzle.shared.Constants.COMPATIBILITY_SEZZLE
-import app.aidan.patches.sezzle.shared.HermesBundleEditor
+import app.aidan.patches.shared.HermesBundleEditor
 import app.morphe.patcher.patch.booleanOption
 import app.morphe.patcher.patch.rawResourcePatch
 private const val PHONE_FORM_RESULT_OFFSET = 3587
