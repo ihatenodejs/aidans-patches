@@ -1106,6 +1106,54 @@
       "options": []
     },
     {
+      "name": "Remove Attribution",
+      "description": "Names new scans 'Scan on [date]' instead of 'Adobe Scan [date]' and removes the attribution text from shared files.",
+      "default": true,
+      "category": "Customization",
+      "dependencies": [],
+      "compatiblePackages": [
+        {
+          "packageName": "com.adobe.scan.android",
+          "name": "Adobe Scan",
+          "description": null,
+          "apkFileType": "APKM",
+          "appIconColor": "#1473E6",
+          "signatures": [
+            "b6dd0562256487fcd6c98cde137858ef50d9adb9f9cd2f1ca58c5357efdf0faf"
+          ],
+          "targets": [
+            {
+              "version": "26.09.25",
+              "versionCodes": null,
+              "isExperimental": false,
+              "minSdk": 32,
+              "description": null
+            }
+          ]
+        }
+      ],
+      "options": [
+        {
+          "key": "removeScanAttribution",
+          "title": "Remove Scan Name Attribution",
+          "description": "Names new scans 'Scan on [date]' instead of 'Adobe Scan [date]'.",
+          "required": false,
+          "type": "kotlin.Boolean",
+          "default": true,
+          "values": null
+        },
+        {
+          "key": "removeShareAttribution",
+          "title": "Remove Share Attribution Text",
+          "description": "Removes the promotional 'Created and shared using Adobe Scan.' text from shared files.",
+          "required": false,
+          "type": "kotlin.Boolean",
+          "default": true,
+          "values": null
+        }
+      ]
+    },
+    {
       "name": "Remove Feedback",
       "description": "Removes prompting for feedback on shipments.",
       "default": true,

@@ -368,3 +368,42 @@ The global entitlement cutover replaces caller-local synthetic-lambda hooks. Con
 2. **Compilation Verification:** Build the patch bundle with `./gradlew :patches:buildAndroid clean --no-daemon`.
 3. **Metadata Verification:** Run `./gradlew generatePatchesList` and confirm that **Unlock Premium** exposes both options.
 4. **Bytecode Verification:** After applying to the target APKM, confirm that `Lcr/d0$a$a;` and `Lcr/y0;` methods `d`, `e`, `j`, and `n` begin with `const/4 v0, 0x1` and `return v0`; `Loe/a;->isPremiumLocked()Z` begins with `const/4 v0, 0x0`; and `Lqt/u;->a` omits Generative summary with its removal option enabled.
+
+---
+
+## Patch: Remove Attribution
+
+- **Name:** Remove Attribution
+- **Target Package:** `com.adobe.scan.android`
+- **Supported Versions:** `26.09.25`
+- **Default State:** `true` (Enabled by default)
+- **Type:** Dalvik Bytecode Patch (`bytecodePatch`)
+- **Dependencies:** None
+- **Compatibility:** `COMPATIBILITY_ADOBE_SCAN` (`ApkFileType.APKM`, target `26.09.25`, `minSdk` 32)
+- **Options:**
+  - `Remove Scan Name Attribution` (`removeScanAttribution`, default `true`): Names new scans 'Scan on [date]' instead of 'Adobe Scan [date]'.
+  - `Remove Share Attribution Text` (`removeShareAttribution`, default `true`): Removes the promotional 'Created and shared using Adobe Scan.' text from shared files.
+
+### 1. Motivation & Purpose
+
+Adobe Scan applies brand attribution in two prominent user-facing areas:
+1. When importing photos or creating new scans, the default document filename is formatted using the app name as the scan type prefix, yielding "Adobe Scan [date]" (e.g. "Adobe Scan Oct 13, 2026").
+2. When sharing a scan via the OS share sheet ("Send a copy", "Send compressed") or email, Adobe Scan attaches the text "Created and shared using Adobe Scan." in `Intent.EXTRA_TEXT`.
+
+The **Remove Attribution** patch neutralizes both forms of branding: scans are cleanly named "Scan on [date]" instead, and external shares contain only the PDF document without promotional body text.
+
+### 2. Technical Implementation & Injection Points
+
+| Layer | Target Descriptor / Anchor | Stock Behavior | Patched Behavior |
+|---|---|---|---|
+| **Scan Type Evaluation** | `Lcom/adobe/dcmscan/rename/d;->b(Context, boolean)String` (at `Context.getString` after `0x7f142073`) | Evaluates `CaptureMode.DOCUMENT` to `R.string.adobe_scan_filename` ("Adobe Scan"). | Replaces `Context.getString` call with `const-string v<dest>, "Scan on"` and nops `move-result-object`, causing composite scan names to format as "Scan on [date]". |
+| **OS Share Sheet** | `Lcom/adobe/scan/android/util/b;->r(...)Lk90/m;` (at `putExtra` for `EXTRA_TEXT`) | Calls `intent.putExtra("android.intent.extra.TEXT", promoString)`. | Replaces `putExtra` call with `nop`, ensuring the OS share chooser intent contains only the PDF attachment stream. |
+| **Email Attachment Share** | `Lcom/adobe/scan/android/util/b;->q(...)Lk90/m;` (at `putExtra` for `EXTRA_TEXT`) | Adds `EXTRA_TEXT` to the primary intent and each resolved email client intent. | Replaces all `putExtra` calls referencing the `EXTRA_TEXT` register with `nop`. |
+| **Formatted Text Generator** | `Lcom/adobe/scan/android/util/b;->j(...)String` (at `0x7f142844`) | Appends `\n\n` and `share_via_email_promotion_message` to the result string. | Replaces both `StringBuilder.append` calls with `nop`. |
+
+### 3. Preconditions & Verification
+
+1. **Target Validation:** Gates on Adobe Scan `26.09.25` through `COMPATIBILITY_ADOBE_SCAN`.
+2. **Compilation Verification:** Build patch bundle via `./gradlew :patches:buildAndroid clean --no-daemon`.
+3. **Metadata Verification:** Run `./gradlew generatePatchesList`.
+4. **Runtime Verification:** Deploy to device/emulator, import photo, confirm title renders "Scan on [date]", tap Share -> Send a copy, and confirm share intent Extras omit `android.intent.extra.TEXT`.
