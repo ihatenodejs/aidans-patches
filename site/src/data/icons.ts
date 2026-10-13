@@ -7,6 +7,7 @@ export const APP_ICONS: Record<string, string> = {
   'com.groundspeak.geocaching.intro':
     '/icons/com.groundspeak.geocaching.intro.png',
   'com.instructure.candroid': '/icons/com.instructure.candroid.png',
+  'com.nhl.gc1112.free': '/icons/com.nhl.gc1112.free.png',
   'com.sezzle.sezzlemobile': '/icons/com.sezzle.sezzlemobile.png',
   'com.sidelineswap.android': '/icons/com.sidelineswap.android.png',
   'com.tripledot.blackjack': '/icons/com.tripledot.blackjack.png',
