@@ -101,5 +101,6 @@ flowchart TD
 2. MainActivity Launch
    ├── ViewBinding inflation (activity_main.xml)
    ├── NavController attached to R.id.nav_host_fragment
+   ├── setupAccountBadge() [Buggy inflation of R.layout.badge_red causing persistent phantom badge]
    └── Deeplink evaluation and bottom navigation routing
 ```

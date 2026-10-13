@@ -13,6 +13,7 @@
     background-color: #050505;
     color: #ededed;
     color-scheme: dark;
+    overscroll-behavior: none;
     scroll-behavior: smooth;
     font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
   }
@@ -21,6 +22,7 @@
     background-color: #050505;
     min-height: 100vh;
     overflow-x: hidden;
+    overscroll-behavior: none;
     selection-background-color: #27272a;
     selection-color: #ffffff;
   }

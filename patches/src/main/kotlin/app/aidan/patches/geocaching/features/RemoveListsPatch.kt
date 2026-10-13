@@ -1,11 +1,10 @@
 package app.aidan.patches.geocaching.features
 
 import app.aidan.patches.geocaching.shared.COMPATIBILITY_GEOCACHING
+import app.aidan.patches.shared.compositeFeaturePatch
 import app.morphe.patcher.extensions.InstructionExtensions.addInstructions
 import app.morphe.patcher.patch.BytecodePatchContext
 import app.morphe.patcher.patch.PatchException
-import app.morphe.patcher.patch.bytecodePatch
-import app.morphe.patcher.patch.resourcePatch
 import com.android.tools.smali.dexlib2.iface.instruction.NarrowLiteralInstruction
 import org.w3c.dom.Element
 
@@ -14,17 +13,17 @@ private const val MENU_PATH = "res/menu/bottom_nav_menu.xml"
 private const val LIST_NAV_GRAPH_ID = 0x7f0a02e8
 
 /**
- * Resource companion patch that removes the Lists item from bottom_nav_menu.xml.
+ * Composite patch that removes the Lists option from the bottom navigation bar and menu.
  */
-val removeListsResourcePatch = resourcePatch(
-    name = "Remove Lists Resource",
-    description = "Removes the Lists option from bottom_nav_menu.xml.",
+val removeListsPatch = compositeFeaturePatch(
+    name = "Remove Lists",
+    description = "Removes the Lists option from the bottom navigation bar.",
     default = true
 ) {
     category("Interface")
     compatibleWith(COMPATIBILITY_GEOCACHING)
 
-    execute {
+    resources {
         document(MENU_PATH).use { document ->
             val itemNodes = document.getElementsByTagName("item")
             for (i in 0 until itemNodes.length) {
@@ -40,22 +39,8 @@ val removeListsResourcePatch = resourcePatch(
             }
         }
     }
-}
 
-/**
- * Bytecode patch that neutralizes the onResume notification badge lookup for list_nav_graph,
- * preventing NullPointerException when the tab is removed from the navbar.
- */
-val removeListsPatch = bytecodePatch(
-    name = "Remove Lists",
-    description = "Removes the Lists option from the bottom navigation bar.",
-    default = true
-) {
-    category("Interface")
-    compatibleWith(COMPATIBILITY_GEOCACHING)
-    dependsOn(removeListsResourcePatch)
-
-    execute {
+    bytecode {
         patchOnResumeListBadge()
     }
 }

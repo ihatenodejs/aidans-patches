@@ -3,7 +3,19 @@ name: Release
 on:
   workflow_dispatch:
   push:
-
+    branches:
+      - main
+      - dev
+    paths:
+      - 'patches/**'
+      - 'extensions/**'
+      - 'gradle/**'
+      - 'build.gradle.kts'
+      - 'settings.gradle.kts'
+      - 'gradle.properties'
+      - '.releaserc'
+      - '.github/scripts/prepare_emoji_font.py'
+      - '.github/workflows/release.yml'
 jobs:
   release:
     name: Release
@@ -31,7 +43,7 @@ jobs:
           java-version: '21'
 
       - name: Cache font assets
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.gradle/caches/aidans-patches/fonts
           key: emoji-font-${{ hashFiles('.github/scripts/prepare_emoji_font.py') }}
@@ -49,8 +61,11 @@ jobs:
 
       # Semantic release runs its own Gradle build command on main.
       - name: Release
-        uses: cycjimmy/semantic-release-action@v6
+        uses: cycjimmy/semantic-release-action@v7
         id: release
+        with:
+          extra_plugins: |
+            @semantic-release/github@latest
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

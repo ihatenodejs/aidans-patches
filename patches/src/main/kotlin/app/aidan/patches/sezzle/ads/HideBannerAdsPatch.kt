@@ -2,11 +2,10 @@ package app.aidan.patches.sezzle.ads
 
 import app.aidan.patches.sezzle.shared.Constants.COMPATIBILITY_SEZZLE
 import app.aidan.patches.sezzle.shared.HermesBundleEditor
+import app.aidan.patches.shared.compositeFeaturePatch
 import app.morphe.patcher.extensions.InstructionExtensions.addInstructions
 import app.morphe.patcher.patch.BytecodePatchContext
 import app.morphe.patcher.patch.PatchException
-import app.morphe.patcher.patch.bytecodePatch
-import app.morphe.patcher.patch.rawResourcePatch
 
 private val CAN_SHOW_AD_SELECTOR_SUFFIX_BYTES = byteArrayOf(
     0x02, 0x01, 0x00, 0x3b,
@@ -127,14 +126,15 @@ private fun findUniqueSequence(bytes: ByteArray, sequence: ByteArray, descriptio
  * stages the bundle, applies the 10 bytecode edits, and repackages it into the output APK.
  */
 @Suppress("unused")
-val removeAdsAndTrackingFromJsBundlePatch = rawResourcePatch(
-    name = "Remove Ads and Tracking from JS Bundle",
-    description = "Neutralizes post-payment reward and offer modals (Thanks network and Rokt placements) in the embedded Hermes JavaScript bundle.",
+val removeAdsAndTrackingPatch = compositeFeaturePatch(
+    name = "Remove Ads and Tracking",
+    description = "Removes all ads (AppLovin MAX, Google Mobile Ads, Rokt, Thanks network, Playtime, InBrain Surveys) and disables analytics and tracking SDKs (AppsFlyer, FullStory, Braze, Firebase Analytics, mParticle, Facebook SDK, AppCenter).",
     default = true
 ) {
     category("Ads")
     compatibleWith(COMPATIBILITY_SEZZLE)
-    execute {
+
+    rawResources {
         val bundleFile = get("assets/index.android.bundle")
         if (!bundleFile.exists()) {
             throw PatchException("assets/index.android.bundle not found")
@@ -188,19 +188,8 @@ val removeAdsAndTrackingFromJsBundlePatch = rawResourcePatch(
         editor.updateFooterHash()
         bundleFile.writeBytes(editor.toByteArray())
     }
-}
 
-@Suppress("unused")
-val removeAdsAndTrackingPatch = bytecodePatch(
-    name = "Remove Ads and Tracking",
-    description = "Removes all ads (AppLovin MAX, Google Mobile Ads, Rokt, Thanks network, Playtime, InBrain Surveys) and disables analytics and tracking SDKs (AppsFlyer, FullStory, Braze, Firebase Analytics, mParticle, Facebook SDK, AppCenter).",
-    default = true
-) {
-    category("Ads")
-    compatibleWith(COMPATIBILITY_SEZZLE)
-    dependsOn(removeAdsAndTrackingFromJsBundlePatch)
-
-    execute {
+    bytecode {
         // --- ADS ---
 
         // 1. AppLovin MAX

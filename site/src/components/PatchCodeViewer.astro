@@ -41,22 +41,8 @@ const initialApp = viewerData[initialAppIndex] || viewerData[0];
 const initialPatch = initialApp.patches[0];
 ---
 
-<div class="border border-white/[0.08] bg-[#090909] rounded-sm overflow-hidden relative">
-  <!-- Corner crosshairs -->
-  <span class="absolute -top-[5px] -left-[4px] select-none text-[9px] font-mono text-zinc-600 leading-none pointer-events-none">
-    +
-  </span>
-  <span class="absolute -top-[5px] -right-[4px] select-none text-[9px] font-mono text-zinc-600 leading-none pointer-events-none">
-    +
-  </span>
-  <span class="absolute -bottom-[5px] -left-[4px] select-none text-[9px] font-mono text-zinc-600 leading-none pointer-events-none">
-    +
-  </span>
-  <span class="absolute -bottom-[5px] -right-[4px] select-none text-[9px] font-mono text-zinc-600 leading-none pointer-events-none">
-    +
-  </span>
-
-  <div class="grid grid-cols-1 md:grid-cols-12 min-h-[500px]">
+<div class="border border-white/[0.08] bg-[#090909] relative">
+  <div class="grid grid-cols-1 md:grid-cols-12 min-h-[500px] overflow-hidden">
     <!-- Left Sidebar: App & Patch Picker (33% width / 4 cols out of 12) -->
     <div class="md:col-span-4 border-b md:border-b-0 md:border-r border-white/[0.08] flex flex-col bg-[#070707]">
       <!-- Top 50% Vertical Space: App Picker -->

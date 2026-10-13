@@ -8,7 +8,7 @@ This document details the binary bytecode and resource patches available for **S
 | [AMOLED Theme](#amoled-theme) | `resourcePatch` | `false` | Forces SidelineSwap into a pure-black AMOLED theme with dark system bars, black app surfaces, and readable light text and icons. |
 | [Block Tracking and Telemetry](#block-tracking-and-telemetry) | `bytecodePatch` | `true` | Neutralizes first-party analytics, third-party behavioral trackers, diagnostic logging, payment telemetry, and AAID. |
 | [Change Brand Color](#change-brand-color) | `resourcePatch` | `false` | Customizes primary brand accent colors across buttons, navigation highlights, badges, and status bars. |
-
+| [Remove Invite Friends](#remove-invite-friends) | `bytecodePatch` | `true` | Removes the Invite Friends option from the Account screen and eliminates the phantom orange dot badge on the Account navbar icon. |
 ---
 
 ## Block Tracking and Telemetry
@@ -164,3 +164,25 @@ An audited allowlist of 80 layout files is processed with attribute-aware rules:
 ### Coexistence and SDK Boundaries
 - **Change Brand Color Coexistence**: `AMOLED Theme` does not modify `colorPrimary`, `colorPrimaryDark`, `colorAccent`, `badge_color`, `green_badge`, or `ic_launcher_background`. Users can enable both patches simultaneously without conflicts or execution-order dependencies.
 - **Vendor Verification SDK Boundaries**: CardinalCommerce 3DS verification web resources are deliberately preserved with their original styles and palettes to prevent broken card verification layouts.
+
+---
+
+## Remove Invite Friends
+
+### Motivation
+SidelineSwap promotes its referral program with an "Invite Friends" entry positioned between "My Locker" and "Seller Dashboard" in the Account screen. In addition, the application's startup sequence invokes `MainActivity.setupAccountBadge()`, which inflates a red badge layout (`R.layout.badge_red`) onto the Account bottom navigation tab with `attachToRoot = true` and then attempts to cast the inflated `ImageView` to `TextView`. This throws a silent `ClassCastException` inside an error-swallowing try/catch block, leaving the orange dot permanently attached to the Account navbar icon even though no notification or account activity exists.
+
+The **Remove Invite Friends** patch removes the Invite Friends option and its layout divider while completely eliminating the phantom orange dot.
+
+### Technical Strategy
+The feature is coordinated across companion resource and bytecode layers:
+
+1. **Resource Layer (`Remove Invite Friends Resource`)**:
+   - In `res/layout/fragment_account_details.xml`: sets `android:visibility="gone"` on `@id/inviteFriends` (`FrameLayout`) and the immediately following divider `<View>`, preserving clean single-line divider spacing between "My Locker" and "Seller Dashboard".
+   - In `res/layout/badge_red.xml`: sets `android:visibility="gone"` on `@id/badge` (`ImageView`) as a safeguard.
+   - In `AndroidManifest.xml`: removes `requiredSplitTypes="base__density"` and Google Play split meta-data to normalize standalone APK installation.
+
+2. **Bytecode Layer (`Remove Invite Friends`)**:
+   - In `Lcom/sidelineswap/android/MainActivity;->setupAccountBadge()V`: prepends `return-void` at index 0. This halts inflation of `badge_red` into the Account tab, prevents the startup `ClassCastException`, and eliminates the non-functional orange dot badge entirely.
+   - In `Lcom/sidelineswap/android/MainActivity$processDeepLink$target$7;->invoke()V`: prepends `return-void` at index 0, neutralizing deep links targeting the Invite Friends screen.
+   - In `Lcom/sidelineswap/android/account/AccountDetailsFragment;`: scans and injects `return-void` into any method invoking `inviteFriends`, neutralizing the referral click handler.

@@ -1,10 +1,9 @@
 package app.aidan.patches.blackjack.customization
 
 import app.aidan.patches.blackjack.shared.COMPATIBILITY_BLACKJACK
+import app.aidan.patches.shared.compositeFeaturePatch
 import app.morphe.patcher.extensions.InstructionExtensions.addInstructions
 import app.morphe.patcher.patch.PatchException
-import app.morphe.patcher.patch.bytecodePatch
-import app.morphe.patcher.patch.rawResourcePatch
 
 private val OPEN_SHOP_PROLOGUE = byteArrayOf(
     0xfe.toByte(), 0x0f, 0x1a, 0xf8.toByte(),
@@ -106,16 +105,16 @@ private const val CHECK_UPDATE_OFFSET = 0x1fd0850
 private const val NATIVE_POPUPS_MANAGER = "Lcom/mnp/popups/NativePopupsManager;"
 
 @Suppress("unused")
-val patchChipStoreResourcePatch = rawResourcePatch(
-    name = "Custom Chip Store Binary Hook",
-    description = "Hooks BlackjackApplication.OpenShop and CheckUpdateToVersion in libil2cpp.so to bridge the custom chip store.",
+val addCustomChipStorePatch = compositeFeaturePatch(
+    name = "Add Custom Chip Store",
+    description = "Replaces the unavailable store with a dialog to view and set your exact chip balance.",
     default = true
 ) {
     category("Features")
     compatibleWith(COMPATIBILITY_BLACKJACK)
+    extendWith("extensions/extension.mpe")
 
-    execute {
-
+    rawResources {
         val library = get("lib/arm64-v8a/libil2cpp.so")
         if (!library.exists()) throw PatchException("Missing arm64 IL2CPP library")
 
@@ -148,20 +147,8 @@ val patchChipStoreResourcePatch = rawResourcePatch(
 
         library.writeBytes(bytes)
     }
-}
 
-@Suppress("unused")
-val addCustomChipStorePatch = bytecodePatch(
-    name = "Add Custom Chip Store",
-    description = "Replaces the unavailable store with a dialog to view and set your exact chip balance.",
-    default = true
-) {
-    category("Features")
-    compatibleWith(COMPATIBILITY_BLACKJACK)
-    dependsOn(patchChipStoreResourcePatch)
-    extendWith("extensions/extension.mpe")
-
-    execute {
+    bytecode {
         val manager = mutableClassDefByOrNull(NATIVE_POPUPS_MANAGER)
             ?: throw PatchException("NativePopupsManager class not found")
         val showDialog = manager.methods.singleOrNull { method ->

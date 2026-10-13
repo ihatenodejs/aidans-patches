@@ -6,7 +6,7 @@ Scope: CI workflows, release/deploy automation, issue templates, and Python gene
 
 - `workflows/apk-lab-tests.yml`: installs locked root/Worker/site/Python dependencies, runs format/lint/typecheck/tests, then the clean Gradle patch build gate.
 - `workflows/apk-compatibility.yml`: builds `.mpp`/metadata, computes affected packages, reconciles private fixtures, runs real compatibility checks, and reports terminal status.
-- `workflows/release.yml`: Java/Node release pipeline, semantic-release, provenance attestation, and site/Worker release handoff.
+- `workflows/release.yml`: Java/Node release pipeline and semantic-release, gated by paths to patch build inputs; site and Worker deploy handoffs trigger only on published releases.
 - `workflows/deploy-worker.yml`: Worker typecheck/test and conditional Wrangler deployment.
 - `workflows/deploy-site.yml`: icon check, tests, Astro check/build, and conditional Pages deployment.
 - `workflows/sync-app-icons.yml`: scheduled/manual icon synchronization in a PR targeting `dev`.
@@ -23,7 +23,7 @@ Python scripts follow Ruff formatting/lint rules, validate paths/input shape, fa
 
 ## Release and Generated Assets
 
-`.releaserc` owns the release sequence:
+`.releaserc` owns the release sequence and configures non-application scopes (`site`, `worker`, `apk-lab`, etc.) with `release: false` so only patch changes trigger releases:
 
 1. `./gradlew generatePatchesList` builds patch artifacts and metadata.
 2. Release version is applied to `patches-list.json`.
@@ -43,6 +43,7 @@ Do not hand-edit release-generated files to simulate a release. Do not run relea
 ## Verification
 
 - For workflow YAML, verify syntax, action inputs, permissions, path filters, job dependencies, and the exact local command each step wraps.
+- To test workflows locally with `act`, point `DOCKER_HOST` to the active daemon socket (e.g. `unix://${HOME}/.orbstack/run/docker.sock` for OrbStack), target the workflow via `-W`, and use `-P ubuntu-latest=catthehacker/ubuntu:act-latest` (pass `-n` for dry-run simulation of step resolution and action cloning). Note that dynamic outputs in chained matrix jobs (`fromJson(needs...outputs)`) require upstream execution.
 - For generators, run targeted tests/check-only modes and inspect output boundaries. Use temporary inputs for mutation tests.
 - Run `bun run format:check`, `bun run lint`, and the affected root phase; finish code changes with `bun run audit`.
 - A local semantic-release dry run is release-specific and may install/update dependencies: `npm install && npx semantic-release --dry-run`. Never publish/deploy as verification.

@@ -21,6 +21,7 @@
       "id": "5c62cbcdc49749368cc3daba5aa87759",
     },
   ],
+  "workers_dev": true,
   "routes": [
     {
       "pattern": "worker.patch.p0ntus.com",

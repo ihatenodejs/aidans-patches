@@ -210,7 +210,23 @@ public final class OsmStyleBridge {
         try {
             Method dismissMethod = fragmentObj.getClass().getMethod("dismiss");
             dismissMethod.invoke(fragmentObj);
+            return;
         } catch (Throwable ignored) {
+        }
+        try {
+            Method vmMethod = fragmentObj.getClass().getMethod("v");
+            Object sharedVm = vmMethod.invoke(fragmentObj);
+            if (sharedVm != null) {
+                Field k0Field = sharedVm.getClass().getDeclaredField("k0");
+                k0Field.setAccessible(true);
+                Object k0Flow = k0Field.get(sharedVm);
+                if (k0Flow != null) {
+                    Method oMethod = k0Flow.getClass().getMethod("o", Object.class, Object.class);
+                    oMethod.invoke(k0Flow, null, Boolean.FALSE);
+                }
+            }
+        } catch (Throwable t) {
+            Log.w(TAG, "Failed to dismiss map settings sheet", t);
         }
     }
 

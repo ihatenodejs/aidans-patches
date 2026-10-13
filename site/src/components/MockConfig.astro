@@ -9,21 +9,7 @@ const sezzleIcon = getAppIconUrl('com.sezzle.sezzlemobile');
 const totalOptions = getPatches().reduce((sum, p) => sum + p.options.length, 0);
 ---
 
-<div class="border border-white/[0.08] bg-[#090909] p-6 relative overflow-hidden flex flex-col gap-6">
-  <!-- Corner crosshairs -->
-  <span class="absolute -top-[5px] -left-[4px] select-none text-[9px] font-mono text-zinc-600 leading-none pointer-events-none">
-    +
-  </span>
-  <span class="absolute -top-[5px] -right-[4px] select-none text-[9px] font-mono text-zinc-600 leading-none pointer-events-none">
-    +
-  </span>
-  <span class="absolute -bottom-[5px] -left-[4px] select-none text-[9px] font-mono text-zinc-600 leading-none pointer-events-none">
-    +
-  </span>
-  <span class="absolute -bottom-[5px] -right-[4px] select-none text-[9px] font-mono text-zinc-600 leading-none pointer-events-none">
-    +
-  </span>
-
+<div class="border border-white/[0.08] bg-[#090909] p-6 relative flex flex-col gap-6">
   <div class="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
     <!-- Option Sample 1: Color Picker (SidelineSwap Change Brand Color) -->
     <div class="p-4 bg-zinc-950/80 border border-white/[0.06] rounded-sm flex flex-col justify-between">

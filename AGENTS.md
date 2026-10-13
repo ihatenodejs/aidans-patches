@@ -133,32 +133,77 @@ npx semantic-release --dry-run
 - `site/src/data/icons.ts` and `site/public/icons/<package>.png` are synchronized by `.github/scripts/sync_app_icons.py`.
 - Release automation owns `CHANGELOG.md`, `patches-bundle.json`, release-version updates in `patches-list.json`, and the generated README patch block.
 
-### Commit Scope Convention
+### Commit Message Convention
 
-Use Conventional Commits: `<type>(<scope>): <description>`. Patch changes must use an application scope so release notes can resolve the correct app icon; never use `patches`, `patches/main`, or an unscoped app commit.
-
-| App | Canonical scope | Accepted aliases |
-| --- | --- | --- |
-| Sezzle | `sezzle` | `sezzlemobile` |
-| SidelineSwap | `sidelineswap` | `sideline` |
-| AfterShip | `aftership` | — |
-| Canvas Student | `canvas-student` | `canvas`, `candroid` |
-| Navigate360 Student | `navigate360-student` | `navigate360`, `navigate`, `eab` |
-| Blackjack | `blackjack` | `tripledot` |
-| Adobe Scan | `adobe-scan` | `adobescan`, `adobe`, `scan` |
-| Fizz | `fizz` | `buzz` |
-| Geocaching | `geocaching` | `groundspeak` |
-
-Release-producing types configured in `.releaserc`: `feat` → minor; `fix`, `bump`, and `perf` → patch. Common non-app scopes: `apk-lab`, `tools/apk-lab`, `site`, `worker`, `ci`, `release`, `audit`, `docs`, `specs`, and `icons`.
-
-Examples:
+All commit summaries must strictly follow Conventional Commits format:
 
 ```text
-feat(geocaching): add map style switching
-fix(aftership): resolve checkpoint coordinates
-bump(blackjack): support 2.x.y
-chore(icons): sync application icons
+<type>(<scope>): <description>
 ```
+
+Every commit must be scoped. Never author unscoped commits (e.g. `fix: ...`, `chore: ...`), freeform summaries (e.g. `Fix issues in PR #21`), or path-based scopes (e.g. `tools/apk-lab`, `patches/main`). Automated release commits (`chore: Release ... [skip ci]`) and PR merge commits are generated exclusively by tooling.
+
+#### Commit Types
+
+| Type | Release impact (`.releaserc`) | Changelog section | Usage |
+| --- | --- | --- | --- |
+| `feat` | Minor | ✨ New Features | New user-facing patch, option, feature, or tooling capability. |
+| `fix` | Patch | 🐛 Bug Fixes | Bug fix in patch bytecode, resources, extension runtime, site, worker, or tools. |
+| `bump` | Patch | 🚀 Updated App Support | Updating supported target APK versions or compatibility ranges. Never use `fix` for version updates. |
+| `perf` | Patch | 🔧 Improvements | Performance optimization or bytecode execution efficiency. |
+| `chore` | None | Hidden | Maintenance, dependency upgrades, release config, icon sync, housekeeping. |
+| `docs` | None | Hidden | Documentation in `docs/`, `AGENTS.md`, or skill references. |
+| `style` | None | Hidden | Formatting, indentation, whitespace only (no runtime behavior changes). |
+| `refactor` | None | Hidden | Code restructuring without fixing a bug or adding a feature. |
+| `test` | None | Hidden | Adding or updating tests, fixtures, or test mocks. |
+| `ci` | None | Hidden | CI workflows, GitHub Actions, runner setup, or pipeline scripts. |
+Release impacts in `.releaserc` apply strictly to application scopes. Non-application scopes (`site`, `worker`, `apk-lab`, `ci`, etc.) are configured with `release: false` in `.releaserc` and never trigger patch package releases.
+
+#### Scope Taxonomy
+
+Every commit must use an exact scope from one of the two tables below.
+
+##### Application Scopes (Mandatory for Patches & Extensions)
+
+All patch definitions and Java extension changes must use the canonical app scope. The Astro site and release changelog resolve application icons and attribution directly from this scope.
+
+| App | Canonical scope | Note on legacy aliases |
+| --- | --- | --- |
+| Sezzle | `sezzle` | Aliases (`sezzlemobile`) are legacy site mappings only; never use in new commits. |
+| SidelineSwap | `sidelineswap` | Alias `sideline` is legacy. |
+| AfterShip | `aftership` | — |
+| Canvas Student | `canvas-student` | Aliases (`canvas`, `candroid`) are legacy. |
+| Navigate360 Student | `navigate360-student` | Aliases (`navigate360`, `navigate`, `eab`) are legacy. |
+| Blackjack | `blackjack` | Alias `tripledot` is legacy. |
+| Adobe Scan | `adobe-scan` | Aliases (`adobescan`, `adobe`, `scan`) are legacy. |
+| Fizz | `fizz` | Alias `buzz` is legacy. |
+| Geocaching | `geocaching` | Alias `groundspeak` is legacy. |
+
+##### Non-Application Scopes
+
+Repository tooling, infrastructure, and shared modules must use only these fixed canonical scopes (no subdirectories or path prefixes):
+
+| Scope | Allowed boundary | Forbidden variants |
+| --- | --- | --- |
+| `apk-lab` | APK Lab Python CLI, toolchain, analysis, deployment, decompilation | `tools/apk-lab`, `skills/apk-lab` |
+| `site` | Astro static website, UI components, site data loaders, site tests | `web`, `frontend` |
+| `worker` | Cloudflare Worker control plane, scraping, KV compatibility state | `cf`, `backend` |
+| `audit` | Unified audit orchestrator (`scripts/audit.ts`), lint/format setups | `scripts` |
+| `ci` | GitHub Actions workflows, matrix checks, compatibility pipelines | `workflows`, `ci/workflows`, `deploy` |
+| `release` | Semantic release configuration, packaging plugins, release scripts | `build(release)` |
+| `docs` | General repository documentation, root README, architecture specs | `docs(docs)`, `specs` |
+| `icons` | Application icon synchronization pipeline and icons data | `chore(app-icons)` |
+| `deps` | Dependency upgrades across Bun, Gradle, or Python | `dependencies` |
+
+#### Summary Description Rules
+
+The summary text after `<type>(<scope>): ` must follow these rules:
+
+1. **Imperative mood**: Use imperative verbs (`add`, `fix`, `update`, `remove`), never past tense (`added`, `fixed`, `removed`) or progressive (`adding`).
+2. **Lowercase start**: Begin the description with a lowercase letter (`add dark theme`, not `Add dark theme`).
+3. **No trailing punctuation**: Never end the summary with a period or exclamation mark.
+4. **Concise length**: Keep the entire summary line under 72 characters.
+5. **Direct substance**: State what changed and why. Never commit review metadata (e.g. `address review comments`, `fix PR issues`).
 
 ## Important Files
 

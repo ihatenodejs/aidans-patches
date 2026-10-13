@@ -1,11 +1,10 @@
 package app.aidan.patches.fizz.customization
 
 import app.aidan.patches.fizz.shared.COMPATIBILITY_FIZZ
+import app.aidan.patches.shared.compositeFeaturePatch
 import app.morphe.patcher.extensions.InstructionExtensions.addInstructions
 import app.morphe.patcher.patch.BytecodePatchContext
 import app.morphe.patcher.patch.PatchException
-import app.morphe.patcher.patch.bytecodePatch
-import app.morphe.patcher.patch.rawResourcePatch
 import com.android.tools.smali.dexlib2.Opcode
 
 private const val EMOJI_COMPAT_INITIALIZER = "Landroidx/emoji2/text/EmojiCompatInitializer;"
@@ -15,15 +14,16 @@ private const val EMOJI_FONT_BRIDGE = "Lapp/aidan/extension/emoji/EmojiFontBridg
 private object FontResourceHolder
 
 @Suppress("unused")
-val replaceEmojiFontWithIosResourcePatch = rawResourcePatch(
-    name = "Replace Emoji Font with iOS Asset",
-    description = "Copies the packaged Apple Color Emoji font into the target APK assets.",
+val replaceEmojiFontWithIosPatch = compositeFeaturePatch(
+    name = "Replace Emoji Font with iOS",
+    description = "Replaces Android system emoji with iOS Apple Color Emoji across Compose UI, posts, comments, and direct messages.",
     default = true
 ) {
     category("Customization")
     compatibleWith(COMPATIBILITY_FIZZ)
+    extendWith("extensions/extension.mpe")
 
-    execute {
+    rawResources {
         val targetFile = get("assets/fonts/AppleColorEmoji.ttf")
         val fontStream = FontResourceHolder::class.java.classLoader.getResourceAsStream("fonts/AppleColorEmoji.ttf")
             ?: FontResourceHolder::class.java.getResourceAsStream("/fonts/AppleColorEmoji.ttf")
@@ -34,20 +34,8 @@ val replaceEmojiFontWithIosResourcePatch = rawResourcePatch(
             }
         }
     }
-}
 
-@Suppress("unused")
-val replaceEmojiFontWithIosPatch = bytecodePatch(
-    name = "Replace Emoji Font with iOS",
-    description = "Replaces Android system emoji with iOS Apple Color Emoji across Compose UI, posts, comments, and direct messages.",
-    default = true
-) {
-    category("Customization")
-    compatibleWith(COMPATIBILITY_FIZZ)
-    dependsOn(replaceEmojiFontWithIosResourcePatch)
-    extendWith("extensions/extension.mpe")
-
-    execute {
+    bytecode {
         patchEmojiCompatInitializer()
         patchAndroidFontLoader()
         patchPlatformTypefaces()
