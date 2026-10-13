@@ -42,9 +42,9 @@ My [Morphe](https://morphe.software) patches
 ## 📱 Supported Applications & Patches
 
 <!-- PATCHES_START EXPANDED -->
-> **[v1.7.0-dev.3](https://github.com/ihatenodejs/aidans-patches/releases/tag/v1.7.0-dev.3)**&nbsp;&nbsp;•&nbsp;&nbsp;`dev`&nbsp;&nbsp;•&nbsp;&nbsp;66 patches total
+> **[v1.7.0](https://github.com/ihatenodejs/aidans-patches/releases/tag/v1.7.0)**&nbsp;&nbsp;•&nbsp;&nbsp;`main`&nbsp;&nbsp;•&nbsp;&nbsp;60 patches total
 <details open>
-<summary>📦 SidelineSwap&nbsp;&nbsp;•&nbsp;&nbsp;6 patches</summary>
+<summary>📦 SidelineSwap&nbsp;&nbsp;•&nbsp;&nbsp;4 patches</summary>
 <br>
 
 **🎯 Supported versions:**
@@ -55,11 +55,9 @@ My [Morphe](https://morphe.software) patches
 | 💊&nbsp;Patch | 📜&nbsp;Description | ⚙️&nbsp;Options |
 |----------|----------------|-----------|
 | [AMOLED Theme](#amoled-theme) | Forces SidelineSwap into a pure-black AMOLED theme with dark system bars, black app surfaces, readable light text and icons, and force dark mode on embedded WebViews. |  |
-| [AMOLED Theme Resources](#amoled-theme-resources) | Resource modifications for AMOLED theme. |  |
 | [Block Tracking and Telemetry](#block-tracking-and-telemetry) | Neutralizes first-party analytics (SidelineSwap backend), behavioral tracking (Amplitude, Firebase Analytics, Facebook App Events, Iterable), diagnostic telemetry (Firebase Crashlytics, Timber logging tree), payment gateway telemetry (Braintree FPTI), and zeros the Google Play Advertising ID (AAID). |  |
 | [Change Brand Color](#change-brand-color) | Customizes the primary accent brand color across SidelineSwap buttons, navigation highlights, badges, and accents. | • Primary Brand Color<br>• Primary Dark Color |
 | [Remove Invite Friends](#remove-invite-friends) | Removes the Invite Friends option from the Account screen and eliminates the non-functional orange dot notification badge from the Account navigation icon. |  |
-| [Remove Invite Friends Resource](#remove-invite-friends-resource) | Hides the Invite Friends row and its divider in the Account layout. |  |
 
 </details>
 
@@ -89,7 +87,7 @@ My [Morphe](https://morphe.software) patches
 </details>
 
 <details open>
-<summary>📦 Blackjack&nbsp;&nbsp;•&nbsp;&nbsp;7 patches</summary>
+<summary>📦 Blackjack&nbsp;&nbsp;•&nbsp;&nbsp;6 patches</summary>
 <br>
 
 **🎯 Supported versions:**
@@ -100,7 +98,6 @@ My [Morphe](https://morphe.software) patches
 | 💊&nbsp;Patch | 📜&nbsp;Description | ⚙️&nbsp;Options |
 |----------|----------------|-----------|
 | [Add Custom Chip Store](#add-custom-chip-store) | Replaces the unavailable store with a dialog to view and set your exact chip balance. |  |
-| [Custom Chip Store Binary Hook](#custom-chip-store-binary-hook) | Hooks BlackjackApplication.OpenShop and CheckUpdateToVersion in libil2cpp.so to bridge the custom chip store. |  |
 | [Remove Ads](#remove-ads) | Removes banner, interstitial, and rewarded advertising and removes ad-based chip offers. |  |
 | [Remove Internet Permissions](#remove-internet-permissions) | Removes Internet permissions from AndroidManifest.xml to prevent network access. | • Remove Broken Screens |
 | [Remove Notifications](#remove-notifications) | Removes notification permissions from AndroidManifest.xml to eliminate push notifications entirely. |  |
@@ -110,7 +107,7 @@ My [Morphe](https://morphe.software) patches
 </details>
 
 <details open>
-<summary>📦 Sezzle&nbsp;&nbsp;•&nbsp;&nbsp;17 patches</summary>
+<summary>📦 Sezzle&nbsp;&nbsp;•&nbsp;&nbsp;16 patches</summary>
 <br>
 
 **🎯 Supported versions:**
@@ -126,7 +123,6 @@ My [Morphe](https://morphe.software) patches
 | [Hide Sezzle Mobile](#hide-sezzle-mobile) | Hides Sezzle Mobile offers and account entry points. |  |
 | [Patch Consent Screen](#patch-consent-screen) | Requires consent to a patched-app warning before opening Sezzle authentication. |  |
 | [Remove Ads and Tracking](#remove-ads-and-tracking) | Removes all ads (AppLovin MAX, Google Mobile Ads, Rokt, Thanks network, Playtime, InBrain Surveys) and disables analytics and tracking SDKs (AppsFlyer, FullStory, Braze, Firebase Analytics, mParticle, Facebook SDK, AppCenter). |  |
-| [Remove Ads and Tracking from JS Bundle](#remove-ads-and-tracking-from-js-bundle) | Neutralizes post-payment reward and offer modals (Thanks network and Rokt placements) in the embedded Hermes JavaScript bundle. |  |
 | [Remove Promos & Giveaways](#remove-promos-giveaways) | Blocks in-app deal popups, giveaway screens, Knot card-linking dialogs, and marketing banners across the app. | • Block Merchant Deal Popovers<br>• Block Knot Account Linking Promos<br>• Block Wallet Marketing<br>• Block Playtime Marketing<br>• Block Referrals & Social<br>• Block Trivia<br>• Block Notification Prompts |
 | [Remove Rewards](#remove-rewards) | Removes Rewards navigation while keeping Account's Sezzle Points item and routing the Home shortcut to the same page. |  |
 | [Remove Sezzle Subscriptions](#remove-sezzle-subscriptions) | Removes references to Sezzle Anywhere and Sezzle Premium subscriptions in Account benefits, Wallet, and Orders help. |  |
@@ -141,7 +137,7 @@ My [Morphe](https://morphe.software) patches
 </details>
 
 <details open>
-<summary>📦 Fizz&nbsp;&nbsp;•&nbsp;&nbsp;5 patches</summary>
+<summary>📦 Fizz&nbsp;&nbsp;•&nbsp;&nbsp;4 patches</summary>
 <br>
 
 **🎯 Supported versions:**
@@ -155,12 +151,11 @@ My [Morphe](https://morphe.software) patches
 | [Remove Ads](#remove-ads) | Removes sponsored feed advertisements and optional marketplace listing advertisements from the feed. | • Remove Marketplace Ads |
 | [Remove Tracking and Analytics](#remove-tracking-and-analytics) | Neutralizes first-party client event tracking, Mixpanel analytics, Airbridge and Adjust attribution SDKs, Google Advertising ID (AAID) collection, and bypasses PairIP Play Integrity verification, with options for silent DM screenshots and Sentry telemetry removal. | • Silent Screenshots<br>• Disable Crash Reporting |
 | [Replace Emoji Font with iOS](#replace-emoji-font-with-ios) | Replaces Android system emoji with iOS Apple Color Emoji across Compose UI, posts, comments, and direct messages. |  |
-| [Replace Emoji Font with iOS Asset](#replace-emoji-font-with-ios-asset) | Copies the packaged Apple Color Emoji font into the target APK assets. |  |
 
 </details>
 
 <details open>
-<summary>📦 Geocaching&nbsp;&nbsp;•&nbsp;&nbsp;12 patches</summary>
+<summary>📦 Geocaching&nbsp;&nbsp;•&nbsp;&nbsp;11 patches</summary>
 <br>
 
 **🎯 Supported versions:**
@@ -176,7 +171,6 @@ My [Morphe](https://morphe.software) patches
 | [OpenStreetMap Preview Assets](#openstreetmap-preview-assets) | Replaces proprietary Google Map type preview webp images with rendered OpenStreetMap style thumbnails in a busy location. |  |
 | [OpenStreetMap Resource Strings](#openstreetmap-resource-strings) | Updates map type names and descriptions in strings.xml to reflect OpenStreetMap styles. |  |
 | [Remove Lists](#remove-lists) | Removes the Lists option from the bottom navigation bar. |  |
-| [Remove Lists Resource](#remove-lists-resource) | Removes the Lists option from bottom_nav_menu.xml. |  |
 | [Remove Shop](#remove-shop) | Removes the Shop Geocaching promotional section and link from the Profile screen. |  |
 | [Remove Tracking and Analytics](#remove-tracking-and-analytics) | Neutralizes first-party analytics (AnalyticsRepo), Google Analytics / Firebase (Analytics, Crashlytics, Performance, In-App Messaging), Facebook App Events, Iterable marketing telemetry, Usercentrics consent collection, and zeros the Google Play Advertising ID (AAID). | • Disable Firebase Crashlytics<br>• Disable Facebook Telemetry<br>• Disable Iterable Marketing Telemetry<br>• Disable Usercentrics Consent Telemetry |
 | [Unlock Cache Filter and Sorting Tools](#unlock-cache-filter-and-sorting-tools) | Unlocks advanced cache search filters and sorting options without prompting for Geocaching Premium. |  |
