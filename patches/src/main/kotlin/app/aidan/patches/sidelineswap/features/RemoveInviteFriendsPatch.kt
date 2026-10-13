@@ -1,11 +1,10 @@
 package app.aidan.patches.sidelineswap.features
 
+import app.aidan.patches.shared.compositeFeaturePatch
 import app.aidan.patches.sidelineswap.shared.COMPATIBILITY_SIDELINESWAP
 import app.morphe.patcher.extensions.InstructionExtensions.addInstructions
 import app.morphe.patcher.patch.BytecodePatchContext
 import app.morphe.patcher.patch.PatchException
-import app.morphe.patcher.patch.bytecodePatch
-import app.morphe.patcher.patch.resourcePatch
 import com.android.tools.smali.dexlib2.Opcode
 import com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction
 import org.w3c.dom.Element
@@ -19,18 +18,19 @@ private const val DEEP_LINK_INVITE_TARGET = "Lcom/sidelineswap/android/MainActiv
 private const val ACCOUNT_DETAILS_FRAGMENT = "Lcom/sidelineswap/android/account/AccountDetailsFragment;"
 
 /**
- * Resource companion patch that hides the Invite Friends option and its trailing
- * divider in the Account layout, and neutralizes the red badge layout and split restrictions.
+ * Composite patch that removes the Invite Friends option and eliminates the phantom
+ * orange dot on the Account navbar icon caused by a non-functional badge setup.
  */
-val removeInviteFriendsResourcePatch = resourcePatch(
-    name = "Remove Invite Friends Resource",
-    description = "Hides the Invite Friends row and its divider in the Account layout.",
+@Suppress("unused")
+val removeInviteFriendsPatch = compositeFeaturePatch(
+    name = "Remove Invite Friends",
+    description = "Removes the Invite Friends option from the Account screen and eliminates the non-functional orange dot notification badge from the Account navigation icon.",
     default = true
 ) {
     category("Interface")
     compatibleWith(COMPATIBILITY_SIDELINESWAP)
 
-    execute {
+    resources {
         document(ACCOUNT_DETAILS_LAYOUT).use { doc ->
             val allElements = doc.getElementsByTagName("*")
             var foundInviteFriends = false
@@ -109,23 +109,8 @@ val removeInviteFriendsResourcePatch = resourcePatch(
             }
         }
     }
-}
 
-/**
- * Bytecode patch that removes the Invite Friends option and eliminates the phantom
- * orange dot on the Account navbar icon caused by a non-functional badge setup.
- */
-@Suppress("unused")
-val removeInviteFriendsPatch = bytecodePatch(
-    name = "Remove Invite Friends",
-    description = "Removes the Invite Friends option from the Account screen and eliminates the non-functional orange dot notification badge from the Account navigation icon.",
-    default = true
-) {
-    category("Interface")
-    compatibleWith(COMPATIBILITY_SIDELINESWAP)
-    dependsOn(removeInviteFriendsResourcePatch)
-
-    execute {
+    bytecode {
         patchMainActivityAccountBadge()
         patchDeepLinkTarget()
         patchAccountDetailsFragment()

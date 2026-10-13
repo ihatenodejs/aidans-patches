@@ -1,12 +1,11 @@
 package app.aidan.patches.sidelineswap.customization
 
+import app.aidan.patches.shared.compositeFeaturePatch
 import app.aidan.patches.sidelineswap.shared.COMPATIBILITY_SIDELINESWAP
 import app.morphe.patcher.extensions.InstructionExtensions.addInstructions
 import app.morphe.patcher.extensions.InstructionExtensions.replaceInstruction
 import app.morphe.patcher.patch.BytecodePatchContext
 import app.morphe.patcher.patch.PatchException
-import app.morphe.patcher.patch.bytecodePatch
-import app.morphe.patcher.patch.resourcePatch
 import com.android.tools.smali.dexlib2.iface.instruction.formats.Instruction21c
 import com.android.tools.smali.dexlib2.iface.reference.StringReference
 import org.w3c.dom.Document
@@ -133,15 +132,16 @@ private val AMOLED_ICON_FILES = listOf(
     "ic_perm_identity.xml",
     "ic_zip_logo.xml",
 )
-val amoledThemeResourcePatch = resourcePatch(
-    name = "AMOLED Theme Resources",
-    description = "Resource modifications for AMOLED theme.",
+val amoledThemePatch = compositeFeaturePatch(
+    name = "AMOLED Theme",
+    description = "Forces SidelineSwap into a pure-black AMOLED theme with dark system bars, black app surfaces, readable light text and icons, and force dark mode on embedded WebViews.",
     default = false
 ) {
     category("Customization")
     compatibleWith(COMPATIBILITY_SIDELINESWAP)
+    extendWith("extensions/extension.mpe")
 
-    execute {
+    resources {
         patchStyles()
         patchColors()
         patchStrings()
@@ -152,19 +152,8 @@ val amoledThemeResourcePatch = resourcePatch(
         patchVaultedPaymentCard()
         patchAddressListGuideline()
     }
-}
 
-val amoledThemePatch = bytecodePatch(
-    name = "AMOLED Theme",
-    description = "Forces SidelineSwap into a pure-black AMOLED theme with dark system bars, black app surfaces, readable light text and icons, and force dark mode on embedded WebViews.",
-    default = false
-) {
-    category("Customization")
-    compatibleWith(COMPATIBILITY_SIDELINESWAP)
-    dependsOn(amoledThemeResourcePatch)
-    extendWith("extensions/extension.mpe")
-
-    execute {
+    bytecode {
         patchWebViewDarkMode()
         patchEmblemLabelColor()
         patchCartItemBackgrounds()

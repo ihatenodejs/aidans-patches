@@ -37,17 +37,22 @@ fun main() {
 }
 
 @Suppress("DEPRECATION")
+private fun isInternalPatch(patch: Patch<*>): Boolean = patch.category == "Internal" ||
+    patch.name?.endsWith("(Internal Resource)") == true ||
+    patch.name?.endsWith("(Internal Raw Resource)") == true
+
+@Suppress("DEPRECATION")
 private fun generatePatchList(version: String, patches: Set<Patch<*>>) {
     val listJson = File("../patches-list.json")
 
-    val patchesMap = patches.sortedBy { it.name }.map { patch ->
+    val userFacingPatches = patches.filterNot { isInternalPatch(it) }
+    val patchesMap = userFacingPatches.sortedBy { it.name }.map { patch ->
         JsonPatch(
             name = patch.name!!,
             description = patch.description,
             default = patch.default,
             category = patch.category,
-            dependencies = patch.dependencies.map { it.name!! },
-            // Map each Compatibility to a JsonCompatibility object with full metadata.
+            dependencies = patch.dependencies.filterNot { isInternalPatch(it) }.map { it.name!! },
             // Patches with null compatiblePackages are universal (apply to any app).
             compatiblePackages = patch.compatibility?.map { compat ->
                 JsonCompatibility(

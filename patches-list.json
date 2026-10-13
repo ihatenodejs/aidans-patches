@@ -7,37 +7,6 @@
       "description": "Forces SidelineSwap into a pure-black AMOLED theme with dark system bars, black app surfaces, readable light text and icons, and force dark mode on embedded WebViews.",
       "default": false,
       "category": "Customization",
-      "dependencies": [
-        "AMOLED Theme Resources"
-      ],
-      "compatiblePackages": [
-        {
-          "packageName": "com.sidelineswap.android",
-          "name": "SidelineSwap",
-          "description": null,
-          "apkFileType": "XAPK",
-          "appIconColor": "#02C874",
-          "signatures": [
-            "e434334ea79d8702a5d023ce7bfae4da9fa5539796cb9e0ba515cb471528697f"
-          ],
-          "targets": [
-            {
-              "version": "1.52.0",
-              "versionCodes": null,
-              "isExperimental": false,
-              "minSdk": 28,
-              "description": null
-            }
-          ]
-        }
-      ],
-      "options": []
-    },
-    {
-      "name": "AMOLED Theme Resources",
-      "description": "Resource modifications for AMOLED theme.",
-      "default": false,
-      "category": "Customization",
       "dependencies": [],
       "compatiblePackages": [
         {
@@ -96,9 +65,7 @@
       "description": "Replaces the unavailable store with a dialog to view and set your exact chip balance.",
       "default": true,
       "category": "Features",
-      "dependencies": [
-        "Custom Chip Store Binary Hook"
-      ],
+      "dependencies": [],
       "compatiblePackages": [
         {
           "packageName": "com.tripledot.blackjack",
@@ -353,35 +320,6 @@
           "values": null
         }
       ]
-    },
-    {
-      "name": "Custom Chip Store Binary Hook",
-      "description": "Hooks BlackjackApplication.OpenShop and CheckUpdateToVersion in libil2cpp.so to bridge the custom chip store.",
-      "default": true,
-      "category": "Features",
-      "dependencies": [],
-      "compatiblePackages": [
-        {
-          "packageName": "com.tripledot.blackjack",
-          "name": "Blackjack",
-          "description": null,
-          "apkFileType": "APKM",
-          "appIconColor": "#205B1F",
-          "signatures": [
-            "32e1c2b4c9ab0189d3e4e1c67806e6f4fc454aa758a74ccaedda8a309aa6b205"
-          ],
-          "targets": [
-            {
-              "version": "2.22.09",
-              "versionCodes": null,
-              "isExperimental": false,
-              "minSdk": 25,
-              "description": null
-            }
-          ]
-        }
-      ],
-      "options": []
     },
     {
       "name": "Custom Google Maps API Key",
@@ -1116,35 +1054,6 @@
       "description": "Removes all ads (AppLovin MAX, Google Mobile Ads, Rokt, Thanks network, Playtime, InBrain Surveys) and disables analytics and tracking SDKs (AppsFlyer, FullStory, Braze, Firebase Analytics, mParticle, Facebook SDK, AppCenter).",
       "default": true,
       "category": "Ads",
-      "dependencies": [
-        "Remove Ads and Tracking from JS Bundle"
-      ],
-      "compatiblePackages": [
-        {
-          "packageName": "com.sezzle.sezzlemobile",
-          "name": "Sezzle",
-          "description": null,
-          "apkFileType": "APKM",
-          "appIconColor": "#5C2C94",
-          "signatures": null,
-          "targets": [
-            {
-              "version": "5.3.9",
-              "versionCodes": null,
-              "isExperimental": false,
-              "minSdk": 24,
-              "description": null
-            }
-          ]
-        }
-      ],
-      "options": []
-    },
-    {
-      "name": "Remove Ads and Tracking from JS Bundle",
-      "description": "Neutralizes post-payment reward and offer modals (Thanks network and Rokt placements) in the embedded Hermes JavaScript bundle.",
-      "default": true,
-      "category": "Ads",
       "dependencies": [],
       "compatiblePackages": [
         {
@@ -1269,37 +1178,6 @@
       "description": "Removes the Invite Friends option from the Account screen and eliminates the non-functional orange dot notification badge from the Account navigation icon.",
       "default": true,
       "category": "Interface",
-      "dependencies": [
-        "Remove Invite Friends Resource"
-      ],
-      "compatiblePackages": [
-        {
-          "packageName": "com.sidelineswap.android",
-          "name": "SidelineSwap",
-          "description": null,
-          "apkFileType": "XAPK",
-          "appIconColor": "#02C874",
-          "signatures": [
-            "e434334ea79d8702a5d023ce7bfae4da9fa5539796cb9e0ba515cb471528697f"
-          ],
-          "targets": [
-            {
-              "version": "1.52.0",
-              "versionCodes": null,
-              "isExperimental": false,
-              "minSdk": 28,
-              "description": null
-            }
-          ]
-        }
-      ],
-      "options": []
-    },
-    {
-      "name": "Remove Invite Friends Resource",
-      "description": "Hides the Invite Friends row and its divider in the Account layout.",
-      "default": true,
-      "category": "Interface",
       "dependencies": [],
       "compatiblePackages": [
         {
@@ -1327,38 +1205,6 @@
     {
       "name": "Remove Lists",
       "description": "Removes the Lists option from the bottom navigation bar.",
-      "default": true,
-      "category": "Interface",
-      "dependencies": [
-        "Remove Lists Resource"
-      ],
-      "compatiblePackages": [
-        {
-          "packageName": "com.groundspeak.geocaching.intro",
-          "name": "Geocaching",
-          "description": null,
-          "apkFileType": "APKM",
-          "appIconColor": "#007D46",
-          "signatures": [
-            "7f000458070a8272e5960f2b3c9d3348372f31b0e600c86af34fc06e85f8db8c",
-            "6959a7790bff42cc28fbe41c20d457401e32f4854f414dbc390de9f1529c9295"
-          ],
-          "targets": [
-            {
-              "version": "10.21.0",
-              "versionCodes": null,
-              "isExperimental": false,
-              "minSdk": 29,
-              "description": null
-            }
-          ]
-        }
-      ],
-      "options": []
-    },
-    {
-      "name": "Remove Lists Resource",
-      "description": "Removes the Lists option from bottom_nav_menu.xml.",
       "default": true,
       "category": "Interface",
       "dependencies": [],
@@ -2087,37 +1933,6 @@
     {
       "name": "Replace Emoji Font with iOS",
       "description": "Replaces Android system emoji with iOS Apple Color Emoji across Compose UI, posts, comments, and direct messages.",
-      "default": true,
-      "category": "Customization",
-      "dependencies": [
-        "Replace Emoji Font with iOS Asset"
-      ],
-      "compatiblePackages": [
-        {
-          "packageName": "com.ashtoncofer.Buzz",
-          "name": "Fizz",
-          "description": null,
-          "apkFileType": "APKM",
-          "appIconColor": "#7F00FF",
-          "signatures": [
-            "622850867847ccb7a1371bc42c865b1137fa51bd19987dc81b53815c9a9817bf"
-          ],
-          "targets": [
-            {
-              "version": "1.54.0",
-              "versionCodes": null,
-              "isExperimental": false,
-              "minSdk": 23,
-              "description": null
-            }
-          ]
-        }
-      ],
-      "options": []
-    },
-    {
-      "name": "Replace Emoji Font with iOS Asset",
-      "description": "Copies the packaged Apple Color Emoji font into the target APK assets.",
       "default": true,
       "category": "Customization",
       "dependencies": [],

@@ -16,6 +16,7 @@ Read `docs/<app>/architecture.md` and `docs/<app>/patches.md` before changing an
 
 | DSL | Context | Use |
 | --- | --- | --- |
+| `compositeFeaturePatch` | composite context | Unified 1-to-1 feature combining Dalvik bytecode with an internal companion resource or raw resource patch. Filters internal companion from `patches-list.json`. |
 | `bytecodePatch` | `BytecodePatchContext` | Dexlib2 class/method discovery and Smali instruction edits. |
 | `resourcePatch` | resource context | Decoded Android XML resources and manifest DOM edits. |
 | `rawResourcePatch` | resource context | Raw assets, Hermes bundles, fonts, ELF/native libraries, and web assets. |
@@ -23,12 +24,10 @@ Read `docs/<app>/architecture.md` and `docs/<app>/patches.md` before changing an
 
 A `bytecodePatch` cannot reliably stage raw APK asset changes. If a feature spans DEX plus XML/assets/native libraries:
 
-1. Define one patch per context.
-2. Make the user-facing patch `dependsOn(...)` its companion resource/raw patch.
-3. Use `extendWith(...)` separately when injected Java classes are called.
-
-Follow existing examples such as `fizz/customization/ReplaceEmojiFontWithIosPatch.kt`, `geocaching/features/RemoveListsPatch.kt`, and `blackjack/customization/AddCustomChipStorePatch.kt`.
-
+1. **1-to-1 feature-private companions**: Use `compositeFeaturePatch` from `app.aidan.patches.shared.compositeFeaturePatch` with a `resources { ... }` or `rawResources { ... }` block and a `bytecode { ... }` block. This keeps the internal resource layer encapsulated and prevents bloat in `patches-list.json`. See `geocaching/features/RemoveListsPatch.kt`, `blackjack/customization/AddCustomChipStorePatch.kt`, or `fizz/customization/ReplaceEmojiFontWithIosPatch.kt`.
+2. **Shared multi-feature prerequisites**: Define a standalone `resourcePatch` or `rawResourcePatch` and link each dependent patch via `dependsOn(...)`. See `aftership/auth/RemoveLoginPatch.kt` (`bypassSignatureCheckResourcePatch`).
+3. **Multi-companion DAGs**: Define standalone companion patches linked via `dependsOn(...)` when a feature requires multiple resource contexts. See `geocaching/customization/OpenStreetMapPatch.kt`.
+4. Use `extendWith(...)` separately when injected Java extension classes are called.
 ## Declaration Pattern
 
 Export patches as lower-camel top-level values ending in `Patch`:
