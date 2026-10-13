@@ -1054,6 +1054,66 @@
       ]
     },
     {
+      "name": "Remove Invite Friends",
+      "description": "Removes the Invite Friends option from the Account screen and eliminates the non-functional orange dot notification badge from the Account navigation icon.",
+      "default": true,
+      "category": "Interface",
+      "dependencies": [
+        "Remove Invite Friends Resource"
+      ],
+      "compatiblePackages": [
+        {
+          "packageName": "com.sidelineswap.android",
+          "name": "SidelineSwap",
+          "description": null,
+          "apkFileType": "XAPK",
+          "appIconColor": "#02C874",
+          "signatures": [
+            "e434334ea79d8702a5d023ce7bfae4da9fa5539796cb9e0ba515cb471528697f"
+          ],
+          "targets": [
+            {
+              "version": "1.52.0",
+              "versionCodes": null,
+              "isExperimental": false,
+              "minSdk": 28,
+              "description": null
+            }
+          ]
+        }
+      ],
+      "options": []
+    },
+    {
+      "name": "Remove Invite Friends Resource",
+      "description": "Hides the Invite Friends row and its divider in the Account layout.",
+      "default": true,
+      "category": "Interface",
+      "dependencies": [],
+      "compatiblePackages": [
+        {
+          "packageName": "com.sidelineswap.android",
+          "name": "SidelineSwap",
+          "description": null,
+          "apkFileType": "XAPK",
+          "appIconColor": "#02C874",
+          "signatures": [
+            "e434334ea79d8702a5d023ce7bfae4da9fa5539796cb9e0ba515cb471528697f"
+          ],
+          "targets": [
+            {
+              "version": "1.52.0",
+              "versionCodes": null,
+              "isExperimental": false,
+              "minSdk": 28,
+              "description": null
+            }
+          ]
+        }
+      ],
+      "options": []
+    },
+    {
       "name": "Remove Lists",
       "description": "Removes the Lists option from the bottom navigation bar.",
       "default": true,
