@@ -52,6 +52,7 @@ export function formatCompatBadge(
   isQueued = false,
 ): CompatBadgeData {
   if (isQueued || compatRecord?.status === 'queued') {
+    const isRecordQueued = compatRecord?.status === 'queued';
     return {
       label: 'Queued',
       bg: 'bg-amber-950/60',
@@ -59,8 +60,8 @@ export function formatCompatBadge(
       border: 'border-amber-800/40',
       dot: 'bg-amber-400',
       titleAttr: 'Tests queued',
-      isLinkable: Boolean(compatRecord?.workflowRunUrl),
-      workflowRunUrl: compatRecord?.workflowRunUrl,
+      isLinkable: isRecordQueued && Boolean(compatRecord?.workflowRunUrl),
+      workflowRunUrl: isRecordQueued ? compatRecord?.workflowRunUrl : null,
     };
   }
 

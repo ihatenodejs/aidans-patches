@@ -53,6 +53,46 @@ describe('formatCompatBadge', () => {
     assert.equal(badge.bg, 'bg-amber-950/60');
   });
 
+  it('does not link to prior run url when isQueued is true with existing compatRecord', () => {
+    const priorRecord: CompatibilityRecord = {
+      requestId: 'req-old',
+      role: 'target',
+      versionName: '1.0.0',
+      versionCode: 10,
+      patchBundleVersion: '1.4.0',
+      gitRevision: 'rev1',
+      testedAt: '2026-10-06T00:00:00Z',
+      passedCount: 0,
+      failedCount: 1,
+      status: 'error',
+      workflowRunUrl: 'https://github.com/test/runs/old',
+    };
+    const badge = formatCompatBadge(priorRecord, 'Not tested', true);
+    assert.equal(badge.label, 'Queued');
+    assert.equal(badge.isLinkable, false);
+    assert.equal(badge.workflowRunUrl, null);
+  });
+
+  it('links when record itself has queued status with workflowRunUrl', () => {
+    const queuedRecord: CompatibilityRecord = {
+      requestId: 'req-queued',
+      role: 'target',
+      versionName: '1.0.0',
+      versionCode: 10,
+      patchBundleVersion: '1.4.0',
+      gitRevision: 'rev1',
+      testedAt: '2026-10-06T00:00:00Z',
+      passedCount: 0,
+      failedCount: 0,
+      status: 'queued',
+      workflowRunUrl: 'https://github.com/test/runs/queued',
+    };
+    const badge = formatCompatBadge(queuedRecord);
+    assert.equal(badge.label, 'Queued');
+    assert.equal(badge.isLinkable, true);
+    assert.equal(badge.workflowRunUrl, 'https://github.com/test/runs/queued');
+  });
+
   it('handles running state', () => {
     const record: CompatibilityRecord = {
       requestId: 'req-1',
