@@ -42,7 +42,7 @@ My [Morphe](https://morphe.software) patches
 ## 📱 Supported Applications & Patches
 
 <!-- PATCHES_START EXPANDED -->
-> **[v1.7.0-dev.2](https://github.com/ihatenodejs/aidans-patches/releases/tag/v1.7.0-dev.2)**&nbsp;&nbsp;•&nbsp;&nbsp;`dev`&nbsp;&nbsp;•&nbsp;&nbsp;65 patches total
+> **[v1.7.0-dev.3](https://github.com/ihatenodejs/aidans-patches/releases/tag/v1.7.0-dev.3)**&nbsp;&nbsp;•&nbsp;&nbsp;`dev`&nbsp;&nbsp;•&nbsp;&nbsp;66 patches total
 <details open>
 <summary>📦 SidelineSwap&nbsp;&nbsp;•&nbsp;&nbsp;6 patches</summary>
 <br>
@@ -160,7 +160,7 @@ My [Morphe](https://morphe.software) patches
 </details>
 
 <details open>
-<summary>📦 Geocaching&nbsp;&nbsp;•&nbsp;&nbsp;11 patches</summary>
+<summary>📦 Geocaching&nbsp;&nbsp;•&nbsp;&nbsp;12 patches</summary>
 <br>
 
 **🎯 Supported versions:**
@@ -170,6 +170,7 @@ My [Morphe](https://morphe.software) patches
 
 | 💊&nbsp;Patch | 📜&nbsp;Description | ⚙️&nbsp;Options |
 |----------|----------------|-----------|
+| [Enable Developer Tools and Feature Flags](#enable-developer-tools-and-feature-flags) | Exposes the internal Debug Menu in Settings and provides selectors for LaunchDarkly feature flags, Remote Config controls, and remaining membership gates. | • Expose Debug Menu in Settings<br>• Enable Achievement Debug Tap<br>• Unlock Trails Map Types<br>• Unlock Newsletter Language Settings<br>• Unlock Hide Cache Premium Controls<br>• Enable Cache Details Redesign<br>• Show Total Log Count<br>• Enable Shareables<br>• Enable Collaborative Lists<br>• Enable Lodestones<br>• Enable Edit Log Date<br>• Enable Better Events Filter<br>• Enable Select Cache Types<br>• Enable Diagnostic Flags<br>• Force Map Tray Enabled<br>• Force Hide Last Log DNF<br>• Force Show Downtime Banner<br>• Force Disable Map Auto Update<br>• Force Send Diagnostic Logs<br>• Force Linear Callouts Enabled |
 | [Local Premium](#local-premium) | Enables local Premium membership status across profile and account screens, removes upgrade promotions, banners, icons, and server-dependent profile statistics, and preserves loaded non-traditional cache details. |  |
 | [OpenStreetMap Drop-in Replacement](#openstreetmap-drop-in-replacement) | Replaces Google Maps with OpenStreetMap (MapLibre vector engine) and adds in-app OpenStreetMap style switching and custom URL configuration to Map settings. |  |
 | [OpenStreetMap Preview Assets](#openstreetmap-preview-assets) | Replaces proprietary Google Map type preview webp images with rendered OpenStreetMap style thumbnails in a busy location. |  |
@@ -179,7 +180,7 @@ My [Morphe](https://morphe.software) patches
 | [Remove Shop](#remove-shop) | Removes the Shop Geocaching promotional section and link from the Profile screen. |  |
 | [Remove Tracking and Analytics](#remove-tracking-and-analytics) | Neutralizes first-party analytics (AnalyticsRepo), Google Analytics / Firebase (Analytics, Crashlytics, Performance, In-App Messaging), Facebook App Events, Iterable marketing telemetry, Usercentrics consent collection, and zeros the Google Play Advertising ID (AAID). | • Disable Firebase Crashlytics<br>• Disable Facebook Telemetry<br>• Disable Iterable Marketing Telemetry<br>• Disable Usercentrics Consent Telemetry |
 | [Unlock Cache Filter and Sorting Tools](#unlock-cache-filter-and-sorting-tools) | Unlocks advanced cache search filters and sorting options without prompting for Geocaching Premium. |  |
-| [Unlock Experimental Features](#unlock-experimental-features) | Unlocks beta and experimental features in Settings without Geocaching Premium. | • Unlock All Beta Projects |
+| [Unlock Experimental Features](#unlock-experimental-features) | Unlocks beta and experimental features in Settings without Geocaching Premium. | • Unlock All Beta Projects<br>• Enable Hidden Experimental Toggles<br>• Bypass Experimental Server Sync |
 | [Unlock Templates](#unlock-templates) | Unlocks geocache log templates, allowing creating, editing, and applying custom log templates without Geocaching Premium. |  |
 
 </details>

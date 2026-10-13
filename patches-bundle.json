@@ -1,7 +1,7 @@
 {
-  "created_at": "2026-10-13T02:02:44",
-  "description": "## [1.7.0-dev.2](https://github.com/ihatenodejs/aidans-patches/compare/v1.7.0-dev.1...v1.7.0-dev.2) (2026-10-13)\n\n### 🐛 Bug Fixes\n\n* **site:** prevented linking prior workflow run url on queued badges ([97c50a9](https://github.com/ihatenodejs/aidans-patches/commit/97c50a92aa8eb35ba0039d3487246db23893c3c1))\n\n### ✨ New Features\n\n* **sidelineswap:** added remove invite friends patch ([04328a9](https://github.com/ihatenodejs/aidans-patches/commit/04328a924ddd04de690da61b7b3937adbb26d789))",
-  "download_url": "https://github.com/ihatenodejs/aidans-patches/releases/download/v1.7.0-dev.2/patches-1.7.0-dev.2.mpp",
+  "created_at": "2026-10-13T05:20:53",
+  "description": "## [1.7.0-dev.3](https://github.com/ihatenodejs/aidans-patches/compare/v1.7.0-dev.2...v1.7.0-dev.3) (2026-10-13)\n\n### ✨ New Features\n\n* **geocaching:** added developer tools patch and experimental toggles ([e99ec24](https://github.com/ihatenodejs/aidans-patches/commit/e99ec24ffaf7b78e5b1adfc0e4e68d1fbbabd8c9))",
+  "download_url": "https://github.com/ihatenodejs/aidans-patches/releases/download/v1.7.0-dev.3/patches-1.7.0-dev.3.mpp",
   "signature_download_url": "",
-  "version": "1.7.0-dev.2"
+  "version": "1.7.0-dev.3"
 }

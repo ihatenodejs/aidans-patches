@@ -1,3 +1,9 @@
+## [1.7.0-dev.3](https://github.com/ihatenodejs/aidans-patches/compare/v1.7.0-dev.2...v1.7.0-dev.3) (2026-10-13)
+
+### ✨ New Features
+
+* **geocaching:** added developer tools patch and experimental toggles ([e99ec24](https://github.com/ihatenodejs/aidans-patches/commit/e99ec24ffaf7b78e5b1adfc0e4e68d1fbbabd8c9))
+
 ## [1.7.0-dev.2](https://github.com/ihatenodejs/aidans-patches/compare/v1.7.0-dev.1...v1.7.0-dev.2) (2026-10-13)
 
 ### 🐛 Bug Fixes
