@@ -1,3 +1,13 @@
+## [1.7.0-dev.2](https://github.com/ihatenodejs/aidans-patches/compare/v1.7.0-dev.1...v1.7.0-dev.2) (2026-10-13)
+
+### 🐛 Bug Fixes
+
+* **site:** prevented linking prior workflow run url on queued badges ([97c50a9](https://github.com/ihatenodejs/aidans-patches/commit/97c50a92aa8eb35ba0039d3487246db23893c3c1))
+
+### ✨ New Features
+
+* **sidelineswap:** added remove invite friends patch ([04328a9](https://github.com/ihatenodejs/aidans-patches/commit/04328a924ddd04de690da61b7b3937adbb26d789))
+
 ## [1.7.0-dev.1](https://github.com/ihatenodejs/aidans-patches/compare/v1.6.1-dev.1...v1.7.0-dev.1) (2026-10-12)
 
 ### 🐛 Bug Fixes

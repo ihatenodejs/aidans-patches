@@ -42,9 +42,9 @@ My [Morphe](https://morphe.software) patches
 ## 📱 Supported Applications & Patches
 
 <!-- PATCHES_START EXPANDED -->
-> **[v1.7.0-dev.1](https://github.com/ihatenodejs/aidans-patches/releases/tag/v1.7.0-dev.1)**&nbsp;&nbsp;•&nbsp;&nbsp;`dev`&nbsp;&nbsp;•&nbsp;&nbsp;63 patches total
+> **[v1.7.0-dev.2](https://github.com/ihatenodejs/aidans-patches/releases/tag/v1.7.0-dev.2)**&nbsp;&nbsp;•&nbsp;&nbsp;`dev`&nbsp;&nbsp;•&nbsp;&nbsp;65 patches total
 <details open>
-<summary>📦 SidelineSwap&nbsp;&nbsp;•&nbsp;&nbsp;4 patches</summary>
+<summary>📦 SidelineSwap&nbsp;&nbsp;•&nbsp;&nbsp;6 patches</summary>
 <br>
 
 **🎯 Supported versions:**
@@ -58,6 +58,8 @@ My [Morphe](https://morphe.software) patches
 | [AMOLED Theme Resources](#amoled-theme-resources) | Resource modifications for AMOLED theme. |  |
 | [Block Tracking and Telemetry](#block-tracking-and-telemetry) | Neutralizes first-party analytics (SidelineSwap backend), behavioral tracking (Amplitude, Firebase Analytics, Facebook App Events, Iterable), diagnostic telemetry (Firebase Crashlytics, Timber logging tree), payment gateway telemetry (Braintree FPTI), and zeros the Google Play Advertising ID (AAID). |  |
 | [Change Brand Color](#change-brand-color) | Customizes the primary accent brand color across SidelineSwap buttons, navigation highlights, badges, and accents. | • Primary Brand Color<br>• Primary Dark Color |
+| [Remove Invite Friends](#remove-invite-friends) | Removes the Invite Friends option from the Account screen and eliminates the non-functional orange dot notification badge from the Account navigation icon. |  |
+| [Remove Invite Friends Resource](#remove-invite-friends-resource) | Hides the Invite Friends row and its divider in the Account layout. |  |
 
 </details>
 
