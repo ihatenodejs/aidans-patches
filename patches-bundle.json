@@ -1,7 +1,7 @@
 {
-  "created_at": "2026-10-13T18:19:00",
-  "description": "## [1.8.0-dev.1](https://github.com/ihatenodejs/aidans-patches/compare/v1.7.0...v1.8.0-dev.1) (2026-10-13)\n\n### ✨ New Features\n\n* **adobe-scan:** added remove attribution patch ([726f4f4](https://github.com/ihatenodejs/aidans-patches/commit/726f4f4ae2526707581faf8f285eb63feb57c282))",
-  "download_url": "https://github.com/ihatenodejs/aidans-patches/releases/download/v1.8.0-dev.1/patches-1.8.0-dev.1.mpp",
+  "created_at": "2026-10-14T00:31:48",
+  "description": "## [1.8.0-dev.2](https://github.com/ihatenodejs/aidans-patches/compare/v1.8.0-dev.1...v1.8.0-dev.2) (2026-10-14)\n\n### 🐛 Bug Fixes\n\n* **nhl:** validated patch targets and patched all constructor returns ([5c3b57b](https://github.com/ihatenodejs/aidans-patches/commit/5c3b57b13ed725c04f44d76f32000aa05c7cec01))\n\n### ✨ New Features\n\n* **nhl:** added patches for ads, tracking, and hidden features ([5f33a90](https://github.com/ihatenodejs/aidans-patches/commit/5f33a9086d352a2906ef4814a68c70be5ef88d20))",
+  "download_url": "https://github.com/ihatenodejs/aidans-patches/releases/download/v1.8.0-dev.2/patches-1.8.0-dev.2.mpp",
   "signature_download_url": "",
-  "version": "1.8.0-dev.1"
+  "version": "1.8.0-dev.2"
 }

@@ -44,6 +44,9 @@ export const SCOPE_TO_APP_ID: Record<string, string> = {
   // 365 Pay
   '365pay': '365-pay',
   pay365: '365-pay',
+
+  // NHL
+  nhl: 'nhl',
 };
 
 export function resolveAppForScope(

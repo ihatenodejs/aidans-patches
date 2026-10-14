@@ -1,6 +1,6 @@
 {
   "NOTE": "Do NOT manually edit this file. This file is automatically updated when semantic release (release.yml) runs. Manually editing this file can break your releases and break third party tools that use this file.",
-  "version": "1.8.0-dev.1",
+  "version": "1.8.0-dev.2",
   "patches": [
     {
       "name": "AMOLED Theme",
@@ -983,6 +983,45 @@
     },
     {
       "name": "Remove Ads",
+      "description": "Removes Google Ad Manager banner and native advertisements, disables Blaze story/moment sponsored placements, blocks Google Interactive Media Ads (IMA) video ad requests, and neutralizes Brightcove IMA mid-roll and pre-roll ad playback.",
+      "default": true,
+      "category": "Ads",
+      "dependencies": [],
+      "compatiblePackages": [
+        {
+          "packageName": "com.nhl.gc1112.free",
+          "name": "NHL",
+          "description": null,
+          "apkFileType": "APKM",
+          "appIconColor": "#000000",
+          "signatures": [
+            "2309209340875f6f8a008ea25dbd98d8a03e482704d43211933d2b9a91923aff"
+          ],
+          "targets": [
+            {
+              "version": "17.0.0",
+              "versionCodes": null,
+              "isExperimental": false,
+              "minSdk": 29,
+              "description": null
+            }
+          ]
+        }
+      ],
+      "options": [
+        {
+          "key": "removePromotionsCarousel",
+          "title": "Remove Promotions Carousel",
+          "description": "Removes the promotions carousel from the Home screen.",
+          "required": false,
+          "type": "kotlin.Boolean",
+          "default": true,
+          "values": null
+        }
+      ]
+    },
+    {
+      "name": "Remove Ads",
       "description": "Removes in-app promotional message campaigns and popups (OneSignal In-App Messages), neutralizes in-app review and rating prompts, and zeroes Google Play and Huawei Advertising IDs.",
       "default": true,
       "category": "Ads",
@@ -1673,6 +1712,45 @@
         }
       ],
       "options": []
+    },
+    {
+      "name": "Remove Tracking",
+      "description": "Removes the OneTrust CMP tracking consent popup, zeros Google Play Advertising ID (AAID), blocks host application analytics, disables Firebase Analytics, AppMeasurement, Firebase Performance Monitoring, Crashlytics, and Sessions telemetry, neutralizes UrbanAirship and Blaze tracking and logging, suppresses Brightcove video metrics reporting, and blocks Ticketmaster telemetry.",
+      "default": true,
+      "category": "Privacy",
+      "dependencies": [],
+      "compatiblePackages": [
+        {
+          "packageName": "com.nhl.gc1112.free",
+          "name": "NHL",
+          "description": null,
+          "apkFileType": "APKM",
+          "appIconColor": "#000000",
+          "signatures": [
+            "2309209340875f6f8a008ea25dbd98d8a03e482704d43211933d2b9a91923aff"
+          ],
+          "targets": [
+            {
+              "version": "17.0.0",
+              "versionCodes": null,
+              "isExperimental": false,
+              "minSdk": 29,
+              "description": null
+            }
+          ]
+        }
+      ],
+      "options": [
+        {
+          "key": "removeBrokenPrivacySettings",
+          "title": "Remove Broken Privacy Settings",
+          "description": "Removes the broken Privacy Settings entry from the Settings screen.",
+          "required": false,
+          "type": "kotlin.Boolean",
+          "default": true,
+          "values": null
+        }
+      ]
     },
     {
       "name": "Remove Tracking",
@@ -2492,6 +2570,63 @@
           "key": "bypassExperimentalServerSync",
           "title": "Bypass Experimental Server Sync",
           "description": "Keeps experimental feature toggles local without POSTing to or being overwritten by /mobile/v1/user/settings/mobileexperiments.",
+          "required": false,
+          "type": "kotlin.Boolean",
+          "default": true,
+          "values": null
+        }
+      ]
+    },
+    {
+      "name": "Unlock Hidden Features",
+      "description": "Unlocks the internal Developer Settings menu, Draft Mini Tracker, and NHL GameZone on the Home surface, with independent options for each feature.",
+      "default": false,
+      "category": "Features",
+      "dependencies": [],
+      "compatiblePackages": [
+        {
+          "packageName": "com.nhl.gc1112.free",
+          "name": "NHL",
+          "description": null,
+          "apkFileType": "APKM",
+          "appIconColor": "#000000",
+          "signatures": [
+            "2309209340875f6f8a008ea25dbd98d8a03e482704d43211933d2b9a91923aff"
+          ],
+          "targets": [
+            {
+              "version": "17.0.0",
+              "versionCodes": null,
+              "isExperimental": false,
+              "minSdk": 29,
+              "description": null
+            }
+          ]
+        }
+      ],
+      "options": [
+        {
+          "key": "enableDeveloperSettings",
+          "title": "Enable Developer Tools & Settings",
+          "description": "Unlocks the internal Developer Settings screen inside Settings (Environment switcher, Analytics Debugger, String Key Overlay, Mock Localization, Invalidate Cache, and Ad Inspector), and activates the nhl://setAPI deep link.",
+          "required": false,
+          "type": "kotlin.Boolean",
+          "default": false,
+          "values": null
+        },
+        {
+          "key": "enableDraftMiniTracker",
+          "title": "Enable Draft Mini Tracker",
+          "description": "Forces the shipped Draft Mini Tracker visibility gate on; tracker content still depends on NHL draft data.",
+          "required": false,
+          "type": "kotlin.Boolean",
+          "default": true,
+          "values": null
+        },
+        {
+          "key": "showGameZoneOnHome",
+          "title": "Show GameZone on Home",
+          "description": "Forces the shipped NHL GameZone Home visibility gate on; web content and authentication remain server-controlled.",
           "required": false,
           "type": "kotlin.Boolean",
           "default": true,
