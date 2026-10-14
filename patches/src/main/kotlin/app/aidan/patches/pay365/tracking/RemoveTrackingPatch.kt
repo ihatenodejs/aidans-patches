@@ -3,6 +3,7 @@ package app.aidan.patches.pay365.tracking
 import app.aidan.patches.pay365.shared.COMPATIBILITY_365_PAY
 import app.morphe.patcher.extensions.InstructionExtensions.addInstructions
 import app.morphe.patcher.patch.BytecodePatchContext
+import app.morphe.patcher.patch.PatchException
 import app.morphe.patcher.patch.booleanOption
 import app.morphe.patcher.patch.bytecodePatch
 import com.android.tools.smali.dexlib2.Opcode
@@ -101,10 +102,10 @@ val removeTrackingPatch = bytecodePatch(
                 "recordException",
                 "sendUnsentReports",
                 "deleteUnsentReports",
-                "setCrashlyticsCollectionEnabled",
                 "setCustomKey",
                 "setUserId"
             )
+            forceCrashlyticsDisabled()
         }
 
         if (disableInstana.value != false) {
@@ -119,8 +120,7 @@ val removeTrackingPatch = bytecodePatch(
                 "setView",
                 "setCollectionEnabled"
             )
-            stubWorkerSuccess("Lcom/instana/android/core/event/worker/EventWorker;")
-            stubWorkerSuccess("Lcom/instana/android/performance/network/NetworkUsageWorker;")
+            stubInstanaWorkers()
         }
 
         if (disableBranch.value != false) {
@@ -128,14 +128,40 @@ val removeTrackingPatch = bytecodePatch(
                 "Lio/branch/rnbranch/RNBranchModule;",
                 "logEvent",
                 "setIdentityAsync",
-                "registerView"
+                "registerView",
+                "createUniversalObject",
+                "generateShortUrl",
+                "getBranchQRCode",
+                "getFirstReferringParams",
+                "getLatestReferringParams",
+                "lastAttributedTouchData",
+                "redeemInitSessionResult",
+                "showShareSheet"
+            )
+            resolvePromiseBoolean(
+                "Lio/branch/rnbranch/RNBranchModule;",
+                "isTrackingDisabled",
+                true
             )
             disableVoidMethods(
                 "Lio/branch/rnbranch/RNBranchModule;",
+                "initSession",
+                "reInitSession",
+                "onNewIntent",
+                "getAutoInstance",
+                "disableTracking",
                 "setIdentity",
                 "addFacebookPartnerParameter",
                 "setRequestMetadataKey",
-                "clearPartnerParameters"
+                "clearPartnerParameters",
+                "notifyNativeToInit",
+                "logout",
+                "setPreinstallCampaign",
+                "setPreinstallPartner"
+            )
+            disableVoidMethods(
+                "LSj/d;",
+                "o0"
             )
         }
 
@@ -156,6 +182,12 @@ val removeTrackingPatch = bytecodePatch(
                 "addOutcomeWithValue",
                 "addUniqueOutcome"
             )
+            disableVoidMethods(
+                "Lcom/onesignal/location/internal/controller/impl/GmsLocationController;",
+                "setLocationAndFire",
+                "subscribe"
+            )
+            suppressLocationController()
             returnNullObject(
                 "Lcom/onesignal/location/internal/controller/impl/GmsLocationController;",
                 "getLastLocation",
@@ -189,6 +221,31 @@ private fun BytecodePatchContext.resolvePromiseNull(
         }
     }
 }
+private fun BytecodePatchContext.resolvePromiseBoolean(
+    classDescriptor: String,
+    methodName: String,
+    value: Boolean
+) {
+    val mutableClass = mutableClassDefByOrNull(classDescriptor) ?: return
+    val boolObj = if (value) "Ljava/lang/Boolean;->TRUE:Ljava/lang/Boolean;" else "Ljava/lang/Boolean;->FALSE:Ljava/lang/Boolean;"
+    for (method in mutableClass.methods) {
+        if (method.name == methodName && method.returnType == "V" && method.implementation != null) {
+            val params = method.parameterTypes
+            val promiseIndex = params.indexOf("Lcom/facebook/react/bridge/Promise;")
+            if (promiseIndex != -1) {
+                val promiseReg = "p${promiseIndex + 1}"
+                method.addInstructions(
+                    0,
+                    """
+                    sget-object v0, $boolObj
+                    invoke-interface {$promiseReg, v0}, Lcom/facebook/react/bridge/Promise;->resolve(Ljava/lang/Object;)V
+                    return-void
+                    """.trimIndent()
+                )
+            }
+        }
+    }
+}
 
 private fun BytecodePatchContext.disableVoidMethods(
     classDescriptor: String,
@@ -206,18 +263,107 @@ private fun BytecodePatchContext.disableVoidMethods(
     }
 }
 
-private fun BytecodePatchContext.stubWorkerSuccess(classDescriptor: String) {
-    val mutableClass = mutableClassDefByOrNull(classDescriptor) ?: return
-    for (method in mutableClass.methods) {
-        if (method.name == "doWork" && method.returnType == "Landroidx/work/ListenableWorker\$Result;" && method.implementation != null) {
-            method.addInstructions(
-                0,
-                """
-                invoke-static {}, Landroidx/work/ListenableWorker${'$'}Result;->success()Landroidx/work/ListenableWorker${'$'}Result;
-                move-result-object v0
-                return-object v0
-                """.trimIndent()
-            )
+private fun BytecodePatchContext.forceCrashlyticsDisabled() {
+    val crashlyticsClass = mutableClassDefByOrNull("Lcom/google/firebase/crashlytics/FirebaseCrashlytics;")
+    if (crashlyticsClass != null) {
+        for (method in crashlyticsClass.methods) {
+            if (method.name == "isCrashlyticsCollectionEnabled" && method.returnType == "Z" && method.implementation != null) {
+                method.addInstructions(
+                    0,
+                    """
+                    const/4 v0, 0x0
+                    return v0
+                    """.trimIndent()
+                )
+            } else if (method.name == "setCrashlyticsCollectionEnabled" && method.returnType == "V" && method.implementation != null) {
+                if (method.parameterTypes == listOf("Z")) {
+                    method.addInstructions(0, "const/4 p1, 0x0")
+                } else if (method.parameterTypes == listOf("Ljava/lang/Boolean;")) {
+                    method.addInstructions(0, "sget-object p1, Ljava/lang/Boolean;->FALSE:Ljava/lang/Boolean;")
+                }
+            }
+        }
+    }
+
+    val initProviderClass = mutableClassDefByOrNull("Lio/invertase/firebase/crashlytics/ReactNativeFirebaseCrashlyticsInitProvider;")
+    if (initProviderClass != null) {
+        for (method in initProviderClass.methods) {
+            if (method.name == "a" && method.returnType == "Z" && method.implementation != null) {
+                method.addInstructions(
+                    0,
+                    """
+                    const/4 v0, 0x0
+                    return v0
+                    """.trimIndent()
+                )
+            }
+        }
+    }
+}
+
+private fun BytecodePatchContext.stubInstanaWorkers() {
+    val isObfuscatedResult = mutableClassDefByOrNull("Landroidx/work/p\$a;") != null
+    val resultDescriptor = if (isObfuscatedResult) "Landroidx/work/p\$a;" else "Landroidx/work/ListenableWorker\$Result;"
+    val successInvoke = if (isObfuscatedResult) {
+        "invoke-static {}, Landroidx/work/p\$a;->c()Landroidx/work/p\$a;"
+    } else {
+        "invoke-static {}, Landroidx/work/ListenableWorker\$Result;->success()Landroidx/work/ListenableWorker\$Result;"
+    }
+
+    val eventWorker = mutableClassDefByOrNull("Lcom/instana/android/core/event/worker/EventWorker;")
+    if (eventWorker != null) {
+        val doWorkMethod = eventWorker.methods.firstOrNull {
+            it.name == "doWork" && (it.returnType == "Ljava/lang/Object;" || it.returnType == resultDescriptor) && it.implementation != null
+        } ?: throw PatchException("Missing doWork in EventWorker")
+
+        doWorkMethod.addInstructions(
+            0,
+            """
+            $successInvoke
+            move-result-object v0
+            return-object v0
+            """.trimIndent()
+        )
+    }
+
+    val networkWorker = mutableClassDefByOrNull("Lcom/instana/android/performance/network/NetworkUsageWorker;")
+    if (networkWorker != null) {
+        val workerMethod = networkWorker.methods.firstOrNull {
+            (it.name == "b" || it.name == "doWork") && it.returnType == resultDescriptor && it.implementation != null
+        } ?: throw PatchException("Missing worker entrypoint in NetworkUsageWorker")
+
+        workerMethod.addInstructions(
+            0,
+            """
+            $successInvoke
+            move-result-object v0
+            return-object v0
+            """.trimIndent()
+        )
+    }
+}
+
+private fun BytecodePatchContext.suppressLocationController() {
+    val locationController = mutableClassDefByOrNull("Lcom/onesignal/location/internal/controller/impl/GmsLocationController;") ?: return
+    for (method in locationController.methods) {
+        if (method.name == "start" && (method.returnType == "Ljava/lang/Object;" || method.returnType == "Z") && method.implementation != null) {
+            if (method.returnType == "Z") {
+                method.addInstructions(
+                    0,
+                    """
+                    const/4 v0, 0x0
+                    return v0
+                    """.trimIndent()
+                )
+            } else {
+                method.addInstructions(
+                    0,
+                    """
+                    sget-object v0, Ljava/lang/Boolean;->FALSE:Ljava/lang/Boolean;
+                    return-object v0
+                    """.trimIndent()
+                )
+            }
         }
     }
 }

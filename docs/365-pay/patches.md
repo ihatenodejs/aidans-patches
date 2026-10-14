@@ -66,20 +66,19 @@ This document specifies patches for **365 Pay** (`com.avinside`).
 2. **Firebase Crashlytics:**
    - **Target Class:** `Lio/invertase/firebase/crashlytics/ReactNativeFirebaseCrashlyticsModule;`
    - **Methods:** `log`, `logPromise`, `recordError`, `recordErrorPromise`, `sendUnsentReports`, `deleteUnsentReports`, `setCrashlyticsCollectionEnabled`, `setUserId`, `setAttribute`, `setAttributes`
-   - **Target Class:** `Lcom/google/firebase/crashlytics/FirebaseCrashlytics;`
-
+   - **Target Class:** `Lcom/google/firebase/crashlytics/FirebaseCrashlytics;` (`log`, `recordException`, `sendUnsentReports`, `deleteUnsentReports`, `setCustomKey`, `setUserId`, `isCrashlyticsCollectionEnabled` returning `false`, `setCrashlyticsCollectionEnabled` forced to `false`)
+   - **Target Class:** `Lio/invertase/firebase/crashlytics/ReactNativeFirebaseCrashlyticsInitProvider;` (`a` returning `false`)
 3. **Instana APM / EUM:**
    - **Target Class:** `Lcom/instana/rn/InstanaEumModule;` (`setup`, `reportEvent`, `setUserID`, `setUserEmail`, `setUserName`, `setMeta`, `setView`, `setCollectionEnabled`)
    - **Target Workers:** `Lcom/instana/android/core/event/worker/EventWorker;` and `Lcom/instana/android/performance/network/NetworkUsageWorker;` stubbed to return `ListenableWorker.Result.success()` without transmitting telemetry payloads.
 
 4. **Branch Metrics:**
-   - **Target Class:** `Lio/branch/rnbranch/RNBranchModule;` (`logEvent`, `setIdentity`, `setIdentityAsync`, `registerView`, `addFacebookPartnerParameter`, `setRequestMetadataKey`, `clearPartnerParameters`)
-
+   - **Target Class:** `Lio/branch/rnbranch/RNBranchModule;` (`initSession`, `reInitSession`, `onNewIntent`, `getAutoInstance`, `disableTracking`, `notifyNativeToInit`, `logout`, `setPreinstallCampaign`, `setPreinstallPartner`, `logEvent`, `setIdentity`, `setIdentityAsync`, `registerView`, `createUniversalObject`, `generateShortUrl`, `getBranchQRCode`, `getFirstReferringParams`, `getLatestReferringParams`, `isTrackingDisabled`, `lastAttributedTouchData`, `redeemInitSessionResult`, `showShareSheet`, `addFacebookPartnerParameter`, `setRequestMetadataKey`, `clearPartnerParameters`)
+   - **Target Class:** `LSj/d;` (`o0`)
 5. **OneSignal Session, Outcomes & Location:**
    - **Target Class:** `Lcom/onesignal/rnonesignalandroid/RNOneSignal;` (`trackEvent`, `addOutcome`, `addOutcomeWithValue`, `addUniqueOutcome`, `addTag`, `addTags`, `setLocationShared`)
    - **Target Class:** `Lcom/onesignal/session/internal/SessionManager;` (`addOutcome`, `addOutcomeWithValue`, `addUniqueOutcome`)
-   - **Target Class:** `Lcom/onesignal/location/internal/controller/impl/GmsLocationController;` (`getLastLocation` returning `null`)
-
+   - **Target Class:** `Lcom/onesignal/location/internal/controller/impl/GmsLocationController;` (`start` returning `Boolean.FALSE`, `setLocationAndFire`, `subscribe`, and `getLastLocation` returning `null`)
 ---
 
 ## Patch: Unlock Developer Tools
