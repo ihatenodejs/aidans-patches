@@ -292,11 +292,14 @@ async function runFormat(checkOnly = false): Promise<boolean> {
   if (checkOnly) rustFmtArgs.push('--check');
   const rustFmtRes = await execCommand('cargo', rustFmtArgs);
   const rustFmtPassed = rustFmtRes.code === 0;
-  const rustFmtSummary = checkOnly
-    ? rustFmtPassed
-      ? 'All Rust files formatted'
-      : 'Rust files need formatting'
-    : 'Formatted Rust sources';
+  const rustFmtMissing = rustFmtRes.code !== 0 && rustFmtRes.stderr.includes('ENOENT');
+  const rustFmtSummary = rustFmtMissing
+    ? 'cargo not found in PATH; install Rust toolchain (rustup.rs)'
+    : checkOnly
+      ? rustFmtPassed
+        ? 'All Rust files formatted'
+        : 'Rust files need formatting'
+      : 'Formatted Rust sources';
   console.log(rustFmtPassed ? sym.ok : sym.err);
   if (!rustFmtPassed) {
     printRawCommandOutput(rustFmtRes.stdout, rustFmtRes.stderr);
@@ -451,12 +454,14 @@ async function runLint(autoFix = false): Promise<boolean> {
     '--manifest-path',
     'tools/play-metadata/Cargo.toml',
     '--all-targets',
+    ...(autoFix ? ['--fix', '--allow-dirty', '--allow-staged'] : []),
     '--',
     '-D',
     'warnings',
   ];
   const clippyRes = await execCommand('cargo', clippyArgs);
   const clippyPassed = clippyRes.code === 0;
+  const clippyMissing = clippyRes.code !== 0 && clippyRes.stderr.includes('ENOENT');
   console.log(clippyPassed ? sym.ok : sym.err);
   if (!clippyPassed) {
     printRawCommandOutput(clippyRes.stdout, clippyRes.stderr);
@@ -466,7 +471,11 @@ async function runLint(autoFix = false): Promise<boolean> {
     tool: 'clippy',
     success: clippyPassed,
     durationMs: clippyRes.durationMs,
-    summary: clippyPassed ? 'No issues' : 'Clippy warnings/errors detected',
+    summary: clippyMissing
+      ? 'cargo not found in PATH; install Rust toolchain (rustup.rs)'
+      : clippyPassed
+        ? 'No issues'
+        : 'Clippy warnings/errors detected',
   });
 
   renderDiagnostics(allDiagnostics);
@@ -477,7 +486,7 @@ async function runLint(autoFix = false): Promise<boolean> {
 // TYPECHECK COMMAND
 // ============================================================================
 async function runTypecheck(): Promise<boolean> {
-  printSectionHeader('Typecheck', 'TypeScript, Astro, Python, and Kotlin/Java');
+  printSectionHeader('Typecheck', 'TypeScript, Astro, Python, Rust, and Kotlin/Java');
   const results: StepResult[] = [];
 
   // 1. Worker TypeScript (tsc)
@@ -557,6 +566,34 @@ async function runTypecheck(): Promise<boolean> {
     summary: gPassed ? 'Kotlin and Java compilation successful' : 'Compilation failed',
   });
 
+  // 5. Rust (play-metadata cargo check)
+  process.stdout.write(`  ${sym.arrow} Checking Rust play-metadata types (cargo check)... `);
+  const rustCheckArgs = [
+    'check',
+    '--locked',
+    '--manifest-path',
+    'tools/play-metadata/Cargo.toml',
+    '--all-targets',
+  ];
+  const rustCheckRes = await execCommand('cargo', rustCheckArgs);
+  const rustCheckPassed = rustCheckRes.code === 0;
+  const rustCheckMissing = rustCheckRes.code !== 0 && rustCheckRes.stderr.includes('ENOENT');
+  console.log(rustCheckPassed ? sym.ok : sym.err);
+  if (!rustCheckPassed) {
+    printRawCommandOutput(rustCheckRes.stdout, rustCheckRes.stderr);
+  }
+  results.push({
+    title: 'Rust Play Metadata (cargo check)',
+    tool: 'cargo check',
+    success: rustCheckPassed,
+    durationMs: rustCheckRes.durationMs,
+    summary: rustCheckMissing
+      ? 'cargo not found in PATH; install Rust toolchain (rustup.rs)'
+      : rustCheckPassed
+        ? 'All targets checked clean'
+        : 'Cargo check errors detected',
+  });
+
   return printResultsSummary('Typecheck', results);
 }
 
@@ -630,12 +667,15 @@ async function runTest(): Promise<boolean> {
     'tools/play-metadata/Cargo.toml',
   ]);
   const cargoTestPassed = cargoTestRes.code === 0;
+  const cargoTestMissing = cargoTestRes.code !== 0 && cargoTestRes.stderr.includes('ENOENT');
   const cargoSummaryMatch = cargoTestRes.stdout.match(/test result: ok\.\s+([0-9]+ passed[^\n]*)/);
-  const cargoSummary = cargoSummaryMatch
-    ? cargoSummaryMatch[1].trim()
-    : cargoTestPassed
-      ? 'All tests passed'
-      : 'Tests failed';
+  const cargoSummary = cargoTestMissing
+    ? 'cargo not found in PATH; install Rust toolchain (rustup.rs)'
+    : cargoSummaryMatch
+      ? cargoSummaryMatch[1].trim()
+      : cargoTestPassed
+        ? 'All tests passed'
+        : 'Tests failed';
   console.log(cargoTestPassed ? sym.ok : sym.err);
   if (!cargoTestPassed) {
     printRawCommandOutput(cargoTestRes.stdout, cargoTestRes.stderr);

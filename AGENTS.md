@@ -117,7 +117,7 @@ npx semantic-release --dry-run
 - Optional/version-variable behavior must be explicitly optional; never convert a required mismatch into a silent skip.
 - Keep generated outputs generated. Do not hand-edit `.mpp`, `.mpe`, build output, `site/.astro/`, `site/dist/`, or managed `.apk-lab/` workspaces.
 - Update the matching docs when commands, user-visible patch behavior, compatibility, or safety invariants change.
-- Kotlin/Java use 4-space indentation. Patch Kotlin uses IntelliJ ktlint style from `.editorconfig`; TypeScript/Astro and configured JSON use Prettier/Oxlint; Python uses Ruff. Match neighboring style for files outside the configured formatter scopes.
+- Kotlin/Java use 4-space indentation. Patch Kotlin uses IntelliJ ktlint style from `.editorconfig`; TypeScript/Astro and configured JSON use Prettier/Oxlint; Python uses Ruff. Rust uses 2021 edition with standard 4-space cargo fmt and clippy with warnings denied. Match neighboring style for files outside the configured formatter scopes.
 
 ### State, Async, and Dependency Boundaries
 
@@ -196,6 +196,7 @@ Repository tooling, infrastructure, and shared modules must use only these fixed
 | `docs` | General repository documentation, root README, architecture specs | `docs(docs)`, `specs` |
 | `icons` | Application icon synchronization pipeline and icons data | `chore(app-icons)` |
 | `deps` | Dependency upgrades across Bun, Gradle, or Python | `dependencies` |
+| `play-metadata` | Google Play metadata resolution CLI and gpapi client | `tools/play-metadata` |
 
 #### Summary Description Rules
 
@@ -236,6 +237,7 @@ The summary text after `<type>(<scope>): ` must follow these rules:
 - **Android SDK**: Build Tools 36.0.0 for APK verification/signing/alignment. Resolution uses `ANDROID_HOME`, `ANDROID_SDK_ROOT`, or `local.properties`.
 - **External APK tools**: install only through `apk-lab setup`; versions and SHA-256 values live in `tools/apk-lab/tools.lock.json`.
 - **Cloudflare**: Worker development/deployment uses Wrangler through the Worker package scripts. Never deploy, mutate bindings, or rotate secrets during routine verification.
+- **Rust**: Stable toolchain (`cargo`, `clippy`, `rustfmt`) for `tools/play-metadata`. Managed via `tools/play-metadata/Cargo.lock`.
 
 ## Testing & QA
 
@@ -249,6 +251,7 @@ Tests are layered; unit tests do not prove that a proprietary target APK still p
 | Site | `bun run --cwd site test`, `check`, `check:icons`, and `build`; inspect the changed page/surface. |
 | CI/generator/release script | Targeted non-mutating/check-only mode, affected tests, and review generated boundaries. Do not perform a release/deploy as verification. |
 | Cross-stack code | `bun run audit` after targeted checks. |
+| Rust play-metadata | Targeted test: `cargo test --locked --manifest-path tools/play-metadata/Cargo.toml`; full validation: `bun run audit`. |
 
 Patch compatibility policy:
 

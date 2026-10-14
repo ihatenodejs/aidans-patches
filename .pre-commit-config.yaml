@@ -28,28 +28,28 @@ repos:
   - repo: local
     hooks:
       - id: format-check
-        name: Format Audit (Prettier, Ruff, ktlint)
+        name: Format Audit (Prettier, Ruff, ktlint, cargo fmt)
         entry: bun scripts/audit.ts format:check
         language: system
         pass_filenames: false
         stages: [pre-commit]
 
       - id: lint
-        name: Code Quality Lint (Oxlint, Ruff, ktlint)
+        name: Code Quality Lint (Oxlint, Ruff, ktlint, clippy)
         entry: bun scripts/audit.ts lint
         language: system
         pass_filenames: false
         stages: [pre-commit]
 
       - id: typecheck
-        name: Strict Typecheck (Worker tsc, Astro check, apk-lab mypy, Morphe Gradle)
+        name: Strict Typecheck (Worker tsc, Astro check, apk-lab mypy, Morphe Gradle, cargo check)
         entry: bun scripts/audit.ts typecheck
         language: system
         pass_filenames: false
         stages: [pre-push]
 
       - id: test
-        name: Test Suite Audit (pytest, vitest, bun test, app icons)
+        name: Test Suite Audit (pytest, vitest, bun test, cargo test, app icons)
         entry: bun scripts/audit.ts test
         language: system
         pass_filenames: false
