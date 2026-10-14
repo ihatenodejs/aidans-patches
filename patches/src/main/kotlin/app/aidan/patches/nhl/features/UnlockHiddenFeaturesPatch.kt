@@ -92,18 +92,22 @@ private fun BytecodePatchContext.forceDraftMiniTrackerEnabled() {
 
     val implementation = constructor.implementation
         ?: throw PatchException("DraftConfigResponse constructor has no implementation")
-    val returnIndex = implementation.instructions.indexOfFirst { it.opcode == Opcode.RETURN_VOID }
-    if (returnIndex == -1) {
+    val returnIndices = implementation.instructions.mapIndexedNotNull { index, instruction ->
+        if (instruction.opcode == Opcode.RETURN_VOID) index else null
+    }
+    if (returnIndices.isEmpty()) {
         throw PatchException("Unexpected DraftConfigResponse constructor terminator")
     }
 
-    constructor.addInstructions(
-        returnIndex,
-        """
-        const/4 v0, 0x1
-        iput-boolean v0, p0, Loi5;->a:Z
-        """.trimIndent()
-    )
+    for (returnIndex in returnIndices.asReversed()) {
+        constructor.addInstructions(
+            returnIndex,
+            """
+            const/4 v0, 0x1
+            iput-boolean v0, p0, Loi5;->a:Z
+            """.trimIndent()
+        )
+    }
 }
 
 private fun BytecodePatchContext.forceGameZoneShownOnHome() {

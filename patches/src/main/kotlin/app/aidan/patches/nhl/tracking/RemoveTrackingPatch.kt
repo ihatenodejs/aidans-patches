@@ -91,7 +91,7 @@ val removeTrackingPatch = bytecodePatch(
         // 7. Blaze SDK Analytics & Logging
         returnNullObject("Lcom/blaze/blazesdk/analytics/AnalyticsApi;", "sendTrackEvents")
         returnNullObject("Lcom/blaze/blazesdk/analytics/AnalyticsApi;", "sendDoNotTrackEvents")
-        returnNullObject("Lcom/blaze/blazesdk/logger/apis/BlazeLoggerApi;", "sendLogs")
+        returnNullObject("Lcom/blaze/blazesdk/logger/apis/BlazeLoggerApi;", "sendLogs", optional = true)
 
         // 8. Brightcove Video Analytics & Interactivity Metrics
         patchBrightcoveAnalytics()
@@ -105,9 +105,9 @@ val removeTrackingPatch = bytecodePatch(
         // 10. Firebase Crashlytics & Sessions Telemetry
         disableVoidMethods("Lbn6;", "b", "c")
         returnEmptyList("Lcom/google/firebase/sessions/FirebaseSessionsRegistrar;", "getComponents")
-        disableVoidMethods("Lcom/google/firebase/sessions/SessionLifecycleService;", "onCreate")
+        disableVoidMethods("Lcom/google/firebase/sessions/SessionLifecycleService;", "onCreate", optional = true)
         returnNullObject("Lcom/google/firebase/sessions/SessionLifecycleService;", "onBind")
-        returnInt("Lcom/google/firebase/sessions/SessionLifecycleService;", "onStartCommand", 2)
+        returnInt("Lcom/google/firebase/sessions/SessionLifecycleService;", "onStartCommand", 2, optional = true)
 
         // 11. Google DataTransport Telemetry Uploader
         disableVoidMethods("Lomk;", "a")
@@ -153,7 +153,7 @@ private fun BytecodePatchContext.removeBrokenPrivacySettingsEntry() {
                 ref.name == "build"
         }
         if (buildIndex != -1) {
-            return
+            throw PatchException("Found CollectionsKt.build but could not find List.add invocation for Privacy Settings in Lbg8.d")
         }
         throw PatchException("Could not find List.add invocation for Privacy Settings in Lbg8.d")
     }
@@ -187,12 +187,14 @@ private fun BytecodePatchContext.spoofAdvertisingId() {
     returnConstString(
         "Lcom/google/android/gms/ads/identifier/AdvertisingIdClient${'$'}Info;",
         "getId",
-        ZEROED_ADVERTISING_ID
+        ZEROED_ADVERTISING_ID,
+        optional = true
     )
     returnBoolean(
         "Lcom/google/android/gms/ads/identifier/AdvertisingIdClient${'$'}Info;",
         "isLimitAdTrackingEnabled",
-        true
+        true,
+        optional = true
     )
 }
 
@@ -203,8 +205,10 @@ private fun BytecodePatchContext.spoofMinifiedAdvertisingId(
     classDescriptor: String,
     infoClassDescriptor: String
 ) {
-    val mutableClass = mutableClassDefByOrNull(classDescriptor) ?: return
+    val mutableClass = mutableClassDefByOrNull(classDescriptor)
+        ?: throw PatchException("Missing required class $classDescriptor (minified AdvertisingIdClient)")
 
+    var patched = false
     for (method in mutableClass.methods) {
         if ((method.name == "a" || method.name == "f") &&
             method.returnType == infoClassDescriptor &&
@@ -220,7 +224,12 @@ private fun BytecodePatchContext.spoofMinifiedAdvertisingId(
                 return-object v0
                 """.trimIndent()
             )
+            patched = true
         }
+    }
+
+    if (!patched) {
+        throw PatchException("Missing required minified AdvertisingIdClient method in $classDescriptor")
     }
 }
 
@@ -229,21 +238,29 @@ private fun BytecodePatchContext.spoofMinifiedAdvertisingId(
  */
 private fun BytecodePatchContext.patchBrightcoveAnalytics() {
     val clientClass = mutableClassDefByOrNull("Lcom/brightcove/player/analytics/AnalyticsClient;")
-    if (clientClass != null) {
-        for (method in clientClass.methods) {
-            if (method.name == "publish" && method.implementation != null) {
-                method.addInstructions(0, "return-object p0")
-            }
+        ?: throw PatchException("Missing required class Lcom/brightcove/player/analytics/AnalyticsClient;")
+    var publishPatched = false
+    for (method in clientClass.methods) {
+        if (method.name == "publish" && method.implementation != null) {
+            method.addInstructions(0, "return-object p0")
+            publishPatched = true
         }
+    }
+    if (!publishPatched) {
+        throw PatchException("Missing required method Lcom/brightcove/player/analytics/AnalyticsClient;->publish")
     }
 
     val analyticsClass = mutableClassDefByOrNull("Lcom/brightcove/player/analytics/Analytics;")
-    if (analyticsClass != null) {
-        for (method in analyticsClass.methods) {
-            if (method.name == "sendAnalyticsRequest" && method.implementation != null) {
-                method.addInstructions(0, "return-object p3")
-            }
+        ?: throw PatchException("Missing required class Lcom/brightcove/player/analytics/Analytics;")
+    var sendRequestPatched = false
+    for (method in analyticsClass.methods) {
+        if (method.name == "sendAnalyticsRequest" && method.implementation != null) {
+            method.addInstructions(0, "return-object p3")
+            sendRequestPatched = true
         }
+    }
+    if (!sendRequestPatched) {
+        throw PatchException("Missing required method Lcom/brightcove/player/analytics/Analytics;->sendAnalyticsRequest")
     }
 }
 
@@ -252,15 +269,26 @@ private fun BytecodePatchContext.patchBrightcoveAnalytics() {
  */
 private fun BytecodePatchContext.disableVoidMethods(
     classDescriptor: String,
-    vararg methodNames: String
+    vararg methodNames: String,
+    optional: Boolean = false
 ) {
-    val mutableClass = mutableClassDefByOrNull(classDescriptor) ?: return
+    val mutableClass = mutableClassDefByOrNull(classDescriptor)
+    if (mutableClass == null) {
+        if (optional) return
+        throw PatchException("Missing required class $classDescriptor")
+    }
     val methodSet = methodNames.toSet()
+    var patchedCount = 0
 
     for (method in mutableClass.methods) {
         if (method.name in methodSet && method.returnType == "V" && method.implementation != null) {
             method.addInstructions(0, "return-void")
+            patchedCount++
         }
+    }
+
+    if (!optional && patchedCount == 0) {
+        throw PatchException("Missing required void method(s) in $classDescriptor matching: ${methodNames.joinToString()}")
     }
 }
 
@@ -270,9 +298,15 @@ private fun BytecodePatchContext.disableVoidMethods(
 private fun BytecodePatchContext.returnBoolean(
     classDescriptor: String,
     methodName: String,
-    value: Boolean
+    value: Boolean,
+    optional: Boolean = false
 ) {
-    val mutableClass = mutableClassDefByOrNull(classDescriptor) ?: return
+    val mutableClass = mutableClassDefByOrNull(classDescriptor)
+    if (mutableClass == null) {
+        if (optional) return
+        throw PatchException("Missing required class $classDescriptor")
+    }
+    var patched = false
 
     for (method in mutableClass.methods) {
         if (method.name == methodName && method.returnType == "Z" && method.implementation != null) {
@@ -284,7 +318,12 @@ private fun BytecodePatchContext.returnBoolean(
                 return v0
                 """.trimIndent()
             )
+            patched = true
         }
+    }
+
+    if (!optional && !patched) {
+        throw PatchException("Missing required method $classDescriptor->$methodName()Z")
     }
 }
 
@@ -294,9 +333,15 @@ private fun BytecodePatchContext.returnBoolean(
 private fun BytecodePatchContext.returnInt(
     classDescriptor: String,
     methodName: String,
-    value: Int
+    value: Int,
+    optional: Boolean = false
 ) {
-    val mutableClass = mutableClassDefByOrNull(classDescriptor) ?: return
+    val mutableClass = mutableClassDefByOrNull(classDescriptor)
+    if (mutableClass == null) {
+        if (optional) return
+        throw PatchException("Missing required class $classDescriptor")
+    }
+    var patched = false
 
     for (method in mutableClass.methods) {
         if (method.name == methodName && method.returnType == "I" && method.implementation != null) {
@@ -307,7 +352,12 @@ private fun BytecodePatchContext.returnInt(
                 return v0
                 """.trimIndent()
             )
+            patched = true
         }
+    }
+
+    if (!optional && !patched) {
+        throw PatchException("Missing required method $classDescriptor->$methodName()I")
     }
 }
 
@@ -317,9 +367,15 @@ private fun BytecodePatchContext.returnInt(
 private fun BytecodePatchContext.returnConstString(
     classDescriptor: String,
     methodName: String,
-    value: String
+    value: String,
+    optional: Boolean = false
 ) {
-    val mutableClass = mutableClassDefByOrNull(classDescriptor) ?: return
+    val mutableClass = mutableClassDefByOrNull(classDescriptor)
+    if (mutableClass == null) {
+        if (optional) return
+        throw PatchException("Missing required class $classDescriptor")
+    }
+    var patched = false
 
     for (method in mutableClass.methods) {
         if (method.name == methodName && method.returnType == "Ljava/lang/String;" && method.implementation != null) {
@@ -330,7 +386,12 @@ private fun BytecodePatchContext.returnConstString(
                 return-object v0
                 """.trimIndent()
             )
+            patched = true
         }
+    }
+
+    if (!optional && !patched) {
+        throw PatchException("Missing required method $classDescriptor->$methodName()Ljava/lang/String;")
     }
 }
 
@@ -339,12 +400,19 @@ private fun BytecodePatchContext.returnConstString(
  */
 private fun BytecodePatchContext.returnNullObject(
     classDescriptor: String,
-    methodName: String
+    methodName: String,
+    optional: Boolean = false
 ) {
-    val mutableClass = mutableClassDefByOrNull(classDescriptor) ?: return
+    val mutableClass = mutableClassDefByOrNull(classDescriptor)
+    if (mutableClass == null) {
+        if (optional) return
+        throw PatchException("Missing required class $classDescriptor")
+    }
+    var patched = false
 
     for (method in mutableClass.methods) {
-        if (method.name.startsWith(methodName) && method.returnType.startsWith("L") && method.implementation != null) {
+        val isTargetMethod = method.name == methodName || method.name == "$methodName\$default"
+        if (isTargetMethod && method.returnType.startsWith("L") && method.implementation != null) {
             method.addInstructions(
                 0,
                 """
@@ -352,7 +420,12 @@ private fun BytecodePatchContext.returnNullObject(
                 return-object v0
                 """.trimIndent()
             )
+            patched = true
         }
+    }
+
+    if (!optional && !patched) {
+        throw PatchException("Missing required method $classDescriptor->$methodName")
     }
 }
 
@@ -361,9 +434,15 @@ private fun BytecodePatchContext.returnNullObject(
  */
 private fun BytecodePatchContext.returnEmptyList(
     classDescriptor: String,
-    methodName: String
+    methodName: String,
+    optional: Boolean = false
 ) {
-    val mutableClass = mutableClassDefByOrNull(classDescriptor) ?: return
+    val mutableClass = mutableClassDefByOrNull(classDescriptor)
+    if (mutableClass == null) {
+        if (optional) return
+        throw PatchException("Missing required class $classDescriptor")
+    }
+    var patched = false
 
     for (method in mutableClass.methods) {
         if (method.name == methodName && method.returnType == "Ljava/util/List;" && method.implementation != null) {
@@ -375,6 +454,11 @@ private fun BytecodePatchContext.returnEmptyList(
                 return-object v0
                 """.trimIndent()
             )
+            patched = true
         }
+    }
+
+    if (!optional && !patched) {
+        throw PatchException("Missing required method $classDescriptor->$methodName()Ljava/util/List;")
     }
 }

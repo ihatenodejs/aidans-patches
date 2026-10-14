@@ -153,7 +153,9 @@ private fun BytecodePatchContext.removePromotionsCarousel() {
  * Replaces Blaze GAM banner view creation with an empty hidden View.
  */
 private fun BytecodePatchContext.patchBlazeBannerCreation() {
-    val handlerClass = mutableClassDefByOrNull("Lcom/blaze/gam/banner/DefaultBlazeGAMBannerAdsHandler;") ?: return
+    val handlerClass = mutableClassDefByOrNull("Lcom/blaze/gam/banner/DefaultBlazeGAMBannerAdsHandler;")
+        ?: throw PatchException("Missing required class Lcom/blaze/gam/banner/DefaultBlazeGAMBannerAdsHandler;")
+    var patched = false
     for (method in handlerClass.methods) {
         if (method.name == "createAndLoadAdBannerView" && method.implementation != null) {
             method.addInstructions(
@@ -166,7 +168,11 @@ private fun BytecodePatchContext.patchBlazeBannerCreation() {
                 return-object v0
                 """.trimIndent()
             )
+            patched = true
         }
+    }
+    if (!patched) {
+        throw PatchException("Missing required method Lcom/blaze/gam/banner/DefaultBlazeGAMBannerAdsHandler;->createAndLoadAdBannerView")
     }
 }
 
@@ -175,15 +181,26 @@ private fun BytecodePatchContext.patchBlazeBannerCreation() {
  */
 private fun BytecodePatchContext.disableVoidMethods(
     classDescriptor: String,
-    vararg methodNames: String
+    vararg methodNames: String,
+    optional: Boolean = false
 ) {
-    val mutableClass = mutableClassDefByOrNull(classDescriptor) ?: return
+    val mutableClass = mutableClassDefByOrNull(classDescriptor)
+    if (mutableClass == null) {
+        if (optional) return
+        throw PatchException("Missing required class $classDescriptor")
+    }
     val methodSet = methodNames.toSet()
+    var patchedCount = 0
 
     for (method in mutableClass.methods) {
         if (method.name in methodSet && method.returnType == "V" && method.implementation != null) {
             method.addInstructions(0, "return-void")
+            patchedCount++
         }
+    }
+
+    if (!optional && patchedCount == 0) {
+        throw PatchException("Missing required void method(s) in $classDescriptor matching: ${methodNames.joinToString()}")
     }
 }
 
@@ -193,9 +210,15 @@ private fun BytecodePatchContext.disableVoidMethods(
 private fun BytecodePatchContext.returnBoolean(
     classDescriptor: String,
     methodName: String,
-    value: Boolean
+    value: Boolean,
+    optional: Boolean = false
 ) {
-    val mutableClass = mutableClassDefByOrNull(classDescriptor) ?: return
+    val mutableClass = mutableClassDefByOrNull(classDescriptor)
+    if (mutableClass == null) {
+        if (optional) return
+        throw PatchException("Missing required class $classDescriptor")
+    }
+    var patched = false
 
     for (method in mutableClass.methods) {
         if (method.name == methodName && method.returnType == "Z" && method.implementation != null) {
@@ -207,7 +230,12 @@ private fun BytecodePatchContext.returnBoolean(
                 return v0
                 """.trimIndent()
             )
+            patched = true
         }
+    }
+
+    if (!optional && !patched) {
+        throw PatchException("Missing required method $classDescriptor->$methodName()Z")
     }
 }
 
@@ -216,9 +244,15 @@ private fun BytecodePatchContext.returnBoolean(
  */
 private fun BytecodePatchContext.returnNullObject(
     classDescriptor: String,
-    methodName: String
+    methodName: String,
+    optional: Boolean = false
 ) {
-    val mutableClass = mutableClassDefByOrNull(classDescriptor) ?: return
+    val mutableClass = mutableClassDefByOrNull(classDescriptor)
+    if (mutableClass == null) {
+        if (optional) return
+        throw PatchException("Missing required class $classDescriptor")
+    }
+    var patched = false
 
     for (method in mutableClass.methods) {
         if (method.name == methodName && method.returnType.startsWith("L") && method.implementation != null) {
@@ -229,6 +263,11 @@ private fun BytecodePatchContext.returnNullObject(
                 return-object v0
                 """.trimIndent()
             )
+            patched = true
         }
+    }
+
+    if (!optional && !patched) {
+        throw PatchException("Missing required method $classDescriptor->$methodName")
     }
 }
