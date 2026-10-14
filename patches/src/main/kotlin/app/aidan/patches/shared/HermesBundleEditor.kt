@@ -5,10 +5,10 @@ import java.nio.ByteOrder
 import java.security.MessageDigest
 
 /**
- * Utility for reading and in-place patching of Hermes bytecode bundles (HBC v96+).
+ * Utility for reading and in-place patching of Hermes bytecode bundles (HBC v96, v98+).
  *
  * Function header lookup, matching, in-place byte patching, and SHA-1 footer calculation
- * support HBC v96+, while header redirection remains HBC v98+ only.
+ * support HBC v96, v98+, while header redirection remains HBC v98+ only.
  */
 class HermesBundleEditor(private val data: ByteArray) {
 
@@ -41,6 +41,9 @@ class HermesBundleEditor(private val data: ByteArray) {
         }
 
         version = buffer.getInt(8)
+        require(version == 96 || version >= 98) {
+            "Unsupported Hermes bytecode version $version (supported versions: 96, 98+)"
+        }
         functionCount = buffer.getInt(40)
         stringKindCount = buffer.getInt(44)
         idCount = buffer.getInt(48)
@@ -157,8 +160,8 @@ class HermesBundleEditor(private val data: ByteArray) {
     /**
      * Reads the indexed function's code offset, name ID, and overflow-header metadata.
      * Offsets are absolute byte offsets in the bundle. Bytecode size is read for v98+
-     * and reported as zero for older versions; largeHeaderOffset is zero for small headers.
-     *
+     * and v96 large headers (reported as zero for v96 small headers); largeHeaderOffset
+     * is zero for small headers.
      * @throws IllegalArgumentException if [funcIndex] is outside 0 until [functionCount].
      * @throws IndexOutOfBoundsException if the bundle's header data is out of bounds.
      */
@@ -196,9 +199,14 @@ class HermesBundleEditor(private val data: ByteArray) {
 
             return if (isOverflowed) {
                 val infoOffset = buffer.getInt(headerOffset + 8) and 0x01FFFFFF
-                val largeCodeOffset = buffer.getInt(infoOffset)
-                val largeFuncName = buffer.getInt(infoOffset + 12)
-                FunctionHeaderInfo(largeCodeOffset, largeFuncName, 0, true, infoOffset)
+                val largeOffset = (infoOffset shl 16) or (offset and 0xFFFF)
+                require(largeOffset >= 0 && largeOffset + 16 <= data.size) {
+                    "Large function header offset $largeOffset out of bounds"
+                }
+                val largeCodeOffset = buffer.getInt(largeOffset)
+                val largeBytecodeSize = buffer.getInt(largeOffset + 8)
+                val largeFuncName = buffer.getInt(largeOffset + 12)
+                FunctionHeaderInfo(largeCodeOffset, largeFuncName, largeBytecodeSize, true, largeOffset)
             } else {
                 FunctionHeaderInfo(offset, funcName, 0, false, 0)
             }
