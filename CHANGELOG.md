@@ -1,3 +1,13 @@
+## [1.8.0-dev.2](https://github.com/ihatenodejs/aidans-patches/compare/v1.8.0-dev.1...v1.8.0-dev.2) (2026-10-14)
+
+### 🐛 Bug Fixes
+
+* **nhl:** validated patch targets and patched all constructor returns ([5c3b57b](https://github.com/ihatenodejs/aidans-patches/commit/5c3b57b13ed725c04f44d76f32000aa05c7cec01))
+
+### ✨ New Features
+
+* **nhl:** added patches for ads, tracking, and hidden features ([5f33a90](https://github.com/ihatenodejs/aidans-patches/commit/5f33a9086d352a2906ef4814a68c70be5ef88d20))
+
 ## [1.8.0-dev.1](https://github.com/ihatenodejs/aidans-patches/compare/v1.7.0...v1.8.0-dev.1) (2026-10-13)
 
 ### ✨ New Features
