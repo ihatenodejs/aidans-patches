@@ -1021,6 +1021,63 @@
       ]
     },
     {
+      "name": "Remove Ads",
+      "description": "Removes in-app promotional message campaigns and popups (OneSignal In-App Messages), neutralizes in-app review and rating prompts, and zeroes Google Play and Huawei Advertising IDs.",
+      "default": true,
+      "category": "Ads",
+      "dependencies": [],
+      "compatiblePackages": [
+        {
+          "packageName": "com.avinside",
+          "name": "365 Pay",
+          "description": null,
+          "apkFileType": "APKM",
+          "appIconColor": "#00A859",
+          "signatures": [
+            "8709f6fd781c4ba9a4f50df8c44f8c5a4ccb2fd2b114b71912e79eacf8857b1d"
+          ],
+          "targets": [
+            {
+              "version": "10.2605.0",
+              "versionCodes": null,
+              "isExperimental": false,
+              "minSdk": 27,
+              "description": null
+            }
+          ]
+        }
+      ],
+      "options": [
+        {
+          "key": "removeInAppMessages",
+          "title": "Remove In-App Messages",
+          "description": "Suppresses OneSignal promotional campaigns and marketing message displays.",
+          "required": false,
+          "type": "kotlin.Boolean",
+          "default": true,
+          "values": null
+        },
+        {
+          "key": "removeReviewPrompts",
+          "title": "Remove Review Prompts",
+          "description": "Neutralizes Google Play in-app review and rating prompts.",
+          "required": false,
+          "type": "kotlin.Boolean",
+          "default": true,
+          "values": null
+        },
+        {
+          "key": "zeroAdvertisingId",
+          "title": "Zero Advertising ID",
+          "description": "Spoofs Google Play and Huawei Advertising ID (AAID) with zeroes and forces limit ad tracking enabled.",
+          "required": false,
+          "type": "kotlin.Boolean",
+          "default": true,
+          "values": null
+        }
+      ]
+    },
+    {
       "name": "Remove Ads and Tracking",
       "description": "Disables Adobe, Branch, Facebook, Creative SDK, and Crashlytics telemetry; removes in-app ads and review prompts; blocks install-referrer collection; and zeroes the Google Play Advertising ID.",
       "default": true,
@@ -1696,6 +1753,81 @@
       ]
     },
     {
+      "name": "Remove Tracking",
+      "description": "Neutralizes diagnostic telemetry, event logging, and user tracking (Firebase Analytics, Crashlytics, Instana APM, Branch Metrics, and OneSignal session and outcome tracking).",
+      "default": true,
+      "category": "Privacy",
+      "dependencies": [],
+      "compatiblePackages": [
+        {
+          "packageName": "com.avinside",
+          "name": "365 Pay",
+          "description": null,
+          "apkFileType": "APKM",
+          "appIconColor": "#00A859",
+          "signatures": [
+            "8709f6fd781c4ba9a4f50df8c44f8c5a4ccb2fd2b114b71912e79eacf8857b1d"
+          ],
+          "targets": [
+            {
+              "version": "10.2605.0",
+              "versionCodes": null,
+              "isExperimental": false,
+              "minSdk": 27,
+              "description": null
+            }
+          ]
+        }
+      ],
+      "options": [
+        {
+          "key": "disableFirebaseAnalytics",
+          "title": "Disable Firebase Analytics",
+          "description": "Blocks React Native Firebase Analytics and Google Play AppMeasurement event tracking.",
+          "required": false,
+          "type": "kotlin.Boolean",
+          "default": true,
+          "values": null
+        },
+        {
+          "key": "disableCrashlytics",
+          "title": "Disable Firebase Crashlytics",
+          "description": "Neutralizes Firebase Crashlytics crash reporting and diagnostic logging.",
+          "required": false,
+          "type": "kotlin.Boolean",
+          "default": true,
+          "values": null
+        },
+        {
+          "key": "disableInstana",
+          "title": "Disable Instana APM",
+          "description": "Neutralizes Instana End-User Monitoring (EUM) and background telemetry workers.",
+          "required": false,
+          "type": "kotlin.Boolean",
+          "default": true,
+          "values": null
+        },
+        {
+          "key": "disableBranch",
+          "title": "Disable Branch Metrics",
+          "description": "Neutralizes Branch Metrics attribution and event tracking.",
+          "required": false,
+          "type": "kotlin.Boolean",
+          "default": true,
+          "values": null
+        },
+        {
+          "key": "disableOneSignalTracking",
+          "title": "Disable OneSignal Telemetry",
+          "description": "Blocks OneSignal custom events, session outcomes, tags, and location tracking.",
+          "required": false,
+          "type": "kotlin.Boolean",
+          "default": true,
+          "values": null
+        }
+      ]
+    },
+    {
       "name": "Remove Tracking and Analytics",
       "description": "Neutralizes active advertising telemetry, analytics, attribution, and crash reporting.",
       "default": true,
@@ -2329,6 +2461,63 @@
         }
       ],
       "options": []
+    },
+    {
+      "name": "Unlock Developer Tools",
+      "description": "Exposes the internal developer and diagnostics screen (Environment Settings) on the Welcome Screen, and allows booting directly with Debug Messages or Demo Mode enabled.",
+      "default": false,
+      "category": "Developer",
+      "dependencies": [],
+      "compatiblePackages": [
+        {
+          "packageName": "com.avinside",
+          "name": "365 Pay",
+          "description": null,
+          "apkFileType": "APKM",
+          "appIconColor": "#00A859",
+          "signatures": [
+            "8709f6fd781c4ba9a4f50df8c44f8c5a4ccb2fd2b114b71912e79eacf8857b1d"
+          ],
+          "targets": [
+            {
+              "version": "10.2605.0",
+              "versionCodes": null,
+              "isExperimental": false,
+              "minSdk": 27,
+              "description": null
+            }
+          ]
+        }
+      ],
+      "options": [
+        {
+          "key": "unlockDeveloperSettings",
+          "title": "Unlock Developer Settings",
+          "description": "Reduces the hidden Welcome Screen logo tap gesture from five taps to a single tap to open the Environment Settings menu.",
+          "required": false,
+          "type": "kotlin.Boolean",
+          "default": true,
+          "values": null
+        },
+        {
+          "key": "startWithDebugMessages",
+          "title": "Start with Debug Messages",
+          "description": "Initializes application state with Debug Messages enabled upon startup.",
+          "required": false,
+          "type": "kotlin.Boolean",
+          "default": false,
+          "values": null
+        },
+        {
+          "key": "startInDemoMode",
+          "title": "Start in Demo Mode",
+          "description": "Initializes application state with Demo Mode enabled upon startup.",
+          "required": false,
+          "type": "kotlin.Boolean",
+          "default": false,
+          "values": null
+        }
+      ]
     },
     {
       "name": "Unlock Experimental Features",

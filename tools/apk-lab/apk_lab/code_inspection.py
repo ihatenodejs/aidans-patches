@@ -96,7 +96,7 @@ def locate_class(
                     extracted_dex.write_bytes(zf.read(dex_name))
 
                     res = subprocess.run(
-                        [str(dexdump), "-c", str(extracted_dex)],
+                        [str(dexdump), str(extracted_dex)],
                         capture_output=True,
                         text=True,
                         errors="replace",
