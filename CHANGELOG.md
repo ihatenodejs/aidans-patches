@@ -1,3 +1,13 @@
+## [1.8.0-dev.4](https://github.com/ihatenodejs/aidans-patches/compare/v1.8.0-dev.3...v1.8.0-dev.4) (2026-10-14)
+
+### 🐛 Bug Fixes
+
+* **nhl:** corrected developer settings gate to return false ([b555a5f](https://github.com/ihatenodejs/aidans-patches/commit/b555a5f4cfef68921be08d7de3e7c401b9ff77ec))
+
+### ✨ New Features
+
+* **365pay:** added display cutout adaptation patch ([be08c95](https://github.com/ihatenodejs/aidans-patches/commit/be08c954996edfaf0c310f99d4b5f6a0b6b0402a))
+
 ## [1.8.0-dev.3](https://github.com/ihatenodejs/aidans-patches/compare/v1.8.0-dev.2...v1.8.0-dev.3) (2026-10-14)
 
 ### 🐛 Bug Fixes
