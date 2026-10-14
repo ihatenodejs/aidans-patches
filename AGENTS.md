@@ -178,6 +178,7 @@ All patch definitions and Java extension changes must use the canonical app scop
 | Adobe Scan | `adobe-scan` | Aliases (`adobescan`, `adobe`, `scan`) are legacy. |
 | Fizz | `fizz` | Alias `buzz` is legacy. |
 | Geocaching | `geocaching` | Alias `groundspeak` is legacy. |
+| NHL | `nhl` | — |
 
 ##### Non-Application Scopes
 

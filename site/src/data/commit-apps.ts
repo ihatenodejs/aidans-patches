@@ -40,6 +40,9 @@ export const SCOPE_TO_APP_ID: Record<string, string> = {
   // Geocaching
   geocaching: 'geocaching',
   groundspeak: 'geocaching',
+
+  // NHL
+  nhl: 'nhl',
 };
 
 export function resolveAppForScope(
