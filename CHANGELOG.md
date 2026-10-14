@@ -1,3 +1,14 @@
+## [1.8.0-dev.3](https://github.com/ihatenodejs/aidans-patches/compare/v1.8.0-dev.2...v1.8.0-dev.3) (2026-10-14)
+
+### 🐛 Bug Fixes
+
+* **hermes:** corrected large function header offset decoding in bundle editor ([64bbd82](https://github.com/ihatenodejs/aidans-patches/commit/64bbd827e9e54e3bb8fb0488cabbeda5b9da0bb5))
+
+### ✨ New Features
+
+* **365pay:** add support for 365 pay ([52cd8a5](https://github.com/ihatenodejs/aidans-patches/commit/52cd8a5805cd84f1aab098a48ad774ff55c3dec8))
+* **365pay:** expanded telemetry removal for crashlytics branch and onesignal ([1b11aee](https://github.com/ihatenodejs/aidans-patches/commit/1b11aeec83f2b15eff069d97f93ba5084b7889a8))
+
 ## [1.8.0-dev.2](https://github.com/ihatenodejs/aidans-patches/compare/v1.8.0-dev.1...v1.8.0-dev.2) (2026-10-14)
 
 ### 🐛 Bug Fixes
