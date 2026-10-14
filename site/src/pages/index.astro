@@ -1,5 +1,5 @@
 ---
-import { Image } from 'astro:assets';
+import AppIcon from '../components/AppIcon.astro';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import StatsStrip from '../components/StatsStrip.astro';
 import AppPreviewCard from '../components/AppPreviewCard.astro';
@@ -19,8 +19,6 @@ const apps = getApps();
 const totalPatches = getRepositoryStats().totalPatchesCount;
 const latestRelease = getLatestRelease();
 const versionStatuses = getInitialVersionStatuses().slice(0, 4);
-const workerUrl =
-  import.meta.env.PUBLIC_WORKER_URL || 'https://worker.patch.p0ntus.com';
 ---
 
 <BaseLayout
@@ -492,20 +490,15 @@ const workerUrl =
               >
                 <td class="py-3.5 px-4 font-sans font-semibold text-white sticky left-0 z-10 bg-[#080808] group-hover/row:bg-[#0c0c0c] shadow-[1px_0_0_rgba(255,255,255,0.08)] whitespace-nowrap">
                   <div class="flex items-center gap-2.5">
-                    {item.iconUrl ? (
-                      <Image
-                        src={item.iconUrl}
-                        alt={item.appName}
-                        width={20}
-                        height={20}
-                        class="w-5 h-5 rounded-sm object-cover border border-white/10 shrink-0"
-                        loading="lazy"
-                      />
-                    ) : (
-                      <span class="w-5 h-5 rounded-sm bg-zinc-900 border border-white/10 flex items-center justify-center font-mono text-[10px] text-zinc-400 shrink-0">
-                        {item.appName.charAt(0)}
-                      </span>
-                    )}
+                    <AppIcon
+                      packageName={item.packageName}
+                      name={item.appName}
+                      size={20}
+                      loading="lazy"
+                      className="w-5 h-5 rounded-sm border border-white/10 shrink-0"
+                      fallbackClassName="rounded-sm font-mono text-[10px]"
+                      fallbackColor={item.appIconColor}
+                    />
                     <span>{item.appName}</span>
                   </div>
                 </td>
@@ -638,15 +631,16 @@ const workerUrl =
                   {change.type}
                 </span>
                 <div class="flex items-center gap-2 text-zinc-300 min-w-0">
-                  {change.appIconUrl ? (
-                    <Image
-                      src={change.appIconUrl}
+                  {change.appPackageName ? (
+                    <AppIcon
+                      packageName={change.appPackageName}
+                      name={change.appName || change.appPackageName}
+                      size={20}
+                      loading="lazy"
                       alt={change.appName || ''}
                       title={change.appName || ''}
-                      width={20}
-                      height={20}
-                      class="w-5 h-5 rounded-sm object-cover border border-white/10 shrink-0"
-                      loading="lazy"
+                      className="w-5 h-5 rounded-sm border border-white/10 shrink-0"
+                      fallbackClassName="rounded-sm font-mono text-[10px]"
                     />
                   ) : change.scope ? (
                     <span class="inline-flex items-center justify-center h-5 font-mono text-[10px] text-zinc-500 bg-white/[0.04] px-1.5 rounded-sm border border-white/[0.06] shrink-0">
@@ -745,115 +739,79 @@ const workerUrl =
   </section>
 
   <!-- Client-side live hydration from Cloudflare Worker -->
-  <script is:inline define:vars={{ workerUrl }}>
-    (function () {
-      const STATUS_CACHE_KEY = 'aidans_patches_status_cache';
-      const STATUS_CACHE_TTL_MS = 5 * 60 * 1000;
-      const rows = document.querySelectorAll('tr[data-package]');
+  <script>
+    import {
+      loadStatusPayload,
+      type PublicStatusPayload,
+    } from '../data/status-client';
 
-      function applyStatusData(data) {
-        if (!data || !data.apps) return;
-        rows.forEach((row) => {
-          const pkg = row.getAttribute('data-package');
-          const appData = data.apps[pkg];
-          if (!appData) return;
+    const rows = document.querySelectorAll('tr[data-package]');
 
-          const playCell = row.querySelector('.play-version');
-          const badgeCell = row.querySelector('.status-badge-cell');
+    function applyStatusData(data: PublicStatusPayload) {
+      if (!data || !data.apps) return;
+      rows.forEach((row) => {
+        const pkg = row.getAttribute('data-package');
+        if (!pkg) return;
+        const appData = data.apps[pkg];
+        if (!appData) return;
 
-          const effectivePlayVersion = appData.playVersion || null;
+        const playCell = row.querySelector('.play-version');
+        const badgeCell = row.querySelector('.status-badge-cell');
 
-          if (playCell) {
-            playCell.textContent = effectivePlayVersion
-              ? 'v' + effectivePlayVersion
-              : '—';
-          }
+        const effectivePlayVersion = appData.playVersion || null;
 
-          const effectiveStatus = appData.status;
-
-          if (badgeCell) {
-            if (effectiveStatus === 'up-to-date') {
-              badgeCell.innerHTML = `
-                <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-[10px] bg-emerald-950/60 text-emerald-400 border border-emerald-800/40 whitespace-nowrap">
-                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0"></span>
-                  <span>Up to date</span>
-                </span>
-              `;
-            } else if (effectiveStatus === 'newer-available') {
-              badgeCell.innerHTML = `
-                <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-[10px] bg-amber-950/60 text-amber-400 border border-amber-800/40 whitespace-nowrap">
-                  <span class="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0"></span>
-                  <span>Newer version available</span>
-                </span>
-              `;
-            } else if (effectiveStatus === 'check-failed') {
-              badgeCell.innerHTML = `
-                <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-[10px] bg-rose-950/60 text-rose-400 border border-rose-800/40 whitespace-nowrap">
-                  <span class="w-1.5 h-1.5 rounded-full bg-rose-400 shrink-0"></span>
-                  <span>Check failed</span>
-                </span>
-              `;
-            } else if (effectiveStatus === 'not-on-play-store') {
-              badgeCell.innerHTML = `
-                <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-[10px] bg-zinc-900 text-zinc-500 border border-white/10 whitespace-nowrap">
-                  <span>Not on Play Store</span>
-                </span>
-              `;
-            } else {
-              badgeCell.innerHTML = `
-                <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-[10px] bg-zinc-900 text-zinc-400 border border-white/10 whitespace-nowrap">
-                  <span class="w-1.5 h-1.5 rounded-full bg-zinc-500 shrink-0"></span>
-                  <span>Unknown</span>
-                </span>
-              `;
-            }
-          }
-        });
-      }
-
-      (async function hydrate() {
-        try {
-          const cached = sessionStorage.getItem(STATUS_CACHE_KEY);
-          if (cached) {
-            try {
-              const parsed = JSON.parse(cached);
-              if (
-                parsed &&
-                parsed.data &&
-                Date.now() - parsed.timestamp < STATUS_CACHE_TTL_MS
-              ) {
-                applyStatusData(parsed.data);
-                return;
-              }
-            } catch {
-              // Ignore parse error
-            }
-          }
-
-          const endpoint =
-            typeof workerUrl !== 'undefined' && workerUrl
-              ? new URL('/api/status', workerUrl).toString()
-              : 'https://worker.patch.p0ntus.com/api/status';
-          const response = await fetch(endpoint);
-          if (!response.ok) return;
-
-          const data = await response.json();
-          if (!data || !data.apps) return;
-
-          try {
-            sessionStorage.setItem(
-              STATUS_CACHE_KEY,
-              JSON.stringify({ data, timestamp: Date.now() }),
-            );
-          } catch {
-            // Ignore storage quota errors
-          }
-
-          applyStatusData(data);
-        } catch {
-          // Keep static fallback
+        if (playCell) {
+          playCell.textContent = effectivePlayVersion
+            ? 'v' + effectivePlayVersion
+            : '—';
         }
-      })();
-    })();
+
+        const effectiveStatus = appData.status;
+
+        if (badgeCell) {
+          if (effectiveStatus === 'up-to-date') {
+            badgeCell.innerHTML = `
+              <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-[10px] bg-emerald-950/60 text-emerald-400 border border-emerald-800/40 whitespace-nowrap">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0"></span>
+                <span>Up to date</span>
+              </span>
+            `;
+          } else if (effectiveStatus === 'newer-available') {
+            badgeCell.innerHTML = `
+              <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-[10px] bg-amber-950/60 text-amber-400 border border-amber-800/40 whitespace-nowrap">
+                <span class="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0"></span>
+                <span>Newer version available</span>
+              </span>
+            `;
+          } else if (effectiveStatus === 'check-failed') {
+            badgeCell.innerHTML = `
+              <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-[10px] bg-rose-950/60 text-rose-400 border border-rose-800/40 whitespace-nowrap">
+                <span class="w-1.5 h-1.5 rounded-full bg-rose-400 shrink-0"></span>
+                <span>Check failed</span>
+              </span>
+            `;
+          } else if (effectiveStatus === 'not-on-play-store') {
+            badgeCell.innerHTML = `
+              <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-[10px] bg-zinc-900 text-zinc-500 border border-white/10 whitespace-nowrap">
+                <span>Not on Play Store</span>
+              </span>
+            `;
+          } else {
+            badgeCell.innerHTML = `
+              <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-[10px] bg-zinc-900 text-zinc-400 border border-white/10 whitespace-nowrap">
+                <span class="w-1.5 h-1.5 rounded-full bg-zinc-500 shrink-0"></span>
+                <span>Unknown</span>
+              </span>
+            `;
+          }
+        }
+      });
+    }
+
+    loadStatusPayload().then((payload) => {
+      if (payload) {
+        applyStatusData(payload);
+      }
+    });
   </script>
 </BaseLayout>

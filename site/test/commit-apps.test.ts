@@ -19,7 +19,6 @@ const MOCK_APPS: App[] = [
     playStoreUrl: 'https://play.google.com/store/apps/details?id=com.avinside',
     docsUrl:
       'https://github.com/ihatenodejs/aidans-patches/tree/main/docs/365-pay',
-    iconUrl: '/icons/com.avinside.png',
   },
   {
     id: 'adobe-scan',
@@ -37,7 +36,6 @@ const MOCK_APPS: App[] = [
       'https://play.google.com/store/apps/details?id=com.adobe.scan.android',
     docsUrl:
       'https://github.com/ihatenodejs/aidans-patches/tree/main/docs/adobe-scan',
-    iconUrl: '/icons/com.adobe.scan.android.png',
   },
   {
     id: 'aftership',
@@ -55,7 +53,6 @@ const MOCK_APPS: App[] = [
       'https://play.google.com/store/apps/details?id=com.aftership.AfterShip',
     docsUrl:
       'https://github.com/ihatenodejs/aidans-patches/tree/main/docs/aftership',
-    iconUrl: '/icons/com.aftership.AfterShip.png',
   },
   {
     id: 'blackjack',
@@ -73,7 +70,6 @@ const MOCK_APPS: App[] = [
       'https://play.google.com/store/apps/details?id=com.tripledot.blackjack',
     docsUrl:
       'https://github.com/ihatenodejs/aidans-patches/tree/main/docs/blackjack',
-    iconUrl: '/icons/com.tripledot.blackjack.png',
   },
   {
     id: 'canvas-student',
@@ -91,7 +87,6 @@ const MOCK_APPS: App[] = [
       'https://play.google.com/store/apps/details?id=com.instructure.candroid',
     docsUrl:
       'https://github.com/ihatenodejs/aidans-patches/tree/main/docs/canvas-student',
-    iconUrl: '/icons/com.instructure.candroid.png',
   },
   {
     id: 'fizz',
@@ -109,7 +104,6 @@ const MOCK_APPS: App[] = [
       'https://play.google.com/store/apps/details?id=com.ashtoncofer.Buzz',
     docsUrl:
       'https://github.com/ihatenodejs/aidans-patches/tree/main/docs/fizz',
-    iconUrl: '/icons/com.ashtoncofer.Buzz.png',
   },
   {
     id: 'geocaching',
@@ -127,7 +121,6 @@ const MOCK_APPS: App[] = [
       'https://play.google.com/store/apps/details?id=com.groundspeak.geocaching.intro',
     docsUrl:
       'https://github.com/ihatenodejs/aidans-patches/tree/main/docs/geocaching',
-    iconUrl: '/icons/com.groundspeak.geocaching.intro.png',
   },
   {
     id: 'navigate360-student',
@@ -144,7 +137,6 @@ const MOCK_APPS: App[] = [
     playStoreUrl: 'https://play.google.com/store/apps/details?id=com.eab.se',
     docsUrl:
       'https://github.com/ihatenodejs/aidans-patches/tree/main/docs/navigate360-student',
-    iconUrl: '/icons/com.eab.se.png',
   },
   {
     id: 'nhl',
@@ -161,7 +153,6 @@ const MOCK_APPS: App[] = [
     playStoreUrl:
       'https://play.google.com/store/apps/details?id=com.nhl.gc1112.free',
     docsUrl: 'https://github.com/ihatenodejs/aidans-patches/tree/main/docs/nhl',
-    iconUrl: '/icons/com.nhl.gc1112.free.png',
   },
   {
     id: 'sezzle',
@@ -179,7 +170,6 @@ const MOCK_APPS: App[] = [
       'https://play.google.com/store/apps/details?id=com.sezzle.sezzlemobile',
     docsUrl:
       'https://github.com/ihatenodejs/aidans-patches/tree/main/docs/sezzle',
-    iconUrl: '/icons/com.sezzle.sezzlemobile.png',
   },
   {
     id: 'sidelineswap',
@@ -197,7 +187,6 @@ const MOCK_APPS: App[] = [
       'https://play.google.com/store/apps/details?id=com.sidelineswap.android',
     docsUrl:
       'https://github.com/ihatenodejs/aidans-patches/tree/main/docs/sidelineswap',
-    iconUrl: '/icons/com.sidelineswap.android.png',
   },
 ];
 

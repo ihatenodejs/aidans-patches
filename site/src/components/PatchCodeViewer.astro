@@ -1,5 +1,5 @@
 ---
-import { Image } from 'astro:assets';
+import AppIcon from './AppIcon.astro';
 import { getApps, getPatches } from '../data/repo';
 import { getPatchCodeMap } from '../data/patch-code';
 import { getPatchSourceUrl } from '../data/source-links';
@@ -26,7 +26,7 @@ const viewerData = apps.map((app) => {
   return {
     id: app.id,
     name: app.name,
-    iconUrl: app.iconUrl,
+    packageName: app.packageName,
     appIconColor: app.appIconColor,
     patches: appPatches,
   };
@@ -70,20 +70,15 @@ const initialPatch = initialApp.patches[0];
               }`}
             >
               <div class="flex items-center gap-2.5 min-w-0">
-                {app.iconUrl ? (
-                  <Image
-                    src={app.iconUrl}
-                    alt={app.name}
-                    width={16}
-                    height={16}
-                    class="w-4 h-4 rounded-sm object-cover border border-white/10 shrink-0"
-                    loading="lazy"
-                  />
-                ) : (
-                  <span class="w-4 h-4 rounded-sm bg-zinc-900 border border-white/10 flex items-center justify-center text-[10px] text-zinc-400 shrink-0">
-                    {app.name.charAt(0)}
-                  </span>
-                )}
+                <AppIcon
+                  packageName={app.packageName}
+                  name={app.name}
+                  size={16}
+                  loading="lazy"
+                  className="w-4 h-4 rounded-sm border border-white/10 shrink-0"
+                  fallbackClassName="rounded-sm text-[10px]"
+                  fallbackColor={app.appIconColor}
+                />
                 <span class="truncate">{app.name}</span>
               </div>
               <span class="text-[10px] text-zinc-500 shrink-0">

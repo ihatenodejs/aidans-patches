@@ -18,6 +18,8 @@ const {
 const siteUrl = Astro.site || 'https://patch.p0ntus.com';
 const canonicalUrl = new URL(currentPath, siteUrl).href;
 const imageUrl = new URL('/favicon.svg', siteUrl).href;
+const workerUrl =
+  import.meta.env.PUBLIC_WORKER_URL || 'https://worker.patch.p0ntus.com';
 
 const jsonLd = {
   '@context': 'https://schema.org',
@@ -62,7 +64,10 @@ const jsonLd = {
     <!-- Structured Data (JSON-LD) -->
     <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
   </head>
-  <body class="bg-[#050505] text-[#ededed] font-sans antialiased selection:bg-white/20 selection:text-white overflow-x-hidden">
+  <body
+    data-worker-url={workerUrl}
+    class="bg-[#050505] text-[#ededed] font-sans antialiased selection:bg-white/20 selection:text-white overflow-x-hidden"
+  >
     <!-- Centered Content Rail with subtle vertical border rails -->
     <div class="min-h-screen flex flex-col max-w-5xl mx-auto border-x border-white/[0.08] relative bg-[#050505] shadow-2xl">
       <Header currentPath={currentPath} />

@@ -1,5 +1,5 @@
 ---
-import { Image } from 'astro:assets';
+import AppIcon from '../components/AppIcon.astro';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import PatchRow from '../components/PatchRow.astro';
 import { getApps, getPatches } from '../data/repo';
@@ -97,20 +97,16 @@ const patchesByApp = apps.map((app) => ({
             data-app-filter={app.id}
             class="app-filter-btn px-2.5 py-1 rounded-sm bg-zinc-950 text-zinc-400 border border-white/[0.08] hover:text-white hover:border-white/20 transition-colors flex items-center gap-1.5"
           >
-            {app.iconUrl ? (
-              <Image
-                src={app.iconUrl}
-                alt=""
-                width={14}
-                height={14}
-                class="w-3.5 h-3.5 rounded-xs object-cover border border-white/10 shrink-0"
-                loading="eager"
-              />
-            ) : (
-              <span class="w-3.5 h-3.5 rounded-xs bg-zinc-900 border border-white/10 flex items-center justify-center font-mono text-[9px] text-zinc-400 shrink-0">
-                {app.name.charAt(0)}
-              </span>
-            )}
+            <AppIcon
+              packageName={app.packageName}
+              name={app.name}
+              size={14}
+              loading="eager"
+              alt=""
+              className="w-3.5 h-3.5 rounded-xs border border-white/10 shrink-0"
+              fallbackClassName="rounded-xs font-mono text-[9px]"
+              fallbackColor={app.appIconColor}
+            />
             <span>{app.name}</span>
             <span class="text-zinc-600 text-[10px]">({app.patchCount})</span>
           </button>
@@ -140,23 +136,15 @@ const patchesByApp = apps.map((app) => ({
           <!-- App Header Strip -->
           <div class="border border-white/[0.08] bg-[#070707] p-4 rounded-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div class="flex items-center gap-3">
-              {app.iconUrl ? (
-                <Image
-                  src={app.iconUrl}
-                  alt={app.name}
-                  width={40}
-                  height={40}
-                  class="w-10 h-10 rounded-md object-cover border border-white/10 shrink-0"
-                  loading={index === 0 ? 'eager' : 'lazy'}
-                />
-              ) : (
-                <div
-                  class="w-10 h-10 rounded-sm flex items-center justify-center font-mono text-sm font-bold shrink-0"
-                  style={`background-color: ${app.appIconColor}1a; color: ${app.appIconColor}; border: 1px solid ${app.appIconColor}40;`}
-                >
-                  {app.name.charAt(0)}
-                </div>
-              )}
+              <AppIcon
+                packageName={app.packageName}
+                name={app.name}
+                size={40}
+                loading={index === 0 ? 'eager' : 'lazy'}
+                className="w-10 h-10 rounded-md border border-white/10 shrink-0"
+                fallbackClassName="rounded-sm font-mono text-sm font-bold"
+                fallbackColor={app.appIconColor}
+              />
 
               <div>
                 <div class="flex items-center gap-2">

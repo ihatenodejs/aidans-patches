@@ -15,7 +15,6 @@ import type {
 } from './types';
 import { getPatchSourceUrl } from './source-links';
 import { resolveLatestRelease, resolveLatestReleaseSync } from './changelog';
-import { getAppIconUrl } from './icons';
 import { resolveAppForScope } from './commit-apps';
 
 function slugify(text: string): string {
@@ -201,7 +200,6 @@ function buildRepositoryEntities(rawList: RawPatchesList) {
             patchCount: 0,
             playStoreUrl: `https://play.google.com/store/apps/details?id=${encodeURIComponent(cp.packageName)}`,
             docsUrl,
-            iconUrl: getAppIconUrl(cp.packageName),
           };
         }
       }
@@ -249,7 +247,6 @@ function buildRepositoryEntities(rawList: RawPatchesList) {
       updatedOn: baseline?.updatedOn || null,
       status: 'unknown',
       playStoreUrl: app.playStoreUrl,
-      iconUrl: app.iconUrl,
     };
   });
 
@@ -291,9 +288,8 @@ function assembleRepositoryData(
   for (const item of release.recentChanges) {
     const matchedApp = resolveAppForScope(item.scope, apps);
     if (matchedApp) {
-      item.appId = matchedApp.id;
       item.appName = matchedApp.name;
-      item.appIconUrl = matchedApp.iconUrl;
+      item.appPackageName = matchedApp.packageName;
     }
   }
 

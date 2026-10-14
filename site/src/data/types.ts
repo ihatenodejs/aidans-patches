@@ -23,7 +23,6 @@ export interface App {
   playStoreUrl: string;
   docsUrl: string;
   category?: string | null;
-  iconUrl?: string | null;
 }
 
 export type OptionType = 'boolean' | 'string' | 'color';
@@ -114,7 +113,6 @@ export interface AppVersionStatus {
   outstandingRequest?: OutstandingCompatibilityRequest | null;
   outstandingRequestId?: string | null;
   playStoreUrl: string;
-  iconUrl?: string | null;
 }
 
 export interface ReleaseChangeItem {
@@ -125,7 +123,7 @@ export interface ReleaseChangeItem {
   commitUrl: string | null;
   appId?: string | null;
   appName?: string | null;
-  appIconUrl?: string | null;
+  appPackageName?: string | null;
 }
 
 export interface ReleaseInfo {
