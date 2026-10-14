@@ -121,3 +121,39 @@ This document specifies patches for **365 Pay** (`com.avinside`).
 
 3. **Bundle Integrity:**
    - Recalculates bundle SHA-1 checksum over all bytes excluding the trailing 20-byte hash and overwrites the footer via `editor.updateFooterHash()`.
+
+---
+
+## Patch: Display Cutout Adaptation
+
+- **Name:** Display Cutout Adaptation
+- **Target Package:** `com.avinside`
+- **Supported Versions:** `10.2605.0`
+- **Default State:** `true` (Enabled by default)
+- **Type:** Dalvik Bytecode Patch (`bytecodePatch`) with Extension DEX (`extendWith`)
+- **Category:** General
+- **Dependencies:** None
+- **Compatibility:** `COMPATIBILITY_365_PAY` (`ApkFileType.APKM`, target `10.2605.0`, `minSdk` 27)
+- **Extension Classes:** `app.aidan.extension.pay365.DisplayCutoutBridge`
+- **Options:** None (fully automated and dynamic)
+
+### Technical Implementation & Injection Points
+
+1. **Problem Analysis:**
+   - 365 Pay uses fixed layout metrics for its primary screens: top header height is hardcoded to 78 dp and header control rows start at 34 dp.
+   - On notchless / bezel devices, the status bar is 24 dp, leaving +10 dp of clean vertical breathing room under the status bar.
+   - On devices with a camera display cutout (e.g. Pixel 9 Pro XL), the status bar and cutout expand to ~62 dp (159 px). The fixed 34 dp offset causes the location selector dropdown and notification bell to overlap the camera punch-hole and notification shade swipe-down zone.
+
+2. **Dynamic Adaptation Logic:**
+   - **Target Class:** `Lcom/avinside/MainActivity;`
+   - **Target Method:** `onCreate(Landroid/os/Bundle;)V`
+   - **Injected Call:** `invoke-static {p0}, Lapp/aidan/extension/pay365/DisplayCutoutBridge;->init(Landroid/app/Activity;)V` right before `return-void`.
+   - **Runtime Inset Measurement:** Listens to `WindowInsets` via `View.setOnApplyWindowInsetsListener`. Evaluates `cutoutTop = displayCutout.getSafeInsetTop()` and `statusBarTop = insets.getInsets(Type.statusBars()).top`.
+   - **Zero-Config Delta Calculation:** Computes `deltaPx = max(0, effectiveTop - baselinePx)`, where `baselinePx = Math.round(24dp * density)`.
+     - On bezel devices (`cutoutTop == 0`, `statusBarTop <= 36dp`), `deltaPx == 0` (no modification).
+     - On cutout devices, `deltaPx > 0` (e.g. 98 px / ~38.4 dp on Pixel 9 Pro XL).
+   - **Visual & Layout Alignment:**
+     - Dynamically expands `headerView` bounds and scales the gradient background `ImageView` from pivot `y = 0` down by `deltaPx` to preserve continuous gradient coverage.
+     - Disables clipping on parent containers (`setClipChildren(false)`).
+     - Shifts header control containers (`qa_dpd_SelectLocation`, `qa_btn_Notifications`, `qa_Account.PageTitle_txt`) down by `deltaPx`, positioning them cleanly below the camera hole.
+     - Translates and adds bottom padding to the body scroll container (`qa_LoadingBar_img`) by `deltaPx` to maintain seamless vertical rhythm without clipping above the bottom navigation bar.
