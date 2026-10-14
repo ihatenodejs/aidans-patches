@@ -4,8 +4,8 @@ import {
   formatCompatBadge,
   renderCompatBadgeHtml,
   resolveErrorLabel,
-} from './status';
-import type { CompatibilityRecord } from './types';
+} from '../src/data/status';
+import type { CompatibilityRecord } from '../src/data/types';
 
 describe('resolveErrorLabel', () => {
   it('resolves explicit failureStage accurately', () => {

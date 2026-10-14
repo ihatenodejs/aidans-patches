@@ -16,7 +16,7 @@ Use pinned actions and least-privilege `permissions`. Preserve path filters and 
 ## Generator Scripts
 
 - `scripts/generate_patches_readme.py`: rewrites only the README block between `PATCHES_START` and `PATCHES_END` from `patches-list.json`.
-- `scripts/sync_app_icons.py`: check or synchronize `site/public/icons/<package>.png` and `site/src/data/icons.ts` from patch metadata/Play images.
+- `scripts/sync_app_icons.py`: check or synchronize `site/public/icons/<package>.png` from patch metadata/Play images.
 - `scripts/prepare_emoji_font.py`: downloads a pinned source, verifies SHA-256, transforms/checks the font, and writes a generated build resource/cache.
 
 Python scripts follow Ruff formatting/lint rules, validate paths/input shape, fail with actionable errors, and must not print secret values.

@@ -210,6 +210,7 @@ async function runFormat(checkOnly = false): Promise<boolean> {
   const prettierPatterns = [
     'worker/**/*.{ts,json,jsonc}',
     'site/src/**/*.{ts,astro}',
+    'site/test/**/*.ts',
     'package.json',
     '.prettierrc.json',
     '.oxlintrc.json',

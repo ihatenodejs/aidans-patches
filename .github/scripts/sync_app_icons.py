@@ -133,31 +133,6 @@ def download_and_process_icon(image_url: str) -> bytes | None:
         return None
 
 
-def update_icons_ts(icons_ts_path: Path, packages: dict[str, str]):
-    """Ensure site/src/data/icons.ts contains all package mappings."""
-    if not icons_ts_path.exists():
-        return
-
-    content = icons_ts_path.read_text(encoding="utf-8")
-    lines = [
-        "// Local cached application icons (avoids Google rate limiting and removes external network dependency)",
-        "export const APP_ICONS: Record<string, string> = {",
-    ]
-    for pkg in sorted(packages.keys()):
-        lines.append(f"  '{pkg}': '/icons/{pkg}.png',")
-    lines.append("};")
-    lines.append("")
-    lines.append("export function getAppIconUrl(packageName: string): string | null {")
-    lines.append("  return APP_ICONS[packageName] || null;")
-    lines.append("}")
-    lines.append("")
-
-    new_content = "\n".join(lines)
-    if content != new_content:
-        icons_ts_path.write_text(new_content, encoding="utf-8")
-        print(f"Updated icon registry: {icons_ts_path}")
-
-
 def main():
     parser = argparse.ArgumentParser(
         description="Synchronize application icons from Google Play."
@@ -180,12 +155,6 @@ def main():
     parser.add_argument(
         "--icons-dir", type=Path, default=repo_root / "site" / "public" / "icons"
     )
-    parser.add_argument(
-        "--icons-ts",
-        type=Path,
-        default=repo_root / "site" / "src" / "data" / "icons.ts",
-    )
-
     args = parser.parse_args()
 
     packages = load_unique_packages(args.patches_list)
@@ -250,9 +219,6 @@ def main():
         else:
             updated_packages.append(f"{name} (`{pkg}`)")
             print(f"  Updated icon for {pkg} ({len(png_bytes)} bytes)")
-
-    # Keep icons.ts up to date with all packages
-    update_icons_ts(args.icons_ts, packages)
 
     changes_detected = len(new_packages) > 0 or len(updated_packages) > 0
     set_github_output("changes_detected", "true" if changes_detected else "false")

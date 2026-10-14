@@ -1,19 +1,40 @@
-// Local cached application icons (avoids Google rate limiting and removes external network dependency)
-export const APP_ICONS: Record<string, string> = {
-  'com.adobe.scan.android': '/icons/com.adobe.scan.android.png',
-  'com.aftership.AfterShip': '/icons/com.aftership.AfterShip.png',
-  'com.ashtoncofer.Buzz': '/icons/com.ashtoncofer.Buzz.png',
-  'com.avinside': '/icons/com.avinside.png',
-  'com.eab.se': '/icons/com.eab.se.png',
-  'com.groundspeak.geocaching.intro':
-    '/icons/com.groundspeak.geocaching.intro.png',
-  'com.instructure.candroid': '/icons/com.instructure.candroid.png',
-  'com.nhl.gc1112.free': '/icons/com.nhl.gc1112.free.png',
-  'com.sezzle.sezzlemobile': '/icons/com.sezzle.sezzlemobile.png',
-  'com.sidelineswap.android': '/icons/com.sidelineswap.android.png',
-  'com.tripledot.blackjack': '/icons/com.tripledot.blackjack.png',
-};
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
+let cachedAvailableIcons: Set<string> | null = null;
+
+function getAvailableIcons(): Set<string> {
+  if (cachedAvailableIcons) return cachedAvailableIcons;
+
+  const currentDir = path.dirname(fileURLToPath(import.meta.url));
+  const iconsDir = path.resolve(currentDir, '../../public/icons');
+
+  const set = new Set<string>();
+  if (fs.existsSync(iconsDir)) {
+    const files = fs.readdirSync(iconsDir);
+    for (const file of files) {
+      if (file.endsWith('.png')) {
+        set.add(file.slice(0, -4));
+      }
+    }
+  }
+
+  cachedAvailableIcons = set;
+  return set;
+}
+
+/**
+ * Returns the public URL for an application icon if it exists in public/icons/<packageName>.png.
+ * Returns null if the package is empty or the icon file is not present.
+ */
 export function getAppIconUrl(packageName: string): string | null {
-  return APP_ICONS[packageName] || null;
+  if (!packageName) return null;
+
+  const available = getAvailableIcons();
+  if (available.has(packageName)) {
+    return `/icons/${encodeURIComponent(packageName)}.png`;
+  }
+
+  return null;
 }
