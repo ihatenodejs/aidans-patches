@@ -12,7 +12,7 @@ const { app, className = '', loading = 'lazy' } = Astro.props;
 ---
 
 <a
-  href={`/patches#${app.id}`}
+  href={`/apps/${app.id}`}
   class={`group relative bg-[#090909] p-3.5 sm:p-5 hover:bg-white/[0.02] hover:shadow-[0_0_20px_rgba(255,255,255,0.06)] transition-[background-color,box-shadow] duration-150 flex flex-col justify-between ${className}`}
 >
   <!-- Inset 1px hover highlight border (zero layout reflow, zero flickering) -->

@@ -3,6 +3,15 @@ import type {
   OutstandingCompatibilityRequest,
 } from './types';
 
+export interface PlayStoreMetadata {
+  summary?: string | null;
+  description?: string | null;
+  developer?: string | null;
+  category?: string | null;
+  categoryId?: string | null;
+  releaseNotes?: string | null;
+}
+
 export interface PublicAppStatus {
   appName?: string | null;
   playVersion?: string | null;
@@ -16,8 +25,8 @@ export interface PublicAppStatus {
   targetCompatibility?: CompatibilityRecord | null;
   outstandingRequest?: OutstandingCompatibilityRequest | null;
   outstandingRequestId?: string | null;
+  playMetadata?: PlayStoreMetadata | null;
 }
-
 export interface PublicLatestRelease {
   packageName?: string | null;
   appName?: string | null;

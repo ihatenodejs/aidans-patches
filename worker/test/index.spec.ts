@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { deriveMonitoredApps } from '../src/apps';
 import { compareAppVersions } from '../src/comparator';
 import { renderBadgeSvg } from '../src/badges';
+import { parseGooglePlayHtml } from '../src/scraper';
 import worker, {
   computeAggregateCompatibilityStatus,
   timingSafeEqual,
@@ -1241,6 +1242,234 @@ describe('Version check and self-healing dispatches', () => {
       expect(saved.targetCompatibility?.status).toBe('compatible');
       // No outstanding request created
       expect(saved.outstandingRequest).toBeNull();
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+});
+describe('Google Play store metadata scraping and status aggregation', () => {
+  const SAMPLE_PLAY_HTML = `
+    <html>
+      <head>
+        <meta property="og:image" content="https://play-lh.googleusercontent.com/test-icon">
+        <meta property="og:description" content="Meta summary fallback">
+      </head>
+      <body>
+        [[["2.5.0"]],[[[1]],[[[1]]]
+        <div>Updated on</div><div>Oct 14, 2026</div>
+        <script>
+          AF_initDataCallback({key: 'ds:5', hash: '1', data: [
+            null,
+            [
+              null,
+              null,
+              [
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              ["Acme Developer Corp &amp; Co"],
+              null,
+              null,
+              null,
+              [[null, "Full description with &lt;b&gt;bold&lt;/b&gt; text<br>New line &amp; more."]],
+              [[null, "Structured summary for the app."]],
+              null,
+              null,
+              null,
+              null,
+              null,
+              [[["Business &amp; Productivity", null, "BUSINESS"]]],
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              [null, [null, "Bug fixes &amp; performance improvements!"]]
+            ]
+          ]
+        ], sideChannel: {}});
+        </script>
+      </body>
+    </html>
+  `;
+
+  it('parses structured ds:5 metadata and normalizes entities/HTML', () => {
+    const parsed = parseGooglePlayHtml(SAMPLE_PLAY_HTML);
+    expect(parsed.playVersion).toBe('2.5.0');
+    expect(parsed.iconUrl).toBe(
+      'https://play-lh.googleusercontent.com/test-icon',
+    );
+    expect(parsed.metadata.developer).toBe('Acme Developer Corp & Co');
+    expect(parsed.metadata.summary).toBe('Structured summary for the app.');
+    expect(parsed.metadata.category).toBe('Business & Productivity');
+    expect(parsed.metadata.categoryId).toBe('BUSINESS');
+    expect(parsed.metadata.description).toContain(
+      'Full description with bold text',
+    );
+    expect(parsed.metadata.description).toContain('New line & more.');
+    expect(parsed.metadata.releaseNotes).toBe(
+      'Bug fixes & performance improvements!',
+    );
+  });
+
+  it('persists playMetadata in KV and returns it in GET /api/status', async () => {
+    const originalFetch = globalThis.fetch;
+    const workerEnv: WorkerEnv = {
+      ...env,
+      PATCHES_KV: env.PATCHES_KV,
+    };
+
+    globalThis.fetch = vi.fn(async (input: RequestInfo | URL) => {
+      const url = typeof input === 'string' ? input : input.toString();
+      if (url.includes('play.google.com')) {
+        return new Response(SAMPLE_PLAY_HTML, { status: 200 });
+      }
+      return new Response('Not found', { status: 404 });
+    });
+
+    try {
+      await performVersionCheck(workerEnv);
+
+      const req = new Request('http://localhost/api/status', { method: 'GET' });
+      const res = await worker.fetch(req, workerEnv);
+      expect(res.status).toBe(200);
+
+      const payload = (await res.json()) as KVVersionPayload;
+      expect(payload.apps).toBeDefined();
+      const sampleApp = payload.apps['com.adobe.scan.android'];
+      expect(sampleApp).toBeDefined();
+      expect(sampleApp.playMetadata).toBeDefined();
+      expect(sampleApp.playMetadata?.developer).toBe(
+        'Acme Developer Corp & Co',
+      );
+      expect(sampleApp.playMetadata?.categoryId).toBe('BUSINESS');
+      expect(sampleApp.playMetadata?.summary).toBe(
+        'Structured summary for the app.',
+      );
     } finally {
       globalThis.fetch = originalFetch;
     }

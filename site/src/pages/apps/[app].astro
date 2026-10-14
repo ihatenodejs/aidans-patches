@@ -1,0 +1,540 @@
+---
+import AppDetailHero from '../../components/AppDetailHero.astro';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import PatchRow from '../../components/PatchRow.astro';
+import VersionBadgeTooltip from '../../components/VersionBadgeTooltip.astro';
+import { getApps, getPatchesForApp } from '../../data/repo';
+import type { App, Patch } from '../../data/types';
+import { getFallbackCategory, getFallbackSummary } from '../../data/app-store';
+import { formatAndroidVersion } from '../../data/android-version';
+export function getStaticPaths() {
+  return getApps().map((app) => ({
+    params: { app: app.id },
+    props: { app, patches: getPatchesForApp(app.id) },
+  }));
+}
+
+interface Props {
+  app: App;
+  patches: Patch[];
+}
+
+const { app, patches } = Astro.props;
+const fallbackCategory = getFallbackCategory(app.id);
+const fallbackSummary = getFallbackSummary(app.id);
+
+const categoryCounts = patches.reduce<Map<string, number>>((counts, patch) => {
+  const category = patch.category || 'General';
+  counts.set(category, (counts.get(category) || 0) + 1);
+  return counts;
+}, new Map());
+const patchCategories = [...categoryCounts.entries()];
+const description = `${app.name} (${fallbackCategory.name}): ${fallbackSummary} Explore ${patches.length} curated Morphe patches.`;
+---
+
+<BaseLayout
+  title={`${app.name} — Apps — Aidan's Morphe Patches`}
+  description={description}
+  currentPath={`/apps/${app.id}`}
+>
+  <nav
+    aria-label="Breadcrumb"
+    class="flex items-center gap-2 px-5 py-4 font-mono text-[10px] text-zinc-600 sm:px-8"
+  >
+    <a href="/apps" class="transition-colors hover:text-white">
+      Apps
+    </a>
+    <span aria-hidden="true">/</span>
+    <span class="text-zinc-400">{app.name}</span>
+  </nav>
+
+  <AppDetailHero app={app} patches={patches} />
+
+  <!-- App Store Information Panels (About this app & What's new) -->
+  <section
+    data-store-panels
+    data-package={app.packageName}
+    aria-label="App store details"
+    class="border-b border-white/[0.08] p-5 sm:p-8 bg-[#060606]"
+  >
+    <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
+      <!-- Panel 1: About this app -->
+      <div class="border border-white/[0.08] bg-[#090909] p-5 sm:p-6 flex flex-col justify-between">
+        <div>
+          <div class="flex items-center justify-between gap-3">
+            <h2 class="font-sans text-base font-bold text-white tracking-tight">
+              About this app
+            </h2>
+            <span
+              data-panel-category
+              class="font-mono text-[10px] uppercase tracking-wider text-zinc-400 px-2 py-0.5 rounded-sm bg-white/[0.04] border border-white/10"
+            >
+              {fallbackCategory.name}
+            </span>
+          </div>
+
+          <div
+            data-panel-description
+            class="mt-3.5 text-xs leading-relaxed text-zinc-300 font-sans space-y-2 max-h-72 overflow-y-auto custom-scrollbar pr-2 whitespace-pre-line"
+          >
+            {fallbackSummary}
+          </div>
+        </div>
+
+        <div class="mt-5 border-t border-white/[0.06] pt-3 flex items-center justify-between text-[11px] font-mono text-zinc-500">
+          <span>Developer</span>
+          <span
+            data-panel-developer
+            class="text-zinc-300 font-semibold truncate max-w-[200px]"
+          >
+            Google Play Verified
+          </span>
+        </div>
+      </div>
+
+      <!-- Panel 2: What's new in latest release -->
+      <div
+        id="whats-new-panel"
+        class="border border-white/[0.08] bg-[#090909] p-5 sm:p-6 flex flex-col justify-between"
+      >
+        <div>
+          <div class="flex items-center justify-between gap-3">
+            <h2 class="font-sans text-base font-bold text-white tracking-tight">
+              What's new
+            </h2>
+            <span
+              data-panel-updated-on
+              class="font-mono text-[10px] text-zinc-400 px-2 py-0.5 rounded-sm bg-white/[0.04] border border-white/10"
+            >
+              Recent release
+            </span>
+          </div>
+
+          <div
+            data-panel-release-notes
+            class="mt-3.5 text-xs leading-relaxed text-zinc-300 font-sans space-y-2 max-h-72 overflow-y-auto custom-scrollbar pr-2 whitespace-pre-line"
+          >
+            Patched against target v{app.latestSupportedVersion}. Check our
+            patch catalog below for custom features and options.
+          </div>
+        </div>
+
+        <div class="mt-5 border-t border-white/[0.06] pt-3 flex items-center justify-between text-[11px] font-mono text-zinc-500">
+          <span>Target build</span>
+          <span class="text-zinc-300 font-semibold">
+            v{app.latestSupportedVersion}
+          </span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Patch Catalog & Implementation Sidebar -->
+  <div class="grid grid-cols-1 gap-8 p-5 sm:p-8 lg:grid-cols-[minmax(0,1fr)_260px] lg:items-start">
+    <section aria-labelledby="improvements-heading" class="min-w-0">
+      <div class="mb-5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2
+            id="improvements-heading"
+            class="font-sans text-xl font-semibold leading-none tracking-tight text-white"
+          >
+            Compatible Patches
+          </h2>
+        </div>
+        <span class="font-mono text-[10px] leading-none text-zinc-500">
+          {patches.length} {patches.length === 1 ? 'item' : 'items'}
+        </span>
+      </div>
+      <div class="mb-4 flex flex-wrap gap-2">
+        {patchCategories.map(([category, count]) => (
+          <span class="rounded-full border border-white/[0.08] bg-white/[0.025] px-2.5 py-1 font-mono text-[9px] uppercase tracking-wide text-zinc-500">
+            {category} <span class="ml-1 text-zinc-700">{count}</span>
+          </span>
+        ))}
+      </div>
+
+      <div class="divide-y divide-white/[0.07] border border-white/[0.08] bg-[#080808]">
+        {patches.map((patch) => (
+          <PatchRow patch={patch} />
+        ))}
+      </div>
+    </section>
+
+    <aside class="space-y-3 lg:sticky lg:top-20">
+      <section class="border border-white/[0.08] bg-[#080808] p-5">
+        <h2 class="font-sans text-sm font-semibold text-white">
+          Compatibility
+        </h2>
+        <dl class="mt-4 space-y-3 font-mono text-[10px]">
+          <div class="flex items-start justify-between gap-3">
+            <dt class="text-zinc-500">Target version</dt>
+            <dd class="text-right">
+              <VersionBadgeTooltip text={`v${app.latestSupportedVersion}`} />
+            </dd>
+          </div>
+          <div class="flex items-start justify-between gap-3">
+            <dt class="text-zinc-500">Package format</dt>
+            <dd class="text-right text-zinc-300">{app.apkFileType}</dd>
+          </div>
+          <div class="flex items-start justify-between gap-3">
+            <dt class="text-zinc-500">Minimum Android</dt>
+            <dd class="text-right text-zinc-300">
+              {formatAndroidVersion(app.minSdk, '+')}
+            </dd>
+          </div>
+          <div class="border-t border-white/[0.06] pt-3">
+            <dt class="text-zinc-500">Package</dt>
+            <dd class="mt-1 break-all leading-relaxed text-zinc-400">
+              {app.packageName}
+            </dd>
+          </div>
+        </dl>
+      </section>
+
+      {app.supportedVersions.length > 1 && (
+        <section class="border border-white/[0.08] bg-[#080808] p-5">
+          <h2 class="font-sans text-sm font-semibold text-white">
+            Supported versions
+          </h2>
+          <div class="mt-3 flex flex-wrap gap-1.5">
+            {app.supportedVersions.map((version) => (
+              <span class="border border-white/[0.08] bg-black/20 px-2 py-1 font-mono text-[9px] text-zinc-500">
+                {version}
+              </span>
+            ))}
+          </div>
+        </section>
+      )}
+
+      <section class="border border-white/[0.08] bg-[#080808] p-5">
+        <div class="font-mono text-[9px] uppercase tracking-wider text-zinc-600">
+          Want the technical details?
+        </div>
+        <p class="mt-2 text-xs leading-relaxed text-zinc-500">
+          Read the implementation notes and app-specific architecture on GitHub.
+        </p>
+        <a
+          href={app.docsUrl}
+          target="_blank"
+          rel="noreferrer"
+          class="mt-4 inline-flex items-center gap-1.5 font-mono text-[10px] text-zinc-300 transition-colors hover:text-white"
+        >
+          <span>Open documentation</span>
+          <span aria-hidden="true">&nearr;</span>
+        </a>
+      </section>
+    </aside>
+  </div>
+
+  <script>
+    import {
+      loadStatusPayload,
+      type PublicStatusPayload,
+    } from '../../data/status-client';
+    import {
+      normalizePlayCategoryId,
+      STORE_CATEGORIES,
+    } from '../../data/app-store';
+
+    (() => {
+      const heroContainer = document.querySelector<HTMLElement>(
+        '[data-hero-package]',
+      );
+      const pkg = heroContainer?.dataset.heroPackage;
+      if (!pkg) return;
+
+      loadStatusPayload().then((payload: PublicStatusPayload | null) => {
+        if (!payload || !payload.apps) return;
+        const appStatus = payload.apps[pkg];
+        if (!appStatus) return;
+
+        const meta = appStatus.playMetadata;
+
+        // Update sidebar version badge and dual-row tooltip
+        const sideBadge = document.querySelector<HTMLElement>(
+          'aside [data-app-version-badge]',
+        );
+        if (sideBadge) {
+          const status = appStatus.status;
+          const targetCompat = appStatus.targetCompatibility;
+
+          // 1. Color trigger badge
+          sideBadge.classList.remove(
+            'bg-zinc-900',
+            'text-zinc-400',
+            'border-white/10',
+            'bg-emerald-950/60',
+            'text-emerald-400',
+            'border-emerald-800/40',
+            'bg-amber-950/60',
+            'text-amber-400',
+            'border-amber-800/40',
+            'bg-rose-950/60',
+            'text-rose-400',
+            'border-rose-800/40',
+          );
+
+          if (targetCompat?.status === 'compatible') {
+            sideBadge.classList.add(
+              'bg-emerald-950/60',
+              'text-emerald-400',
+              'border-emerald-800/40',
+            );
+          } else if (
+            targetCompat?.status === 'incompatible' ||
+            targetCompat?.status === 'error'
+          ) {
+            sideBadge.classList.add(
+              'bg-rose-950/60',
+              'text-rose-400',
+              'border-rose-800/40',
+            );
+          } else if (status === 'up-to-date') {
+            sideBadge.classList.add(
+              'bg-emerald-950/60',
+              'text-emerald-400',
+              'border-emerald-800/40',
+            );
+          } else if (status === 'newer-available') {
+            sideBadge.classList.add(
+              'bg-amber-950/60',
+              'text-amber-400',
+              'border-amber-800/40',
+            );
+          } else {
+            sideBadge.classList.add(
+              'bg-zinc-900',
+              'text-zinc-400',
+              'border-white/10',
+            );
+          }
+
+          // 2. Tooltip Row 1: Test status badge (passed tests count, compatible/incompatible)
+          const testBadge = document.querySelector<HTMLElement>(
+            'aside [data-tooltip-test-badge]',
+          );
+          const testLabel = document.querySelector<HTMLElement>(
+            'aside [data-tooltip-test-label]',
+          );
+
+          if (testBadge && testLabel) {
+            testBadge.classList.remove(
+              'bg-zinc-900',
+              'text-zinc-400',
+              'border-white/10',
+              'bg-emerald-950/60',
+              'text-emerald-400',
+              'border-emerald-800/40',
+              'bg-rose-950/60',
+              'text-rose-400',
+              'border-rose-800/40',
+              'bg-amber-950/60',
+              'text-amber-400',
+              'border-amber-800/40',
+            );
+
+            const dotEl = testBadge.querySelector('span:first-child');
+            if (dotEl) {
+              dotEl.className = 'w-1.5 h-1.5 rounded-full';
+            }
+
+            if (targetCompat?.status === 'compatible') {
+              testBadge.classList.add(
+                'bg-emerald-950/60',
+                'text-emerald-400',
+                'border-emerald-800/40',
+              );
+              dotEl?.classList.add('bg-emerald-400');
+              const passed = targetCompat.passedCount || 0;
+              const total = passed + (targetCompat.failedCount || 0);
+              testLabel.textContent =
+                total > 0 ? `${passed}/${total} passed` : 'Compatible';
+            } else if (targetCompat?.status === 'incompatible') {
+              testBadge.classList.add(
+                'bg-rose-950/60',
+                'text-rose-400',
+                'border-rose-800/40',
+              );
+              dotEl?.classList.add('bg-rose-400');
+              const passed = targetCompat.passedCount || 0;
+              const total = passed + (targetCompat.failedCount || 0);
+              testLabel.textContent = `${passed}/${total} passed`;
+            } else if (targetCompat?.status === 'error') {
+              testBadge.classList.add(
+                'bg-rose-950/60',
+                'text-rose-400',
+                'border-rose-800/40',
+              );
+              dotEl?.classList.add('bg-rose-400');
+              testLabel.textContent = 'Test error';
+            } else if (
+              appStatus.outstandingRequest?.expectedRoles?.includes('target')
+            ) {
+              testBadge.classList.add(
+                'bg-amber-950/60',
+                'text-amber-400',
+                'border-amber-800/40',
+              );
+              dotEl?.classList.add('bg-amber-400');
+              testLabel.textContent = 'Queued';
+            } else {
+              testBadge.classList.add(
+                'bg-zinc-900',
+                'text-zinc-400',
+                'border-white/10',
+              );
+              dotEl?.classList.add('bg-zinc-500');
+              testLabel.textContent = 'Not tested';
+            }
+          }
+
+          // 3. Tooltip Row 2: Play Store version badge (orange for newer, green for latest)
+          const playBadge = document.querySelector<HTMLElement>(
+            'aside [data-tooltip-play-badge]',
+          );
+          const playLabel = document.querySelector<HTMLElement>(
+            'aside [data-tooltip-play-label]',
+          );
+
+          if (playBadge && playLabel) {
+            playBadge.classList.remove(
+              'bg-zinc-900',
+              'text-zinc-400',
+              'border-white/10',
+              'bg-emerald-950/60',
+              'text-emerald-400',
+              'border-emerald-800/40',
+              'bg-amber-950/60',
+              'text-amber-400',
+              'border-amber-800/40',
+              'bg-rose-950/60',
+              'text-rose-400',
+              'border-rose-800/40',
+            );
+
+            const dotEl = playBadge.querySelector('span:first-child');
+            if (dotEl) {
+              dotEl.className = 'w-1.5 h-1.5 rounded-full';
+            }
+
+            if (status === 'up-to-date') {
+              playBadge.classList.add(
+                'bg-emerald-950/60',
+                'text-emerald-400',
+                'border-emerald-800/40',
+              );
+              dotEl?.classList.add('bg-emerald-400');
+              playLabel.textContent = appStatus.playVersion
+                ? `v${appStatus.playVersion}`
+                : 'Latest';
+            } else if (status === 'newer-available') {
+              playBadge.classList.add(
+                'bg-amber-950/60',
+                'text-amber-400',
+                'border-amber-800/40',
+              );
+              dotEl?.classList.add('bg-amber-400');
+              playLabel.textContent = appStatus.playVersion
+                ? `v${appStatus.playVersion}`
+                : 'Newer available';
+            } else if (status === 'not-on-play-store') {
+              playBadge.classList.add(
+                'bg-zinc-900',
+                'text-zinc-500',
+                'border-white/10',
+              );
+              dotEl?.classList.add('bg-zinc-600');
+              playLabel.textContent = 'Not on Play';
+            } else if (status === 'check-failed') {
+              playBadge.classList.add(
+                'bg-rose-950/60',
+                'text-rose-400',
+                'border-rose-800/40',
+              );
+              dotEl?.classList.add('bg-rose-400');
+              playLabel.textContent = 'Check failed';
+            } else {
+              playBadge.classList.add(
+                'bg-zinc-900',
+                'text-zinc-400',
+                'border-white/10',
+              );
+              dotEl?.classList.add('bg-zinc-500');
+              playLabel.textContent = appStatus.playVersion
+                ? `v${appStatus.playVersion}`
+                : 'Unknown';
+            }
+          }
+        }
+        if (meta?.summary && meta.summary.trim()) {
+          const heroSummary = document.querySelector<HTMLElement>(
+            '[data-hero-summary]',
+          );
+          if (heroSummary) heroSummary.textContent = meta.summary.trim();
+        }
+
+        if (meta?.developer && meta.developer.trim()) {
+          const heroDev = document.querySelector<HTMLElement>(
+            '[data-hero-developer]',
+          );
+          if (heroDev) heroDev.textContent = meta.developer.trim();
+        }
+
+        if (meta?.categoryId) {
+          const normalized = normalizePlayCategoryId(meta.categoryId, 'other');
+          const storeCat = STORE_CATEGORIES[normalized];
+          const heroCat = document.querySelector<HTMLElement>(
+            '[data-hero-category]',
+          );
+          if (heroCat && storeCat) {
+            heroCat.textContent =
+              meta.category && meta.category.trim()
+                ? meta.category.trim()
+                : storeCat.name;
+          }
+        }
+
+        // 2. Hydrate Info Panels
+        const panelCat = document.querySelector<HTMLElement>(
+          '[data-panel-category]',
+        );
+        if (panelCat && meta?.category && meta.category.trim()) {
+          panelCat.textContent = meta.category.trim();
+        }
+
+        const panelDesc = document.querySelector<HTMLElement>(
+          '[data-panel-description]',
+        );
+        if (panelDesc && meta?.description && meta.description.trim()) {
+          panelDesc.textContent = meta.description.trim();
+        }
+
+        const panelDev = document.querySelector<HTMLElement>(
+          '[data-panel-developer]',
+        );
+        if (panelDev && meta?.developer && meta.developer.trim()) {
+          panelDev.textContent = meta.developer.trim();
+        }
+
+        const panelUpdatedOn = document.querySelector<HTMLElement>(
+          '[data-panel-updated-on]',
+        );
+        if (panelUpdatedOn && appStatus.updatedOn) {
+          panelUpdatedOn.textContent = `Updated ${appStatus.updatedOn}`;
+        }
+
+        const panelNotes = document.querySelector<HTMLElement>(
+          '[data-panel-release-notes]',
+        );
+        const whatsNewPanel = document.getElementById('whats-new-panel');
+
+        if (meta?.releaseNotes && meta.releaseNotes.trim()) {
+          if (panelNotes) panelNotes.textContent = meta.releaseNotes.trim();
+        } else if (meta?.releaseNotes === null) {
+          // Play Store explicitly has no release notes for this app
+          if (whatsNewPanel) whatsNewPanel.classList.add('hidden');
+        }
+      });
+    })();
+  </script>
+</BaseLayout>

@@ -4,19 +4,11 @@ import type { App } from '../data/types';
 
 interface Props {
   count: number;
-  totalApps: number;
-  totalPatches?: number;
   remainingApps?: App[];
   className?: string;
 }
 
-const {
-  count,
-  totalApps,
-  totalPatches,
-  remainingApps = [],
-  className = '',
-} = Astro.props;
+const { count, remainingApps = [], className = '' } = Astro.props;
 
 const title =
   count > 0
@@ -33,7 +25,7 @@ const plusCount = count === 4 ? 1 : count - 2;
 ---
 
 <a
-  href="/patches"
+  href="/apps"
   data-smoke-card
   class={`group relative p-3.5 sm:p-5 hover:shadow-[0_0_25px_rgba(63,27,71,0.25)] transition-all duration-150 flex flex-col justify-between overflow-hidden ${className}`}
   style="background-color: #040206; background-image: radial-gradient(circle at 30% 20%, rgba(63, 27, 71, 0.35), transparent 70%), radial-gradient(circle at 80% 80%, rgba(28, 10, 34, 0.30), transparent 70%);"

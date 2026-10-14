@@ -41,14 +41,14 @@ const stats = getRepositoryStats();
     <!-- Navigation -->
     <nav class="flex items-center gap-1 sm:gap-2">
       <a
-        href="/patches"
+        href="/apps"
         class={`px-3 py-1 text-xs font-medium rounded-sm transition-colors ${
-          currentPath.startsWith('/patches')
+          currentPath.startsWith('/apps')
             ? 'text-white bg-white/[0.06] border border-white/[0.12]'
             : 'text-zinc-400 hover:text-white hover:bg-white/[0.03]'
         }`}
       >
-        Patches
+        Apps
       </a>
       <a
         href="/status"

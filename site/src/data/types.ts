@@ -22,7 +22,6 @@ export interface App {
   patchCount: number;
   playStoreUrl: string;
   docsUrl: string;
-  category?: string | null;
 }
 
 export type OptionType = 'boolean' | 'string' | 'color';

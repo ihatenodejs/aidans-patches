@@ -9,6 +9,7 @@ import type {
   LatestReleaseSummary,
   OutstandingCompatibilityRequest,
   PatchCompatibilityStatus,
+  PlayStoreMetadata,
   WorkerEnv,
 } from './types';
 import { fetchGooglePlayApp } from './scraper';
@@ -132,6 +133,7 @@ export async function loadStatusPayload(
         targetCompatibility: null,
         outstandingRequest: null,
         outstandingRequestId: null,
+        playMetadata: null,
       };
     }
   }
@@ -224,6 +226,40 @@ export async function performVersionCheck(
         outstandingRequest = null;
       }
     }
+    let mergedMetadata: PlayStoreMetadata | null = null;
+    const priorMeta = priorRecord?.playMetadata;
+
+    if (scraped.isNotFound || scraped.rawError) {
+      mergedMetadata = priorMeta ?? null;
+    } else {
+      const sMeta = scraped.metadata;
+      mergedMetadata = {
+        summary:
+          sMeta?.summary !== undefined
+            ? sMeta.summary
+            : (priorMeta?.summary ?? null),
+        description:
+          sMeta?.description !== undefined
+            ? sMeta.description
+            : (priorMeta?.description ?? null),
+        developer:
+          sMeta?.developer !== undefined
+            ? sMeta.developer
+            : (priorMeta?.developer ?? null),
+        category:
+          sMeta?.category !== undefined
+            ? sMeta.category
+            : (priorMeta?.category ?? null),
+        categoryId:
+          sMeta?.categoryId !== undefined
+            ? sMeta.categoryId
+            : (priorMeta?.categoryId ?? null),
+        releaseNotes:
+          sMeta?.releaseNotes !== undefined
+            ? sMeta.releaseNotes
+            : (priorMeta?.releaseNotes ?? null),
+      };
+    }
 
     const appRecord: AppVersionRecord = {
       appName: app.name,
@@ -239,6 +275,7 @@ export async function performVersionCheck(
       targetCompatibility: targetCompat,
       outstandingRequest,
       outstandingRequestId: outstandingRequest?.requestId ?? null,
+      playMetadata: mergedMetadata,
     };
     await saveAppRecord(env, app.packageName, appRecord);
     appsRecord[app.packageName] = appRecord;

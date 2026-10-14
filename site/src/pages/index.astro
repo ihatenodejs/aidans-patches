@@ -90,10 +90,10 @@ const versionStatuses = getInitialVersionStatuses().slice(0, 4);
         </h2>
       </div>
       <a
-        href="/patches"
+        href="/apps"
         class="font-mono text-xs text-zinc-400 hover:text-white transition-colors"
       >
-        Browse {totalPatches} patches &rarr;
+        Explore all {apps.length} apps &rarr;
       </a>
     </div>
 
@@ -106,8 +106,6 @@ const versionStatuses = getInitialVersionStatuses().slice(0, 4);
       <!-- Mobile View More Card (Row 2, Col 2 on <lg) -->
       <ViewMoreAppsCard
         count={apps.length - 3}
-        totalApps={apps.length}
-        totalPatches={totalPatches}
         remainingApps={apps.slice(3)}
         className="flex lg:hidden"
       />
@@ -120,8 +118,6 @@ const versionStatuses = getInitialVersionStatuses().slice(0, 4);
       <!-- Desktop View More Card (Row 2, Col 4 on >=lg) -->
       <ViewMoreAppsCard
         count={apps.length - 7}
-        totalApps={apps.length}
-        totalPatches={totalPatches}
         remainingApps={apps.slice(7)}
         className="hidden lg:flex"
       />
@@ -499,7 +495,12 @@ const versionStatuses = getInitialVersionStatuses().slice(0, 4);
                       fallbackClassName="rounded-sm font-mono text-[10px]"
                       fallbackColor={item.appIconColor}
                     />
-                    <span>{item.appName}</span>
+                    <a
+                      href={`/apps/${item.appId}`}
+                      class="transition-colors hover:text-zinc-200"
+                    >
+                      {item.appName}
+                    </a>
                   </div>
                 </td>
                 <td class="py-3.5 px-4 text-zinc-300 hidden sm:table-cell">
@@ -722,10 +723,10 @@ const versionStatuses = getInitialVersionStatuses().slice(0, 4);
 
     <div class="flex items-center justify-center gap-3 font-mono text-xs">
       <a
-        href="/patches"
+        href="/apps"
         class="px-6 py-2.5 bg-white text-black font-semibold rounded-sm hover:bg-zinc-200 transition-colors"
       >
-        Explore patches &rarr;
+        Explore apps &rarr;
       </a>
       <a
         href="https://github.com/ihatenodejs/aidans-patches"
