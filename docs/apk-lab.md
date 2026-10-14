@@ -328,6 +328,24 @@ uv run --project tools/apk-lab apk-lab acquire com.example.app
 uv run --project tools/apk-lab apk-lab acquire com.example.app --version 2.22.08 --out-dir /tmp/artifacts
 ```
 
+### `play-accounts` — Google Play Account Management
+Interactive TUI for managing Google Play accounts stored at `${XDG_CONFIG_HOME:-~/.config}/aidans-patches/google-play-accounts.json` with permissions `0600` (directories `0700`). Supports adding, deleting, viewing, testing, and synchronizing accounts to the unified GitHub Actions secret `APKEEP_ACCOUNTS`.
+
+```bash
+# Launch interactive TUI via apk-lab
+uv run --project tools/apk-lab apk-lab play-accounts
+
+# Launch via root package.json shortcut
+bun run play-accounts
+```
+
+Features:
+- **View accounts**: Lists configured accounts with redacted email (`us***@example.com`) and hidden tokens.
+- **Add account**: Guides through label, email, device (`px_9a`), locale (`en_US`), timezone, and OAuth token exchange or manual AAS token entry.
+- **Delete account**: Confirms before removal.
+- **Check accounts**: Validates credentials via the `play-metadata` helper tool.
+- **Sync GitHub Actions secret**: Minifies and pipes accounts JSON via stdin to `gh secret set APKEEP_ACCOUNTS --repo ihatenodejs/aidans-patches` without exposing tokens in CLI arguments.
+
 ---
 
 ## 3. Standard Workflows

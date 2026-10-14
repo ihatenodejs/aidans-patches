@@ -371,6 +371,11 @@ export function getLatestRelease(): ReleaseInfo {
   return loadRepositoryData().release;
 }
 
+export function getChangelogContent(): string {
+  const { changelogContent } = readLocalFiles();
+  return changelogContent || '';
+}
+
 export function getInitialVersionStatuses(): AppVersionStatus[] {
   return loadRepositoryData().versionStatuses;
 }

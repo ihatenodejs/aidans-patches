@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { deriveMonitoredApps } from '../src/apps';
 import { compareAppVersions } from '../src/comparator';
 import { renderBadgeSvg } from '../src/badges';
+import fixtureHtml from './fixtures/google-play-details.html?raw';
 import { parseGooglePlayHtml } from '../src/scraper';
 import worker, {
   computeAggregateCompatibilityStatus,
@@ -1473,5 +1474,201 @@ describe('Google Play store metadata scraping and status aggregation', () => {
     } finally {
       globalThis.fetch = originalFetch;
     }
+  });
+
+  it('parses extended metadata from google-play-details.html fixture', () => {
+    const parsed = parseGooglePlayHtml(fixtureHtml);
+    expect(parsed.iconUrl).toBe(
+      'https://play-lh.googleusercontent.com/test-icon=w240-h480',
+    );
+    expect(parsed.metadata.score).toBe(4.6);
+    expect(parsed.metadata.ratingsCount).toBe(12345);
+    expect(parsed.metadata.reviewsCount).toBe(6789);
+    expect(parsed.metadata.installs).toBe('10M+');
+    expect(parsed.metadata.contentRating).toBe('Everyone');
+    expect(parsed.metadata.contentRatingIcon?.sourceUrl).toBe(
+      'https://play-lh.googleusercontent.com/content-rating-icon',
+    );
+    expect(parsed.metadata.inAppPurchases).toBe('In-app purchases');
+    expect(parsed.metadata.minAndroid).toBe('Android 8.0 and up');
+    expect(parsed.metadata.releasedOn).toBe('Jan 15, 2020');
+    expect(parsed.metadata.permissionGroups).toEqual([
+      'Camera',
+      'Microphone',
+      'Storage',
+    ]);
+
+    // Screenshots (only valid host accepted, deceptive omitted)
+    expect(parsed.metadata.screenshots?.length).toBe(2);
+    expect(parsed.metadata.screenshots?.[0].sourceUrl).toBe(
+      'https://play-lh.googleusercontent.com/screenshot1',
+    );
+    expect(parsed.metadata.screenshots?.[1].sourceUrl).toBe(
+      'https://play-lh.googleusercontent.com/screenshot2',
+    );
+
+    // Reviews (capped at 3, deceptive host rejected for avatar)
+    expect(parsed.metadata.featuredReviews?.length).toBe(3);
+    expect(parsed.metadata.featuredReviews?.[0].author).toBe('Alice M.');
+    expect(parsed.metadata.featuredReviews?.[0].rating).toBe(5);
+    expect(parsed.metadata.featuredReviews?.[0].avatar?.sourceUrl).toBe(
+      'https://play-lh.googleusercontent.com/avatar1',
+    );
+    expect(parsed.metadata.featuredReviews?.[1].author).toBe('Bob K.');
+    expect(parsed.metadata.featuredReviews?.[1].avatar).toBeNull();
+    expect(parsed.metadata.featuredReviews?.[2].author).toBe('Charlie D.');
+  });
+
+  it('enforces POST /api/play-metadata bearer secret, validation, and freshness updates', async () => {
+    const workerEnv: WorkerEnv = {
+      ...env,
+      PATCHES_KV: env.PATCHES_KV,
+      COMPATIBILITY_STATUS_SECRET: 'test_metadata_secret_123',
+    };
+
+    const initialRecord: AppVersionRecord = {
+      appName: 'Adobe Scan',
+      playVersion: '24.01.00',
+      updatedAt: '2026-03-01T00:00:00.000Z',
+      checkedAt: '2026-03-01T01:00:00.000Z',
+      status: 'unknown',
+      supportedVersions: ['24.01.00'],
+      latestSupportedVersion: '24.01.00',
+      needsAuthenticatedVersion: true,
+    };
+    await env.PATCHES_KV.put(
+      'app_version:com.adobe.scan.android',
+      JSON.stringify(initialRecord),
+    );
+
+    // 1. Unauthorized
+    const unauthReq = new Request('http://localhost/api/play-metadata', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ results: [] }),
+    });
+    const unauthRes = await worker.fetch(unauthReq, workerEnv);
+    expect(unauthRes.status).toBe(401);
+
+    // 2. Stale listingUpdatedAt rejection (409)
+    const staleReq = new Request('http://localhost/api/play-metadata', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer test_metadata_secret_123',
+      },
+      body: JSON.stringify({
+        results: [
+          {
+            packageName: 'com.adobe.scan.android',
+            versionName: '24.02.00',
+            versionCode: 240200,
+            listingUpdatedAt: '2025-01-01T00:00:00.000Z',
+          },
+        ],
+      }),
+    });
+    const staleRes = await worker.fetch(staleReq, workerEnv);
+    expect(staleRes.status).toBe(409);
+
+    // 3. Valid submission applies atomically
+    const validReq = new Request('http://localhost/api/play-metadata', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer test_metadata_secret_123',
+      },
+      body: JSON.stringify({
+        results: [
+          {
+            packageName: 'com.adobe.scan.android',
+            versionName: '24.02.00',
+            versionCode: 240200,
+            listingUpdatedAt: '2026-03-01T00:00:00.000Z',
+          },
+        ],
+      }),
+    });
+    const validRes = await worker.fetch(validReq, workerEnv);
+    expect(validRes.status).toBe(200);
+
+    const savedRaw = await env.PATCHES_KV.get(
+      'app_version:com.adobe.scan.android',
+    );
+    expect(savedRaw).toBeDefined();
+    const saved = JSON.parse(savedRaw!) as AppVersionRecord;
+    expect(saved.playVersion).toBe('24.02.00');
+    expect(saved.playVersionCode).toBe(240200);
+    expect(saved.playVersionSource).toBe('authenticated');
+    expect(saved.playVersionVerifiedForUpdatedAt).toBe(
+      '2026-03-01T00:00:00.000Z',
+    );
+    expect(saved.needsAuthenticatedVersion).toBe(false);
+    expect(saved.status).toBe('newer-available');
+  });
+
+  it('serves public R2 media with immutable cache headers, HEAD, 304, and traversal rejection', async () => {
+    const workerEnv: WorkerEnv = {
+      ...env,
+      PATCHES_KV: env.PATCHES_KV,
+      PLAY_MEDIA: env.PLAY_MEDIA,
+    };
+
+    const testImageBytes = new Uint8Array([0x89, 0x50, 0x4e, 0x47]); // PNG header
+    const hash = 'a'.repeat(64);
+    const r2Key = `play-media/com.adobe.scan.android/${hash}.png`;
+
+    await env.PLAY_MEDIA.put(r2Key, testImageBytes, {
+      httpMetadata: {
+        contentType: 'image/png',
+        cacheControl: 'public, max-age=31536000, immutable',
+      },
+    });
+
+    // 1. GET returns image and headers
+    const getReq = new Request(
+      `http://localhost/media/play/com.adobe.scan.android/${hash}.png`,
+      {
+        method: 'GET',
+      },
+    );
+    const getRes = await worker.fetch(getReq, workerEnv);
+    expect(getRes.status).toBe(200);
+    expect(getRes.headers.get('content-type')).toBe('image/png');
+    expect(getRes.headers.get('cache-control')).toContain('immutable');
+    const etag = getRes.headers.get('etag');
+    expect(etag).toBeDefined();
+
+    // 2. If-None-Match returns 304
+    const ifNoneReq = new Request(
+      `http://localhost/media/play/com.adobe.scan.android/${hash}.png`,
+      {
+        method: 'GET',
+        headers: { 'If-None-Match': etag! },
+      },
+    );
+    const ifNoneRes = await worker.fetch(ifNoneReq, workerEnv);
+    expect(ifNoneRes.status).toBe(304);
+
+    // 3. HEAD method
+    const headReq = new Request(
+      `http://localhost/media/play/com.adobe.scan.android/${hash}.png`,
+      {
+        method: 'HEAD',
+      },
+    );
+    const headRes = await worker.fetch(headReq, workerEnv);
+    expect(headRes.status).toBe(200);
+    expect(await headRes.text()).toBe('');
+
+    // 4. Invalid media path rejection
+    const invalidPathReq = new Request(
+      `http://localhost/media/play/com.adobe.scan.android/invalid_file.png`,
+      {
+        method: 'GET',
+      },
+    );
+    const invalidPathRes = await worker.fetch(invalidPathReq, workerEnv);
+    expect(invalidPathRes.status).toBe(400);
   });
 });

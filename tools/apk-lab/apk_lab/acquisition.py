@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 import shutil
 import subprocess
 import tempfile
@@ -8,6 +7,11 @@ import zipfile
 from enum import Enum
 from pathlib import Path
 
+from apk_lab.google_play_accounts import (
+    GooglePlayAccount,
+    GooglePlayAccountError,
+    load_google_play_accounts,
+)
 from apk_lab.inspection import inspect_artifact, parse_apk_badging
 from apk_lab.models import AndroidManifestInfo, ExitCode
 from apk_lab.tools import ToolManager
@@ -227,25 +231,41 @@ def acquire_with_apkeep(
     expected_version: str | None = None,
     expected_version_code: int | None = None,
     tool_mgr: ToolManager | None = None,
+    account: GooglePlayAccount | None = None,
 ) -> Path:
     """Acquires APK using apkeep."""
     tool_mgr = tool_mgr or ToolManager()
     if not tool_mgr.is_tool_installed("apkeep"):
         raise AcquisitionError("apkeep is not installed", ExitCode.USAGE_OR_TOOL_ERROR)
 
-    email = os.environ.get("APKEEP_EMAIL")
-    aas_token = os.environ.get("APKEEP_AAS_TOKEN")
-    if not email or not aas_token:
-        raise AcquisitionError(
-            "APKEEP_EMAIL or APKEEP_AAS_TOKEN missing", ExitCode.USAGE_OR_TOOL_ERROR
-        )
+    if account is None:
+        accounts_file = load_google_play_accounts()
+        if not accounts_file:
+            raise AcquisitionError(
+                "No Google Play accounts configured (set APKEEP_ACCOUNTS or configure google-play-accounts.json)",
+                ExitCode.USAGE_OR_TOOL_ERROR,
+            )
+        enabled_accounts = [a for a in accounts_file.accounts if a.enabled]
+        if not enabled_accounts:
+            raise AcquisitionError(
+                "No enabled Google Play accounts configured",
+                ExitCode.USAGE_OR_TOOL_ERROR,
+            )
+        account = enabled_accounts[0]
 
+    email = account.email
+    aas_token = account.aas_token
+    label = account.label
     out_dir = Path(out_dir).resolve()
     out_dir.mkdir(parents=True, exist_ok=True)
 
     with tempfile.NamedTemporaryFile("w", suffix=".ini", delete=False) as ini_file:
         ini_path = Path(ini_file.name)
-        ini_file.write(f"[google]\nemail = {email}\naas_token = {aas_token}\n")
+        device_line = f"device = {account.device}\n" if account.device else ""
+        locale_line = f"locale = {account.locale}\n" if account.locale else ""
+        ini_file.write(
+            f"[google]\nemail = {email}\naas_token = {aas_token}\n{device_line}{locale_line}"
+        )
 
     try:
         with tempfile.TemporaryDirectory(dir=out_dir, prefix="apkeep-") as attempt_dir:
@@ -253,8 +273,12 @@ def acquire_with_apkeep(
             cmd = build_apkeep_cmd(package_name, ini_path, attempt_path)
             res = tool_mgr.run_tool_cmd("apkeep", cmd)
             if res.returncode != 0:
+                # Sanitize error output so tokens or emails are never leaked
+                sanitized_stderr = res.stderr.replace(
+                    aas_token, "[REDACTED_TOKEN]"
+                ).replace(email, account.redacted_email)
                 raise AcquisitionError(
-                    f"apkeep download failed: {res.stderr[:300]}",
+                    f"apkeep download failed for account [{label}]: {sanitized_stderr[:300]}",
                     ExitCode.INFRASTRUCTURE_FAILURE,
                 )
 
@@ -505,6 +529,11 @@ def acquire_artifact(
 ) -> tuple[Path, AcquisitionSource]:
     """Tries apkeep, then goopdl, then apkmirror on delivery failure or version mismatch."""
     tool_mgr = tool_mgr or ToolManager()
+    accounts_file = None
+    try:
+        accounts_file = load_google_play_accounts()
+    except GooglePlayAccountError as e:
+        last_err = AcquisitionError(f"Failed to load Google Play accounts: {e}")
 
     can_use_apkeep = (
         (
@@ -512,24 +541,33 @@ def acquire_artifact(
             or tool_mgr.is_tool_installed("apkeep")
         )
         and tool_mgr.is_tool_installed("apkeep")
-        and bool(os.environ.get("APKEEP_EMAIL"))
-        and bool(os.environ.get("APKEEP_AAS_TOKEN"))
+        and accounts_file is not None
     )
 
-    last_err: Exception | None = None
-    if can_use_apkeep:
-        try:
-            apkm = acquire_with_apkeep(
-                package_name,
-                out_dir,
-                expected_version=expected_version,
-                expected_version_code=expected_version_code,
-                tool_mgr=tool_mgr,
-            )
-            return apkm, AcquisitionSource.APKEEP
-        except AcquisitionError as e:
-            last_err = e
-
+    if can_use_apkeep and accounts_file is not None:
+        out_dir = Path(out_dir).resolve()
+        out_dir.mkdir(parents=True, exist_ok=True)
+        enabled_accounts = [acc for acc in accounts_file.accounts if acc.enabled]
+        for account in enabled_accounts:
+            try:
+                with tempfile.TemporaryDirectory(
+                    dir=out_dir, prefix=f"apkeep-acc-{account.label}-"
+                ) as acc_temp:
+                    apkm = acquire_with_apkeep(
+                        package_name,
+                        Path(acc_temp),
+                        expected_version=expected_version,
+                        expected_version_code=expected_version_code,
+                        tool_mgr=tool_mgr,
+                        account=account,
+                    )
+                    # Move validated artifact to final destination out_dir
+                    final_path = Path(out_dir).resolve() / f"{package_name}.apkm"
+                    shutil.move(str(apkm), str(final_path))
+                    return final_path, AcquisitionSource.APKEEP
+            except AcquisitionError as e:
+                last_err = e
+                continue
     try:
         apkm = acquire_with_goopdl(
             package_name,

@@ -1064,6 +1064,17 @@ def build_parser() -> argparse.ArgumentParser:
     p_res.add_argument("--extract", help="Directory to extract matched file resources")
     p_res.set_defaults(handler=handle_res)
 
+    # play-accounts
+    p_play_accounts = subparsers.add_parser(
+        "play-accounts",
+        help="Manage Google Play accounts for authenticated acquisition and metadata",
+    )
+    p_play_accounts.set_defaults(
+        handler=lambda _args: __import__(
+            "apk_lab.play_accounts_tui", fromlist=["run_play_accounts_tui"]
+        ).run_play_accounts_tui()
+    )
+
     return parser
 
 

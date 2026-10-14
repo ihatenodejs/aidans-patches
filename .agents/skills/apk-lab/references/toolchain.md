@@ -64,7 +64,7 @@ uv run --project tools/apk-lab apk-lab doctor --json report.json
 ```
 
 - **Arguments**:
-  - `--ci`: Check CI credentials (`APKEEP_EMAIL`, `APKEEP_AAS_TOKEN`, `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `COMPATIBILITY_STATUS_SECRET`) as boolean flags without printing values.
+  - `--ci`: Check CI credentials (`APKEEP_ACCOUNTS`, `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `COMPATIBILITY_STATUS_SECRET`) as boolean flags without printing values.
   - `--profile {analysis,ci}`: Check prerequisites for specified profile.
   - `--json [PATH|-]`: Output structured JSON (stdout if `-` or flag without path).
   - `--workspace-root PATH`: Probe custom workspace root (default: `.apk-lab`).

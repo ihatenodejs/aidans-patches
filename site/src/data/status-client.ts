@@ -3,6 +3,23 @@ import type {
   OutstandingCompatibilityRequest,
 } from './types';
 
+export interface PlayMediaAsset {
+  sourceUrl: string;
+  fallbackPath?: string | null;
+  width?: number | null;
+  height?: number | null;
+  alt?: string | null;
+}
+
+export interface PlayReview {
+  author: string;
+  rating: number;
+  date?: string | null;
+  text: string;
+  helpfulCount?: number | null;
+  avatar?: PlayMediaAsset | null;
+}
+
 export interface PlayStoreMetadata {
   summary?: string | null;
   description?: string | null;
@@ -10,12 +27,29 @@ export interface PlayStoreMetadata {
   category?: string | null;
   categoryId?: string | null;
   releaseNotes?: string | null;
+  installs?: string | null;
+  score?: number | null;
+  ratingsCount?: number | null;
+  reviewsCount?: number | null;
+  contentRating?: string | null;
+  contentRatingIcon?: PlayMediaAsset | null;
+  releasedOn?: string | null;
+  minAndroid?: string | null;
+  inAppPurchases?: string | null;
+  permissionGroups?: string[] | null;
+  screenshots?: PlayMediaAsset[] | null;
+  featuredReviews?: PlayReview[] | null;
 }
 
 export interface PublicAppStatus {
   appName?: string | null;
   playVersion?: string | null;
+  playVersionCode?: number | null;
+  playVersionSource?: 'web' | 'authenticated' | null;
+  playVersionVerifiedForUpdatedAt?: string | null;
+  needsAuthenticatedVersion?: boolean | null;
   iconUrl?: string | null;
+  iconAsset?: PlayMediaAsset | null;
   updatedAt?: string | null;
   updatedOn?: string | null;
   checkedAt?: string | null;
@@ -129,4 +163,24 @@ export async function loadStatusPayload(): Promise<PublicStatusPayload | null> {
   })();
 
   return inFlightStatusPromise;
+}
+
+export function resolveFallbackMediaUrl(
+  fallbackPath: string | null | undefined,
+  workerBaseUrl?: string | null,
+): string | null {
+  if (!fallbackPath || typeof fallbackPath !== 'string') return null;
+  const cleanPath = fallbackPath.trim();
+  if (!cleanPath.startsWith('/media/play/')) return null;
+  const base =
+    workerBaseUrl ||
+    (typeof document !== 'undefined'
+      ? document.body?.getAttribute('data-worker-url') ||
+        'https://worker.patch.p0ntus.com'
+      : 'https://worker.patch.p0ntus.com');
+  try {
+    return new URL(cleanPath, base).toString();
+  } catch {
+    return null;
+  }
 }

@@ -286,6 +286,29 @@ async function runFormat(checkOnly = false): Promise<boolean> {
     summary: kSummary,
   });
 
+  // 4. Rust (play-metadata cargo fmt)
+  process.stdout.write(`  ${sym.arrow} Formatting Rust play-metadata sources (cargo fmt)... `);
+  const rustFmtArgs = ['fmt', '--manifest-path', 'tools/play-metadata/Cargo.toml'];
+  if (checkOnly) rustFmtArgs.push('--check');
+  const rustFmtRes = await execCommand('cargo', rustFmtArgs);
+  const rustFmtPassed = rustFmtRes.code === 0;
+  const rustFmtSummary = checkOnly
+    ? rustFmtPassed
+      ? 'All Rust files formatted'
+      : 'Rust files need formatting'
+    : 'Formatted Rust sources';
+  console.log(rustFmtPassed ? sym.ok : sym.err);
+  if (!rustFmtPassed) {
+    printRawCommandOutput(rustFmtRes.stdout, rustFmtRes.stderr);
+  }
+  results.push({
+    title: 'Rust (cargo fmt)',
+    tool: 'cargo fmt',
+    success: rustFmtPassed,
+    durationMs: rustFmtRes.durationMs,
+    summary: rustFmtSummary,
+  });
+
   return printResultsSummary('Format', results);
 }
 
@@ -418,6 +441,32 @@ async function runLint(autoFix = false): Promise<boolean> {
     durationMs: kRes.durationMs,
     summary: `${kDiags.length === 0 ? 'No issues' : `${kDiags.length} issues found`}`,
     diagnostics: kDiags,
+  });
+
+  // 4. Rust (play-metadata clippy)
+  process.stdout.write(`  ${sym.arrow} Linting Rust play-metadata sources (clippy)... `);
+  const clippyArgs = [
+    'clippy',
+    '--locked',
+    '--manifest-path',
+    'tools/play-metadata/Cargo.toml',
+    '--all-targets',
+    '--',
+    '-D',
+    'warnings',
+  ];
+  const clippyRes = await execCommand('cargo', clippyArgs);
+  const clippyPassed = clippyRes.code === 0;
+  console.log(clippyPassed ? sym.ok : sym.err);
+  if (!clippyPassed) {
+    printRawCommandOutput(clippyRes.stdout, clippyRes.stderr);
+  }
+  results.push({
+    title: 'Rust (clippy)',
+    tool: 'clippy',
+    success: clippyPassed,
+    durationMs: clippyRes.durationMs,
+    summary: clippyPassed ? 'No issues' : 'Clippy warnings/errors detected',
   });
 
   renderDiagnostics(allDiagnostics);
@@ -570,6 +619,33 @@ async function runTest(): Promise<boolean> {
     success: sPassed,
     durationMs: sRes.durationMs,
     summary: sSummary,
+  });
+
+  // 4. Rust Play Metadata test suite (cargo test)
+  process.stdout.write(`  ${sym.arrow} Running Rust Play Metadata tests (cargo test)... `);
+  const cargoTestRes = await execCommand('cargo', [
+    'test',
+    '--locked',
+    '--manifest-path',
+    'tools/play-metadata/Cargo.toml',
+  ]);
+  const cargoTestPassed = cargoTestRes.code === 0;
+  const cargoSummaryMatch = cargoTestRes.stdout.match(/test result: ok\.\s+([0-9]+ passed[^\n]*)/);
+  const cargoSummary = cargoSummaryMatch
+    ? cargoSummaryMatch[1].trim()
+    : cargoTestPassed
+      ? 'All tests passed'
+      : 'Tests failed';
+  console.log(cargoTestPassed ? sym.ok : sym.err);
+  if (!cargoTestPassed) {
+    printRawCommandOutput(cargoTestRes.stdout, cargoTestRes.stderr);
+  }
+  results.push({
+    title: 'Rust Play Metadata (cargo test)',
+    tool: 'cargo test',
+    success: cargoTestPassed,
+    durationMs: cargoTestRes.durationMs,
+    summary: cargoSummary,
   });
 
   // 4. Target Application Icons Check

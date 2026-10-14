@@ -397,7 +397,7 @@ def run_ci_reconcile_and_test(
         if matched_slot_role is None:
             # Must acquire exact target_version
             if acquirer is None:
-                has_creds = bool(os.environ.get("APKEEP_EMAIL")) or bool(
+                has_creds = bool(os.environ.get("APKEEP_ACCOUNTS")) or bool(
                     os.environ.get("R2_ACCESS_KEY_ID")
                 )
                 if not has_creds:

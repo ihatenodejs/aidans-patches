@@ -10,7 +10,10 @@ import {
   normalizePlayCategoryId,
   resolveStoreMetadata,
 } from '../src/data/app-store';
-import type { PublicStatusPayload } from '../src/data/status-client';
+import {
+  resolveFallbackMediaUrl,
+  type PublicStatusPayload,
+} from '../src/data/status-client';
 
 describe('App store taxonomy and fallback invariants', () => {
   it('assigns every supported app a valid fallback category and summary', () => {
@@ -164,5 +167,87 @@ describe('Live store metadata resolution and boundary validation', () => {
     assert.equal(resolved.description, null);
     assert.equal(resolved.developer, null);
     assert.equal(resolved.category.id, APP_FALLBACK_CATEGORIES[testApp.id]);
+  });
+
+  it('resolves rich store metadata fields: installs, score, reviews, screenshots, permissions', () => {
+    const payload: PublicStatusPayload = {
+      updatedAt: '2026-10-14T00:00:00Z',
+      apps: {
+        [testApp.packageName]: {
+          playMetadata: {
+            installs: '10M+',
+            score: 4.6,
+            ratingsCount: 15000,
+            reviewsCount: 3000,
+            contentRating: 'Everyone',
+            contentRatingIcon: {
+              sourceUrl: 'https://play-lh.googleusercontent.com/icon',
+              fallbackPath: '/media/play/pkg/abc.png',
+            },
+            releasedOn: 'Jan 15, 2020',
+            minAndroid: 'Android 8.0 and up',
+            inAppPurchases: 'In-app purchases',
+            permissionGroups: ['Camera', 'Storage'],
+            screenshots: [
+              {
+                sourceUrl: 'https://play-lh.googleusercontent.com/s1',
+                fallbackPath: null,
+              },
+              {
+                sourceUrl: 'https://play-lh.googleusercontent.com/s2',
+                fallbackPath: '/media/play/pkg/s2.png',
+              },
+            ],
+            featuredReviews: [
+              {
+                author: 'Jane Doe',
+                rating: 5,
+                date: 'March 1, 2026',
+                text: 'Great app!',
+                helpfulCount: 12,
+                avatar: {
+                  sourceUrl: 'https://play-lh.googleusercontent.com/avatar',
+                  fallbackPath: null,
+                },
+              },
+            ],
+          },
+        },
+      },
+    };
+
+    const resolved = resolveStoreMetadata(payload, testApp);
+    assert.equal(resolved.installs, '10M+');
+    assert.equal(resolved.score, 4.6);
+    assert.equal(resolved.ratingsCount, 15000);
+    assert.equal(resolved.reviewsCount, 3000);
+    assert.equal(resolved.contentRating, 'Everyone');
+    assert.equal(
+      resolved.contentRatingIcon?.sourceUrl,
+      'https://play-lh.googleusercontent.com/icon',
+    );
+    assert.equal(resolved.releasedOn, 'Jan 15, 2020');
+    assert.equal(resolved.minAndroid, 'Android 8.0 and up');
+    assert.equal(resolved.inAppPurchases, 'In-app purchases');
+    assert.deepEqual(resolved.permissionGroups, ['Camera', 'Storage']);
+    assert.equal(resolved.screenshots.length, 2);
+    assert.equal(resolved.featuredReviews.length, 1);
+    assert.equal(resolved.featuredReviews[0].author, 'Jane Doe');
+  });
+
+  it('resolveFallbackMediaUrl safely validates paths and produces full URLs', () => {
+    const valid = resolveFallbackMediaUrl(
+      '/media/play/com.adobe.scan.android/abcdef0123456789.png',
+      'https://worker.example.com',
+    );
+    assert.equal(
+      valid,
+      'https://worker.example.com/media/play/com.adobe.scan.android/abcdef0123456789.png',
+    );
+
+    // Rejection of invalid paths
+    assert.equal(resolveFallbackMediaUrl(null), null);
+    assert.equal(resolveFallbackMediaUrl('https://evil.com/img.png'), null);
+    assert.equal(resolveFallbackMediaUrl('/other/path.png'), null);
   });
 });

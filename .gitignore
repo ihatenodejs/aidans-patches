@@ -92,3 +92,13 @@ __pycache__/
 .venv/
 .tools/
 .ruff_cache/
+
+# Rust & Cargo
+target/
+**/*.rs.bk
+*.pdb
+
+# Google Play Accounts & Credentials
+google-play-accounts.json
+*google-play-accounts*.json
+*.ini

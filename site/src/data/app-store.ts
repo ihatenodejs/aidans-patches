@@ -1,6 +1,9 @@
 import type { App } from './types';
-import type { PublicStatusPayload } from './status-client';
-
+import type {
+  PlayMediaAsset,
+  PlayReview,
+  PublicStatusPayload,
+} from './status-client';
 export type StoreCategoryId =
   | 'all'
   | 'productivity'
@@ -247,8 +250,19 @@ export interface ResolvedStoreMetadata {
   description: string | null;
   developer: string | null;
   releaseNotes: string | null;
+  installs: string | null;
+  score: number | null;
+  ratingsCount: number | null;
+  reviewsCount: number | null;
+  contentRating: string | null;
+  contentRatingIcon: PlayMediaAsset | null;
+  releasedOn: string | null;
+  minAndroid: string | null;
+  inAppPurchases: string | null;
+  permissionGroups: string[];
+  screenshots: PlayMediaAsset[];
+  featuredReviews: PlayReview[];
 }
-
 /**
  * Resolves Play Store metadata for an app from the public worker payload,
  * falling back safely field-by-field to static definitions.
@@ -268,6 +282,18 @@ export function resolveStoreMetadata(
       description: null,
       developer: null,
       releaseNotes: null,
+      installs: null,
+      score: null,
+      ratingsCount: null,
+      reviewsCount: null,
+      contentRating: null,
+      contentRatingIcon: null,
+      releasedOn: null,
+      minAndroid: null,
+      inAppPurchases: null,
+      permissionGroups: [],
+      screenshots: [],
+      featuredReviews: [],
     };
   }
 
@@ -282,6 +308,18 @@ export function resolveStoreMetadata(
       description: null,
       developer: null,
       releaseNotes: null,
+      installs: null,
+      score: null,
+      ratingsCount: null,
+      reviewsCount: null,
+      contentRating: null,
+      contentRatingIcon: null,
+      releasedOn: null,
+      minAndroid: null,
+      inAppPurchases: null,
+      permissionGroups: [],
+      screenshots: [],
+      featuredReviews: [],
     };
   }
 
@@ -326,6 +364,82 @@ export function resolveStoreMetadata(
       ? meta.category.trim()
       : storeCategory.name;
 
+  const installs =
+    typeof meta.installs === 'string' && meta.installs.trim().length > 0
+      ? meta.installs.trim().slice(0, 50)
+      : null;
+
+  const score =
+    typeof meta.score === 'number' && meta.score >= 0 && meta.score <= 5
+      ? meta.score
+      : null;
+
+  const ratingsCount =
+    typeof meta.ratingsCount === 'number' && meta.ratingsCount >= 0
+      ? meta.ratingsCount
+      : null;
+
+  const reviewsCount =
+    typeof meta.reviewsCount === 'number' && meta.reviewsCount >= 0
+      ? meta.reviewsCount
+      : null;
+
+  const contentRating =
+    typeof meta.contentRating === 'string' &&
+    meta.contentRating.trim().length > 0
+      ? meta.contentRating.trim().slice(0, 100)
+      : null;
+
+  const contentRatingIcon =
+    meta.contentRatingIcon && meta.contentRatingIcon.sourceUrl
+      ? meta.contentRatingIcon
+      : null;
+
+  const releasedOn =
+    typeof meta.releasedOn === 'string' && meta.releasedOn.trim().length > 0
+      ? meta.releasedOn.trim().slice(0, 100)
+      : null;
+
+  const minAndroid =
+    typeof meta.minAndroid === 'string' && meta.minAndroid.trim().length > 0
+      ? meta.minAndroid.trim().slice(0, 100)
+      : null;
+
+  const inAppPurchases =
+    typeof meta.inAppPurchases === 'string' &&
+    meta.inAppPurchases.trim().length > 0
+      ? meta.inAppPurchases.trim().slice(0, 100)
+      : null;
+
+  const permissionGroups = Array.isArray(meta.permissionGroups)
+    ? meta.permissionGroups
+        .filter(
+          (p): p is string => typeof p === 'string' && p.trim().length > 0,
+        )
+        .slice(0, 30)
+    : [];
+
+  const screenshots = Array.isArray(meta.screenshots)
+    ? meta.screenshots
+        .filter((s): s is PlayMediaAsset =>
+          Boolean(s && typeof s.sourceUrl === 'string'),
+        )
+        .slice(0, 12)
+    : [];
+
+  const featuredReviews = Array.isArray(meta.featuredReviews)
+    ? meta.featuredReviews
+        .filter((r): r is PlayReview =>
+          Boolean(
+            r &&
+            typeof r.author === 'string' &&
+            typeof r.text === 'string' &&
+            typeof r.rating === 'number',
+          ),
+        )
+        .slice(0, 3)
+    : [];
+
   return {
     category: storeCategory,
     categoryLabel,
@@ -333,6 +447,18 @@ export function resolveStoreMetadata(
     description: cleanDesc,
     developer: cleanDev,
     releaseNotes: cleanNotes,
+    installs,
+    score,
+    ratingsCount,
+    reviewsCount,
+    contentRating,
+    contentRatingIcon,
+    releasedOn,
+    minAndroid,
+    inAppPurchases,
+    permissionGroups,
+    screenshots,
+    featuredReviews,
   };
 }
 

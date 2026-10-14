@@ -1,5 +1,6 @@
 ---
 import type { Patch } from '../data/types';
+import Switch from './Switch.astro';
 
 interface Props {
   patch: Patch;
@@ -11,16 +12,12 @@ const { patch } = Astro.props;
 <article id={patch.id} class="scroll-mt-20 p-5 sm:p-6">
   <div class="flex flex-col gap-4">
     <div class="flex items-start justify-between gap-4">
-      <div class="min-w-0">
-        <div class="mb-2 flex flex-wrap items-center gap-2 font-mono text-[9px] uppercase tracking-wider">
-          {patch.category && (
-            <span class="text-zinc-500">{patch.category}</span>
-          )}
-          {patch.category && <span class="text-zinc-700">/</span>}
-          <span class={patch.default ? 'text-emerald-500' : 'text-zinc-500'}>
-            {patch.default ? 'Included by default' : 'Optional'}
-          </span>
-        </div>
+      <div class="min-w-0 flex-1">
+        {patch.category && (
+          <div class="mb-2 font-mono text-[9px] uppercase tracking-wider text-zinc-500">
+            {patch.category}
+          </div>
+        )}
         <h3 class="font-sans text-base font-semibold tracking-tight text-white">
           <a
             href={`#${patch.id}`}
@@ -37,12 +34,12 @@ const { patch } = Astro.props;
         </h3>
       </div>
 
-      {patch.options.length > 0 && (
-        <span class="shrink-0 rounded-full border border-blue-900/50 bg-blue-950/30 px-2.5 py-1 font-mono text-[9px] text-blue-400">
-          {patch.options.length}{' '}
-          {patch.options.length === 1 ? 'setting' : 'settings'}
-        </span>
-      )}
+      <div class="shrink-0 pt-0.5">
+        <Switch
+          checked={patch.default}
+          ariaLabel={`${patch.name} default status`}
+        />
+      </div>
     </div>
 
     <p class="max-w-3xl text-sm leading-relaxed text-zinc-400">
@@ -61,7 +58,7 @@ const { patch } = Astro.props;
     )}
 
     {patch.options.length > 0 && (
-      <details class="group/options border-t border-white/[0.06] pt-3">
+      <details class="group/options pt-1">
         <summary class="flex w-fit cursor-pointer select-none items-center gap-2 font-mono text-[11px] text-zinc-500 transition-colors hover:text-white">
           <svg
             class="h-3 w-3 transition-transform group-open/options:rotate-90"
@@ -77,30 +74,45 @@ const { patch } = Astro.props;
               d="m9 5 7 7-7 7"
             ></path>
           </svg>
-          <span>Patch Options</span>
+          <span>
+            Show {patch.options.length}{' '}
+            {patch.options.length === 1 ? 'option' : 'options'}
+          </span>
         </summary>
 
         <div class="mt-4 grid grid-cols-1 gap-2 sm:grid-cols-2">
           {patch.options.map((option) => (
-            <div class="border border-white/[0.07] bg-black/20 p-3.5">
-              <div class="flex flex-wrap items-start justify-between gap-2">
-                <span class="text-xs font-medium text-zinc-200">
-                  {option.title}
-                </span>
-                <span class="font-mono text-[9px] uppercase text-zinc-600">
-                  {option.type}
-                </span>
+            <div class="border border-white/[0.07] bg-black/20 p-3.5 flex flex-col justify-between">
+              <div>
+                <div class="flex items-start justify-between gap-2">
+                  <span class="text-xs font-medium text-zinc-200">
+                    {option.title}
+                  </span>
+                  {option.type === 'boolean' ? (
+                    <Switch
+                      checked={Boolean(option.default)}
+                      ariaLabel={`${option.title} default`}
+                      className="scale-90 origin-top-right"
+                    />
+                  ) : (
+                    <span class="font-mono text-[9px] uppercase text-zinc-600">
+                      {option.type}
+                    </span>
+                  )}
+                </div>
+                <p class="mt-1.5 text-[11px] leading-relaxed text-zinc-500">
+                  {option.description}
+                </p>
               </div>
-              <p class="mt-1.5 text-[11px] leading-relaxed text-zinc-500">
-                {option.description}
-              </p>
-              <div class="mt-2 font-mono text-[9px] text-zinc-600">
-                Default:{' '}
-                <span class="text-zinc-400">{String(option.default)}</span>
-                {option.required && (
-                  <span class="ml-2 text-amber-500">Required</span>
-                )}
-              </div>
+              {option.type !== 'boolean' && (
+                <div class="mt-3 font-mono text-[9px] text-zinc-600 border-t border-white/[0.04] pt-2">
+                  Default:{' '}
+                  <span class="text-zinc-400">{String(option.default)}</span>
+                  {option.required && (
+                    <span class="ml-2 text-amber-500">Required</span>
+                  )}
+                </div>
+              )}
             </div>
           ))}
         </div>

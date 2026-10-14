@@ -21,6 +21,12 @@
       "id": "5c62cbcdc49749368cc3daba5aa87759",
     },
   ],
+  "r2_buckets": [
+    {
+      "binding": "PLAY_MEDIA",
+      "bucket_name": "aidans-patches-play-media",
+    },
+  ],
   "workers_dev": true,
   "routes": [
     {

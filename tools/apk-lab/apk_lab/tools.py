@@ -23,8 +23,7 @@ DEFAULT_CACHE_ROOT = Path.home() / ".cache" / "aidans-patches" / "apk-lab" / "to
 
 
 REQUIRED_CI_CREDENTIALS = [
-    "APKEEP_EMAIL",
-    "APKEEP_AAS_TOKEN",
+    "APKEEP_ACCOUNTS",
     "R2_ACCOUNT_ID",
     "R2_ACCESS_KEY_ID",
     "R2_SECRET_ACCESS_KEY",
