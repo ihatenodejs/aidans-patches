@@ -165,7 +165,7 @@ The **Unlock Hidden Features** patch unlocks these surfaces with independent opt
 
 1. **Developer Mode Master Gate (`enableDeveloperSettings`):**
    - Targets static method `Llpk;->a()Z`.
-   - Injects `const/4 v0, 0x1` / `return v0` at offset 0, forcing developer mode on across Compose UI hierarchy, NavHost route registration, and diagnostic actions.
+   - Injects `const/4 v0, 0x0` / `return v0` at offset 0, forcing the production/release gate `isProd` off so developer mode activates across Compose UI hierarchy, NavHost route registration, and diagnostic actions.
 2. **Draft Mini Tracker Visibility Gate (`enableDraftMiniTracker`):**
    - Targets deserialization constructor `Loi5;-><init>(IZLfva;Lfva;Lfva;)V` (`DraftConfigResponse`).
    - Injects `const/4 v0, 0x1` / `iput-boolean v0, p0, Loi5;->a:Z` immediately before `return-void`, overriding the deserialized `isMiniTrackerActive` field.
