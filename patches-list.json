@@ -1477,6 +1477,15 @@
           "type": "kotlin.Boolean",
           "default": true,
           "values": null
+        },
+        {
+          "key": "removeCompressPdf",
+          "title": "Remove Compress PDF",
+          "description": "Removes the broken Compress PDF option from file option menus and the Share sheet.",
+          "required": false,
+          "type": "kotlin.Boolean",
+          "default": true,
+          "values": null
         }
       ]
     },
@@ -2134,7 +2143,7 @@
         {
           "key": "removeFillAndSign",
           "title": "Fill & Sign",
-          "description": "Removes the Fill & Sign item from the File Options bottom sheet.",
+          "description": "Removes the Fill & Sign item from file option menus and Recent scan cards.",
           "required": false,
           "type": "kotlin.Boolean",
           "default": true,
@@ -2143,7 +2152,7 @@
         {
           "key": "removeOpenInAcrobat",
           "title": "Open in Adobe Acrobat",
-          "description": "Removes the Open in Adobe Acrobat option from file option menus and the preview screen.",
+          "description": "Removes the Open in Adobe Acrobat option from file option menus, the preview screen, and Recent scan cards.",
           "required": false,
           "type": "kotlin.Boolean",
           "default": false,

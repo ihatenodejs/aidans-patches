@@ -21,6 +21,7 @@ This document specifies patches for **Adobe Scan** (`com.adobe.scan.android`).
   - `Remove Edit Text` (`removeEditText`, default `true`): Removes the non-functional Edit text option from file option menus and the preview screen.
   - `Remove Move` (`removeMove`, default `true`): Removes the non-functional Move file option from file option menus.
   - `Remove Save as Word Doc` (`removeSaveAsWord`, default `true`): Removes the cloud-dependent Save as Word doc option from scan cards.
+  - `Remove Compress PDF` (`removeCompressPdf`, default `true`): Removes the broken Compress PDF option from file option menus and the Share sheet.
 
 ### 1. Motivation & Purpose
 
@@ -202,6 +203,14 @@ The **Remove Login** patch unlocks Adobe Scan as a standalone, offline, privacy-
 - **Injected Bytecode:** Replaces `const v2, 0x7f142937` (`waiting_to_upload`) with `const/4 v2, 0x0`.
 - **Effect:** Prevents local unuploaded scans from returning the `R.string.waiting_to_upload` status identifier. On both the Home and Files screens, documents cleanly render their local state ("Available Offline", date, and file size) without displaying the misleading "Waiting to upload..." status indicator.
 ---
+#### Layer 15: Remove Compress PDF (`qt/u.a`, `qt/q2.i`)
+- **Target Class 1:** `Lqt/u;`
+- **Target Method:** `a(Lqt/a;Lfu/b;Ljava/util/List;)Lm90/b;`
+- **Target Class 2:** `Lqt/q2;`
+- **Target Method:** `i(Lqt/d3;Lqt/q1;Lg3/o;I)V`
+- **Injected Bytecode:** Replaces the `invoke-virtual Ljava/util/ArrayList;->add` call for `0x7f1421b3` (`compress_pdf`) in `qt.u` with `nop`, and replaces the `invoke-static Lqt/q2;->g` render call for `0x7f1427dd` (`send_compressed`) in `qt.q2` with `nop`.
+- **Effect:** Completely removes the broken cloud-dependent "Compress PDF" action (which fails offline with "File is still uploading. Please wait." because post-save compression is a Document Cloud server feature) from the File Options bottom sheet across all surfaces, and removes "Send compressed" from the local Share PDF bottom sheet. Local compression during scan save in `CaptureActivity` remains fully functional.
+
 
 ### 3. Preconditions & Verification
 
@@ -274,7 +283,7 @@ When **Remove Settings** is enabled, the patch hides the `USAGE INFO` category a
   - `Rate App` (`removeRateApp`, default `true`): Removes the Rate app item from the Settings menu.
   - `Online Support Forum` (`removeSupportForum`, default `true`): Removes the Online support forum item from the Settings menu.
   - `Share This App` (`removeShareApp`, default `true`): Removes the Share this app item from the Settings menu.
-  - `Fill & Sign` (`removeFillAndSign`, default `true`): Removes the Fill & Sign item from the File Options bottom sheet.
+  - `Fill & Sign` (`removeFillAndSign`, default `true`): Removes the Fill & Sign item from file option menus and Recent scan cards.
   - `Open in Adobe Acrobat` (`removeOpenInAcrobat`, default `false`): Removes the Open in Adobe Acrobat option from file option menus and the preview screen.
 ### 1. Motivation & Purpose
 
@@ -286,7 +295,7 @@ The Settings menu and file menus in Adobe Scan feature non-essential promotional
 |---|---|---|
 | **Preference Inflation** | `Ljt/v2;->E(Ljava/lang/String;)V` (after `b.F`) | Sets `C(false)` (`setVisible(false)`) on selected preferences (`0x7f141f71`, `0x7f141f73`, `0x7f141f78`, `0x7f141f72`, `0x7f141f79`). If all support items are removed, hides the parent `PreferenceCategory` (`v0.J.C(false)`), eliminating the 72px gray separator bar. |
 | **Rate App Visibility Override** | `Ljt/v2;->onCreate(Landroid/os/Bundle;)V` (after last `Preference.C(Z)V`) | Injects `const/4 p1, 0x0 \n invoke-virtual {v0, p1}, Landroidx/preference/Preference;->C(Z)V` to ensure Rate app remains hidden even if Google Play Services availability checks evaluate to `true`. |
-| **File Options Fill & Sign** | `Lqt/u;->a(...)Lm90/b;` (before `IF_EQZ` for `0x7f142619`) | Injects `const/4 v<reg>, 0x0` immediately before the conditional branch guarding Fill & Sign creation, bypassing item instantiation and preventing Play Store redirection prompts. |
+| **Fill & Sign Removal** | `Lqt/u;->a(...)Lm90/b;` (before `IF_EQZ` for `0x7f142619`) & `Lut/r0$b;-><clinit>()V` | Injects `const/4 v<reg>, 0x0` immediately before the conditional branch guarding Fill & Sign creation in File Options, and changes `Lut/r0$b` super constructor invocation to `Lut/r0;-><init>(Lod/ll;Lod/ll;)V` passing `{v1, v1}` (`edit_preview`, `edit_preview`), excluding Fill & Sign from Recent scan card tool lists. |
 | **Open in Acrobat** | `Lqt/u;->a(...)Lm90/b;`, `Lvt/b2;->a(...)V`, `Lut/r0;-><init>(...)V` | Neutralizes addition of `0x7f142617` in the File Options bottom sheet, nulls out `Lvt/r4;->e` in the preview bottom toolbar array for `Ll90/s;->u`, and trims `r0.d` to `{Share, SaveAsJpeg}`. |
 
 ### 3. Preconditions & Verification
@@ -294,7 +303,7 @@ The Settings menu and file menus in Adobe Scan feature non-essential promotional
 1. **Target Validation:** Gates on `com.adobe.scan.android` version `26.09.25`.
 2. **Compilation Verification:** Build patch bundle via `./gradlew :patches:buildAndroid clean --no-daemon`.
 3. **Metadata Verification:** Run `./gradlew generatePatchesList`.
-4. **Runtime Verification:** Apply patch with `-e "Remove Useless/Promotional Items"`, install on `emulator-5554`, verify Settings shows only `Preferences` with no gray separator bar, and verify File Options bottom sheet omits `Fill & Sign`.
+4. **Runtime Verification:** Apply patch with `-e "Remove Useless/Promotional Items"`, install on `emulator-5554`, verify Settings shows only `Preferences` with no gray separator bar, and verify File Options bottom sheet and Recent scan cards omit `Fill & Sign`.
 
 ---
 
