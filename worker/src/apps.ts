@@ -1,6 +1,12 @@
 import type { TargetAppConfig } from './types';
 import rawPatchesList from '../../patches-list.json';
 
+export function compareUtf16(a: string, b: string): number {
+  if (a < b) return -1;
+  if (a > b) return 1;
+  return 0;
+}
+
 export function parseMonitoredApps(data: unknown): TargetAppConfig[] {
   if (!data || typeof data !== 'object') {
     throw new Error('Invalid patches list data: must be an object');
@@ -54,7 +60,7 @@ export function parseMonitoredApps(data: unknown): TargetAppConfig[] {
     }
     seenPackages.add(packageName);
 
-    if (packageName.localeCompare(lastPkg) < 0) {
+    if (compareUtf16(packageName, lastPkg) < 0) {
       throw new Error(
         `Apps catalog must be sorted by packageName: ${packageName} appeared after ${lastPkg}`,
       );
@@ -68,7 +74,7 @@ export function parseMonitoredApps(data: unknown): TargetAppConfig[] {
       throw new Error(`Invalid signatures for package ${packageName}`);
     }
     for (let i = 1; i < signatures.length; i++) {
-      if (signatures[i].localeCompare(signatures[i - 1]) <= 0) {
+      if (compareUtf16(signatures[i], signatures[i - 1]) <= 0) {
         throw new Error(
           `Signatures for package ${packageName} must be uniquely sorted`,
         );
@@ -83,7 +89,7 @@ export function parseMonitoredApps(data: unknown): TargetAppConfig[] {
       throw new Error(`Invalid patchNames for package ${packageName}`);
     }
     for (let i = 1; i < patchNames.length; i++) {
-      if (patchNames[i].localeCompare(patchNames[i - 1]) <= 0) {
+      if (compareUtf16(patchNames[i], patchNames[i - 1]) <= 0) {
         throw new Error(
           `Patch names for package ${packageName} must be uniquely sorted`,
         );

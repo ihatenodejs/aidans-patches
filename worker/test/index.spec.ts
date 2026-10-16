@@ -1,6 +1,6 @@
 import { env } from 'cloudflare:test';
 import { describe, expect, it, vi } from 'vitest';
-import { parseMonitoredApps } from '../src/apps';
+import { parseMonitoredApps, compareUtf16 } from '../src/apps';
 import { compareAppVersions } from '../src/comparator';
 import { renderBadgeSvg } from '../src/badges';
 import fixtureHtml from './fixtures/google-play-details.html?raw';
@@ -139,6 +139,101 @@ describe('Apps metadata parsing', () => {
     };
 
     expect(() => parseMonitoredApps(missingNameData)).toThrow(/missing name/);
+  });
+
+  it('accepts UTF-16 code-unit order for packages, signatures, and patch names', () => {
+    // Uppercase precedes lowercase in UTF-16 code units ('B' < 'a')
+    expect(compareUtf16('com.test.B', 'com.test.a')).toBe(-1);
+    expect(compareUtf16('SIG_B', 'sig_a')).toBe(-1);
+    expect(compareUtf16('B Patch', 'a Patch')).toBe(-1);
+
+    const validUtf16Data = {
+      apps: [
+        {
+          packageName: 'com.test.B',
+          name: 'App B',
+          apkFileType: 'APK',
+          signatures: ['SIG_B', 'sig_a'],
+          patchNames: ['B Patch', 'a Patch'],
+          supportedVersions: ['1.0.0'],
+          latestSupportedVersion: '1.0.0',
+        },
+        {
+          packageName: 'com.test.a',
+          name: 'App a',
+          apkFileType: 'APK',
+          signatures: ['sig'],
+          patchNames: ['patch'],
+          supportedVersions: ['1.0.0'],
+          latestSupportedVersion: '1.0.0',
+        },
+      ],
+    };
+
+    const parsed = parseMonitoredApps(validUtf16Data);
+    expect(parsed).toHaveLength(2);
+  });
+
+  it('rejects out-of-order packages, signatures, and patch names under UTF-16', () => {
+    const unsortedPackages = {
+      apps: [
+        {
+          packageName: 'com.test.b',
+          name: 'App b',
+          apkFileType: 'APK',
+          signatures: ['sig'],
+          patchNames: ['patch'],
+          supportedVersions: ['1.0.0'],
+          latestSupportedVersion: '1.0.0',
+        },
+        {
+          packageName: 'com.test.a',
+          name: 'App a',
+          apkFileType: 'APK',
+          signatures: ['sig'],
+          patchNames: ['patch'],
+          supportedVersions: ['1.0.0'],
+          latestSupportedVersion: '1.0.0',
+        },
+      ],
+    };
+    expect(() => parseMonitoredApps(unsortedPackages)).toThrow(
+      /Apps catalog must be sorted by packageName/,
+    );
+
+    const unsortedSignatures = {
+      apps: [
+        {
+          packageName: 'com.test.a',
+          name: 'App a',
+          apkFileType: 'APK',
+          signatures: ['sig_b', 'sig_a'],
+          patchNames: ['patch'],
+          supportedVersions: ['1.0.0'],
+          latestSupportedVersion: '1.0.0',
+        },
+      ],
+    };
+    expect(() => parseMonitoredApps(unsortedSignatures)).toThrow(
+      /Signatures for package com.test.a must be uniquely sorted/,
+    );
+
+    const unsortedPatches = {
+      apps: [
+        {
+          packageName: 'com.test.a',
+          name: 'App a',
+          apkFileType: 'APK',
+          signatures: ['sig'],
+          patchNames: ['patch_b', 'patch_a'],
+          supportedVersions: ['1.0.0'],
+          latestSupportedVersion: '1.0.0',
+        },
+      ],
+    };
+    expect(() => parseMonitoredApps(unsortedPatches)).toThrow(
+      /Patch names for package com.test.a must be uniquely sorted/,
+    );
   });
 });
 
