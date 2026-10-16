@@ -1,3 +1,12 @@
+## [1.8.0-dev.5](https://github.com/ihatenodejs/aidans-patches/compare/v1.8.0-dev.4...v1.8.0-dev.5) (2026-10-16)
+
+### ✨ New Features
+
+* **adobe-scan:** added compress pdf removal and card action cleanup ([ea76005](https://github.com/ihatenodejs/aidans-patches/commit/ea760053cb44a96d20de4e55736f0edf6027cfc9))
+* **play-metadata:** added enrichment pipeline and app detail views ([75f97e3](https://github.com/ihatenodejs/aidans-patches/commit/75f97e3fb9a13c4d526252a520e20ef4a4b4e8fb))
+* **site/components:** added developer menu card and phone preview ([60aa338](https://github.com/ihatenodejs/aidans-patches/commit/60aa338faeda1a53bb73f5f92db66774d0d11d40))
+* **site:** added app catalog and play store metadata support ([f42bb98](https://github.com/ihatenodejs/aidans-patches/commit/f42bb9805a623e62cdb78ae7bb39296e7760b3fc))
+
 ## [1.8.0-dev.4](https://github.com/ihatenodejs/aidans-patches/compare/v1.8.0-dev.3...v1.8.0-dev.4) (2026-10-14)
 
 ### 🐛 Bug Fixes
