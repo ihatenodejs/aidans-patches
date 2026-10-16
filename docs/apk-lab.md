@@ -161,7 +161,7 @@ uv run --project tools/apk-lab apk-lab unity path/to/game.apkm --gameobject Butt
 ```
 
 ### `deploy` — Deterministic Patch, Sign & Device Deployment
-Applies Morphe patches from a `.mpp` bundle to an APK/APKM/XAPK/APKS artifact, aligns the output to 4-byte boundaries with `zipalign -f 4`, signs it with the standard Android debug keystore (`~/.android/debug.keystore`, auto-created with permissions `0600` if absent, or custom keystore via `--keystore PATH`), streams it to an active ADB device/emulator, and optionally cold-launches the main launcher activity.
+Applies Morphe patches from a `.mpp` bundle to an APK/APKM/XAPK/APKS artifact, aligns the output to 4-byte boundaries with `zipalign -f 4`, signs it with negotiated or custom keystore credentials, streams it to an active ADB device/emulator, and optionally cold-launches the main launcher activity.
 
 ```bash
 # Deploy all default-compatible patches to the single connected device and launch
@@ -170,6 +170,12 @@ uv run --project tools/apk-lab apk-lab deploy path/to/app.apkm \
   --package com.example.app \
   --all \
   --launch
+
+# Automatically compile newest .mpp bundle before deploying
+uv run --project tools/apk-lab apk-lab deploy path/to/app.apkm \
+  --build \
+  --package com.example.app \
+  --all
 
 # Deploy explicit patches with options to a specific device emulator
 uv run --project tools/apk-lab apk-lab deploy path/to/app.apkm \
@@ -181,6 +187,16 @@ uv run --project tools/apk-lab apk-lab deploy path/to/app.apkm \
   --reinstall \
   --out /tmp/deployed.apk
 
+# Deploy with custom keystore and signing credentials
+uv run --project tools/apk-lab apk-lab deploy path/to/app.apkm \
+  --mpp patches/build/libs/patches-X.X.X.mpp \
+  --package com.example.app \
+  --all \
+  --keystore /path/to/custom.keystore \
+  --ks-alias mykey \
+  --ks-pass secretpass \
+  --key-pass secretpass
+
 # Perform a clean install (destructively uninstalls first, clearing app data)
 uv run --project tools/apk-lab apk-lab deploy path/to/app.apkm \
   --mpp patches/build/libs/patches-X.X.X.mpp \
@@ -191,9 +207,30 @@ uv run --project tools/apk-lab apk-lab deploy path/to/app.apkm \
 
 **Key Invariants:**
 - `--all` selects all compatible patches marked `default: true` for the package, transitively resolving dependencies.
+- `--build` compiles the latest `.mpp` patch bundle via Gradle (`./gradlew :patches:buildAndroid`) automatically before deploying, making `--mpp` optional.
+- **Automatic Keystore Negotiation**: If `--keystore` is omitted, `apk-lab` inspects the installed package signature on the target device via ADB. If the installed app matches Morphe's bundled key signature, Morphe's cached keystore (`morphe-data/morphe.keystore`) is used automatically, preventing `INSTALL_FAILED_UPDATE_INCOMPATIBLE`. Otherwise, it falls back to the standard Android debug keystore (`~/.android/debug.keystore`, auto-created with permissions `0600` if absent).
+- Custom keystores and credentials can be specified using `--keystore PATH`, `--ks-alias ALIAS`, `--ks-pass PASS`, and `--key-pass PASS`.
 - Installs use data-preserving `adb install -r` by default (and with explicit `--reinstall`). `--clean-install` attempts `adb uninstall <package>` first (clearing app data; uninstall failure is ignored) before installing.
 - Staging occurs in a temporary directory inside the final output's parent directory, ensuring `os.replace` is same-filesystem atomic. Failures before destination replacement leave existing files untouched; installation or launch failures occur after the destination file has already been replaced.
 - When `--out PATH` is specified, the resolved output destination must not be identical to or alias the input artifact; deployment fails immediately before staging or device communication to prevent clobbering input files.
+
+### `dev` — Rapid Patch Build, Deploy & Launch Loop
+Provides an end-to-end rapid iteration command for local patch development. Automatically discovers repository root, builds the latest patch bundle via Gradle (`./gradlew :patches:buildAndroid`), locates the target artifact, inspects its package name, negotiates device keystores, signs, deploys to device/emulator, and cold-launches the application.
+
+```bash
+# Build patches, discover target artifact, deploy, and cold-launch
+uv run --project tools/apk-lab apk-lab dev geocaching
+
+# Target specific device and clean install
+uv run --project tools/apk-lab apk-lab dev sezzle --device emulator-5554 --clean-install
+```
+
+**Arguments & Behavior:**
+- `app` (required positional): Application name or package identifier (e.g. `geocaching`, `sezzle`). Automatically locates matching artifacts in standard test fixture directories.
+- `--device SERIAL`: Target a specific ADB device serial when multiple devices or emulators are connected.
+- `--launch`: Launch the main launcher activity after installation (default: `True`).
+- `--all`: Apply all default-compatible patches (default: `True`).
+- `--reinstall` / `--clean-install` (mutually exclusive): Choose whether to preserve application data via `adb install -r` (default: `--reinstall`) or clear data by uninstalling first (`--clean-install`).
 ### `monitor` — Runtime Process Health, Spin & ANR/Crash Watcher
 Hooks into a running or freshly launched app process on an ADB device, monitors main thread CPU utilization, detects infinite spin loops, catches ANRs (`BIND APPLICATION ANR`), and surfaces stack traces from `ApplicationExitInfo`.
 
@@ -217,14 +254,14 @@ uv run --project tools/apk-lab apk-lab monitor \
 - On process termination, inspects `dumpsys activity exit-info`. Reasons `4` (`CRASH`), `5` (`CRASH_NATIVE`), and `6` (`ANR`) return exit code `5`. Clean exits return exit code `0`.
 
 ### `crash-trace` — Recent Device Crash Harvester
-Retrieves the most recent Android logcat records for a package and extracts Java fatal exceptions and verification errors with their process, PID, timestamp, message, and stack frames.
+Retrieves the most recent Android logcat records for a package and extracts Java fatal exceptions and verification errors with their process, PID, timestamp, message, and stack frames. If a decompiled workspace exists under `.apk-lab/<package>`, stack trace frames are automatically cross-referenced with Smali bytecode across all DEX split directories (`smali/`, `smali_classes2/`, etc.), displaying the source file path, method signature, and surrounding instructions.
 
 ```bash
-# Show recent crash summaries for the connected device
+# Show recent crash summaries for the connected device (resolves Smali frames if workspace exists)
 uv run --project tools/apk-lab apk-lab crash-trace \
   --package com.example.app
 
-# Query a specific device and emit machine-readable reports
+# Query a specific device and emit machine-readable reports including resolved frames
 uv run --project tools/apk-lab apk-lab crash-trace \
   --package com.example.app \
   --device emulator-5554 \
@@ -236,8 +273,7 @@ uv run --project tools/apk-lab apk-lab crash-trace \
 - `--package PACKAGE` (required): Application package to match in crash reports.
 - `--device SERIAL`: Target a specific ADB device.
 - `--lines N`: Number of recent logcat lines to inspect (default: `5000`).
-- `--json`: Emit an array of structured crash reports instead of a human-readable summary.
-
+- `--json`: Emit an array of structured crash reports instead of a human-readable summary, including resolved frames with Smali file paths, method signatures, and code snippets when available.
 
 ### `inspect-code` — Targeted Class and Method Bytecode/AST Inspection & Diff
 Extracts or decompiles *only a single class or method* directly from an APK without decompiling the entire multi-gigabyte application, and provides side-by-side unified diffs between unpatched and patched APKs.
@@ -299,7 +335,7 @@ uv run --project tools/apk-lab apk-lab validate-smali \
 - **Assembler Oracle**: Synthesizes a class wrapper and invokes pinned `smali assemble` to verify Dalvik syntax.
 
 ### `res` — Cross-Split Resource Table & Raw Member Inspector
-Resolves resources and raw members across base APKs and configuration splits (`split_config.xxhdpi.apk`), reports duplicate statuses, and advises the correct Morphe patch mode.
+Resolves resources and raw members across base APKs and configuration splits (`split_config.xxhdpi.apk`), reports duplicate statuses, and advises the correct Morphe patch mode. Split packages lacking `resources.arsc` (e.g. `config.arm64_v8a.apk`) are bypassed for resource table dumping without errors, while preserving raw member access.
 
 ```bash
 # Query by hex resource ID
@@ -310,6 +346,14 @@ uv run --project tools/apk-lab apk-lab res path/to/app.apkm \
 uv run --project tools/apk-lab apk-lab res path/to/app.apkm \
   --query @drawable/map_preview_trails
 
+# Search string/text values using --text or --value alias
+uv run --project tools/apk-lab apk-lab res path/to/app.apkm \
+  --text "Upgrade to Premium"
+
+# Search string/text values using query prefix syntax
+uv run --project tools/apk-lab apk-lab res path/to/app.apkm \
+  --query text:"Upgrade to Premium"
+
 # Query by file path and extract matched drawables to disk
 uv run --project tools/apk-lab apk-lab res path/to/app.apkm \
   --query res/drawable-xxhdpi/map_preview_trails.webp \
@@ -317,13 +361,14 @@ uv run --project tools/apk-lab apk-lab res path/to/app.apkm \
 ```
 
 **Resource Modes & Extraction Safety:**
+- **Text / Value Search**: `--text <query>` and `--value <query>` aliases, as well as `text:<query>`, `val:<query>`, and `value:<query>` prefixes perform case-insensitive substring searching across ARSC string tables.
+- **Split Handling**: Splits lacking `resources.arsc` (such as native library splits `config.arm64_v8a.apk`) are gracefully skipped during ARSC table inspection without error, while their raw entries remain fully searchable.
 - **Morphe Mode Guidance**:
   - `AndroidManifest.xml` and files under `res/...` require `resourcePatch` (`document(...)` for XML, `get(...)` for binary files).
   - Files under `assets/...` and `lib/...` require `rawResourcePatch` (raw zip entries).
 - **Duplicate Status**: Grouped across splits as `unique` (single entry), `equivalent` (identical SHA-256 or scalar value), or `conflict` (differing hashes/values).
 - **Extraction Preflight**: `--extract` preflights and writes file-backed matches only into safe `<extract_dir>/<slug>-<hash8>/...` subdirectories; scalar ARSC values are skipped with a warning. Rejects non-directory or symlinked extract roots, ensures resolved paths remain within the destination root, and rejects pre-existing files or destination collisions.
 - **Exit Codes**: Missing artifact or invalid query returns `2` (`USAGE_OR_TOOL_ERROR`), extraction safety/archive security violations return `3` (`INVALID_ARTIFACT`), and uncaught infrastructure failures return `4` (`INFRASTRUCTURE_FAILURE`).
-
 ### `fixtures` — Private R2 Cloud Fixtures
 Manages the two-slot private R2 storage architecture (`fixtures/<package>/latest` and `fixtures/<package>/target`). `fixtures info` displays role, version name/code, first 16 SHA-256 characters, and acquisition source. In CI compatibility runs, `target` is the active verified fixture slot, while `latest` acts as a storage and acquisition fallback.
 

@@ -14,8 +14,10 @@ Resolves resource entries, layout IDs, and raw members across the base APK and a
 - **Package-Prefixed Reference**: `com.example.app:string/app_name`.
 - **Archive Path**: `res/drawable-xxhdpi/icon.webp`, `assets/index.android.bundle`, `lib/arm64-v8a/libfoo.so`, or `AndroidManifest.xml`.
 - **Bare Name**: `map_preview_trails` (matches resource name or file basename).
+- **Text/Value Substring**: `text:<query>`, `val:<query>`, `value:<query>`, or `--text <query>` / `--value <query>` flag aliases (case-insensitive substring search across string tables in `resources.arsc`).
 
 ### Invariants & Output Intelligence
+- **Split Handling**: Split packages lacking `resources.arsc` (such as native library splits `config.arm64_v8a.apk`) are gracefully skipped during ARSC table inspection without error, while raw archive members (assets, libraries, manifest) remain searchable and accessible.
 - **Morphe Mode Guidance**:
   - `AndroidManifest.xml` and files under `res/...` advise `resourcePatch` (`document(...)` for XML DOM manipulation, `get(...)` for binary resources).
   - Files under `assets/...` and `lib/...` advise `rawResourcePatch` (raw ZIP asset manipulation).
@@ -35,6 +37,12 @@ uv run --project tools/apk-lab apk-lab res path/to/app.apkm --query 0x7f08028e
 
 # Query by type and name
 uv run --project tools/apk-lab apk-lab res path/to/app.apkm --query @drawable/brand_logo
+
+# Search resource string values by substring
+uv run --project tools/apk-lab apk-lab res path/to/app.apkm --text "Upgrade to Premium"
+
+# Search resource string values using prefix query
+uv run --project tools/apk-lab apk-lab res path/to/app.apkm --query text:"Upgrade to Premium"
 
 # Query by file path and safely extract matched files to disk
 uv run --project tools/apk-lab apk-lab res path/to/app.apkm \
