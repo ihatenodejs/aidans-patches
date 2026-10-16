@@ -1,3 +1,17 @@
+## [1.8.0-dev.6](https://github.com/ihatenodejs/aidans-patches/compare/v1.8.0-dev.5...v1.8.0-dev.6) (2026-10-16)
+
+### 🐛 Bug Fixes
+
+* **apk-lab:** validate move-result variants and invoke producers ([823def9](https://github.com/ihatenodejs/aidans-patches/commit/823def9784b437dd180ce4342d6c796704eb482e))
+* **nhl:** preserve synthetic default matching for Blaze analytics ([b6bd2b2](https://github.com/ihatenodejs/aidans-patches/commit/b6bd2b2b6ddb99d6a7ef9e5c284fba32ea1eb536))
+* **worker:** use utf-16 code-unit order for monitored apps catalog ([964e01f](https://github.com/ihatenodejs/aidans-patches/commit/964e01f00da67982c7c259ced8a797f3449c09cc))
+
+### ✨ New Features
+
+* **apk-lab:** add crash-trace command to harvest device exceptions ([d99b76d](https://github.com/ihatenodejs/aidans-patches/commit/d99b76d38c6eacae0a117eb0083652366f0bb708))
+* **apk-lab:** validate register aliasing and move-result sequences ([93aa649](https://github.com/ihatenodejs/aidans-patches/commit/93aa649f56c5651402c163c6f3b1c33620be5a32))
+* **audit:** add phase and full-suite summary formatting ([1ff79c4](https://github.com/ihatenodejs/aidans-patches/commit/1ff79c4993fb112a2981e30d3a8fe8b4e96ec2ee))
+
 ## [1.8.0-dev.5](https://github.com/ihatenodejs/aidans-patches/compare/v1.8.0-dev.4...v1.8.0-dev.5) (2026-10-16)
 
 ### ✨ New Features
