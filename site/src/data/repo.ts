@@ -304,10 +304,6 @@ export function getApps(): App[] {
   return loadRepositoryData().apps;
 }
 
-export function getApp(appId: string): App | undefined {
-  return loadRepositoryData().apps.find((a) => a.id === appId);
-}
-
 export function getPatches(): Patch[] {
   return loadRepositoryData().patches;
 }
