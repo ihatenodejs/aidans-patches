@@ -1,3 +1,18 @@
+## [1.8.0-dev.8](https://github.com/ihatenodejs/aidans-patches/compare/v1.8.0-dev.7...v1.8.0-dev.8) (2026-10-16)
+
+### 🐛 Bug Fixes
+
+* **apk-lab:** prevented overwriting input artifact during deploy ([0275070](https://github.com/ihatenodejs/aidans-patches/commit/0275070f7b758809063d82ef062bd61ef99d63dc))
+
+### ✨ New Features
+
+* **apk-lab:** add decompiled smali resolution to crash trace reports ([670d76b](https://github.com/ihatenodejs/aidans-patches/commit/670d76b213538a21048a65274f5f219c23431ec8))
+* **apk-lab:** add text value search and graceful split handling to res command ([a1039e1](https://github.com/ihatenodejs/aidans-patches/commit/a1039e1464665eb4c5dceb5cd7afbb09a7148fb3))
+* **apk-lab:** add unified dev iteration command ([931406c](https://github.com/ihatenodejs/aidans-patches/commit/931406c2a610827376c970c7dedc88e9b5924eee))
+* **apk-lab:** added keystore option to deploy command ([7091327](https://github.com/ihatenodejs/aidans-patches/commit/7091327309f7c1977df9b1fa7d6fc6335cd5784c))
+* **apk-lab:** support automatic keystore negotiation and custom credentials ([419a89c](https://github.com/ihatenodejs/aidans-patches/commit/419a89c03f5beca4d980b053a05da87f146a7759))
+* **geocaching:** added cookie support and pmo fallback to bridge ([015ace0](https://github.com/ihatenodejs/aidans-patches/commit/015ace068cb8c819e2a5715cc3133e1c9b226043))
+
 ## [1.8.0-dev.7](https://github.com/ihatenodejs/aidans-patches/compare/v1.8.0-dev.6...v1.8.0-dev.7) (2026-10-16)
 
 ### 🐛 Bug Fixes
