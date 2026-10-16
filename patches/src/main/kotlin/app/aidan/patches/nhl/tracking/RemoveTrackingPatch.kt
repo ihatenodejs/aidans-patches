@@ -1,6 +1,12 @@
 package app.aidan.patches.nhl.tracking
 
 import app.aidan.patches.nhl.shared.COMPATIBILITY_NHL
+import app.aidan.patches.shared.disableOptionalVoidMethods
+import app.aidan.patches.shared.disableRequiredVoidMethods
+import app.aidan.patches.shared.returnOptionalBoolean
+import app.aidan.patches.shared.returnOptionalString
+import app.aidan.patches.shared.returnRequiredBoolean
+import app.aidan.patches.shared.returnRequiredNullObject
 import app.morphe.patcher.extensions.InstructionExtensions.addInstructions
 import app.morphe.patcher.extensions.InstructionExtensions.removeInstruction
 import app.morphe.patcher.patch.BytecodePatchContext
@@ -36,7 +42,7 @@ val removeTrackingPatch = bytecodePatch(
         }
 
         // 1. OneTrust Consent Management Platform (CMP) & Tracking Banner
-        disableVoidMethods(
+        disableRequiredVoidMethods(
             "Lcom/onetrust/otpublishers/headless/Public/OTPublishersHeadlessSDK;",
             "setupUI",
             "showBannerUI",
@@ -52,7 +58,7 @@ val removeTrackingPatch = bytecodePatch(
             "saveAllowAll",
             "saveRejectAll"
         )
-        returnBoolean("Lcom/onetrust/otpublishers/headless/Public/OTPublishersHeadlessSDK;", "shouldShowBanner", false)
+        returnRequiredBoolean("Lcom/onetrust/otpublishers/headless/Public/OTPublishersHeadlessSDK;", "shouldShowBanner", false)
         returnInt("Lcom/onetrust/otpublishers/headless/Public/OTPublishersHeadlessSDK;", "isBannerShown", 0)
         returnInt("Lcom/onetrust/otpublishers/headless/Public/OTPublishersHeadlessSDK;", "getConsentStatusForGroupId", 0)
         returnInt("Lcom/onetrust/otpublishers/headless/Public/OTPublishersHeadlessSDK;", "getConsentStatusForSDKId", 0)
@@ -65,52 +71,52 @@ val removeTrackingPatch = bytecodePatch(
         spoofMinifiedAdvertisingId("Ljj;", "Lij;")
 
         // 3. Host App Internal Analytics Engine
-        disableVoidMethods("Lnv;", "a", "b")
+        disableRequiredVoidMethods("Lnv;", "a", "b")
 
         // 4. Firebase Analytics & AppMeasurement
-        disableVoidMethods("Lcom/google/android/gms/measurement/AppMeasurement;", "logEventInternal")
-        disableVoidMethods("Lcom/google/android/gms/measurement/api/AppMeasurementSdk;", "logEvent")
-        disableVoidMethods("Lcom/google/firebase/analytics/FirebaseAnalytics;", "b", "c", "setCurrentScreen")
-        disableVoidMethods("Lg3q;", "c")
-        disableVoidMethods("Lhhd;", "logEvent", "setUserProperty")
+        disableRequiredVoidMethods("Lcom/google/android/gms/measurement/AppMeasurement;", "logEventInternal")
+        disableRequiredVoidMethods("Lcom/google/android/gms/measurement/api/AppMeasurementSdk;", "logEvent")
+        disableRequiredVoidMethods("Lcom/google/firebase/analytics/FirebaseAnalytics;", "b", "c", "setCurrentScreen")
+        disableRequiredVoidMethods("Lg3q;", "c")
+        disableRequiredVoidMethods("Lhhd;", "logEvent", "setUserProperty")
         returnEmptyList("Lcom/google/firebase/analytics/connector/internal/AnalyticsConnectorRegistrar;", "getComponents")
 
         // 5. Firebase Performance Monitoring
         returnEmptyList("Lcom/google/firebase/perf/FirebasePerfRegistrar;", "getComponents")
         returnEmptyList("Lcom/google/firebase/perf/FirebasePerfKtxRegistrar;", "getComponents")
-        disableVoidMethods("Lmak;", "b", "c", "d")
-        disableVoidMethods("Lcom/google/firebase/perf/metrics/AppStartTrace;", "onActivityCreated", "onActivityResumed", "onActivityStarted")
-        disableVoidMethods("Lcom/google/firebase/perf/session/SessionManager;", "initializeGaugeCollection", "updatePerfSession")
+        disableRequiredVoidMethods("Lmak;", "b", "c", "d")
+        disableRequiredVoidMethods("Lcom/google/firebase/perf/metrics/AppStartTrace;", "onActivityCreated", "onActivityResumed", "onActivityStarted")
+        disableRequiredVoidMethods("Lcom/google/firebase/perf/session/SessionManager;", "initializeGaugeCollection", "updatePerfSession")
 
         // 6. UrbanAirship Telemetry & Analytics
-        disableVoidMethods("Lcom/urbanairship/analytics/InstallReceiver;", "onReceive")
-        disableVoidMethods("Lpo;", "a")
-        disableVoidMethods("Lrt;", "e", "h")
-        disableVoidMethods("Lqp;", "g", "h")
+        disableRequiredVoidMethods("Lcom/urbanairship/analytics/InstallReceiver;", "onReceive")
+        disableRequiredVoidMethods("Lpo;", "a")
+        disableRequiredVoidMethods("Lrt;", "e", "h")
+        disableRequiredVoidMethods("Lqp;", "g", "h")
 
         // 7. Blaze SDK Analytics & Logging
-        returnNullObject("Lcom/blaze/blazesdk/analytics/AnalyticsApi;", "sendTrackEvents")
-        returnNullObject("Lcom/blaze/blazesdk/analytics/AnalyticsApi;", "sendDoNotTrackEvents")
-        returnNullObject("Lcom/blaze/blazesdk/logger/apis/BlazeLoggerApi;", "sendLogs", optional = true)
+        returnRequiredNullObject("Lcom/blaze/blazesdk/analytics/AnalyticsApi;", "sendTrackEvents")
+        returnRequiredNullObject("Lcom/blaze/blazesdk/analytics/AnalyticsApi;", "sendDoNotTrackEvents")
+        returnOptionalNullObjectIncludingDefault("Lcom/blaze/blazesdk/logger/apis/BlazeLoggerApi;", "sendLogs")
 
         // 8. Brightcove Video Analytics & Interactivity Metrics
         patchBrightcoveAnalytics()
-        disableVoidMethods("Lcom/brightcove/player/analytics/DefaultAnalyticsHandler;", "onAnalyticsEvent")
+        disableRequiredVoidMethods("Lcom/brightcove/player/analytics/DefaultAnalyticsHandler;", "onAnalyticsEvent")
 
         // 9. Ticketmaster Analytics
-        returnBoolean("Lcom/ticketmaster/authenticationsdk/Analytics;", "getEnabled", false)
-        disableVoidMethods("Lcom/ticketmaster/tickets/eventanalytic/AnalyticsQueue;", "putEvent", "send")
-        disableVoidMethods("Lcom/ticketmaster/tickets/eventanalytic/TmxAnalyticsSender;", "send")
+        returnRequiredBoolean("Lcom/ticketmaster/authenticationsdk/Analytics;", "getEnabled", false)
+        disableRequiredVoidMethods("Lcom/ticketmaster/tickets/eventanalytic/AnalyticsQueue;", "putEvent", "send")
+        disableRequiredVoidMethods("Lcom/ticketmaster/tickets/eventanalytic/TmxAnalyticsSender;", "send")
 
         // 10. Firebase Crashlytics & Sessions Telemetry
-        disableVoidMethods("Lbn6;", "b", "c")
+        disableRequiredVoidMethods("Lbn6;", "b", "c")
         returnEmptyList("Lcom/google/firebase/sessions/FirebaseSessionsRegistrar;", "getComponents")
-        disableVoidMethods("Lcom/google/firebase/sessions/SessionLifecycleService;", "onCreate", optional = true)
-        returnNullObject("Lcom/google/firebase/sessions/SessionLifecycleService;", "onBind")
+        disableOptionalVoidMethods("Lcom/google/firebase/sessions/SessionLifecycleService;", "onCreate")
+        returnRequiredNullObject("Lcom/google/firebase/sessions/SessionLifecycleService;", "onBind")
         returnInt("Lcom/google/firebase/sessions/SessionLifecycleService;", "onStartCommand", 2, optional = true)
 
         // 11. Google DataTransport Telemetry Uploader
-        disableVoidMethods("Lomk;", "a")
+        disableRequiredVoidMethods("Lomk;", "a")
     }
 }
 
@@ -184,17 +190,15 @@ private fun BytecodePatchContext.spoofAdvertisingId() {
         }
     }
 
-    returnConstString(
+    returnOptionalString(
         "Lcom/google/android/gms/ads/identifier/AdvertisingIdClient${'$'}Info;",
         "getId",
-        ZEROED_ADVERTISING_ID,
-        optional = true
+        ZEROED_ADVERTISING_ID
     )
-    returnBoolean(
+    returnOptionalBoolean(
         "Lcom/google/android/gms/ads/identifier/AdvertisingIdClient${'$'}Info;",
         "isLimitAdTrackingEnabled",
-        true,
-        optional = true
+        true
     )
 }
 
@@ -265,69 +269,6 @@ private fun BytecodePatchContext.patchBrightcoveAnalytics() {
 }
 
 /**
- * Neutralizes all matched void-returning methods by injecting an immediate `return-void` at index 0.
- */
-private fun BytecodePatchContext.disableVoidMethods(
-    classDescriptor: String,
-    vararg methodNames: String,
-    optional: Boolean = false
-) {
-    val mutableClass = mutableClassDefByOrNull(classDescriptor)
-    if (mutableClass == null) {
-        if (optional) return
-        throw PatchException("Missing required class $classDescriptor")
-    }
-    val methodSet = methodNames.toSet()
-    var patchedCount = 0
-
-    for (method in mutableClass.methods) {
-        if (method.name in methodSet && method.returnType == "V" && method.implementation != null) {
-            method.addInstructions(0, "return-void")
-            patchedCount++
-        }
-    }
-
-    if (!optional && patchedCount == 0) {
-        throw PatchException("Missing required void method(s) in $classDescriptor matching: ${methodNames.joinToString()}")
-    }
-}
-
-/**
- * Stubs a method to immediately return a constant boolean value.
- */
-private fun BytecodePatchContext.returnBoolean(
-    classDescriptor: String,
-    methodName: String,
-    value: Boolean,
-    optional: Boolean = false
-) {
-    val mutableClass = mutableClassDefByOrNull(classDescriptor)
-    if (mutableClass == null) {
-        if (optional) return
-        throw PatchException("Missing required class $classDescriptor")
-    }
-    var patched = false
-
-    for (method in mutableClass.methods) {
-        if (method.name == methodName && method.returnType == "Z" && method.implementation != null) {
-            val constInstruction = if (value) "const/4 v0, 0x1" else "const/4 v0, 0x0"
-            method.addInstructions(
-                0,
-                """
-                $constInstruction
-                return v0
-                """.trimIndent()
-            )
-            patched = true
-        }
-    }
-
-    if (!optional && !patched) {
-        throw PatchException("Missing required method $classDescriptor->$methodName()Z")
-    }
-}
-
-/**
  * Stubs matching integer-returning methods to immediately return [value].
  */
 private fun BytecodePatchContext.returnInt(
@@ -362,53 +303,13 @@ private fun BytecodePatchContext.returnInt(
 }
 
 /**
- * Stubs a method to immediately return a constant string.
+ * Stubs matching object-returning methods, including Kotlin's `$default` overload, to return null.
  */
-private fun BytecodePatchContext.returnConstString(
+private fun BytecodePatchContext.returnOptionalNullObjectIncludingDefault(
     classDescriptor: String,
-    methodName: String,
-    value: String,
-    optional: Boolean = false
+    methodName: String
 ) {
-    val mutableClass = mutableClassDefByOrNull(classDescriptor)
-    if (mutableClass == null) {
-        if (optional) return
-        throw PatchException("Missing required class $classDescriptor")
-    }
-    var patched = false
-
-    for (method in mutableClass.methods) {
-        if (method.name == methodName && method.returnType == "Ljava/lang/String;" && method.implementation != null) {
-            method.addInstructions(
-                0,
-                """
-                const-string v0, "$value"
-                return-object v0
-                """.trimIndent()
-            )
-            patched = true
-        }
-    }
-
-    if (!optional && !patched) {
-        throw PatchException("Missing required method $classDescriptor->$methodName()Ljava/lang/String;")
-    }
-}
-
-/**
- * Stubs an object-returning method to immediately return null.
- */
-private fun BytecodePatchContext.returnNullObject(
-    classDescriptor: String,
-    methodName: String,
-    optional: Boolean = false
-) {
-    val mutableClass = mutableClassDefByOrNull(classDescriptor)
-    if (mutableClass == null) {
-        if (optional) return
-        throw PatchException("Missing required class $classDescriptor")
-    }
-    var patched = false
+    val mutableClass = mutableClassDefByOrNull(classDescriptor) ?: return
 
     for (method in mutableClass.methods) {
         val isTargetMethod = method.name == methodName || method.name == "$methodName\$default"
@@ -420,12 +321,7 @@ private fun BytecodePatchContext.returnNullObject(
                 return-object v0
                 """.trimIndent()
             )
-            patched = true
         }
-    }
-
-    if (!optional && !patched) {
-        throw PatchException("Missing required method $classDescriptor->$methodName")
     }
 }
 
