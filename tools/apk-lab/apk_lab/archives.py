@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import os
 import tempfile
 import zipfile
@@ -230,6 +231,17 @@ def read_member_bytes(archive_path: Path | str, member_name: str) -> bytes:
     """Reads a single member's bytes into memory."""
     with zipfile.ZipFile(archive_path, "r") as zf:
         return zf.read(member_name)
+
+
+def compute_zip_member_sha256(
+    zf: zipfile.ZipFile, member: str | zipfile.ZipInfo
+) -> str:
+    """Streams a ZIP member's uncompressed contents into a SHA-256 digest."""
+    h = hashlib.sha256()
+    with zf.open(member) as source:
+        while chunk := source.read(64 * 1024):
+            h.update(chunk)
+    return h.hexdigest()
 
 
 def materialize_split_member(
