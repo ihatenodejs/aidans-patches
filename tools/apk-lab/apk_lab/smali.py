@@ -132,6 +132,24 @@ INVOKE_3RC_OPCODES = {
     "invoke-interface/range",
 }
 
+ALL_MOVE_RESULT_OPCODES = {
+    "move-result",
+    "move-result-object",
+    "move-result-wide",
+}
+
+FILLED_NEW_ARRAY_OPCODES = {"filled-new-array", "filled-new-array/range"}
+
+
+def extract_method_reference_return_type(operand: str) -> str | None:
+    """Extracts the return type descriptor from a Smali method reference."""
+    match = re.search(
+        r"->[^( \t\r\n]+\(.*\)(\[+(?:[ZBSCIJFD]|L[^;\s]+;)|[VZBSCIJFD]|L[^;\s]+;)$",
+        operand.strip(),
+    )
+    return match.group(1) if match else None
+
+
 BRANCH_22T_OPCODES = {
     "if-eq",
     "if-ne",
@@ -190,6 +208,23 @@ def parse_smali_register(
                 severity="error",
                 code="REGISTER_OUT_OF_RANGE",
                 message=f"Register '{tok}' out of range for total {total_registers} registers (v0..v{total_registers - 1})",
+            )
+        if num >= locals_count:
+            if is_static:
+                param_name = f"p{num - locals_count}"
+            elif num == locals_count:
+                param_name = "p0 (this)"
+            else:
+                param_name = f"p{num - locals_count}"
+            return None, SmaliDiagnostic(
+                line=line_no,
+                severity="error",
+                code="REGISTER_ALIASES_PARAMETER",
+                message=(
+                    f"Register '{tok}' (index {num}) exceeds locals count ({locals_count}) "
+                    f"and aliases parameter register '{param_name}'. Use '{param_name}' "
+                    "or increase method locals."
+                ),
             )
         return Register(name=tok, index=num, is_param=False), None
 
@@ -637,7 +672,60 @@ def validate_smali_snippet(
                     )
                 )
 
-    # Pass 2: Control Flow Graph (CFG) analysis
+    # Pass 2: Invoke return and move-result sequencing.
+    invoke_opcodes = INVOKE_35C_OPCODES | INVOKE_3RC_OPCODES
+    for index, (line_idx, opcode, tokens) in enumerate(instructions):
+        previous_opcode = instructions[index - 1][1] if index else None
+        if (
+            opcode in ALL_MOVE_RESULT_OPCODES
+            and previous_opcode not in invoke_opcodes | FILLED_NEW_ARRAY_OPCODES
+        ):
+            report.diagnostics.append(
+                SmaliDiagnostic(
+                    line=line_idx,
+                    severity="error",
+                    code="ORPHAN_MOVE_RESULT",
+                    message=(
+                        f"'{opcode}' must immediately follow an invoke or filled-new-array "
+                        "instruction."
+                    ),
+                )
+            )
+
+        if opcode not in invoke_opcodes:
+            continue
+
+        return_type = extract_method_reference_return_type(tokens[-1] if tokens else "")
+        if return_type is None or return_type == "V":
+            continue
+
+        if index + 1 == len(instructions):
+            report.diagnostics.append(
+                SmaliDiagnostic(
+                    line=line_idx,
+                    severity="warning",
+                    code="UNCONSUMED_INVOKE_RETURN",
+                    message=(
+                        f"Method returns '{return_type}' but return value is not captured "
+                        "by move-result."
+                    ),
+                )
+            )
+        elif instructions[index + 1][1] not in ALL_MOVE_RESULT_OPCODES:
+            next_opcode = instructions[index + 1][1]
+            report.diagnostics.append(
+                SmaliDiagnostic(
+                    line=line_idx,
+                    severity="warning",
+                    code="MISSING_MOVE_RESULT",
+                    message=(
+                        f"Method returns '{return_type}' but next instruction is "
+                        f"'{next_opcode}', not a move-result instruction."
+                    ),
+                )
+            )
+
+    # Pass 3: Control Flow Graph (CFG) analysis
     # Map instruction indices to lines
     cfg_nodes: list[int] = [i[0] for i in instructions]
     if cfg_nodes:
@@ -781,7 +869,7 @@ def validate_smali_snippet(
                     )
                 )
 
-    # Pass 3: Assembler Oracle (invoke pinned smali assemble)
+    # Pass 4: Assembler Oracle (invoke pinned smali assemble)
     # Only if report has no errors so far
     tm = tool_manager or ToolManager()
     if report.is_valid and tm.is_tool_installed("smali"):
