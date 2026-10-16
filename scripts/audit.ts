@@ -39,6 +39,12 @@ interface StepResult {
   diagnostics?: Diagnostic[];
 }
 
+interface PhaseResult {
+  category: string;
+  success: boolean;
+  results: StepResult[];
+}
+
 interface Diagnostic {
   tool: string;
   file: string;
@@ -150,9 +156,10 @@ function printSectionHeader(title: string, subtitle?: string): void {
   console.log(`${c.bold}${c.cyan}=== ${title.toUpperCase()} ===${c.reset}${subtitle ? ` ${c.gray}(${subtitle})${c.reset}` : ''}`);
 }
 
-function printResultsSummary(category: string, results: StepResult[]): boolean {
+function printResultsSummary(category: string, results: StepResult[]): PhaseResult {
   const totalDuration = results.reduce((acc, r) => acc + r.durationMs, 0);
   const allPassed = results.every((r) => r.success);
+  const maxTitleLen = Math.max(28, ...results.map((r) => r.title.length));
 
   console.log();
   console.log(`${c.bold}${c.gray}${'―'.repeat(70)}${c.reset}`);
@@ -162,8 +169,9 @@ function printResultsSummary(category: string, results: StepResult[]): boolean {
   for (const res of results) {
     const icon = res.success ? sym.ok : sym.err;
     const dur = c.gray + formatDuration(res.durationMs).padStart(8) + c.reset;
-    const name = res.title.padEnd(28);
-    console.log(`  ${icon} ${name} ${dur}  ${c.dim}${res.summary}${c.reset}`);
+    const name = res.title.padEnd(maxTitleLen);
+    const summaryStyle = res.success ? c.dim : c.red;
+    console.log(`  ${icon} ${name} ${dur}  ${summaryStyle}${res.summary}${c.reset}`);
   }
 
   console.log(`${c.bold}${c.gray}${'―'.repeat(70)}${c.reset}`);
@@ -173,6 +181,50 @@ function printResultsSummary(category: string, results: StepResult[]): boolean {
     const failedCount = results.filter((r) => !r.success).length;
     console.log(`  ${c.bold}${c.red}✖ ${failedCount} of ${results.length} checks failed${c.reset} ${c.gray}in ${formatDuration(totalDuration)}${c.reset}`);
   }
+  console.log();
+  return { category, success: allPassed, results };
+}
+
+function printFullAuditSummary(phases: PhaseResult[]): boolean {
+  const allResults = phases.flatMap((p) => p.results);
+  const totalDuration = allResults.reduce((acc, r) => acc + r.durationMs, 0);
+  const allPassed = phases.every((p) => p.success);
+  const maxTitleLen = Math.max(30, ...allResults.map((r) => r.title.length));
+
+  console.log();
+  console.log(`${c.bold}${c.cyan}${'═'.repeat(70)}${c.reset}`);
+  console.log(`${c.bold}  FULL AUDIT SUMMARY${c.reset}`);
+  console.log(`${c.bold}${c.cyan}${'═'.repeat(70)}${c.reset}`);
+
+  for (const phase of phases) {
+    const phaseDur = phase.results.reduce((acc, r) => acc + r.durationMs, 0);
+    const phaseIcon = phase.success ? sym.ok : sym.err;
+    console.log();
+    console.log(
+      `  ${phaseIcon} ${c.bold}${phase.category.toUpperCase()}${c.reset} ${c.gray}(${formatDuration(phaseDur)})${c.reset}`,
+    );
+    for (const res of phase.results) {
+      const icon = res.success ? sym.ok : sym.err;
+      const dur = c.gray + formatDuration(res.durationMs).padStart(8) + c.reset;
+      const name = res.title.padEnd(maxTitleLen);
+      const summaryStyle = res.success ? c.dim : c.red;
+      console.log(`    ${icon} ${name} ${dur}  ${summaryStyle}${res.summary}${c.reset}`);
+    }
+  }
+
+  console.log();
+  console.log(`${c.bold}${c.gray}${'―'.repeat(70)}${c.reset}`);
+  if (allPassed) {
+    console.log(
+      `  ${c.bold}${c.green}✔ All ${allResults.length} checks passed cleanly across ${phases.length} phases${c.reset} ${c.gray}in ${formatDuration(totalDuration)}${c.reset}`,
+    );
+  } else {
+    const failedCount = allResults.filter((r) => !r.success).length;
+    console.log(
+      `  ${c.bold}${c.red}✖ ${failedCount} of ${allResults.length} checks failed across ${phases.length} phases${c.reset} ${c.gray}in ${formatDuration(totalDuration)}${c.reset}`,
+    );
+  }
+  console.log(`${c.bold}${c.cyan}${'═'.repeat(70)}${c.reset}`);
   console.log();
   return allPassed;
 }
@@ -199,7 +251,7 @@ function printRawCommandOutput(stdout: string, stderr: string): void {
 // ============================================================================
 // FORMAT COMMAND
 // ============================================================================
-async function runFormat(checkOnly = false): Promise<boolean> {
+async function runFormat(checkOnly = false): Promise<PhaseResult> {
   printSectionHeader('Format', checkOnly ? 'audit check only' : 'formatting in place');
   const results: StepResult[] = [];
   const ktlintPath = await ensureKtlint();
@@ -317,7 +369,7 @@ async function runFormat(checkOnly = false): Promise<boolean> {
 // ============================================================================
 // LINT COMMAND
 // ============================================================================
-async function runLint(autoFix = false): Promise<boolean> {
+async function runLint(autoFix = false): Promise<PhaseResult> {
   printSectionHeader('Lint', autoFix ? 'auto-fix enabled' : 'auditing code quality');
   const results: StepResult[] = [];
   const allDiagnostics: Diagnostic[] = [];
@@ -484,7 +536,7 @@ async function runLint(autoFix = false): Promise<boolean> {
 // ============================================================================
 // TYPECHECK COMMAND
 // ============================================================================
-async function runTypecheck(): Promise<boolean> {
+async function runTypecheck(): Promise<PhaseResult> {
   printSectionHeader('Typecheck', 'TypeScript, Astro, Python, Rust, and Kotlin/Java');
   const results: StepResult[] = [];
 
@@ -599,7 +651,7 @@ async function runTypecheck(): Promise<boolean> {
 // ============================================================================
 // TEST COMMAND
 // ============================================================================
-async function runTest(): Promise<boolean> {
+async function runTest(): Promise<PhaseResult> {
   printSectionHeader('Test', 'auditing all automated test suites');
   const results: StepResult[] = [];
 
@@ -717,36 +769,42 @@ async function main() {
   switch (cmd) {
     case 'format': {
       const checkOnly = args.includes('--check');
-      success = await runFormat(checkOnly);
+      const phase = await runFormat(checkOnly);
+      success = phase.success;
       break;
     }
     case 'format:check': {
-      success = await runFormat(true);
+      const phase = await runFormat(true);
+      success = phase.success;
       break;
     }
     case 'lint': {
       const autoFix = args.includes('--fix');
-      success = await runLint(autoFix);
+      const phase = await runLint(autoFix);
+      success = phase.success;
       break;
     }
     case 'lint:fix': {
-      success = await runLint(true);
+      const phase = await runLint(true);
+      success = phase.success;
       break;
     }
     case 'typecheck': {
-      success = await runTypecheck();
+      const phase = await runTypecheck();
+      success = phase.success;
       break;
     }
     case 'test': {
-      success = await runTest();
+      const phase = await runTest();
+      success = phase.success;
       break;
     }
     case 'all': {
-      const fOk = await runFormat(true);
-      const lOk = await runLint(false);
-      const tOk = await runTypecheck();
-      const testOk = await runTest();
-      success = fOk && lOk && tOk && testOk;
+      const fPhase = await runFormat(true);
+      const lPhase = await runLint(false);
+      const tPhase = await runTypecheck();
+      const testPhase = await runTest();
+      success = printFullAuditSummary([fPhase, lPhase, tPhase, testPhase]);
       break;
     }
     default: {
