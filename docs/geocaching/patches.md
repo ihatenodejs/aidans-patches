@@ -10,8 +10,9 @@
 | **OpenStreetMap Drop-in Replacement** | `Customization` | `true` | Replaces proprietary Google Maps tiles with free, community-driven OpenStreetMap tiles without losing geocache pins, clusters, popups, or gestures. |
 | **Local Premium** | `Interface` | `true` | Enables local Premium membership status across profile and account screens, removes upgrade promotions, banners, and icons, and enriches public cache details (description, hints, owner) when server blocks basic accounts. |
 | **Unlock Templates** | `Features` | `true` | Unlocks geocache log templates, allowing creating, editing, and applying custom log templates without Geocaching Premium. |
-| **Unlock Experimental Features** | `Features` | `true` | Unlocks beta and experimental features in Settings without Geocaching Premium. |
+| **Unlock Experimental Features** | `Features` | `false` | Unlocks beta and experimental features in Settings without Geocaching Premium. |
 | **Remove Shop** | `Interface` | `true` | Removes the Shop Geocaching promotional section and link from the Profile screen. |
+| **Enable Developer Tools and Feature Flags** | `Developer` | `false` | Exposes the internal Debug Menu in Settings and provides selectors for LaunchDarkly feature flags, Remote Config controls, and remaining membership gates. |
 
 ---
 
@@ -102,8 +103,8 @@ Unlocks all advanced cache search filters and sorting options, allowing users to
    - Target: `com.groundspeak.geocaching.intro.map.rendering.a.e(List, Ll3c)`
      - Injects `GeocacheFilterBridge.filterMapItems(List)` at instruction 0 using `invoke-static/range`, filtering all map items (`Luq8`, `Ltq8`) against active `FilterModel` criteria (types, sizes, difficulty, terrain, minimum favorites, hide finds, hide owned) before generating pins for MapLibre, Google Maps, and list views.
    - Targets: `SharedMapViewModel$trySearching$1`, `SharedMapViewModel$trySearching$2`, and `SharedMapViewModel$reloadPins$1`
-     - Injects `GeocacheFilterBridge.updateAndFilterMapItems` on database and network search item emissions, maintaining a master in-memory cache of all downloaded viewport items and emitting filtered subsets to `SharedMapViewModel.p0`.
-     - Injects `GeocacheFilterBridge.reapplyFilters` into `reloadPins$1` to instantly re-filter the master cache when filter criteria change.
+    - Injects `GeocacheFilterBridge.updateAndFilterMapItems` on database and network search item emissions, replacing the master in-memory list with the latest non-empty database/network emission and emitting its filtered subset to `SharedMapViewModel.p0`.
+    - Injects `GeocacheFilterBridge.reapplyFilters` into `reloadPins$1` to re-filter that latest retained list (falling back to `currentList` only when the master list is empty) when filter criteria change.
    - Target: `MapLibreFragment.onResume()`
      - Injects `SharedMapViewModel.p()` (`reloadPins`) on fragment resume so returning from `FilterNavHostActivity` immediately triggers pin reloading and updates the map.
    - Target: `SharedMapViewModel$refreshFilteredState$1`
@@ -126,11 +127,11 @@ The map settings menu (`MapTypeSelectionFragment` and bottom sheet) is rewired f
 The legacy Google Map type thumbnail preview images (`map_preview_*.webp`) are replaced with rendered OpenStreetMap raster previews of a high-density location (Times Square / Midtown Manhattan, NYC) to accurately demonstrate each style's visual presentation.
 
 ### Architectural Layers & Patches
-The OpenStreetMap integration is divided into three coordinated patches:
-1. **OpenStreetMap Drop-in Replacement** (`bytecodePatch`): Core Dalvik bytecode modifications routing all map deciders, view models, style requests, and settings interactions to MapLibre and `OsmStyleBridge`.
-2. **OpenStreetMap Resource Strings** (`resourcePatch`): Updates `res/values/strings.xml` to rename Map types to "Map styles" and replace legacy Google Map labels and descriptions with OpenStreetMap presets ("Bright", "Liberty", "Positron", "Dark", "Custom URL").
-3. **OpenStreetMap Preview Assets** (`resourcePatch`): Replaces legacy Google Map preview thumbnails in `res/drawable-xxhdpi/` with 240x240 rendered raster previews of Times Square / Midtown Manhattan, NYC for each style.
-
+The OpenStreetMap integration is packaged as a unified `compositeFeaturePatch`:
+1. **Bytecode Layer** (`bytecode`): Core Dalvik bytecode modifications routing all map deciders, view models, style requests, and settings interactions to MapLibre and `OsmStyleBridge`.
+2. **Resource Layer** (`resources`):
+   - **Strings**: Updates `res/values/strings.xml` to rename Map types to "Map styles" and replace legacy Google Map labels and descriptions with OpenStreetMap presets ("Bright", "Liberty", "Positron", "Dark", "Custom URL").
+   - **Preview Assets**: Replaces legacy Google Map preview thumbnails in `res/drawable-xxhdpi/` with 240x240 rendered raster previews of Times Square / Midtown Manhattan, NYC for each style.
 ### Bytecode Modifications
 1. **Main Map Decider Fragment**:
 - Target: `com.groundspeak.geocaching.intro.mainmap.map.MapDeciderFragment.onResume()`
@@ -194,7 +195,7 @@ Enables local Premium membership status across the application and removes upgra
    - Targets: `com.groundspeak.geocaching.intro.model.d.e` (`LegacyGeocacheRepo.loadGeocache`) and `com.groundspeak.geocaching.intro.model.LegacyGeocacheRepo$fetchLegacyCacheFromServer$2.invokeSuspend`
    - In `d.e`, intercepts `Lie4.l(gf6)` to register the database's `LiteGeocache` in `GeocacheEnrichmentBridge.rememberLiteGeocache`.
    - In `fetchLegacyCacheFromServer$2`, intercepts the error return point when server requests fail with HTTP 403 Forbidden (which the Groundspeak mobile API returns for basic accounts on traditional caches with Difficulty > 1.5 or Terrain > 1.5, and on non-traditional caches).
-   - Routes through `GeocacheEnrichmentBridge.onFetchFailed`, which scrapes the public cache page on `geocaching.com` (where all non-PMO cache descriptions, hints, and owner details are public), enriches the cache with `placedBy`, `shortDescription`, `longDescription`, and `encodedHints`, saves it into the local `y82` SQLite database with `IsLite = 0`, and returns a `Success(xk9)` result.
+   - Routes through `GeocacheEnrichmentBridge.onFetchFailed`, which scrapes the public cache page on `geocaching.com` (where all non-PMO cache descriptions, hints, and owner details are public). When public listing data is retrieved, enriches the cache with `placedBy`, `shortDescription`, `longDescription`, and `encodedHints`, preserving the original cache's availability and publication status, saves it into the local `y82` SQLite database with `IsLite = 0`, and returns a `Success(xk9)` result. If public scraping fails or times out, the original failure is preserved so stale/blank records are not cached or stored.
    - Restores missing cache descriptions, hint button functionality, and owner attribution across cache details, description webviews, and navigation screens.
 ---
 
@@ -224,8 +225,9 @@ Unlocks the full client-side geocache log templates system, allowing Basic accou
 Unlocks beta and experimental features in Settings without a Geocaching Premium membership, providing access to in-development tools, multiple log photos, Omni-Search, dark mode web descriptions, and 10% Projects.
 
 ### Configuration Options
-- `unlockAllBetaFeatures` (default: `true`): Unlocks all 10% beta features (Activity Feed, Cache Log Translation, Autofill, Confetti, etc.) via LaunchDarkly flags.
-
+- `unlockAllBetaFeatures` (default: `true`): Unlocks all 10% beta features (Activity Feed, Cache Log Translation, Autofill, Confetti, etc.).
+- `enableUnpersistedExperimentalFeatures` (default: `true`): Persists and enables the Collaborative Lists, Has Parking, and Trackables Only toggles in Experimental Features.
+- `bypassExperimentalServerSync` (default: `true`): Keeps experimental feature toggles local without POSTing to or being overwritten by `/mobile/v1/user/settings/mobileexperiments`.
 ### Bytecode Modifications
 1. **Settings Screen Gate**:
    - Target: `com.groundspeak.geocaching.intro.fragments.settings.SettingsFragment.y()`
@@ -249,3 +251,24 @@ Removes the Shop Geocaching promotional item row and promotional card ("Everythi
 2. **Profile Screen Composable**:
    - Target: `com.groundspeak.geocaching.intro.profile.l.b`
    - Injects `const/4 v$reg, 0x1` right before the `if-nez v$reg, :cond_54d` branch evaluating `ShopLinkData.isHidden` (`hda.a`), guaranteeing the composable unconditionally branches to skip both the Shop Geocaching row (`k19.n`) and the featured promotional banner card (`q.a`) without disrupting Compose slot table alignment.
+
+---
+
+## 9. Enable Developer Tools and Feature Flags
+### Overview
+Exposes the internal Geocaching Developer/Debug menu in Settings and unlocks client-side LaunchDarkly feature flags, Remote Config parameters, and residual membership gates. Disabled by default (`default = false`) to avoid unintentional test mode activations or telemetry disruptions for standard users.
+
+### Configuration Options
+1. **Debug & Diagnostic Surfaces**:
+   - `exposeDebugMenuInSettings` (default: `true`): Restores the internal Debug Menu item in Settings (LaunchDarkly overrides, Remote Config overrides, AutoLogger, Style/Component/Tooltip previews, and DebugSharedPrefs toggles).
+   - `enableAchievementDebugTap` (default: `false`): Enables the internal `Debug.TEST_AWARD` tap handler in `AchievementActivity` to test confetti and cycle achievement states.
+2. **Remaining Client Membership Gates**:
+   - `unlockTrailsMapTypeGate` (default: `true`): Unlocks Trails and Wheelchair Trails in `MapTypeSelectionFragment` when OpenStreetMap Drop-in Replacement is not enabled.
+   - `unlockNewsletterSettingsGate` (default: `true`): Unlocks newsletter language selection and hides the Basic-account upgrade banner in `NewsletterSettingsFragment`.
+   - `unlockHideCachePremiumOption` (default: `true`): Enables Premium-only controls in `HideCacheViewModel` and `ConversationViewModel` GC code validation.
+3. **Feature Flag & Remote Config Selectors**:
+   - Individual toggles for Cache Details redesign, list sorting, and experiments.
+
+### Bytecode Modifications
+- Targets `SettingsFragment.y()` to register the internal debug entry point.
+- Intercepts LaunchDarkly evaluation wrappers in `Ll75;` and RemoteConfig resolution methods to apply local overrides.

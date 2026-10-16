@@ -1,11 +1,11 @@
 package app.aidan.patches.geocaching.customization
 
 import app.aidan.patches.geocaching.shared.COMPATIBILITY_GEOCACHING
+import app.aidan.patches.shared.compositeFeaturePatch
 import app.morphe.patcher.extensions.InstructionExtensions.addInstructions
 import app.morphe.patcher.patch.BytecodePatchContext
 import app.morphe.patcher.patch.PatchException
-import app.morphe.patcher.patch.bytecodePatch
-import app.morphe.patcher.patch.resourcePatch
+import app.morphe.patcher.patch.ResourcePatchContext
 import com.android.tools.smali.dexlib2.Opcode
 import com.android.tools.smali.dexlib2.iface.instruction.OneRegisterInstruction
 import com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction
@@ -33,105 +33,80 @@ private const val NAVIGATION_MAP_ACTIVITY_SETUP_MAP = "Lcom/groundspeak/geocachi
 
 private object OsmPreviewResourceHolder
 
-/**
- * Resource companion patch that replaces proprietary Google Map type preview webp images
- * with rendered OpenStreetMap style thumbnails in a busy location.
- */
-@Suppress("unused")
-val openStreetMapPreviewAssetsPatch = resourcePatch(
-    name = "OpenStreetMap Preview Assets",
-    description = "Replaces proprietary Google Map type preview webp images with rendered OpenStreetMap style thumbnails in a busy location.",
-    default = true
-) {
-    category("Customization")
-    compatibleWith(COMPATIBILITY_GEOCACHING)
+private fun ResourcePatchContext.replacePreviewAssets() {
+    val previews = mapOf(
+        "map_preview_trails.webp" to "geocaching/map_previews/map_preview_trails.webp",
+        "map_preview_street.webp" to "geocaching/map_previews/map_preview_street.webp",
+        "map_preview_satellite.webp" to "geocaching/map_previews/map_preview_satellite.webp",
+        "map_preview_terrain.webp" to "geocaching/map_previews/map_preview_terrain.webp",
+        "map_preview_hybrid.webp" to "geocaching/map_previews/map_preview_hybrid.webp"
+    )
 
-    execute {
-        val previews = mapOf(
-            "map_preview_trails.webp" to "geocaching/map_previews/map_preview_trails.webp",
-            "map_preview_street.webp" to "geocaching/map_previews/map_preview_street.webp",
-            "map_preview_satellite.webp" to "geocaching/map_previews/map_preview_satellite.webp",
-            "map_preview_terrain.webp" to "geocaching/map_previews/map_preview_terrain.webp",
-            "map_preview_hybrid.webp" to "geocaching/map_previews/map_preview_hybrid.webp"
-        )
+    val targetDirs = listOf(
+        "res/drawable-xxhdpi",
+        "res/drawable-xxhdpi-v4"
+    )
 
-        val targetDirs = listOf(
-            "res/drawable-xxhdpi",
-            "res/drawable-xxhdpi-v4"
-        )
+    for ((fileName, resourcePath) in previews) {
+        val resourceStream = OsmPreviewResourceHolder::class.java.classLoader.getResourceAsStream(resourcePath)
+            ?: OsmPreviewResourceHolder::class.java.getResourceAsStream("/$resourcePath")
+            ?: throw PatchException("Bundled preview asset $resourcePath not found in patch resources")
 
-        for ((fileName, resourcePath) in previews) {
-            val resourceStream = OsmPreviewResourceHolder::class.java.classLoader.getResourceAsStream(resourcePath)
-                ?: OsmPreviewResourceHolder::class.java.getResourceAsStream("/$resourcePath")
-                ?: throw PatchException("Bundled preview asset $resourcePath not found in patch resources")
+        val bytes = resourceStream.use { it.readBytes() }
 
-            val bytes = resourceStream.use { it.readBytes() }
-
-            var written = false
-            for (dir in targetDirs) {
-                val targetFile = get("$dir/$fileName")
-                if (targetFile.exists()) {
-                    targetFile.outputStream().use { it.write(bytes) }
-                    written = true
-                }
-            }
-            if (!written) {
-                val targetFile = get("res/drawable-xxhdpi/$fileName")
+        var written = false
+        for (dir in targetDirs) {
+            val targetFile = get("$dir/$fileName")
+            if (targetFile.exists()) {
                 targetFile.outputStream().use { it.write(bytes) }
+                written = true
             }
+        }
+        if (!written) {
+            val targetFile = get("res/drawable-xxhdpi/$fileName")
+            targetFile.outputStream().use { it.write(bytes) }
         }
     }
 }
 
-/**
- * Resource companion patch that renames Map types to Map styles and updates labels and descriptions
- * in strings.xml to match OpenStreetMap basemap presets.
- */
-@Suppress("unused")
-val openStreetMapResourcePatch = resourcePatch(
-    name = "OpenStreetMap Resource Strings",
-    description = "Updates map type names and descriptions in strings.xml to reflect OpenStreetMap styles.",
-    default = true
-) {
-    category("Customization")
-    compatibleWith(COMPATIBILITY_GEOCACHING)
-
-    execute {
-        document("res/values/strings.xml").use { doc ->
-            val stringNodes = doc.getElementsByTagName("string")
-            for (i in 0 until stringNodes.length) {
-                val element = stringNodes.item(i) as? Element ?: continue
-                when (element.getAttribute("name")) {
-                    "map_type_trails" -> element.textContent = "Bright"
-                    "map_description_trails" -> element.textContent = "Colorful OpenMapTiles basemap"
-                    "map_type_street" -> element.textContent = "Liberty"
-                    "map_description_street" -> element.textContent = "Clean, detailed OpenStreetMap style"
-                    "map_type_satellite" -> element.textContent = "Positron"
-                    "map_description_satellite" -> element.textContent = "Light and minimal basemap"
-                    "map_type_terrain" -> element.textContent = "Dark"
-                    "map_description_terrain" -> element.textContent = "Dark mode OpenStreetMap vector tiles"
-                    "map_type_hybrid" -> element.textContent = "Custom URL"
-                    "map_description_hybrid" -> element.textContent = "Custom MapLibre style JSON endpoint"
-                    "premium_upsell_item_map_types" -> element.textContent = "Map styles"
-                }
+private fun ResourcePatchContext.updateOsmStrings() {
+    document("res/values/strings.xml").use { doc ->
+        val stringNodes = doc.getElementsByTagName("string")
+        for (i in 0 until stringNodes.length) {
+            val element = stringNodes.item(i) as? Element ?: continue
+            when (element.getAttribute("name")) {
+                "map_type_trails" -> element.textContent = "Bright"
+                "map_description_trails" -> element.textContent = "Colorful OpenMapTiles basemap"
+                "map_type_street" -> element.textContent = "Liberty"
+                "map_description_street" -> element.textContent = "Clean, detailed OpenStreetMap style"
+                "map_type_satellite" -> element.textContent = "Positron"
+                "map_description_satellite" -> element.textContent = "Light and minimal basemap"
+                "map_type_terrain" -> element.textContent = "Dark"
+                "map_description_terrain" -> element.textContent = "Dark mode OpenStreetMap vector tiles"
+                "map_type_hybrid" -> element.textContent = "Custom URL"
+                "map_description_hybrid" -> element.textContent = "Custom MapLibre style JSON endpoint"
+                "premium_upsell_item_map_types" -> element.textContent = "Map styles"
             }
         }
     }
 }
 
 @Suppress("unused")
-val openStreetMapPatch = bytecodePatch(
+val openStreetMapPatch = compositeFeaturePatch(
     name = "OpenStreetMap Drop-in Replacement",
     description = "Replaces Google Maps with OpenStreetMap (MapLibre vector engine) and adds in-app OpenStreetMap style switching and custom URL configuration to Map settings.",
     default = true
 ) {
     category("Customization")
     compatibleWith(COMPATIBILITY_GEOCACHING)
-    dependsOn(openStreetMapResourcePatch)
-    dependsOn(openStreetMapPreviewAssetsPatch)
     extendWith("extensions/extension.mpe")
 
-    execute {
+    resources {
+        replacePreviewAssets()
+        updateOsmStrings()
+    }
+
+    bytecode {
         // 1. Force MapDeciderFragment to always select the MapLibre destination
         patchMapDeciderFragment()
 

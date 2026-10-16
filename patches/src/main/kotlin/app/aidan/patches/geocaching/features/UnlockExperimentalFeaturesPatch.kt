@@ -15,7 +15,7 @@ import com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction
 val unlockExperimentalFeaturesPatch = bytecodePatch(
     name = "Unlock Experimental Features",
     description = "Unlocks beta and experimental features in Settings without Geocaching Premium.",
-    default = true
+    default = false
 ) {
     category("Features")
     compatibleWith(COMPATIBILITY_GEOCACHING)
