@@ -339,6 +339,150 @@ def test_parser_deploy_arguments():
         )
 
 
+def test_dev_subcommand_parser():
+    parser = build_parser()
+    args = parser.parse_args(["dev", "geocaching"])
+    assert args.app == "geocaching"
+    assert args.launch is True
+    assert args.all is True
+    assert args.device is None
+    assert args.clean_install is False
+    assert args.reinstall is False
+
+    args_custom = parser.parse_args(
+        ["dev", "sezzle", "--device", "emulator-5554", "--clean-install"]
+    )
+    assert args_custom.app == "sezzle"
+    assert args_custom.device == "emulator-5554"
+    assert args_custom.clean_install is True
+
+    with pytest.raises(SystemExit):
+        parser.parse_args(["dev", "sezzle", "--reinstall", "--clean-install"])
+
+
+def test_handle_dev_dispatches_build_and_deploy(monkeypatch, tmp_path):
+    from argparse import Namespace
+
+    from apk_lab.cli import handle_dev
+
+    fake_repo = tmp_path / "repo"
+    fake_repo.mkdir()
+    fake_bundle = fake_repo / "patches" / "build" / "libs" / "patches-test.mpp"
+    fake_artifact = fake_repo / "apk" / "my-app.apk"
+
+    monkeypatch.setattr("apk_lab.deployment.find_repo_root", lambda: fake_repo)
+    monkeypatch.setattr("apk_lab.deployment.build_patch_bundle", lambda r: fake_bundle)
+    monkeypatch.setattr(
+        "apk_lab.deployment.find_app_artifact", lambda target, r: fake_artifact
+    )
+
+    class MockInspection:
+        package_name = "com.example.mockapp"
+
+    monkeypatch.setattr(
+        "apk_lab.inspection.inspect_artifact", lambda p: MockInspection()
+    )
+
+    deployed_args = {}
+
+    def mock_deploy_artifact(**kwargs):
+        deployed_args.update(kwargs)
+        return DeployResult(
+            output_apk=str(tmp_path / "out.apk"),
+            package_name=kwargs["package_name"],
+            device_serial=kwargs.get("device_serial"),
+            applied_patches=["PatchA"],
+            install_mode="reinstall",
+            launch_component="com.example.mockapp/.MainActivity",
+        )
+
+    monkeypatch.setattr("apk_lab.deployment.deploy_artifact", mock_deploy_artifact)
+
+    args = Namespace(
+        app="mockapp",
+        device="emulator-1234",
+        launch=True,
+        all=True,
+        clean_install=False,
+    )
+    exit_code = handle_dev(args)
+    assert exit_code == ExitCode.SUCCESS
+    assert deployed_args["artifact_path"] == fake_artifact
+    assert deployed_args["mpp_path"] == fake_bundle
+    assert deployed_args["package_name"] == "com.example.mockapp"
+    assert deployed_args["device_serial"] == "emulator-1234"
+    assert deployed_args["launch"] is True
+    assert deployed_args["all_defaults"] is True
+
+
+def test_deploy_build_flag(monkeypatch, tmp_path):
+    from argparse import Namespace
+
+    from apk_lab.deployment import run_deploy
+
+    fake_repo = tmp_path / "repo"
+    fake_repo.mkdir()
+    fake_bundle = fake_repo / "patches" / "build" / "libs" / "patches-built.mpp"
+
+    monkeypatch.setattr("apk_lab.deployment.find_repo_root", lambda: fake_repo)
+    monkeypatch.setattr("apk_lab.deployment.build_patch_bundle", lambda r: fake_bundle)
+
+    captured = {}
+
+    def mock_deploy(**kwargs):
+        captured.update(kwargs)
+        return DeployResult(
+            output_apk=str(tmp_path / "out.apk"),
+            package_name=kwargs["package_name"],
+            device_serial=None,
+            applied_patches=["PatchA"],
+            install_mode="reinstall",
+            launch_component=None,
+        )
+
+    monkeypatch.setattr("apk_lab.deployment.deploy_artifact", mock_deploy)
+
+    # Deploy with --build and without --mpp
+    args = Namespace(
+        artifact="app.apk",
+        mpp=None,
+        build=True,
+        package="com.example.test",
+        all=True,
+        enable=[],
+        options=[],
+        device=None,
+        launch=False,
+        clean_install=False,
+        out=None,
+        keystore=None,
+        ks_alias=None,
+        ks_pass=None,
+        key_pass=None,
+    )
+    exit_code = run_deploy(args)
+    assert exit_code == ExitCode.SUCCESS
+    assert captured["mpp_path"] == fake_bundle
+    assert captured["package_name"] == "com.example.test"
+
+    # Deploy without --mpp and without --build fails with ValueError
+    args_missing = Namespace(
+        artifact="app.apk",
+        mpp=None,
+        build=False,
+        package="com.example.test",
+        all=True,
+        enable=[],
+        options=[],
+        device=None,
+        launch=False,
+        clean_install=False,
+        out=None,
+    )
+    with pytest.raises(ValueError, match="Either --mpp or --build"):
+        run_deploy(args_missing)
+
+
 def test_parser_monitor_arguments():
     parser = build_parser()
     args = parser.parse_args(
