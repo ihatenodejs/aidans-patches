@@ -1,6 +1,7 @@
 package app.aidan.patches.pay365.ads
 
 import app.aidan.patches.pay365.shared.COMPATIBILITY_365_PAY
+import app.aidan.patches.shared.disableOptionalVoidMethods
 import app.morphe.patcher.extensions.InstructionExtensions.addInstructions
 import app.morphe.patcher.patch.BytecodePatchContext
 import app.morphe.patcher.patch.booleanOption
@@ -97,7 +98,7 @@ private fun BytecodePatchContext.suppressInAppMessages() {
         }
     }
 
-    disableVoidMethods(
+    disableOptionalVoidMethods(
         "Lcom/onesignal/rnonesignalandroid/RNOneSignal;",
         "addInAppMessageClickListener",
         "addInAppMessagesLifecycleListener"
@@ -124,22 +125,6 @@ private fun BytecodePatchContext.resolvePromiseFalse(
                     return-void
                     """.trimIndent()
                 )
-            }
-        }
-    }
-}
-
-private fun BytecodePatchContext.disableVoidMethods(
-    classDescriptor: String,
-    vararg methodNames: String
-) {
-    val mutableClass = mutableClassDefByOrNull(classDescriptor) ?: return
-    val methodSet = methodNames.toSet()
-    for (method in mutableClass.methods) {
-        if (method.name in methodSet && method.returnType == "V" && method.implementation != null) {
-            val firstInst = method.implementation?.instructions?.firstOrNull()
-            if (firstInst?.opcode != Opcode.RETURN_VOID) {
-                method.addInstructions(0, "return-void")
             }
         }
     }
