@@ -190,6 +190,74 @@ move-result-object v0
     assert any(d.code == "ORPHAN_MOVE_RESULT" for d in report.diagnostics)
 
 
+def test_invoke_custom_and_polymorphic_move_result():
+    snippet = """invoke-custom {v0}, myCallSite()I, Lbsm;->metafactory()Ljava/lang/invoke/CallSite;
+move-result v0
+invoke-polymorphic {v0}, Ljava/lang/invoke/MethodHandle;->invoke([Ljava/lang/Object;)Ljava/lang/Object;, (I)Ljava/lang/String;
+move-result-object v0
+invoke-custom/range {v0 .. v0}, makeConcat()J, Lbsm;->bsm()Ljava/lang/invoke/CallSite;
+move-result-wide v0
+"""
+    report = validate_smali_snippet(
+        snippet, locals_count=2, parameter_count=0, is_static=True
+    )
+    assert not any(d.code == "ORPHAN_MOVE_RESULT" for d in report.diagnostics)
+    assert not any(d.code == "INVALID_MOVE_RESULT" for d in report.diagnostics)
+
+
+def test_move_result_after_void_invoke_error():
+    snippet = """invoke-static {}, Lcom/example/Target;->foo()V
+move-result v0
+"""
+    report = validate_smali_snippet(
+        snippet, locals_count=1, parameter_count=0, is_static=True
+    )
+    assert not report.is_valid
+    assert any(
+        d.code == "INVALID_MOVE_RESULT" and "void" in d.message
+        for d in report.diagnostics
+    )
+
+
+def test_move_result_variant_mismatch_error():
+    # Returning primitive int but captured with move-result-object
+    snippet = """invoke-static {}, Lcom/example/Target;->getCount()I
+move-result-object v0
+"""
+    report = validate_smali_snippet(
+        snippet, locals_count=1, parameter_count=0, is_static=True
+    )
+    assert not report.is_valid
+    assert any(
+        d.code == "INVALID_MOVE_RESULT" and "move-result" in d.message
+        for d in report.diagnostics
+    )
+
+
+def test_filled_new_array_move_result_validation():
+    # Valid move-result-object after filled-new-array
+    snippet_ok = """filled-new-array {v0}, [I
+move-result-object v0
+"""
+    rep_ok = validate_smali_snippet(
+        snippet_ok, locals_count=1, parameter_count=0, is_static=True
+    )
+    assert not any(d.code == "INVALID_MOVE_RESULT" for d in rep_ok.diagnostics)
+
+    # Invalid move-result after filled-new-array
+    snippet_err = """filled-new-array {v0}, [I
+move-result v0
+"""
+    rep_err = validate_smali_snippet(
+        snippet_err, locals_count=1, parameter_count=0, is_static=True
+    )
+    assert not rep_err.is_valid
+    assert any(
+        d.code == "INVALID_MOVE_RESULT" and "move-result-object" in d.message
+        for d in rep_err.diagnostics
+    )
+
+
 def test_validate_smali_missing_and_duplicate_labels():
     # Missing label
     rep_missing = validate_smali_snippet(

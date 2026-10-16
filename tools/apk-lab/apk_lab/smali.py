@@ -131,6 +131,16 @@ INVOKE_3RC_OPCODES = {
     "invoke-static/range",
     "invoke-interface/range",
 }
+INVOKE_CUSTOM_OPCODES = {
+    "invoke-custom",
+    "invoke-custom/range",
+}
+
+INVOKE_POLYMORPHIC_OPCODES = {
+    "invoke-polymorphic",
+    "invoke-polymorphic/range",
+}
+
 
 ALL_MOVE_RESULT_OPCODES = {
     "move-result",
@@ -148,6 +158,43 @@ def extract_method_reference_return_type(operand: str) -> str | None:
         operand.strip(),
     )
     return match.group(1) if match else None
+
+
+def extract_invoke_return_type(opcode: str, tokens: list[str]) -> str | None:
+    """Extracts the return type descriptor from an invoke instruction's operands."""
+    if not tokens:
+        return None
+    candidates: list[str] = []
+    if opcode in INVOKE_POLYMORPHIC_OPCODES:
+        candidates.extend([tokens[-1], tokens[1] if len(tokens) > 1 else ""])
+    elif opcode in INVOKE_CUSTOM_OPCODES:
+        candidates.extend([tokens[1] if len(tokens) > 1 else "", tokens[-1]])
+    else:
+        candidates.append(tokens[-1])
+
+    proto_pattern = re.compile(
+        r"(?:->[^( \t\r\n]+|[a-zA-Z0-9_$<>]+)?\([^)]*\)(\[+(?:[ZBSCIJFD]|L[^;\s]+;)|[VZBSCIJFD]|L[^;\s]+;)$"
+    )
+    for cand in candidates:
+        cand_str = cand.strip()
+        m = proto_pattern.search(cand_str)
+        if m:
+            return m.group(1)
+        res = extract_method_reference_return_type(cand_str)
+        if res:
+            return res
+    return None
+
+
+def expected_move_result_for_return_type(return_type: str) -> str | None:
+    """Returns the expected move-result opcode for a given return type descriptor, or None if void."""
+    if return_type == "V":
+        return None
+    if return_type in ("J", "D"):
+        return "move-result-wide"
+    if return_type.startswith(("[", "L")):
+        return "move-result-object"
+    return "move-result"
 
 
 BRANCH_22T_OPCODES = {
@@ -673,29 +720,77 @@ def validate_smali_snippet(
                 )
 
     # Pass 2: Invoke return and move-result sequencing.
-    invoke_opcodes = INVOKE_35C_OPCODES | INVOKE_3RC_OPCODES
+    invoke_opcodes = (
+        INVOKE_35C_OPCODES
+        | INVOKE_3RC_OPCODES
+        | INVOKE_CUSTOM_OPCODES
+        | INVOKE_POLYMORPHIC_OPCODES
+    )
     for index, (line_idx, opcode, tokens) in enumerate(instructions):
-        previous_opcode = instructions[index - 1][1] if index else None
-        if (
-            opcode in ALL_MOVE_RESULT_OPCODES
-            and previous_opcode not in invoke_opcodes | FILLED_NEW_ARRAY_OPCODES
-        ):
-            report.diagnostics.append(
-                SmaliDiagnostic(
-                    line=line_idx,
-                    severity="error",
-                    code="ORPHAN_MOVE_RESULT",
-                    message=(
-                        f"'{opcode}' must immediately follow an invoke or filled-new-array "
-                        "instruction."
-                    ),
+        previous_inst = instructions[index - 1] if index else None
+        previous_opcode = previous_inst[1] if previous_inst else None
+        if opcode in ALL_MOVE_RESULT_OPCODES:
+            if previous_opcode not in invoke_opcodes | FILLED_NEW_ARRAY_OPCODES:
+                report.diagnostics.append(
+                    SmaliDiagnostic(
+                        line=line_idx,
+                        severity="error",
+                        code="ORPHAN_MOVE_RESULT",
+                        message=(
+                            f"'{opcode}' must immediately follow an invoke or filled-new-array "
+                            "instruction."
+                        ),
+                    )
                 )
-            )
+            elif previous_opcode in FILLED_NEW_ARRAY_OPCODES:
+                if opcode != "move-result-object":
+                    report.diagnostics.append(
+                        SmaliDiagnostic(
+                            line=line_idx,
+                            severity="error",
+                            code="INVALID_MOVE_RESULT",
+                            message=(
+                                f"'{opcode}' cannot follow '{previous_opcode}'. "
+                                "Expected 'move-result-object'."
+                            ),
+                        )
+                    )
+            elif previous_opcode in invoke_opcodes and previous_inst is not None:
+                prev_return_type = extract_invoke_return_type(
+                    previous_opcode, previous_inst[2]
+                )
+                if prev_return_type == "V":
+                    report.diagnostics.append(
+                        SmaliDiagnostic(
+                            line=line_idx,
+                            severity="error",
+                            code="INVALID_MOVE_RESULT",
+                            message=(
+                                f"'{opcode}' cannot follow method returning 'void'."
+                            ),
+                        )
+                    )
+                elif prev_return_type is not None:
+                    expected_opcode = expected_move_result_for_return_type(
+                        prev_return_type
+                    )
+                    if expected_opcode and opcode != expected_opcode:
+                        report.diagnostics.append(
+                            SmaliDiagnostic(
+                                line=line_idx,
+                                severity="error",
+                                code="INVALID_MOVE_RESULT",
+                                message=(
+                                    f"'{opcode}' does not match return type "
+                                    f"'{prev_return_type}'. Expected '{expected_opcode}'."
+                                ),
+                            )
+                        )
 
         if opcode not in invoke_opcodes:
             continue
 
-        return_type = extract_method_reference_return_type(tokens[-1] if tokens else "")
+        return_type = extract_invoke_return_type(opcode, tokens)
         if return_type is None or return_type == "V":
             continue
 
