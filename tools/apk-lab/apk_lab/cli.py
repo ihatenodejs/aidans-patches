@@ -789,6 +789,15 @@ def handle_res(args: argparse.Namespace) -> int:
     try:
         from apk_lab.resources import run_res
 
+        if getattr(args, "text", None) and not getattr(args, "query", None):
+            args.query = f"text:{args.text}"
+        elif not getattr(args, "query", None) and not getattr(args, "text", None):
+            print(
+                "Resource inspection error: either --query or --text/--value is required",
+                file=sys.stderr,
+            )
+            return ExitCode.USAGE_OR_TOOL_ERROR
+
         return run_res(args)
     except FileNotFoundError as e:
         print(f"Resource inspection error: {e}", file=sys.stderr)
@@ -1228,7 +1237,17 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_res.add_argument("artifact", help="Path to APK/APKM/XAPK/APKS artifact")
     p_res.add_argument(
-        "--query", required=True, help="Resource name, ID, or path query"
+        "--query",
+        "-q",
+        default=None,
+        help="Resource name, ID, path, or text: query (or use --text/--value)",
+    )
+    p_res.add_argument(
+        "--text",
+        "--value",
+        dest="text",
+        default=None,
+        help="Search resource string/text values (shorthand for --query text:<str>)",
     )
     p_res.add_argument("--extract", help="Directory to extract matched file resources")
     p_res.set_defaults(handler=handle_res)
