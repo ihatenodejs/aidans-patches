@@ -62,6 +62,18 @@ def test_normalize_resource_query_valid():
     q_bare = normalize_resource_query("map_preview_trails")
     assert q_bare.kind == "bare_name"
     assert q_bare.resource_name == "map_preview_trails"
+    # Value / text query
+    q_val = normalize_resource_query("text:Premium")
+    assert q_val.kind == "value"
+    assert q_val.text_value == "Premium"
+
+    q_val2 = normalize_resource_query("val:hello world")
+    assert q_val2.kind == "value"
+    assert q_val2.text_value == "hello world"
+
+    q_val3 = normalize_resource_query("value:test")
+    assert q_val3.kind == "value"
+    assert q_val3.text_value == "test"
 
 
 def test_normalize_resource_query_invalid():
@@ -76,6 +88,9 @@ def test_normalize_resource_query_invalid():
 
     with pytest.raises(ValueError, match="absolute path"):
         normalize_resource_query("/etc/passwd")
+
+    with pytest.raises(ValueError, match="empty"):
+        normalize_resource_query("text:   ")
 
 
 def test_parse_aapt2_resource_dump():
@@ -126,14 +141,15 @@ Package name=com.example.app id=7f
 def test_query_apk_resources_cross_split_and_duplicate_status(tmp_path, monkeypatch):
     base_apk = tmp_path / "base.apk"
     with zipfile.ZipFile(base_apk, "w") as zf:
+        zf.writestr("resources.arsc", b"fake_arsc")
         zf.writestr("AndroidManifest.xml", b"<manifest/>")
         zf.writestr("res/drawable/icon.png", b"icon_v1")
         zf.writestr("assets/bundle.js", b"console.log()")
 
     split_apk = tmp_path / "split_config.xxhdpi.apk"
     with zipfile.ZipFile(split_apk, "w") as zf:
+        zf.writestr("resources.arsc", b"fake_arsc")
         zf.writestr("res/drawable-xxhdpi/icon.png", b"icon_xxhdpi")
-
     mat_base = MaterializedApk(
         path=base_apk,
         container_member="splits/base.apk",
@@ -196,6 +212,7 @@ Package name=com.example.app id=7f
 def test_query_apk_resources_aapt2_nonzero_warning(tmp_path, monkeypatch):
     apk = tmp_path / "base.apk"
     with zipfile.ZipFile(apk, "w") as zf:
+        zf.writestr("resources.arsc", b"fake_arsc")
         zf.writestr("AndroidManifest.xml", b"<manifest/>")
     mat = MaterializedApk(
         path=apk, split_name="base", is_base=True, container_member=None
@@ -289,3 +306,95 @@ def test_extract_matched_resources_preflight_and_safety(tmp_path):
             materialized_apks=[mat],
             matches=[match_file],
         )
+
+
+def test_query_apk_resources_skips_arsc_less_splits(tmp_path, monkeypatch):
+    base_apk = tmp_path / "base.apk"
+    with zipfile.ZipFile(base_apk, "w") as zf:
+        zf.writestr("resources.arsc", b"fake_arsc")
+        zf.writestr("AndroidManifest.xml", b"<manifest/>")
+
+    split_no_arsc = tmp_path / "config.arm64_v8a.apk"
+    with zipfile.ZipFile(split_no_arsc, "w") as zf:
+        zf.writestr("lib/arm64-v8a/libfoo.so", b"ELF")
+
+    mat_base = MaterializedApk(
+        path=base_apk,
+        container_member="splits/base.apk",
+        split_name="base",
+        is_base=True,
+    )
+    mat_split = MaterializedApk(
+        path=split_no_arsc,
+        container_member="splits/config.arm64_v8a.apk",
+        split_name="config.arm64_v8a",
+        is_base=False,
+    )
+
+    calls: list[list[str]] = []
+
+    def fake_aapt2(cmd, **kwargs):
+        calls.append(cmd)
+        out = """
+Package name=com.example.app id=7f
+  type string id=01
+    resource 0x7f010001 string/app_name
+      () "My App"
+"""
+        return subprocess.CompletedProcess(cmd, 0, out, "")
+
+    monkeypatch.setattr(subprocess, "run", fake_aapt2)
+    monkeypatch.setattr(
+        "apk_lab.resources.find_build_tools_bin", lambda name: Path("/bin/aapt2")
+    )
+
+    query = normalize_resource_query("0x7f010001")
+    matches, warnings = query_apk_resources([mat_base, mat_split], query)
+    assert len(warnings) == 0
+    assert len(matches) == 1
+    # aapt2 should only have been called for base.apk, NOT config.arm64_v8a.apk
+    assert len(calls) == 1
+    assert str(base_apk) in calls[0]
+
+    # And raw zip members from the arsc-less split should still be discoverable
+    q_lib = normalize_resource_query("lib/arm64-v8a/libfoo.so")
+    lib_matches, _ = query_apk_resources([mat_base, mat_split], q_lib)
+    assert len(lib_matches) == 1
+    assert lib_matches[0].split_name == "config.arm64_v8a"
+    assert lib_matches[0].kind == "library"
+
+
+def test_query_apk_resources_finds_value_match(tmp_path, monkeypatch):
+    base_apk = tmp_path / "base.apk"
+    with zipfile.ZipFile(base_apk, "w") as zf:
+        zf.writestr("resources.arsc", b"fake_arsc")
+
+    mat_base = MaterializedApk(
+        path=base_apk,
+        container_member="base.apk",
+        split_name="base",
+        is_base=True,
+    )
+
+    def fake_aapt2(cmd, **kwargs):
+        out = """
+Package name=com.example.app id=7f
+  type string id=01
+    resource 0x7f010001 string/premium_upsell
+      () "You must be a Premium member"
+    resource 0x7f010002 string/free_tier
+      () "Basic free member"
+"""
+        return subprocess.CompletedProcess(cmd, 0, out, "")
+
+    monkeypatch.setattr(subprocess, "run", fake_aapt2)
+    monkeypatch.setattr(
+        "apk_lab.resources.find_build_tools_bin", lambda name: Path("/bin/aapt2")
+    )
+
+    query = normalize_resource_query("text:Premium")
+    matches, warnings = query_apk_resources([mat_base], query)
+    assert len(warnings) == 0
+    assert len(matches) == 1
+    assert matches[0].resource_name == "premium_upsell"
+    assert matches[0].value == '"You must be a Premium member"'

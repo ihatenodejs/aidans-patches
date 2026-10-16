@@ -26,13 +26,14 @@ from apk_lab.models import (
 
 @dataclass(frozen=True)
 class ParsedQuery:
-    kind: Literal["id", "type_name", "path", "bare_name"]
+    kind: Literal["id", "type_name", "path", "bare_name", "value"]
     raw_query: str
     resource_id: str | None = None
     package_name: str | None = None
     resource_type: str | None = None
     resource_name: str | None = None
     path: str | None = None
+    text_value: str | None = None
 
 
 def normalize_resource_query(query: str) -> ParsedQuery:
@@ -52,6 +53,15 @@ def normalize_resource_query(query: str) -> ParsedQuery:
         raise ValueError(
             f"Resource query contains path traversal or absolute path: '{clean}'"
         )
+    # 0. Text / value query: text:<str>, val:<str>, value:<str>
+    if clean.startswith(("text:", "val:", "value:")) or clean.lower().startswith(
+        ("text:", "val:", "value:")
+    ):
+        _prefix, rest = clean.split(":", 1)
+        search_text = rest.strip()
+        if not search_text:
+            raise ValueError("Text/value query string cannot be empty")
+        return ParsedQuery(kind="value", raw_query=clean, text_value=search_text)
 
     # 1. Hex ID: 0x7f08028e or 7f08028e
     if re.match(r"^(?:0x)?[0-9a-fA-F]{8}$", clean):
@@ -216,6 +226,18 @@ def query_apk_resources(
     warnings: list[str] = []
 
     for mat in materialized_apks:
+        has_arsc = False
+        try:
+            with zipfile.ZipFile(mat.path, "r") as zf:
+                has_arsc = "resources.arsc" in zf.namelist()
+        except zipfile.BadZipFile:
+            has_arsc = False
+
+        if not has_arsc:
+            # Still enumerate raw zip members (e.g. assets, lib, manifest)
+            raw_entries.extend(enumerate_raw_zip_members(mat))
+            continue
+
         # 1. Run aapt2 dump resources
         res = subprocess.run(
             [str(aapt2), "dump", "resources", str(mat.path)],
@@ -272,6 +294,12 @@ def query_apk_resources(
             # Fall back to raw entries
             matching_raw = [e for e in raw_entries if e["path"] == target_path]
             candidates.extend(matching_raw)
+    elif parsed_query.kind == "value":
+        target_lower = (parsed_query.text_value or "").lower()
+        for e in arsc_entries:
+            val = e.get("value")
+            if val and target_lower in val.lower():
+                candidates.append(e)
 
     elif parsed_query.kind == "bare_name":
         target_name = parsed_query.resource_name
