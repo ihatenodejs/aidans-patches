@@ -61,6 +61,16 @@ class ExitInfoRecord:
 
 
 @dataclass(frozen=True)
+class ResolvedFrame:
+    raw_frame: str
+    class_name: str
+    method_name: str
+    smali_path: Path | None = None
+    method_signature: str | None = None
+    code_snippet: list[str] | None = None
+
+
+@dataclass(frozen=True)
 class CrashReport:
     process: str
     pid: int | None
@@ -68,6 +78,7 @@ class CrashReport:
     message: str
     stack_trace: list[str]
     timestamp: str | None = None
+    resolved_frames: list[ResolvedFrame] | None = None
 
 
 def find_adb() -> Path:
@@ -331,6 +342,121 @@ def _parse_crash_block(
         stack_trace=stack_trace,
         timestamp=timestamp,
     )
+
+
+def _find_smali_file(smali_root: Path, class_rel_path: Path) -> Path | None:
+    """Searches for a smali file in smali_root or nested dex directories."""
+    direct = smali_root / class_rel_path
+    if direct.is_file():
+        return direct
+
+    if smali_root.is_dir():
+        # Check immediate subdirectories matching smali/ or smali_classes*/
+        for child in sorted(smali_root.iterdir()):
+            if child.is_dir() and (
+                child.name == "smali" or child.name.startswith("smali_classes")
+            ):
+                candidate = child / class_rel_path
+                if candidate.is_file():
+                    return candidate
+        # Fallback recursive search if directory structure has additional nesting
+        matches = list(smali_root.rglob(class_rel_path.name))
+        for match in matches:
+            if match.is_file() and str(match).endswith(str(class_rel_path)):
+                return match
+    return None
+
+
+def resolve_frame_in_smali(frame_str: str, smali_root: Path) -> ResolvedFrame:
+    """Resolves a raw stack frame string against decompiled Smali files."""
+    frame_pattern = re.compile(r"at\s+([\w$.]+)\.([\w$<>]+)\(([^:]+):?(\d+)?\)")
+    match = frame_pattern.search(frame_str)
+    if not match:
+        return ResolvedFrame(raw_frame=frame_str, class_name="", method_name="")
+
+    class_name, method_name, _, _ = match.groups()
+    # Outer class handling for inner classes (e.g. Foo$Bar -> Foo$Bar.smali)
+    rel_path = Path(*class_name.split(".")).with_suffix(".smali")
+
+    found_path = _find_smali_file(smali_root, rel_path)
+    if not found_path:
+        return ResolvedFrame(
+            raw_frame=frame_str,
+            class_name=class_name,
+            method_name=method_name,
+            smali_path=None,
+            method_signature=None,
+            code_snippet=None,
+        )
+
+    try:
+        content = found_path.read_text(encoding="utf-8")
+    except OSError:
+        return ResolvedFrame(
+            raw_frame=frame_str,
+            class_name=class_name,
+            method_name=method_name,
+            smali_path=found_path,
+            method_signature=None,
+            code_snippet=None,
+        )
+
+    method_re = re.compile(
+        r"^(\.method\b[^\n]*?\b" + re.escape(method_name) + r"\([^\n]*\)[^\n]*)",
+        re.MULTILINE,
+    )
+    m_match = method_re.search(content)
+    if not m_match:
+        return ResolvedFrame(
+            raw_frame=frame_str,
+            class_name=class_name,
+            method_name=method_name,
+            smali_path=found_path,
+            method_signature=None,
+            code_snippet=None,
+        )
+
+    method_sig = m_match.group(1).strip()
+    rest_of_text = content[m_match.end() :]
+    snippet_lines: list[str] = []
+    for line in rest_of_text.splitlines():
+        stripped = line.strip()
+        if stripped == ".end method":
+            break
+        if stripped:
+            snippet_lines.append(stripped)
+        if len(snippet_lines) >= 15:
+            break
+
+    return ResolvedFrame(
+        raw_frame=frame_str,
+        class_name=class_name,
+        method_name=method_name,
+        smali_path=found_path,
+        method_signature=method_sig,
+        code_snippet=snippet_lines if snippet_lines else None,
+    )
+
+
+def resolve_crash_report(report: CrashReport, smali_root: Path) -> CrashReport:
+    """Resolves all stack frames in a CrashReport against smali_root."""
+    resolved = [
+        resolve_frame_in_smali(frame, smali_root) for frame in report.stack_trace
+    ]
+    return CrashReport(
+        process=report.process,
+        pid=report.pid,
+        exception_type=report.exception_type,
+        message=report.message,
+        stack_trace=report.stack_trace,
+        timestamp=report.timestamp,
+        resolved_frames=resolved,
+    )
+
+
+def resolve_crash_frames(crash: CrashReport, smali_dir: Path) -> list[ResolvedFrame]:
+    """Resolves stack frames from crash against smali_dir."""
+    return [resolve_frame_in_smali(frame, smali_dir) for frame in crash.stack_trace]
 
 
 def parse_adb_devices(output: str) -> list[AdbDevice]:

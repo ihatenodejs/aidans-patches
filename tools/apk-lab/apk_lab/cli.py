@@ -715,17 +715,36 @@ def handle_monitor(args: argparse.Namespace) -> int:
         return ExitCode.INFRASTRUCTURE_FAILURE
 
 
+def _find_package_smali_dir(
+    workspace_root: str | Path, package_name: str
+) -> Path | None:
+    pkg_dir = Path(workspace_root) / package_name
+    if not pkg_dir.is_dir():
+        return None
+    # Find all directories named smali under pkg_dir
+    smali_dirs = [d for d in pkg_dir.rglob("smali") if d.is_dir()]
+    if not smali_dirs:
+        return None
+    # Pick the most recently modified smali directory
+    return max(smali_dirs, key=lambda p: p.stat().st_mtime)
+
+
 def handle_crash_trace(args: argparse.Namespace) -> int:
     try:
-        from apk_lab.device import harvest_recent_crashes
+        from apk_lab.device import harvest_recent_crashes, resolve_crash_report
 
         reports = harvest_recent_crashes(args.package, args.device, args.lines)
+        smali_dir = _find_package_smali_dir(
+            getattr(args, "workspace_root", ".apk-lab"), args.package
+        )
+        if smali_dir:
+            reports = [resolve_crash_report(report, smali_dir) for report in reports]
     except Exception as e:  # noqa: BLE001
         print(f"Crash trace error: {e}", file=sys.stderr)
         return ExitCode.INFRASTRUCTURE_FAILURE
 
     if args.json:
-        print(json.dumps([asdict(report) for report in reports], indent=2))
+        print(json.dumps([asdict(report) for report in reports], indent=2, default=str))
         return ExitCode.SUCCESS
     if not reports:
         print(f"No recent crashes detected for package {args.package}")
@@ -743,7 +762,18 @@ def handle_crash_trace(args: argparse.Namespace) -> int:
         print(f"Message: {report.message}")
         if report.stack_trace:
             print("Stack trace:")
-            print("\n".join(report.stack_trace))
+            if report.resolved_frames:
+                for frame in report.resolved_frames:
+                    print(frame.raw_frame)
+                    if frame.smali_path:
+                        print(f"  -> Smali: {frame.smali_path}")
+                    if frame.method_signature:
+                        print(f"  -> Method: {frame.method_signature}")
+                    if frame.code_snippet:
+                        for line in frame.code_snippet:
+                            print(f"       {line}")
+            else:
+                print("\n".join(report.stack_trace))
     return ExitCode.SUCCESS
 
 
