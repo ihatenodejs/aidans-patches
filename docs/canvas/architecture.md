@@ -66,4 +66,4 @@ flowchart LR
 
 ## Patch Targets
 
-1. **`RemoveTrackingAndAnalyticsPatch.kt` (`bytecodePatch`):** Preserves Pendo activity and Canvas startup lifecycles plus authenticated Pandata token retrieval, while neutralizing the Pendo core API, Pendo consent callbacks, first-party analytics and token reporting, Pandata pageview persistence/uploading, offline telemetry, Firebase Crashlytics reporting, the Help rating redirect, and `Logger.canLogUserDetails`.
+1. **`RemoveTrackingAndAnalyticsPatch.kt` (`bytecodePatch`):** Neutralizes Pendo setup/session startup and event APIs, stubs first-party analytics and token analytics reporting (`AppManager.logTokenAnalytics`), suppresses Pandata pageview persistence and uploads, offline telemetry, Firebase Crashlytics reporting (including custom keys), the Help rating redirect, and `Logger.canLogUserDetails`.

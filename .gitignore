@@ -76,6 +76,7 @@ node_modules/
 !.agents/skills/
 .agents/skills/*
 !.agents/skills/apk-lab/
+!.agents/skills/morphe-patches/
 .claude
 
 # Font assets

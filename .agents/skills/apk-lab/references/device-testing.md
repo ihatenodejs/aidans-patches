@@ -10,13 +10,13 @@ Applies Morphe patches from a `.mpp` bundle to an APK or split container (APKM/X
 
 ### Deployment Pipeline & Invariants
 1. **Patch Application**: Executes pinned Morphe Desktop in a temporary scratch workspace.
-2. **Alignment**: Runs `zipalign -f -p 4` to align 32-bit and 64-bit uncompressed shared libraries to 4-byte boundaries.
+2. **Alignment**: Runs `zipalign -f 4` to align 32-bit and 64-bit uncompressed shared libraries to 4-byte boundaries.
 3. **Debug Signing**: Signs the aligned APK using `apksigner` and the standard Android debug keystore (`~/.android/debug.keystore`). If absent, automatically generates the keystore with secure `0600` permissions.
 4. **ADB Streaming Install**:
    - Default / `--reinstall`: Runs `adb install -r` (preserves existing app data and sandbox).
-   - `--clean-install`: Runs `adb uninstall <package>` first (clears app data), then `adb install`.
+   - `--clean-install`: Attempts `adb uninstall <package>` first (clears app data; uninstall failure is ignored), then `adb install`.
 5. **Launcher Activity Execution**: When `--launch` is passed, parses the launchable activity from manifest badging and invokes `adb shell am start -n <package>/<activity>`.
-6. **Atomic File Staging**: Staging occurs inside a temporary directory in the final output's parent folder, ensuring `os.replace` is same-filesystem atomic. Failures leave existing output files untouched.
+6. **Atomic File Staging & Input Preservation**: Staging occurs inside a temporary directory in the final output's parent folder, ensuring `os.replace` is same-filesystem atomic. Output paths are checked upfront to guarantee they never alias or overwrite the source artifact. Failures before destination replacement leave existing output files untouched; installation or launch failures occur after the destination file has already been replaced.
 
 ### CLI Invocation
 
@@ -55,6 +55,7 @@ uv run --project tools/apk-lab apk-lab deploy path/to/app.apkm \
 - `--launch`: Cold-launch the main activity after installation.
 - `--reinstall`: Reinstall preserving data (`adb install -r`, default).
 - `--clean-install`: Uninstall before install (`adb uninstall && adb install`).
+- `--keystore PATH`: Custom signing keystore (must use alias `androiddebugkey` and password `android`).
 - `--out PATH`: Copy the patched, signed APK to a specific output path.
 
 ### Exit Codes
@@ -108,16 +109,30 @@ uv run --project tools/apk-lab apk-lab monitor \
 
 ### Exit Codes
 - `0`: Healthy monitoring session or clean process termination.
-- `2`: Device not connected, multiple devices without `--device`, or package not running.
-- `5`: `RUNTIME_FAILURE` — High CPU spin loop, ANR, crash, or fatal exit-info reason.
+- `2`: Device not connected or multiple devices without `--device`.
+- `5`: `RUNTIME_FAILURE` — Package did not start before `--timeout`, high CPU spin loop, ANR, crash, or fatal exit-info reason.
 
 ---
 
-## 3. Python API Reference
+## 3. `crash-trace` — Recent Device Crash Harvester
+
+Harvests recent logcat buffers for a package and extracts Java fatal exceptions and DEX verification errors.
+
+```bash
+# View recent crashes for connected device
+uv run --project tools/apk-lab apk-lab crash-trace --package com.example.app
+
+# Query specific emulator with custom line count and JSON output
+uv run --project tools/apk-lab apk-lab crash-trace --package com.example.app --device emulator-5554 --lines 10000 --json
+```
+
+---
+
+## 4. Python API Reference
 
 ```python
 from pathlib import Path
-from apk_lab.device import AdbClient, select_device, monitor_application
+from apk_lab.device import AdbClient, select_device, monitor_application, harvest_recent_crashes
 from apk_lab.deployment import deploy_artifact
 from apk_lab.tools import ToolManager
 
@@ -133,7 +148,7 @@ result = deploy_artifact(
     mpp_path=Path("patches/build/libs/patches-1.0.0.mpp"),
     package_name="com.example.app",
     all_defaults=True,
-    requested_patches=None,
+    enabled_patches=[],
     raw_options=[],
     device_serial=serial,
     launch=True,
@@ -158,4 +173,9 @@ if exit_code == 0:
     print("Application running healthy!")
 else:
     print("Application encountered spin, ANR, or crash!")
+
+# Harvest recent crash reports from logcat
+crashes = harvest_recent_crashes(package="com.example.app", device=serial, lines=5000)
+for crash in crashes:
+    print(f"Crash: {crash.exception_class}: {crash.message}")
 ```

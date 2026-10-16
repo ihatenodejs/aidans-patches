@@ -74,7 +74,7 @@ Bytecode mappings and consumers:
 
 ### Developer Settings & Diagnostic Subsystem
 
-The application includes an internal diagnostic and developer configuration suite gated by the static boolean method `Llpk;->a()Z`. In standard release builds, `Llpk;->a()Z` delegates to `Lftd;->a`, which resolves to `false`. When forced to return `true`, the following subsystems activate:
+The application includes an internal diagnostic and developer configuration suite gated by the static boolean method `Llpk;->a()Z`. In standard release builds, `Llpk;->a()Z` delegates to `!Lftd;->a`, which resolves to `true` (production mode). When forced to return `false` (developer/non-prod mode), the following subsystems activate:
 
 1. **Settings Screen Developer Section:**
    - Rendered by composable `Ldq8;k(...)` / `Lmrd;` and driven by `DeveloperSettingsViewModel` (`Lbnh;`).

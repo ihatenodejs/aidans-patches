@@ -149,11 +149,10 @@ This document specifies patches for **365 Pay** (`com.avinside`).
    - **Target Method:** `onCreate(Landroid/os/Bundle;)V`
    - **Injected Call:** `invoke-static {p0}, Lapp/aidan/extension/pay365/DisplayCutoutBridge;->init(Landroid/app/Activity;)V` right before `return-void`.
    - **Runtime Inset Measurement:** Listens to `WindowInsets` via `View.setOnApplyWindowInsetsListener`. Evaluates `cutoutTop = displayCutout.getSafeInsetTop()` and `statusBarTop = insets.getInsets(Type.statusBars()).top`.
-   - **Zero-Config Delta Calculation:** Computes `deltaPx = max(0, effectiveTop - baselinePx)`, where `baselinePx = Math.round(24dp * density)`.
-     - On bezel devices (`cutoutTop == 0`, `statusBarTop <= 36dp`), `deltaPx == 0` (no modification).
-     - On cutout devices, `deltaPx > 0` (e.g. 98 px / ~38.4 dp on Pixel 9 Pro XL).
+   - **Cutout Guard & Dynamic Inset Calculation:** Evaluates `effectiveTop = Math.max(cutoutTop, statusBarTop)`. If `cutoutTop <= 0 && effectiveTop <= Math.round(36dp * density)`, the device has no significant cutout or punch hole and the bridge returns immediately without modifying layout views. Otherwise, `effectiveTop` is passed directly as `cutoutInsetTop` to drive view adaptations.
    - **Visual & Layout Alignment:**
-     - Dynamically expands `headerView` bounds and scales the gradient background `ImageView` from pivot `y = 0` down by `deltaPx` to preserve continuous gradient coverage.
-     - Disables clipping on parent containers (`setClipChildren(false)`).
-     - Shifts header control containers (`qa_dpd_SelectLocation`, `qa_btn_Notifications`, `qa_Account.PageTitle_txt`) down by `deltaPx`, positioning them cleanly below the camera hole.
-     - Translates and adds bottom padding to the body scroll container (`qa_LoadingBar_img`) by `deltaPx` to maintain seamless vertical rhythm without clipping above the bottom navigation bar.
+     - Resolves tag anchors (`qa_dpd_SelectLocation`, `qa_Account.PageTitle_txt`, and `QRCode`) and traverses their parent hierarchies dynamically to locate enclosing header containers and pay screens.
+     - Expands header bounds and scales the gradient background `ImageView` from pivot `y = 0` down by `cutoutInsetTop` to preserve continuous gradient coverage.
+     - Disables clipping on parent containers (`setClipChildren(false)` and `setClipToPadding(false)`).
+     - Shifts header views and action controls down by `cutoutInsetTop`, positioning them cleanly below the camera hole.
+     - Derives body and pay-screen containers from the view hierarchy and applies top translation and bottom padding to maintain seamless vertical rhythm without clipping above the bottom navigation bar.

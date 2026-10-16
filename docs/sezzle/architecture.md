@@ -88,7 +88,7 @@ Sezzle incorporates advertising networks, survey offerwalls, and behavioral anal
 
 See [Sezzle Patch Specifications](patches.md) for full technical implementation details.
 
-1. **`Remove Ads and Tracking` (`bytecodePatch`) with companion `Remove Ads and Tracking from JS Bundle` (`rawResourcePatch`):** Neutralizes advertising and tracking SDKs at the Dalvik layer and strips Thanks network and Rokt post-payment offers in Hermes bytecode via `dependsOn`.
+1. **`Remove Ads and Tracking` (`compositeFeaturePatch`):** Neutralizes advertising and tracking SDKs at the Dalvik layer and strips Thanks network and Rokt post-payment offers in Hermes bytecode via nine bytecode substitutions and a footer SHA-1 rehash.
 2. **`Clean Authentication` (`rawResourcePatch`):** Restricts login to Google SSO and unmounts unavailable phone SMS controls.
 3. **`Unlock Custom App Icons` (`rawResourcePatch`):** Unlocks launcher icon variants without a Premium subscription.
 4. **`Enable App Debugging` (`resourcePatch`):** Adds `android:debuggable="true"` to `AndroidManifest.xml`.

@@ -18,7 +18,7 @@ Do not copy volatile app versions, patch counts, or feature inventories into gui
 
 | Layer | Location | Responsibility |
 | --- | --- | --- |
-| Patch definitions | `patches/src/main/kotlin/app/aidan/patches/` | Morphe `bytecodePatch`, `resourcePatch`, and `rawResourcePatch` declarations, grouped by app and feature. |
+| Patch definitions | `patches/src/main/kotlin/app/aidan/patches/` | Morphe `bytecodePatch`, `resourcePatch`, `rawResourcePatch`, and `compositeFeaturePatch` declarations, grouped by app and feature. |
 | Runtime bridges | `extensions/extension/src/main/java/app/aidan/extension/` | Java classes merged into target DEX through `extensions/extension.mpe`. |
 | APK tooling | `tools/apk-lab/` | Artifact inspection, managed decompilation, comparison, patch verification, deployment, and monitoring. |
 | Metadata generation | `patches/src/main/kotlin/util/PatchListGenerator.kt` | Reflects compiled patches into root `patches-list.json`. |
@@ -34,7 +34,7 @@ Data flow:
 4. Semantic release updates generated metadata, the README patch block, changelog, and release bundle metadata.
 5. `worker/src/apps.ts` and `site/src/data/repo.ts` consume root metadata; Worker compatibility state feeds the site/status badges.
 
-Cross-layer rule: DEX, XML, and raw assets use different Morphe contexts. A feature spanning contexts must use companion patches linked with `dependsOn(...)`; Java bridge calls additionally require `extendWith("extensions/extension.mpe")`. See `patches/AGENTS.md`.
+Cross-layer rule: DEX, XML, and raw assets use different Morphe contexts. A feature spanning contexts should use `compositeFeaturePatch` for private one-to-one companion layers, or standalone companion patches linked with `dependsOn(...)` for shared or multi-feature prerequisites; Java bridge calls additionally require `extendWith("extensions/extension.mpe")`. See `patches/AGENTS.md`.
 
 ## Key Directories
 
@@ -256,8 +256,8 @@ Tests are layered; unit tests do not prove that a proprietary target APK still p
 Patch compatibility policy:
 
 1. Never add a supported target version from metadata comparison alone.
-2. Run `apk-lab check <artifact> --mpp <bundle> --package <pkg> --all` so every compatible patch and boolean-option permutation is exercised.
-3. The check must pass Morphe execution, package/version identity, Android DEX verification, member-delta checks, and extension inventory checks.
+2. Run `apk-lab check <artifact> --mpp <bundle> --package <pkg> --all` so every compatible patch baseline and independent boolean-option inversion is exercised.
+3. The check must pass Morphe execution, package-name/version-code identity, Android DEX verification, member-delta checks (at least one patchable member changed), and extension inventory checks when present.
 4. Deploy through `apk-lab deploy ... --launch`; monitor with `apk-lab monitor`. Verify the actual changed user flow and absence of crash/ANR/main-thread spin.
 5. Clean workspaces only with `apk-lab clean --run ...` or `apk-lab clean --package ...`; never use raw recursive deletion.
 

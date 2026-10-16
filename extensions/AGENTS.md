@@ -35,7 +35,7 @@ Use neighboring bridges as patterns: `sezzle/ConsentGate.java` for a small guard
 ## Cross-Layer Rules
 
 - `extendWith(...)` packages runtime code; it does not modify raw APK assets or XML.
-- Put XML/assets/native-library edits in `resourcePatch`/`rawResourcePatch` companions under `patches/` and link them with `dependsOn(...)`.
+- Put XML/assets/native-library edits in `compositeFeaturePatch` internal layers (for private one-to-one features) or standalone `resourcePatch`/`rawResourcePatch` companions with `dependsOn(...)` (for shared or multi-feature prerequisites) under `patches/`.
 - A bridge method must not be added without its Kotlin patch caller, and a caller must not reference a bridge without `extendWith(...)`.
 - Document runtime/network assumptions in the matching `docs/<app>/patches.md`.
 

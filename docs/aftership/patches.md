@@ -23,7 +23,7 @@ This document describes the Morphe bytecode and resource patches available for *
 
 - **Name:** Add Copy Tracking Number Option
 - **Target Package:** `com.aftership.AfterShip`
-- **Supported Versions:** `5.25.8` (VersionCode: `52580`+)
+- **Supported Versions:** `5.25.8` (VersionCode: `52580`)
 - **Default State:** `true` (Enabled by default)
 - **Type:** Dalvik Bytecode Patch (`bytecodePatch`) with Extension DEX (`extendWith`)
 - **Dependencies:** `Bypass Native Signature Check`
@@ -68,7 +68,7 @@ The patch injects `app.aidan.extension.aftership.CopyTrackingBridge` into the Da
 
 - **Name:** OpenStreetMap Drop-in Replacement
 - **Target Package:** `com.aftership.AfterShip`
-- **Supported Versions:** `5.25.8` (VersionCode: `52580`+)
+- **Supported Versions:** `5.25.8` (VersionCode: `52580`)
 - **Default State:** `true` (Enabled by default)
 - **Type:** Dalvik Bytecode Patch (`bytecodePatch`) with Extension DEX (`extendWith`)
 - **Dependencies:** `Bypass Native Signature Check`
@@ -110,7 +110,7 @@ return-void
 
 - **Name:** Full AMOLED Theme
 - **Target Package:** `com.aftership.AfterShip`
-- **Supported Versions:** `5.25.8` (VersionCode: `52580`+)
+- **Supported Versions:** `5.25.8` (VersionCode: `52580`)
 - **Default State:** `true` (Enabled by default)
 - **Type:** Android XML Resource Patch (`resourcePatch`)
 - **Dependencies:** `Bypass Native Signature Check`
@@ -153,7 +153,7 @@ Text resources (`color_base_text0` -> `#ffffff`, `color_base_text4` -> `#52fffff
 
 - **Name:** Bypass Native Signature Check
 - **Target Package:** `com.aftership.AfterShip`
-- **Supported Versions:** `5.25.8` (VersionCode: `52580`+)
+- **Supported Versions:** `5.25.8` (VersionCode: `52580`)
 - **Default State:** `true` (Enabled by default)
 - **Type:** Raw Binary / Asset Patch (`rawResourcePatch`)
 - **Dependencies:** None
@@ -187,7 +187,7 @@ The patch enforces byte verification: if the target binary is already patched, i
 
 - **Name:** Remove Login
 - **Target Package:** `com.aftership.AfterShip`
-- **Supported Versions:** `5.25.8` (VersionCode: `52580`+)
+- **Supported Versions:** `5.25.8` (VersionCode: `52580`)
 - **Default State:** `true` (Enabled by default)
 - **Type:** Dalvik Bytecode Patch (`bytecodePatch`)
 - **Dependencies:** `Bypass Native Signature Check`
@@ -307,10 +307,10 @@ invoke-virtual {v1, v0}, Landroid/view/View;->setVisibility(I)V
 
 - **Name:** Remove AfterShip Account Page Links
 - **Target Package:** `com.aftership.AfterShip`
-- **Supported Versions:** `5.25.8` (VersionCode: `52580`+)
+- **Supported Versions:** `5.25.8` (VersionCode: `52580`)
 - **Default State:** `true` (Enabled by default)
 - **Type:** Dalvik Bytecode Patch (`bytecodePatch`)
-
+- **Dependencies:** `Bypass Native Signature Check`
 ### 1. Motivation & Purpose
 
 The Account screen (`AccountFragment`) includes a group of non-essential navigation rows at the bottom:
@@ -363,7 +363,7 @@ invoke-virtual {v1, v0}, Landroid/view/View;->setVisibility(I)V
 
 - **Name:** Remove Feedback
 - **Target Package:** `com.aftership.AfterShip`
-- **Supported Versions:** `5.25.8` (VersionCode: `52580`+)
+- **Supported Versions:** `5.25.8` (VersionCode: `52580`)
 - **Default State:** `true` (Enabled by default)
 - **Type:** Dalvik Bytecode Patch (`bytecodePatch`)
 - **Dependencies:** `Bypass Native Signature Check`
@@ -408,7 +408,7 @@ The **Remove Feedback** patch eliminates all feedback prompts, buttons, star rat
 
 - **Name:** Remove Shipment Sync
 - **Target Package:** `com.aftership.AfterShip`
-- **Supported Versions:** `5.25.8` (VersionCode: `52580`+)
+- **Supported Versions:** `5.25.8` (VersionCode: `52580`)
 - **Default State:** `true` (Enabled by default)
 - **Type:** Dalvik Bytecode Patch (`bytecodePatch`)
 - **Dependencies:** `Bypass Native Signature Check`
@@ -453,7 +453,7 @@ The **Remove Shipment Sync** patch completely strips all email synchronization f
 
 - **Name:** Remove Ads and Tracking
 - **Target Package:** `com.aftership.AfterShip`
-- **Supported Versions:** `5.25.8` (VersionCode: `52580`+)
+- **Supported Versions:** `5.25.8` (VersionCode: `52580`)
 - **Default State:** `true` (Enabled by default)
 - **Type:** Dalvik Bytecode Patch (`bytecodePatch`)
 - **Dependencies:** `Bypass Native Signature Check`
@@ -511,7 +511,7 @@ The **Remove Ads and Tracking** patch neutralizes all ad SDK initialization and 
 
 - **Name:** Custom Google Maps API Key
 - **Target Package:** `com.aftership.AfterShip`
-- **Supported Versions:** `5.25.8` (VersionCode: `52580`+)
+- **Supported Versions:** `5.25.8` (VersionCode: `52580`)
 - **Default State:** `false` (Disabled by default)
 - **Type:** Android XML Resource Patch (`resourcePatch`)
 - **Dependencies:** `Bypass Native Signature Check`
@@ -538,7 +538,7 @@ The **Custom Google Maps API Key** patch allows users to supply their own person
 
 - **Name:** Hide Broken Tracking Map
 - **Target Package:** `com.aftership.AfterShip`
-- **Supported Versions:** `5.25.8` (VersionCode: `52580`+)
+- **Supported Versions:** `5.25.8` (VersionCode: `52580`)
 - **Default State:** `false` (Disabled by default)
 - **Type:** Dalvik Bytecode Patch (`bytecodePatch`)
 - **Dependencies:** `Bypass Native Signature Check`
@@ -586,7 +586,7 @@ The **Hide Broken Tracking Map** patch suppresses Google Map fragment attachment
   invoke-direct {v2, v1}, Landroidx/fragment/app/a;-><init>(Landroidx/fragment/app/FragmentManager;)V
   invoke-virtual {v2, v0}, Landroidx/fragment/app/a;->k(Landroidx/fragment/app/Fragment;)Landroidx/fragment/app/a;
   const/4 v0, 0x0
-  invoke-virtual {v2, v0}, Landroidx/fragment/app/a;->j(Z)I
+  invoke-virtual {v2, v0}, Landroidx/fragment/app/a;->f(Z)I
   :cond_skip_all
   return-void
   ```

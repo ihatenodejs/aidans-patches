@@ -56,20 +56,21 @@ uv run --project tools/apk-lab apk-lab inspect path/to/app.apkm --json /tmp/insp
 - `0`: Inspection succeeded.
 - `2`: Artifact file does not exist or build tools missing.
 - `3`: Invalid artifact (archive security violation, inconsistent splits, corrupt manifest).
+- `4`: Infrastructure or uncaught failure.
 
 ---
 
 ## 2. `compare` — Application Version Diffing
 
-Compares two APK/APKM artifacts across metadata, split architecture, native libraries, permissions, and decompiled class bytecode.
+Compares two APK/APKM/XAPK/APKS artifacts across metadata, split architecture, native libraries, and decompiled class bytecode.
 
 ### Diff Capabilities
 - **Metadata**: Version name, version code delta, signing certificate changes.
 - **Splits**: Added, removed, or modified split APKs (based on content hash).
 - **DEX Metrics**: Net change in class count and method count.
-- **Components & Permissions**: Added and removed activities, services, receivers, providers, and manifest permissions.
+- **Components & Permissions**: Manifest component and permission diffs are not currently computed; corresponding report fields remain empty.
 - **Native Libraries & Assets**: Added, removed, and modified files under `lib/` and `assets/`.
-- **Targeted Class Decompilation Diff**: Uses pinned JADX to decompile specified classes in both artifacts and generates a unified diff. Diff output is truncated at 500 lines if large.
+- **Targeted Class Decompilation Diff**: Uses pinned JADX to decompile specified classes in both artifacts and generates a unified diff. Diff output is truncated at the first 500 lines followed by a truncation marker.
 
 ### CLI Invocation
 
@@ -96,6 +97,7 @@ uv run --project tools/apk-lab apk-lab compare old_app.apkm new_app.apkm --json 
 - `0`: Comparison succeeded.
 - `2`: Artifact not found, or JADX failed on requested class comparison.
 - `3`: Invalid artifact format or archive security error.
+- `4`: Infrastructure or uncaught failure.
 
 ---
 
@@ -130,7 +132,7 @@ print(format_comparison_summary(comparison))
 # Inspect specific class diff
 if "com.example.app.MainActivity" in comparison.classes_diff:
     diff_info = comparison.classes_diff["com.example.app.MainActivity"]
-    status = diff_info["status"]  # unchanged, modified, added, removed, missing
-    if status == "modified":
-        print("".join(diff_info["diff"]))
+    status = diff_info["status"]  # unchanged, modified, added, removed, missing, tool_unavailable, error
+    if status == "modified" and diff_info.get("diff"):
+        print(diff_info["diff"])
 ```

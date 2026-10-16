@@ -1,6 +1,6 @@
 # Morphe Patch Compatibility & Verification
 
-Execute fail-fast patch compatibility testing using Morphe Desktop, test boolean option permutations, verify DEX structural integrity, and automate CI test matrix generation.
+Execute real patch compatibility testing using Morphe Desktop, test boolean option inversions, verify DEX structural integrity, and automate CI test matrix generation.
 
 ---
 
@@ -9,12 +9,12 @@ Execute fail-fast patch compatibility testing using Morphe Desktop, test boolean
 Applies patch bundles (`.mpp`) to an APK or split bundle (APKM/XAPK) using pinned Morphe Desktop in isolated ephemeral workspaces.
 
 ### Why Real Patch Testing is Mandatory
-A patch cannot be marked compatible in `Constants.kt` from a metadata diff or code inspection alone. A version is supported **ONLY** when `apk-lab check ... --all` executes every patch and every boolean option permutation independently, and passes all verification gates:
+A patch cannot be marked compatible in `Constants.kt` from a metadata diff or code inspection alone. A version is supported **ONLY** when `apk-lab check ... --all` executes every patch baseline and independent boolean-option inversion, and passes all verification gates:
 1. **Morphe Execution**: Morphe Desktop executes without throwing unhandled exceptions or failing AST anchors.
-2. **Identity Invariance**: Package name, version name, and version code remain unchanged in the output APK.
+2. **Identity Invariance**: Package name and version code remain unchanged in the output APK.
 3. **Android SDK DEX Verification**: Runs `dexdump -c` across all generated DEX files to verify structural validity and bytecode formatting.
-4. **Member Delta Verification**: Patchable members (DEX, manifest, resources, assets, native libs) are modified, while unpatched sentinels remain byte-identical.
-5. **Extension Verification**: Classes injected from `extensions/extension.mpe` (`app/aidan/extension/...`) are inventoried in the output APK.
+4. **Member Delta Verification**: At least one patchable member (DEX, manifest, resources, assets, native libs) is modified in the output APK.
+5. **Extension Verification**: Classes injected from `extensions/extension.mpe` (`app/aidan/extension/...`) are inventoried in the output APK when present.
 
 ### Automated Option Permutation Testing
 When a patch declares boolean configuration options, `apk-lab check` generates and executes:
@@ -71,9 +71,8 @@ uv run --project tools/apk-lab apk-lab check path/to/app.apkm \
 ### Exit Codes
 - `0`: All patch test cases passed.
 - `1`: `COMPATIBILITY_FAILURE` — One or more test cases failed to apply, violated postconditions, or failed DEX structural verification.
-- `2`: `USAGE_OR_TOOL_ERROR` — Missing files, invalid patch name, or missing Morphe binary.
-- `3`: `INVALID_ARTIFACT` — Malformed or invalid APK container.
-
+- `2`: `USAGE_OR_TOOL_ERROR` — Missing files or invalid patch name.
+- `4`: `INFRASTRUCTURE_FAILURE` — Uncaught exceptions, malformed artifacts, missing Morphe binary, or workspace errors.
 ---
 
 ## 2. CI Automation Module (`apk_lab.compatibility_ci`)
@@ -119,7 +118,7 @@ for p in compatible:
 report, exit_code = run_compatibility_check(
     artifact_path=Path("path/to/app.apkm"),
     mpp_path=Path("patches/build/libs/patches-1.0.0.mpp"),
-    package_name="com.example.app",
+    expected_package="com.example.app",
     all_patches=True,
     force=False,
     keep_workspace=False,

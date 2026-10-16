@@ -146,19 +146,19 @@ This patch neutralizes these surveillance, attribution, and anti-tamper mechanis
 - **Target Package:** `com.ashtoncofer.Buzz`
 - **Supported Versions:** `1.54.0`
 - **Default State:** `true` (Enabled by default)
-- **Type:** Dalvik Bytecode Patch (`bytecodePatch`) with dependent Asset Patch (`rawResourcePatch`)
-- **Dependencies:** `Replace Emoji Font with iOS Asset`
+- **Type:** Composite Feature Patch (`compositeFeaturePatch`)
+- **Dependencies:** None
 - **Extensions:** `extensions/extension.mpe` (`app.aidan.extension.emoji.EmojiFontBridge`)
 
 ### 1. Motivation & Purpose
 
-Fizz defaults to Android system / Google Noto emoji styling for all user content (feed posts, comments, reactions, and direct messages). This patch bundles Apple Color Emoji (iOS 18+ CBDT/CBLC bitmap font) and injects it into Android's native text fallback chain, presenting native Apple emojis across all screens without requiring root or device-level font modifications.
+Fizz defaults to Android system / Google Noto emoji styling for all user content (feed posts, comments, reactions, and direct messages). This patch bundles Apple Color Emoji (iOS 18+ CBDT/CBLC bitmap font) and injects it into Android's native text fallback chain on Android 10+ (API 29+), presenting native Apple emojis across all screens without requiring root or device-level font modifications. On Android API 23–28 or if font asset loading fails, the original system font rendering is preserved.
 
 ---
 
 ### 2. Technical Implementation & Injection Points
 
-#### Layer 1: Asset Packaging (`Replace Emoji Font with iOS Asset`)
+#### Layer 1: Internal Asset Packaging
 - **Target File:** `assets/fonts/AppleColorEmoji.ttf`
 - **Source:** Generated at build time by `.github/scripts/prepare_emoji_font.py` (downloaded from upstream release, preserved at native 2048 UPM matching hmtx advance widths, injected with `cmap` Format 14, and pruned to 96x96 strike) and packaged in patch bundle resources (`fonts/AppleColorEmoji.ttf`).
 - **Effect:** Extracts and packages the single-strike 96x96 (36.6 MB) Apple Color Emoji font file directly into the APK's assets directory.
@@ -176,13 +176,12 @@ Fizz defaults to Android system / Google Noto emoji styling for all user content
 #### Layer 3: Compose Resource Font Wrapping (`nunito_variable`)
 - **Target:** `Lhg/g;` (`AndroidFontLoader`)
 - **Method:** `c(Ln4/v;)Landroid/graphics/Typeface;`
-- **Injection:** After `ResourcesCompat.getFont` / `d5.n.b` result:
+- **Injection:** Injects wrapping call after `ResourcesCompat.getFont` / `d5.n.b` result:
   ```smali
-  const v1, 0x7f090000
-  invoke-static {v2, v0, v1}, Lapp/aidan/extension/emoji/EmojiFontBridge;->wrapTypeface(Landroid/content/Context;Landroid/graphics/Typeface;I)Landroid/graphics/Typeface;
+  invoke-static {v1, v0}, Lapp/aidan/extension/emoji/EmojiFontBridge;->wrapTypeface(Landroid/content/Context;Landroid/graphics/Typeface;)Landroid/graphics/Typeface;
   move-result-object v0
   ```
-- **Effect:** Replaces the loaded Nunito typeface with a composite typeface created via `Typeface.CustomFallbackBuilder` with `AppleColorEmoji.ttf` as its custom fallback.
+- **Effect:** On Android API 29+, replaces the loaded Nunito typeface with a composite typeface created via `Typeface.CustomFallbackBuilder` with `AppleColorEmoji.ttf` as its custom fallback; below API 29, returns the original typeface.
 
 #### Layer 4: Compose Platform Typeface Wrapping
 - **Target:** `Lwj/a;`
@@ -192,7 +191,7 @@ Fizz defaults to Android system / Google Noto emoji styling for all user content
   invoke-static {p0, p1, v0}, Lapp/aidan/extension/emoji/EmojiFontBridge;->wrapPlatformTypeface(Landroid/graphics/Typeface;IZ)Landroid/graphics/Typeface;
   move-result-object p0
   ```
-- **Effect:** Ensures system and generic fallback typefaces in Compose also include Apple Color Emoji in their fallback hierarchy.
+- **Effect:** Ensures system and generic fallback typefaces in Compose also include Apple Color Emoji in their fallback hierarchy on Android API 29+.
 ---
 
 ### 3. Preconditions & Verification
@@ -250,7 +249,7 @@ This patch adds a dedicated Developer Settings button into the Home Screen top n
 #### Layer 2: Home TopBar Icon Composable Injection (`td.v.a`)
 - **Target:** `Ltd/v;`
 - **Method:** `a(...)V`
-- **Insertion Anchor:** Immediately before the `sget-object v3, La3/b;->f:La3/i` instruction preceding `feed-activity-button`. The incoming branch (`goto` from single-feed title) is dynamically retargeted to the developer settings button so it executes across both single-feed and multi-tab home top bar configurations.
+- **Insertion Anchor:** Immediately before the `sget-object v3, La3/b;->f:La3/i` instruction preceding `feed-activity-button`. The incoming branch (`goto` from single-feed title) is retargeted to the developer settings button when the expected anchor is found.
 - **Layout Specifications:**
   - Container Scope: `androidx.compose.foundation.layout.b` (`BoxScope`)
   - Alignment: `a3.b.f` (`Alignment.CenterEnd`)
@@ -311,8 +310,8 @@ This patch eliminates sponsored feed advertisements by default and provides a co
   - Commercial advertisements (`sc.k` with `d1.Advertisement`) are filtered out by default.
   - If `removeMarketplaceAds == true`, marketplace listing cards (`sc.t1`) are also filtered out via `filterDisplayItems(List)`.
   - If `removeMarketplaceAds == false`, calls `filterAdsOnly(List)` to retain marketplace listing cards while still filtering commercial ads.
-- **Preservation of Pagination:** The underlying repository state (`jc.z2` and `f0.f38180a`) retains all items, ensuring `arrayListA` is never empty and deduplication size checks never falsely trigger `endReached = true`. The LazyColumn renders only `displayItems`, keeping ads off-screen while preserving continuous infinite scrolling.
-- **Safety:** Zero scratch registers are clobbered (only `v6`, which holds the display items list reference, is read and reassigned).
+- **Filtering Behavior:** The patch filters the list passed to `displayItems` before the existing comparison/assignment; the bridge source does not establish repository-state, deduplication, `endReached`, or continuous-pagination behavior.
+- **Register Safety:** The injected call reuses the selected display-list register (the target invoke's `registerC`, or fallback `v6`) for both the argument and result; no separate scratch-register guarantee is asserted.
 ---
 
 ### 4. Preconditions & Verification

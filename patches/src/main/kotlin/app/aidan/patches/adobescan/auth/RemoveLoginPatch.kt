@@ -58,7 +58,7 @@ val removeLoginPatch = bytecodePatch(
         key = "cleanUpAuthComponents",
         default = true,
         title = "Clean Up Auth Components",
-        description = "Removes the profile icon and sign-out option from the Settings menu."
+        description = "Removes the profile icon, sign-out, and sign-in options from the Settings menu."
     )
     val removeLinkSharing = booleanOption(
         key = "removeLinkSharing",
