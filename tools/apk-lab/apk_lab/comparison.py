@@ -1,25 +1,15 @@
 from __future__ import annotations
 
 import difflib
-import hashlib
 import tempfile
 import zipfile
 from pathlib import Path
 from typing import Any
 
-from apk_lab.archives import materialize_split_member
+from apk_lab.archives import compute_zip_member_sha256, materialize_split_member
 from apk_lab.inspection import InspectionError, inspect_artifact
 from apk_lab.models import ArtifactComparison, ContainerType, ExitCode
 from apk_lab.tools import ToolManager
-
-
-def compute_zip_member_hash(zf: zipfile.ZipFile, zinfo: zipfile.ZipInfo) -> str:
-    """Streams a zip member in chunks to compute its SHA-256 digest."""
-    h = hashlib.sha256()
-    with zf.open(zinfo) as f:
-        while chunk := f.read(64 * 1024):
-            h.update(chunk)
-    return h.hexdigest()
 
 
 def extract_artifact_content_hashes(
@@ -33,7 +23,7 @@ def extract_artifact_content_hashes(
             for info in zf.infolist():
                 if info.is_dir() or not info.filename.startswith(prefix):
                     continue
-                h = compute_zip_member_hash(zf, info)
+                h = compute_zip_member_sha256(zf, info)
                 hashes_map.setdefault(info.filename, []).append(h)
     else:
         with tempfile.TemporaryDirectory(prefix="apk-lab-cmp-") as tmp_dir:
@@ -51,7 +41,7 @@ def extract_artifact_content_hashes(
                         for info in member_zf.infolist():
                             if info.is_dir() or not info.filename.startswith(prefix):
                                 continue
-                            h = compute_zip_member_hash(member_zf, info)
+                            h = compute_zip_member_sha256(member_zf, info)
                             hashes_map.setdefault(info.filename, []).append(h)
                     split_dest.unlink(missing_ok=True)
 

@@ -7,6 +7,7 @@ import pytest
 from apk_lab.device import (
     AdbClient,
     AdbDevice,
+    harvest_recent_crashes,
     monitor_application,
     parse_adb_devices,
     parse_exit_info_records,
@@ -551,3 +552,51 @@ def test_monitor_activity_manager_anr_token_matching():
         poll_interval=0.002,
     )
     assert code_exact == ExitCode.RUNTIME_FAILURE
+
+
+def test_harvest_crashes_verify_error(monkeypatch):
+    logcat = """
+10-15 12:00:00.000  1234  1234 E AndroidRuntime: FATAL EXCEPTION: main
+10-15 12:00:00.000  1234  1234 E AndroidRuntime: Process: com.example.app, PID: 1234
+10-15 12:00:00.000  1234  1234 E AndroidRuntime: java.lang.VerifyError: Rejecting class com.example.Bad
+10-15 12:00:00.000  1234  1234 E AndroidRuntime:     at com.example.app.MainActivity.onCreate(MainActivity.java:20)
+"""
+    monkeypatch.setattr("apk_lab.device.run_adb", lambda _device, _args: logcat)
+
+    reports = harvest_recent_crashes("com.example.app", device="emulator-5554")
+
+    assert len(reports) == 1
+    assert reports[0].process == "com.example.app"
+    assert reports[0].pid == 1234
+    assert reports[0].exception_type == "java.lang.VerifyError"
+    assert reports[0].message == "Rejecting class com.example.Bad"
+    assert reports[0].stack_trace == [
+        "at com.example.app.MainActivity.onCreate(MainActivity.java:20)"
+    ]
+
+
+def test_harvest_crashes_fatal_exception(monkeypatch):
+    logcat = """
+10-15 12:01:00.000  4567  4567 E AndroidRuntime: FATAL EXCEPTION: main
+10-15 12:01:00.000  4567  4567 E AndroidRuntime: Process: com.example.app, PID: 4567
+10-15 12:01:00.000  4567  4567 E AndroidRuntime: java.lang.IllegalStateException: Broken state
+10-15 12:01:00.000  4567  4567 E AndroidRuntime:     at com.example.app.Widget.create(Widget.java:9)
+"""
+    monkeypatch.setattr("apk_lab.device.run_adb", lambda _device, _args: logcat)
+
+    reports = harvest_recent_crashes("com.example.app")
+
+    assert len(reports) == 1
+    assert reports[0].exception_type == "java.lang.IllegalStateException"
+    assert reports[0].message == "Broken state"
+    assert reports[0].timestamp == "10-15 12:01:00.000"
+
+
+def test_harvest_crashes_no_matches(monkeypatch):
+    logcat = """
+10-15 12:02:00.000   100   100 I ActivityManager: Start proc 100:com.example.app/u0a1
+10-15 12:02:01.000   100   100 I com.example.app: Application started
+"""
+    monkeypatch.setattr("apk_lab.device.run_adb", lambda _device, _args: logcat)
+
+    assert harvest_recent_crashes("com.example.app") == []

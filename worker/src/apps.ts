@@ -1,168 +1,133 @@
 import type { TargetAppConfig } from './types';
 import rawPatchesList from '../../patches-list.json';
 
-interface RawTarget {
-  version: string;
-  versionCodes?: number[] | null;
-  isExperimental?: boolean;
-  minSdk?: number;
-  description?: string | null;
-}
-
-interface RawCompatiblePackage {
-  packageName: string;
-  name: string;
-  description?: string | null;
-  apkFileType: string;
-  appIconColor?: string | null;
-  signatures?: string[] | null;
-  targets: RawTarget[];
-}
-
-interface RawPatch {
-  name: string;
-  description: string;
-  default: boolean;
-  dependencies: string[];
-  compatiblePackages: RawCompatiblePackage[];
-}
-
-interface RawPatchesList {
-  version: string;
-  patches: RawPatch[];
-}
-
-export function compareVersionStrings(a: string, b: string): number {
-  const parseSegments = (v: string): number[] => {
-    const clean = v.replace(/^v/i, '').split('-')[0].split('+')[0];
-    return clean.split('.').map((p) => {
-      const num = parseInt(p.replace(/\D/g, ''), 10);
-      return isNaN(num) ? 0 : num;
-    });
-  };
-
-  const aParts = parseSegments(a);
-  const bParts = parseSegments(b);
-  const maxLength = Math.max(aParts.length, bParts.length);
-
-  for (let i = 0; i < maxLength; i++) {
-    const aVal = aParts[i] ?? 0;
-    const bVal = bParts[i] ?? 0;
-    if (aVal > bVal) return 1;
-    if (aVal < bVal) return -1;
-  }
+export function compareUtf16(a: string, b: string): number {
+  if (a < b) return -1;
+  if (a > b) return 1;
   return 0;
 }
 
-export function deriveMonitoredApps(data: unknown): TargetAppConfig[] {
-  if (!data || typeof data !== 'object' || !('patches' in data)) {
-    throw new Error('Invalid patches list data: missing "patches" array');
+export function parseMonitoredApps(data: unknown): TargetAppConfig[] {
+  if (!data || typeof data !== 'object') {
+    throw new Error('Invalid patches list data: must be an object');
   }
 
-  const patchesList = data as RawPatchesList;
-  if (!Array.isArray(patchesList.patches)) {
-    throw new Error('Invalid patches list data: "patches" must be an array');
+  if (!('apps' in data) || !Array.isArray(data.apps)) {
+    throw new Error('Invalid patches list data: missing "apps" array');
   }
 
-  const appMap = new Map<
-    string,
-    {
-      packageName: string;
-      name: string;
-      apkFileType: string;
-      signatures: Set<string>;
-      patchNames: Set<string>;
-      supportedVersions: Set<string>;
-    }
-  >();
-
-  for (const patch of patchesList.patches) {
-    if (!patch.compatiblePackages || !Array.isArray(patch.compatiblePackages)) {
-      continue;
-    }
-
-    for (const cp of patch.compatiblePackages) {
-      if (!cp.packageName) {
-        throw new Error(
-          `Patch "${patch.name}" has compatible package missing packageName`,
-        );
-      }
-
-      const existing = appMap.get(cp.packageName);
-      if (!existing) {
-        const sigs = new Set<string>();
-        if (Array.isArray(cp.signatures)) {
-          for (const s of cp.signatures) sigs.add(s);
-        }
-
-        const versions = new Set<string>();
-        if (Array.isArray(cp.targets)) {
-          for (const t of cp.targets) {
-            if (t.version) versions.add(t.version);
-          }
-        }
-
-        appMap.set(cp.packageName, {
-          packageName: cp.packageName,
-          name: cp.name,
-          apkFileType: cp.apkFileType,
-          signatures: sigs,
-          patchNames: new Set([patch.name]),
-          supportedVersions: versions,
-        });
-      } else {
-        if (existing.name !== cp.name) {
-          throw new Error(
-            `Conflicting app name for package ${cp.packageName}: "${existing.name}" vs "${cp.name}"`,
-          );
-        }
-        if (existing.apkFileType !== cp.apkFileType) {
-          throw new Error(
-            `Conflicting apkFileType for package ${cp.packageName}: "${existing.apkFileType}" vs "${cp.apkFileType}"`,
-          );
-        }
-        if (Array.isArray(cp.signatures)) {
-          for (const s of cp.signatures) {
-            existing.signatures.add(s);
-          }
-        }
-        existing.patchNames.add(patch.name);
-        if (Array.isArray(cp.targets)) {
-          for (const t of cp.targets) {
-            if (t.version) existing.supportedVersions.add(t.version);
-          }
-        }
-      }
-    }
-  }
-
+  const seenPackages = new Set<string>();
+  let lastPkg = '';
   const result: TargetAppConfig[] = [];
-  for (const entry of appMap.values()) {
-    const sortedVersions = Array.from(entry.supportedVersions).sort(
-      compareVersionStrings,
-    );
-    if (sortedVersions.length === 0) {
+
+  for (const item of data.apps) {
+    if (!item || typeof item !== 'object') {
+      throw new Error('Invalid app entry: must be an object');
+    }
+
+    const {
+      packageName,
+      name,
+      apkFileType,
+      signatures,
+      patchNames,
+      supportedVersions,
+      latestSupportedVersion,
+    } = item as Record<string, unknown>;
+
+    if (typeof packageName !== 'string' || !packageName.trim()) {
+      throw new Error('Invalid app entry: missing packageName');
+    }
+    if (typeof name !== 'string' || !name.trim()) {
+      throw new Error(`Invalid app entry for ${packageName}: missing name`);
+    }
+    if (typeof apkFileType !== 'string' || !apkFileType.trim()) {
       throw new Error(
-        `Package ${entry.packageName} has no supported versions declared`,
+        `Invalid app entry for ${packageName}: missing apkFileType`,
       );
     }
-    const latestSupportedVersion = sortedVersions[sortedVersions.length - 1];
+    if (
+      typeof latestSupportedVersion !== 'string' ||
+      !latestSupportedVersion.trim()
+    ) {
+      throw new Error(
+        `Invalid app entry for ${packageName}: missing latestSupportedVersion`,
+      );
+    }
+
+    if (seenPackages.has(packageName)) {
+      throw new Error(`Duplicate package name: ${packageName}`);
+    }
+    seenPackages.add(packageName);
+
+    if (compareUtf16(packageName, lastPkg) < 0) {
+      throw new Error(
+        `Apps catalog must be sorted by packageName: ${packageName} appeared after ${lastPkg}`,
+      );
+    }
+    lastPkg = packageName;
+
+    if (
+      !Array.isArray(signatures) ||
+      signatures.some((s) => typeof s !== 'string')
+    ) {
+      throw new Error(`Invalid signatures for package ${packageName}`);
+    }
+    for (let i = 1; i < signatures.length; i++) {
+      if (compareUtf16(signatures[i], signatures[i - 1]) <= 0) {
+        throw new Error(
+          `Signatures for package ${packageName} must be uniquely sorted`,
+        );
+      }
+    }
+
+    if (
+      !Array.isArray(patchNames) ||
+      patchNames.length === 0 ||
+      patchNames.some((p) => typeof p !== 'string' || !p.trim())
+    ) {
+      throw new Error(`Invalid patchNames for package ${packageName}`);
+    }
+    for (let i = 1; i < patchNames.length; i++) {
+      if (compareUtf16(patchNames[i], patchNames[i - 1]) <= 0) {
+        throw new Error(
+          `Patch names for package ${packageName} must be uniquely sorted`,
+        );
+      }
+    }
+
+    if (
+      !Array.isArray(supportedVersions) ||
+      supportedVersions.length === 0 ||
+      supportedVersions.some((v) => typeof v !== 'string' || !v.trim())
+    ) {
+      throw new Error(`Invalid supportedVersions for package ${packageName}`);
+    }
+    if (new Set(supportedVersions).size !== supportedVersions.length) {
+      throw new Error(`Duplicate supportedVersions for package ${packageName}`);
+    }
+
+    if (
+      latestSupportedVersion !== supportedVersions[supportedVersions.length - 1]
+    ) {
+      throw new Error(
+        `latestSupportedVersion for ${packageName} (${latestSupportedVersion}) does not match last supportedVersion (${supportedVersions[supportedVersions.length - 1]})`,
+      );
+    }
 
     result.push({
-      packageName: entry.packageName,
-      name: entry.name,
-      apkFileType: entry.apkFileType,
-      signatures: Array.from(entry.signatures).sort(),
-      patchNames: Array.from(entry.patchNames).sort(),
-      supportedVersions: sortedVersions,
+      packageName,
+      name,
+      apkFileType,
+      signatures: [...signatures],
+      patchNames: [...patchNames],
+      supportedVersions: [...supportedVersions],
       latestSupportedVersion,
     });
   }
 
-  // Sort apps deterministically by packageName
-  result.sort((a, b) => a.packageName.localeCompare(b.packageName));
   return result;
 }
 
 export const MONITORED_APPS: TargetAppConfig[] =
-  deriveMonitoredApps(rawPatchesList);
+  parseMonitoredApps(rawPatchesList);

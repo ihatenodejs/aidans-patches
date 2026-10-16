@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import hashlib
 import json
 import logging
 import re
@@ -12,7 +11,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from apk_lab.archives import ArchiveSecurityError, inspect_safe_zip
+from apk_lab.archives import (
+    ArchiveSecurityError,
+    compute_zip_member_sha256,
+    inspect_safe_zip,
+)
 from apk_lab.inspection import (
     InspectionError,
     find_build_tools_bin,
@@ -350,11 +353,7 @@ def get_member_hashes(apk_path: Path) -> dict[str, str]:
     with zipfile.ZipFile(apk_path, "r") as zf:
         for info in zf.infolist():
             if not info.is_dir():
-                h = hashlib.sha256()
-                with zf.open(info) as f:
-                    while chunk := f.read(64 * 1024):
-                        h.update(chunk)
-                hashes[info.filename] = h.hexdigest()
+                hashes[info.filename] = compute_zip_member_sha256(zf, info)
     return hashes
 
 
@@ -377,12 +376,8 @@ def get_split_container_input_member_hashes(
                 with zipfile.ZipFile(split_path, "r") as member_zf:
                     for m_info in member_zf.infolist():
                         if not m_info.is_dir():
-                            h = hashlib.sha256()
-                            with member_zf.open(m_info) as f:
-                                while chunk := f.read(64 * 1024):
-                                    h.update(chunk)
                             hashes_map.setdefault(m_info.filename, set()).add(
-                                h.hexdigest()
+                                compute_zip_member_sha256(member_zf, m_info)
                             )
                 split_path.unlink(missing_ok=True)
     return hashes_map

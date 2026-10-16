@@ -1,6 +1,9 @@
 package app.aidan.patches.canvas.tracking
 
 import app.aidan.patches.canvas.shared.COMPATIBILITY_CANVAS
+import app.aidan.patches.shared.disableOptionalVoidMethods
+import app.aidan.patches.shared.returnOptionalBoolean
+import app.aidan.patches.shared.returnOptionalNullObject
 import app.morphe.patcher.extensions.InstructionExtensions.addInstructions
 import app.morphe.patcher.patch.BytecodePatchContext
 import app.morphe.patcher.patch.bytecodePatch
@@ -14,7 +17,7 @@ val removeTrackingAndAnalyticsPatch = bytecodePatch(
     compatibleWith(COMPATIBILITY_CANVAS)
     execute {
         // Layer 1: Pendo SDK behavioral tracking, visitor identity, guides, and click analytics.
-        disableVoidMethods(
+        disableOptionalVoidMethods(
             "Lsdk/pendo/io/Pendo;",
             "setup",
             "startSession",
@@ -27,26 +30,26 @@ val removeTrackingAndAnalyticsPatch = bytecodePatch(
             "resumeGuides",
             "endSession"
         )
-        returnBoolean("Lsdk/pendo/io/Pendo;", "sendClickAnalytic", false)
-        returnNullObject("Lsdk/pendo/io/Pendo;", "getAccountId")
-        returnNullObject("Lsdk/pendo/io/Pendo;", "getVisitorId")
-        returnNullObject("Lsdk/pendo/io/Pendo;", "getDeviceId")
+        returnOptionalBoolean("Lsdk/pendo/io/Pendo;", "sendClickAnalytic", false)
+        returnOptionalNullObject("Lsdk/pendo/io/Pendo;", "getAccountId")
+        returnOptionalNullObject("Lsdk/pendo/io/Pendo;", "getVisitorId")
+        returnOptionalNullObject("Lsdk/pendo/io/Pendo;", "getDeviceId")
 
         // Layer 2: Pendo consent handlers and splash-time user/account initialization.
-        disableVoidMethods(
+        disableOptionalVoidMethods(
             "Lcom/instructure/pandautils/features/cookieconsent/AnalyticsConsentHandler;",
             "onConsentGranted",
             "onConsentRevoked"
         )
 
         // Layer 3: Instructure's first-party analytics entry points and auth-token reporting.
-        disableVoidMethods(
+        disableOptionalVoidMethods(
             "Lcom/instructure/canvasapi2/utils/Analytics;",
             "logEvent",
             "setUserProperty"
         )
-        returnBoolean("Lcom/instructure/canvasapi2/utils/Analytics;", "isSessionActive", false)
-        disableVoidMethods(
+        returnOptionalBoolean("Lcom/instructure/canvasapi2/utils/Analytics;", "isSessionActive", false)
+        disableOptionalVoidMethods(
             "Lcom/instructure/student/util/Analytics;",
             "trackAppFlow",
             "trackBookmarkCreated",
@@ -55,25 +58,25 @@ val removeTrackingAndAnalyticsPatch = bytecodePatch(
             "trackUnsupportedFeature",
             "trackWidgetFlow"
         )
-        disableVoidMethods("Lcom/instructure/canvasapi2/AppManager;", "logTokenAnalytics")
+        disableOptionalVoidMethods("Lcom/instructure/canvasapi2/AppManager;", "logTokenAnalytics")
 
         // Layer 4: ScreenView annotations otherwise emit Pendo navigation events.
-        disableVoidMethods(
+        disableOptionalVoidMethods(
             "Lcom/instructure/pandautils/analytics/ScreenViewAnnotationProcessor;",
             "processScreenView"
         )
 
         // Layer 5: Pandata persists course/group/page URLs and time spent, then uploads them.
-        disableVoidMethods(
+        disableOptionalVoidMethods(
             "Lcom/instructure/canvasapi2/utils/pageview/PandataManager;",
             "uploadPageViewEvents"
         )
-        disableVoidMethods(
+        disableOptionalVoidMethods(
             "Lcom/instructure/pandautils/analytics/pageview/PageViewUtils;",
             "saveSingleEvent",
             "stopEvent"
         )
-        disableVoidMethods(
+        disableOptionalVoidMethods(
             "Lcom/instructure/pandautils/analytics/pageview/PageViewAnnotationProcessor;",
             "startEvent",
             "stopEvent"
@@ -81,7 +84,7 @@ val removeTrackingAndAnalyticsPatch = bytecodePatch(
         returnWorkerSuccess("Lcom/instructure/pandautils/analytics/pageview/PageViewUploadWorker;")
 
         // Layer 6: Offline use is reported as first-party analytics when connectivity returns.
-        disableVoidMethods(
+        disableOptionalVoidMethods(
             "Lcom/instructure/pandautils/analytics/OfflineAnalyticsManager;",
             "offlineModeStarted",
             "reportCourseOpenedInOfflineMode",
@@ -89,7 +92,7 @@ val removeTrackingAndAnalyticsPatch = bytecodePatch(
         )
 
         // Layer 7: Prevent remote crash reports, exception data, and identifying custom keys.
-        disableVoidMethods(
+        disableOptionalVoidMethods(
             "Lcom/google/firebase/crashlytics/FirebaseCrashlytics;",
             "log",
             "recordException",
@@ -102,68 +105,13 @@ val removeTrackingAndAnalyticsPatch = bytecodePatch(
         )
 
         // Layer 8: Remove the Help-screen Play Store rating redirect.
-        disableVoidMethods(
+        disableOptionalVoidMethods(
             "Lcom/instructure/student/mobius/settings/help/StudentHelpDialogFragmentBehavior;",
             "rateTheApp"
         )
 
         // Layer 9: Do not permit diagnostic logging of user details.
-        returnBoolean("Lcom/instructure/canvasapi2/utils/Logger;", "canLogUserDetails", false)
-    }
-}
-
-/**
- * Makes all implemented void overloads with the requested names return immediately.
- * Absent classes or matches are skipped.
- */
-private fun BytecodePatchContext.disableVoidMethods(
-    classDescriptor: String,
-    vararg methodNames: String
-) {
-    val mutableClass = mutableClassDefByOrNull(classDescriptor) ?: return
-    val methodSet = methodNames.toSet()
-
-    for (method in mutableClass.methods) {
-        if (method.name in methodSet && method.returnType == "V" && method.implementation != null) {
-            method.addInstructions(0, "return-void")
-        }
-    }
-}
-
-/**
- * Makes all implemented boolean overloads with [methodName] return [value].
- * Absent classes or matches are skipped.
- */
-private fun BytecodePatchContext.returnBoolean(
-    classDescriptor: String,
-    methodName: String,
-    value: Boolean
-) {
-    val mutableClass = mutableClassDefByOrNull(classDescriptor) ?: return
-    val constInstruction = if (value) "const/4 v0, 0x1" else "const/4 v0, 0x0"
-
-    for (method in mutableClass.methods) {
-        if (method.name == methodName && method.returnType == "Z" && method.implementation != null) {
-            method.addInstructions(0, "$constInstruction\nreturn v0")
-        }
-    }
-}
-
-/**
- * Makes all implemented overloads with [methodName] and a class return type return null.
- * Array return types are excluded.
- * Absent classes or matches are skipped.
- */
-private fun BytecodePatchContext.returnNullObject(
-    classDescriptor: String,
-    methodName: String
-) {
-    val mutableClass = mutableClassDefByOrNull(classDescriptor) ?: return
-
-    for (method in mutableClass.methods) {
-        if (method.name == methodName && method.returnType.startsWith("L") && method.implementation != null) {
-            method.addInstructions(0, "const/4 v0, 0x0\nreturn-object v0")
-        }
+        returnOptionalBoolean("Lcom/instructure/canvasapi2/utils/Logger;", "canLogUserDetails", false)
     }
 }
 

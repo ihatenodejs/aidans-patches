@@ -60,6 +60,16 @@ class ExitInfoRecord:
     raw_text: str
 
 
+@dataclass(frozen=True)
+class CrashReport:
+    process: str
+    pid: int | None
+    exception_type: str
+    message: str
+    stack_trace: list[str]
+    timestamp: str | None = None
+
+
 def find_adb() -> Path:
     """Locates the adb binary from the Android SDK or PATH."""
     sdk_roots = [
@@ -134,6 +144,156 @@ class AdbClient:
                 except subprocess.TimeoutExpired:
                     proc.kill()
                     proc.wait()
+
+
+def run_adb(device: str | None, args: list[str]) -> str:
+    """Runs adb and returns its standard output."""
+    result = AdbClient().run(args, serial=device)
+    if result.returncode != 0:
+        detail = result.stderr.strip() or result.stdout.strip()
+        raise RuntimeError(f"ADB command failed: {detail}")
+    return result.stdout
+
+
+def harvest_recent_crashes(
+    package: str, device: str | None = None, lines: int = 5000
+) -> list[CrashReport]:
+    """Returns recent Java crashes for *package* from the device log buffers."""
+    output = run_adb(
+        device,
+        [
+            "logcat",
+            "-d",
+            "-b",
+            "main",
+            "-b",
+            "crash",
+            "-b",
+            "system",
+            "-t",
+            str(lines),
+        ],
+    )
+    entries = [
+        entry
+        for line in output.splitlines()
+        if (entry := _parse_logcat_entry(line)) is not None
+    ]
+    reports: list[CrashReport] = []
+
+    for index, entry in enumerate(entries):
+        timestamp, line_pid, text = entry
+        process_match = re.search(r"\bProcess:\s*([^,\s]+)(?:,\s*PID:\s*(\d+))?", text)
+        if not process_match or process_match.group(1) != package:
+            continue
+
+        previous_process = max(
+            (
+                prior
+                for prior in range(index)
+                if re.search(r"\bProcess:\s*", entries[prior][2])
+            ),
+            default=-1,
+        )
+        fatal_start = max(
+            (
+                prior
+                for prior in range(previous_process + 1, index + 1)
+                if "FATAL EXCEPTION:" in entries[prior][2]
+            ),
+            default=index,
+        )
+        end = next(
+            (
+                following
+                for following in range(index + 1, len(entries))
+                if (
+                    "FATAL EXCEPTION:" in entries[following][2]
+                    or re.search(r"\bProcess:\s*", entries[following][2])
+                )
+            ),
+            len(entries),
+        )
+        block = entries[fatal_start:end]
+        report = _parse_crash_block(
+            package, block, timestamp=entries[fatal_start][0] or timestamp, pid=line_pid
+        )
+        if report:
+            reports.append(report)
+
+    deduplicated: list[CrashReport] = []
+    previous_key: tuple[str, str, str] | None = None
+    for report in reports:
+        key = (
+            report.exception_type,
+            report.message,
+            report.stack_trace[0] if report.stack_trace else "",
+        )
+        if key != previous_key:
+            deduplicated.append(report)
+        previous_key = key
+    return deduplicated
+
+
+def _parse_logcat_entry(line: str) -> tuple[str | None, int | None, str] | None:
+    """Extracts timestamp, PID, and AndroidRuntime payload from one logcat line."""
+    tag_match = re.search(r"\bAndroidRuntime:\s*(.*)$", line)
+    if not tag_match:
+        return None
+    timestamp_match = re.match(r"(\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}\.\d+)", line)
+    return (
+        timestamp_match.group(1) if timestamp_match else None,
+        extract_logcat_pid(line),
+        tag_match.group(1),
+    )
+
+
+def _parse_crash_block(
+    package: str,
+    block: list[tuple[str | None, int | None, str]],
+    timestamp: str | None,
+    pid: int | None,
+) -> CrashReport | None:
+    """Converts one AndroidRuntime block into a crash report when it has an exception."""
+    exception_match: re.Match[str] | None = None
+    exception_index = 0
+    for index, (_, _, text) in enumerate(block):
+        exception_match = re.search(
+            r"(?:Caused by:\s*)?([\w.$]+(?:Exception|Error|Throwable))(?::\s*(.*))?$",
+            text.strip(),
+        )
+        if exception_match:
+            exception_index = index
+            break
+    if not exception_match:
+        return None
+
+    process_match = next(
+        (
+            re.search(r"\bProcess:\s*([^,\s]+)(?:,\s*PID:\s*(\d+))?", text)
+            for _, _, text in block
+            if re.search(r"\bProcess:\s*", text)
+        ),
+        None,
+    )
+    if not process_match or process_match.group(1) != package:
+        return None
+    report_pid = (
+        int(process_match.group(2)) if process_match.group(2) is not None else pid
+    )
+    stack_trace = [
+        text.strip()
+        for _, _, text in block[exception_index + 1 :]
+        if text.strip().startswith("at ")
+    ]
+    return CrashReport(
+        process=package,
+        pid=report_pid,
+        exception_type=exception_match.group(1),
+        message=exception_match.group(2) or "",
+        stack_trace=stack_trace,
+        timestamp=timestamp,
+    )
 
 
 def parse_adb_devices(output: str) -> list[AdbDevice]:

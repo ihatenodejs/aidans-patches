@@ -1,6 +1,6 @@
 import { env } from 'cloudflare:test';
 import { describe, expect, it, vi } from 'vitest';
-import { deriveMonitoredApps } from '../src/apps';
+import { parseMonitoredApps, compareUtf16 } from '../src/apps';
 import { compareAppVersions } from '../src/comparator';
 import { renderBadgeSvg } from '../src/badges';
 import fixtureHtml from './fixtures/google-play-details.html?raw';
@@ -16,113 +16,223 @@ import type {
   WorkerEnv,
 } from '../src/types';
 
-describe('Apps metadata derivation', () => {
-  it('derives unique package metadata and latest target correctly', () => {
+describe('Apps metadata parsing', () => {
+  it('parses valid apps catalog correctly', () => {
     const mockData = {
       version: '1.0.0',
-      patches: [
+      apps: [
         {
-          name: 'Patch 1',
-          compatiblePackages: [
-            {
-              packageName: 'com.test.one',
-              name: 'App One',
-              apkFileType: 'APKM',
-              signatures: ['sig1'],
-              targets: [{ version: '1.0.0' }, { version: '1.2.0' }],
-            },
-          ],
-        },
-        {
-          name: 'Patch 2',
-          compatiblePackages: [
-            {
-              packageName: 'com.test.one',
-              name: 'App One',
-              apkFileType: 'APKM',
-              signatures: ['sig1'],
-              targets: [{ version: '1.1.0' }],
-            },
-          ],
+          packageName: 'com.test.one',
+          name: 'App One',
+          description: null,
+          apkFileType: 'APKM',
+          appIconColor: '#123456',
+          signatures: ['sig1', 'sig2'],
+          targets: [{ version: '1.0.0' }, { version: '1.2.0' }],
+          patchNames: ['Patch 1', 'Patch 2'],
+          supportedVersions: ['1.0.0', '1.2.0'],
+          latestSupportedVersion: '1.2.0',
         },
       ],
     };
 
-    const apps = deriveMonitoredApps(mockData);
+    const apps = parseMonitoredApps(mockData);
     expect(apps).toHaveLength(1);
     expect(apps[0].packageName).toBe('com.test.one');
     expect(apps[0].name).toBe('App One');
     expect(apps[0].apkFileType).toBe('APKM');
-    expect(apps[0].latestSupportedVersion).toBe('1.2.0');
-    expect(apps[0].supportedVersions).toEqual(['1.0.0', '1.1.0', '1.2.0']);
+    expect(apps[0].signatures).toEqual(['sig1', 'sig2']);
     expect(apps[0].patchNames).toEqual(['Patch 1', 'Patch 2']);
+    expect(apps[0].supportedVersions).toEqual(['1.0.0', '1.2.0']);
+    expect(apps[0].latestSupportedVersion).toBe('1.2.0');
   });
 
-  it('rejects conflicting app names for the same package', () => {
-    const conflictingData = {
-      version: '1.0.0',
-      patches: [
-        {
-          name: 'Patch 1',
-          compatiblePackages: [
-            {
-              packageName: 'com.test.conflict',
-              name: 'App Original',
-              apkFileType: 'APK',
-              targets: [{ version: '1.0.0' }],
-            },
-          ],
-        },
-        {
-          name: 'Patch 2',
-          compatiblePackages: [
-            {
-              packageName: 'com.test.conflict',
-              name: 'App Conflict Name',
-              apkFileType: 'APK',
-              targets: [{ version: '1.0.0' }],
-            },
-          ],
-        },
-      ],
-    };
-
-    expect(() => deriveMonitoredApps(conflictingData)).toThrow(
-      /Conflicting app name/,
+  it('rejects missing or non-array apps property', () => {
+    expect(() => parseMonitoredApps({})).toThrow(/missing "apps" array/);
+    expect(() => parseMonitoredApps({ apps: 'not-an-array' })).toThrow(
+      /missing "apps" array/,
     );
   });
 
-  it('rejects conflicting file types for the same package', () => {
-    const conflictingData = {
-      version: '1.0.0',
-      patches: [
+  it('rejects duplicate package names', () => {
+    const duplicateData = {
+      apps: [
         {
-          name: 'Patch 1',
-          compatiblePackages: [
-            {
-              packageName: 'com.test.filetype',
-              name: 'App Filetype',
-              apkFileType: 'APK',
-              targets: [{ version: '1.0.0' }],
-            },
-          ],
+          packageName: 'com.test.dup',
+          name: 'App Dup',
+          apkFileType: 'APK',
+          signatures: [],
+          patchNames: ['Patch 1'],
+          supportedVersions: ['1.0.0'],
+          latestSupportedVersion: '1.0.0',
         },
         {
-          name: 'Patch 2',
-          compatiblePackages: [
-            {
-              packageName: 'com.test.filetype',
-              name: 'App Filetype',
-              apkFileType: 'XAPK',
-              targets: [{ version: '1.0.0' }],
-            },
-          ],
+          packageName: 'com.test.dup',
+          name: 'App Dup 2',
+          apkFileType: 'APK',
+          signatures: [],
+          patchNames: ['Patch 2'],
+          supportedVersions: ['1.0.0'],
+          latestSupportedVersion: '1.0.0',
         },
       ],
     };
 
-    expect(() => deriveMonitoredApps(conflictingData)).toThrow(
-      /Conflicting apkFileType/,
+    expect(() => parseMonitoredApps(duplicateData)).toThrow(
+      /Duplicate package name/,
+    );
+  });
+
+  it('rejects empty supported versions', () => {
+    const emptyVersionsData = {
+      apps: [
+        {
+          packageName: 'com.test.empty',
+          name: 'App Empty',
+          apkFileType: 'APK',
+          signatures: [],
+          patchNames: ['Patch 1'],
+          supportedVersions: [],
+          latestSupportedVersion: '1.0.0',
+        },
+      ],
+    };
+
+    expect(() => parseMonitoredApps(emptyVersionsData)).toThrow(
+      /Invalid supportedVersions/,
+    );
+  });
+
+  it('rejects incorrect latestSupportedVersion', () => {
+    const incorrectLatestData = {
+      apps: [
+        {
+          packageName: 'com.test.mismatch',
+          name: 'App Mismatch',
+          apkFileType: 'APK',
+          signatures: [],
+          patchNames: ['Patch 1'],
+          supportedVersions: ['1.0.0', '1.2.0'],
+          latestSupportedVersion: '1.0.0',
+        },
+      ],
+    };
+
+    expect(() => parseMonitoredApps(incorrectLatestData)).toThrow(
+      /latestSupportedVersion.*does not match last supportedVersion/,
+    );
+  });
+
+  it('rejects invalid or missing required field', () => {
+    const missingNameData = {
+      apps: [
+        {
+          packageName: 'com.test.missing',
+          name: '',
+          apkFileType: 'APK',
+          signatures: [],
+          patchNames: ['Patch 1'],
+          supportedVersions: ['1.0.0'],
+          latestSupportedVersion: '1.0.0',
+        },
+      ],
+    };
+
+    expect(() => parseMonitoredApps(missingNameData)).toThrow(/missing name/);
+  });
+
+  it('accepts UTF-16 code-unit order for packages, signatures, and patch names', () => {
+    // Uppercase precedes lowercase in UTF-16 code units ('B' < 'a')
+    expect(compareUtf16('com.test.B', 'com.test.a')).toBe(-1);
+    expect(compareUtf16('SIG_B', 'sig_a')).toBe(-1);
+    expect(compareUtf16('B Patch', 'a Patch')).toBe(-1);
+
+    const validUtf16Data = {
+      apps: [
+        {
+          packageName: 'com.test.B',
+          name: 'App B',
+          apkFileType: 'APK',
+          signatures: ['SIG_B', 'sig_a'],
+          patchNames: ['B Patch', 'a Patch'],
+          supportedVersions: ['1.0.0'],
+          latestSupportedVersion: '1.0.0',
+        },
+        {
+          packageName: 'com.test.a',
+          name: 'App a',
+          apkFileType: 'APK',
+          signatures: ['sig'],
+          patchNames: ['patch'],
+          supportedVersions: ['1.0.0'],
+          latestSupportedVersion: '1.0.0',
+        },
+      ],
+    };
+
+    const parsed = parseMonitoredApps(validUtf16Data);
+    expect(parsed).toHaveLength(2);
+  });
+
+  it('rejects out-of-order packages, signatures, and patch names under UTF-16', () => {
+    const unsortedPackages = {
+      apps: [
+        {
+          packageName: 'com.test.b',
+          name: 'App b',
+          apkFileType: 'APK',
+          signatures: ['sig'],
+          patchNames: ['patch'],
+          supportedVersions: ['1.0.0'],
+          latestSupportedVersion: '1.0.0',
+        },
+        {
+          packageName: 'com.test.a',
+          name: 'App a',
+          apkFileType: 'APK',
+          signatures: ['sig'],
+          patchNames: ['patch'],
+          supportedVersions: ['1.0.0'],
+          latestSupportedVersion: '1.0.0',
+        },
+      ],
+    };
+    expect(() => parseMonitoredApps(unsortedPackages)).toThrow(
+      /Apps catalog must be sorted by packageName/,
+    );
+
+    const unsortedSignatures = {
+      apps: [
+        {
+          packageName: 'com.test.a',
+          name: 'App a',
+          apkFileType: 'APK',
+          signatures: ['sig_b', 'sig_a'],
+          patchNames: ['patch'],
+          supportedVersions: ['1.0.0'],
+          latestSupportedVersion: '1.0.0',
+        },
+      ],
+    };
+    expect(() => parseMonitoredApps(unsortedSignatures)).toThrow(
+      /Signatures for package com.test.a must be uniquely sorted/,
+    );
+
+    const unsortedPatches = {
+      apps: [
+        {
+          packageName: 'com.test.a',
+          name: 'App a',
+          apkFileType: 'APK',
+          signatures: ['sig'],
+          patchNames: ['patch_b', 'patch_a'],
+          supportedVersions: ['1.0.0'],
+          latestSupportedVersion: '1.0.0',
+        },
+      ],
+    };
+    expect(() => parseMonitoredApps(unsortedPatches)).toThrow(
+      /Patch names for package com.test.a must be uniquely sorted/,
     );
   });
 });
@@ -199,7 +309,7 @@ describe('Badge rendering and aggregate calculation', () => {
 });
 describe('Worker fetch endpoints', () => {
   async function seedTestApps(kv: KVNamespace) {
-    for (const _app of deriveMonitoredApps({ patches: [] })) {
+    for (const _app of parseMonitoredApps({ apps: [] })) {
       // empty fallback
     }
     for (const app of [

@@ -8,6 +8,7 @@ import subprocess
 import sys
 import tempfile
 import zipfile
+from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
@@ -648,6 +649,38 @@ def handle_monitor(args: argparse.Namespace) -> int:
         return ExitCode.INFRASTRUCTURE_FAILURE
 
 
+def handle_crash_trace(args: argparse.Namespace) -> int:
+    try:
+        from apk_lab.device import harvest_recent_crashes
+
+        reports = harvest_recent_crashes(args.package, args.device, args.lines)
+    except Exception as e:  # noqa: BLE001
+        print(f"Crash trace error: {e}", file=sys.stderr)
+        return ExitCode.INFRASTRUCTURE_FAILURE
+
+    if args.json:
+        print(json.dumps([asdict(report) for report in reports], indent=2))
+        return ExitCode.SUCCESS
+    if not reports:
+        print(f"No recent crashes detected for package {args.package}")
+        return ExitCode.SUCCESS
+
+    for index, report in enumerate(reports):
+        if index:
+            print()
+        print(f"Process: {report.process}")
+        if report.pid is not None:
+            print(f"PID: {report.pid}")
+        if report.timestamp:
+            print(f"Timestamp: {report.timestamp}")
+        print(f"Exception: {report.exception_type}")
+        print(f"Message: {report.message}")
+        if report.stack_trace:
+            print("Stack trace:")
+            print("\n".join(report.stack_trace))
+    return ExitCode.SUCCESS
+
+
 def handle_inspect_code(args: argparse.Namespace) -> int:
     try:
         from apk_lab.code_inspection import run_inspect_code
@@ -997,6 +1030,25 @@ def build_parser() -> argparse.ArgumentParser:
         help="Capture thread dump on ANR or spin",
     )
     p_monitor.set_defaults(handler=handle_monitor)
+
+    # crash-trace
+    p_crash_trace = subparsers.add_parser(
+        "crash-trace", help="Harvest recent Java crash reports from logcat"
+    )
+    p_crash_trace.add_argument(
+        "--package", required=True, help="Package name to inspect"
+    )
+    p_crash_trace.add_argument("--device", help="Target ADB device serial")
+    p_crash_trace.add_argument(
+        "--lines",
+        type=non_negative_int,
+        default=5000,
+        help="Number of recent logcat lines to inspect (default: 5000)",
+    )
+    p_crash_trace.add_argument(
+        "--json", action="store_true", help="Output crash reports as JSON"
+    )
+    p_crash_trace.set_defaults(handler=handle_crash_trace)
 
     # inspect-code
     p_inspect_code = subparsers.add_parser(

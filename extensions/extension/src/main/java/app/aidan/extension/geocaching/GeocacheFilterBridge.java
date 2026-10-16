@@ -166,12 +166,6 @@ public final class GeocacheFilterBridge {
         }
     }
 
-    /**
-     * Backward-compatibility wrapper for raw downloaded caches.
-     */
-    public static List filterDownloadedCaches(List caches, Object filterModel) {
-        return filterMapItems(caches, filterModel);
-    }
 
     private static boolean matchesFilter(Object item,
                                          boolean hasTypeFilter, List<Integer> activeTypeIds,

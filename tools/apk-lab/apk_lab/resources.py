@@ -12,6 +12,7 @@ from typing import Any, Literal
 from apk_lab.archives import (
     ArchiveSecurityError,
     MaterializedApk,
+    compute_zip_member_sha256,
     is_contained_path,
     materialize_artifact_apks,
 )
@@ -164,15 +165,6 @@ def parse_aapt2_resource_dump(
     return entries
 
 
-def compute_member_sha256(zf: zipfile.ZipFile, name: str) -> str:
-    """Computes SHA-256 for a zip member."""
-    h = hashlib.sha256()
-    with zf.open(name) as f:
-        while chunk := f.read(64 * 1024):
-            h.update(chunk)
-    return h.hexdigest()
-
-
 def enumerate_raw_zip_members(
     mat_apk: MaterializedApk,
 ) -> list[dict[str, Any]]:
@@ -311,7 +303,7 @@ def query_apk_resources(
                 if apk_path and apk_path.is_file():
                     with zipfile.ZipFile(apk_path, "r") as zf:
                         try:
-                            file_hashes[key] = compute_member_sha256(zf, c_path)
+                            file_hashes[key] = compute_zip_member_sha256(zf, c_path)
                         except KeyError:
                             pass
             c["sha256"] = file_hashes.get(key)

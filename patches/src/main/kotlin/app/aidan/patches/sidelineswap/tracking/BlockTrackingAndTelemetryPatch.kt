@@ -1,5 +1,9 @@
 package app.aidan.patches.sidelineswap.tracking
 
+import app.aidan.patches.shared.disableOptionalVoidMethods
+import app.aidan.patches.shared.returnOptionalBoolean
+import app.aidan.patches.shared.returnOptionalNullObject
+import app.aidan.patches.shared.returnOptionalString
 import app.aidan.patches.sidelineswap.shared.COMPATIBILITY_SIDELINESWAP
 import app.morphe.patcher.extensions.InstructionExtensions.addInstructions
 import app.morphe.patcher.patch.BytecodePatchContext
@@ -17,46 +21,46 @@ val blockTrackingAndTelemetryPatch = bytecodePatch(
     execute {
         // Layer 1: Central Dispatcher Neutralization
         // Cuts off all event broadcasting across the application.
-        disableVoidMethods("Lcom/sidelineswap/android/analytics/AnalyticsLogger;", "delegateToClients")
+        disableOptionalVoidMethods("Lcom/sidelineswap/android/analytics/AnalyticsLogger;", "delegateToClients")
         returnThis("Lcom/sidelineswap/android/analytics/AnalyticsLogger;", "addClient")
 
         // Layer 2: First-Party Backend Telemetry Neutralization
-        disableVoidMethods(
+        disableOptionalVoidMethods(
             "Lcom/sidelineswap/android/analytics/SidelineSwapClient;",
             "logEvent",
             "access\$logEvent"
         )
-        returnNullObject("Lcom/sidelineswap/android/repo/LogRepo;", "trackEvent")
+        returnOptionalNullObject("Lcom/sidelineswap/android/repo/LogRepo;", "trackEvent")
 
         // Layer 3: Amplitude Analytics Neutralization
-        disableVoidMethods(
+        disableOptionalVoidMethods(
             "Lcom/sidelineswap/android/analytics/AmplitudeClient;",
             "logEvent",
             "access\$logEvent"
         )
-        disableVoidMethods("Lp073j1/d;", "d")
+        disableOptionalVoidMethods("Lp073j1/d;", "d")
 
         // Layer 4: Firebase Analytics & Measurement Neutralization
-        disableVoidMethods(
+        disableOptionalVoidMethods(
             "Lcom/sidelineswap/android/analytics/FirebaseClient;",
             "logEvent",
             "access\$logEvent"
         )
-        disableVoidMethods(
+        disableOptionalVoidMethods(
             "Lcom/google/firebase/analytics/FirebaseAnalytics;",
             "logEvent",
             "setAnalyticsCollectionEnabled",
             "setUserProperty",
             "setDefaultEventParameters"
         )
-        disableVoidMethods(
+        disableOptionalVoidMethods(
             "Lcom/google/firebase/perf/FirebasePerformance;",
             "setPerformanceCollectionEnabled"
         )
 
         // Layer 5: Firebase Crashlytics & Timber Tree Neutralization
-        disableVoidMethods("Lcom/sidelineswap/android/log/CrashlyticsTree;", "log")
-        disableVoidMethods(
+        disableOptionalVoidMethods("Lcom/sidelineswap/android/log/CrashlyticsTree;", "log")
+        disableOptionalVoidMethods(
             "Lcom/google/firebase/crashlytics/FirebaseCrashlytics;",
             "log",
             "recordException",
@@ -65,7 +69,7 @@ val blockTrackingAndTelemetryPatch = bytecodePatch(
 
         // Layer 6: Facebook SDK & App Events Neutralization
         // Stub Facebook validation and event logging methods
-        disableVoidMethods(
+        disableOptionalVoidMethods(
             "Lp173v2/y;",
             "e",
             "f",
@@ -76,7 +80,7 @@ val blockTrackingAndTelemetryPatch = bytecodePatch(
             "k",
             "l"
         )
-        disableVoidMethods(
+        disableOptionalVoidMethods(
             "Lcom/sidelineswap/android/analytics/FacebookClient;",
             "completedCheckout",
             "initiatedCheckout",
@@ -86,120 +90,29 @@ val blockTrackingAndTelemetryPatch = bytecodePatch(
             "visitedItem",
             "visitedResults"
         )
-        disableVoidMethods("Lp057h2/h;", "a")
+        disableOptionalVoidMethods("Lp057h2/h;", "a")
 
         // Layer 7: Iterable Telemetry Neutralization
-        disableVoidMethods("Lcom/sidelineswap/android/analytics/IterableClient;", "visitedLocker")
-        disableVoidMethods("Lp159t5/C1123h;", "d", "e", "f", "g")
+        disableOptionalVoidMethods("Lcom/sidelineswap/android/analytics/IterableClient;", "visitedLocker")
+        disableOptionalVoidMethods("Lp159t5/C1123h;", "d", "e", "f", "g")
 
         // Layer 8: Braintree FPTI Gateway Telemetry Neutralization
         returnWorkerSuccess("Lcom/braintreepayments/api/AnalyticsUploadWorker;", "g")
         returnWorkerSuccess("Lcom/braintreepayments/api/AnalyticsWriteToDbWorker;", "g")
-        disableVoidMethods("Lcom/braintreepayments/api/L;", "b", "c")
+        disableOptionalVoidMethods("Lcom/braintreepayments/api/L;", "b", "c")
 
         // Layer 9: Google Play Advertising ID Zeroing & Opt-Out
         spoofMinifiedAdvertisingId("LY2/a;")
-        returnConstString(
+        returnOptionalString(
             "Lcom/google/android/gms/ads/identifier/AdvertisingIdClient\$Info;",
             "getId",
             "00000000-0000-0000-0000-000000000000"
         )
-        returnBoolean(
+        returnOptionalBoolean(
             "Lcom/google/android/gms/ads/identifier/AdvertisingIdClient\$Info;",
             "isLimitAdTrackingEnabled",
             true
         )
-    }
-}
-
-/**
- * Makes all implemented void overloads with the requested names return immediately.
- * Absent classes or matches are skipped.
- */
-private fun BytecodePatchContext.disableVoidMethods(
-    classDescriptor: String,
-    vararg methodNames: String
-) {
-    val mutableClass = mutableClassDefByOrNull(classDescriptor) ?: return
-    val methodSet = methodNames.toSet()
-
-    for (method in mutableClass.methods) {
-        if (method.name in methodSet && method.returnType == "V" && method.implementation != null) {
-            method.addInstructions(0, "return-void")
-        }
-    }
-}
-
-/**
- * Makes all implemented boolean overloads with [methodName] return [value].
- * Absent classes or matches are skipped.
- */
-private fun BytecodePatchContext.returnBoolean(
-    classDescriptor: String,
-    methodName: String,
-    value: Boolean
-) {
-    val mutableClass = mutableClassDefByOrNull(classDescriptor) ?: return
-
-    for (method in mutableClass.methods) {
-        if (method.name == methodName && method.returnType == "Z" && method.implementation != null) {
-            val constInstruction = if (value) "const/4 v0, 0x1" else "const/4 v0, 0x0"
-            method.addInstructions(
-                0,
-                """
-                $constInstruction
-                return v0
-                """.trimIndent()
-            )
-        }
-    }
-}
-
-/**
- * Makes all implemented String overloads with [methodName] return [value].
- * The value must be safe to embed in a Smali string literal. Absent classes or matches are skipped.
- */
-private fun BytecodePatchContext.returnConstString(
-    classDescriptor: String,
-    methodName: String,
-    value: String
-) {
-    val mutableClass = mutableClassDefByOrNull(classDescriptor) ?: return
-
-    for (method in mutableClass.methods) {
-        if (method.name == methodName && method.returnType == "Ljava/lang/String;" && method.implementation != null) {
-            method.addInstructions(
-                0,
-                """
-                const-string v0, "$value"
-                return-object v0
-                """.trimIndent()
-            )
-        }
-    }
-}
-
-/**
- * Makes all implemented overloads with [methodName] and a class return type return null.
- * Array return types are excluded.
- * Absent classes or matches are skipped.
- */
-private fun BytecodePatchContext.returnNullObject(
-    classDescriptor: String,
-    methodName: String
-) {
-    val mutableClass = mutableClassDefByOrNull(classDescriptor) ?: return
-
-    for (method in mutableClass.methods) {
-        if (method.name == methodName && method.returnType.startsWith("L") && method.implementation != null) {
-            method.addInstructions(
-                0,
-                """
-                const/4 v0, 0x0
-                return-object v0
-                """.trimIndent()
-            )
-        }
     }
 }
 
