@@ -1,7 +1,7 @@
 {
-  "created_at": "2026-10-16T04:23:09",
-  "description": "## [1.8.0-dev.6](https://github.com/ihatenodejs/aidans-patches/compare/v1.8.0-dev.5...v1.8.0-dev.6) (2026-10-16)\n\n### 🐛 Bug Fixes\n\n* **apk-lab:** validate move-result variants and invoke producers ([823def9](https://github.com/ihatenodejs/aidans-patches/commit/823def9784b437dd180ce4342d6c796704eb482e))\n* **nhl:** preserve synthetic default matching for Blaze analytics ([b6bd2b2](https://github.com/ihatenodejs/aidans-patches/commit/b6bd2b2b6ddb99d6a7ef9e5c284fba32ea1eb536))\n* **worker:** use utf-16 code-unit order for monitored apps catalog ([964e01f](https://github.com/ihatenodejs/aidans-patches/commit/964e01f00da67982c7c259ced8a797f3449c09cc))\n\n### ✨ New Features\n\n* **apk-lab:** add crash-trace command to harvest device exceptions ([d99b76d](https://github.com/ihatenodejs/aidans-patches/commit/d99b76d38c6eacae0a117eb0083652366f0bb708))\n* **apk-lab:** validate register aliasing and move-result sequences ([93aa649](https://github.com/ihatenodejs/aidans-patches/commit/93aa649f56c5651402c163c6f3b1c33620be5a32))\n* **audit:** add phase and full-suite summary formatting ([1ff79c4](https://github.com/ihatenodejs/aidans-patches/commit/1ff79c4993fb112a2981e30d3a8fe8b4e96ec2ee))",
-  "download_url": "https://github.com/ihatenodejs/aidans-patches/releases/download/v1.8.0-dev.6/patches-1.8.0-dev.6.mpp",
+  "created_at": "2026-10-16T16:24:34",
+  "description": "## [1.8.0-dev.7](https://github.com/ihatenodejs/aidans-patches/compare/v1.8.0-dev.6...v1.8.0-dev.7) (2026-10-16)\n\n### 🐛 Bug Fixes\n\n* **ci:** revert 5412f299237e486590dab6e8dda1e89ba6419150 ([dbffd82](https://github.com/ihatenodejs/aidans-patches/commit/dbffd8207faeaeb6a061d539a3361d5a41bf29f2))\n* **geocaching:** sanitized loaded caches and fixed fallback enrichment ([de0a05b](https://github.com/ihatenodejs/aidans-patches/commit/de0a05b936420b8d5c908fb03f19ac2197120d45))\n\n### ✨ New Features\n\n* **geocaching:** added public cache data enrichment fallback ([32b5d14](https://github.com/ihatenodejs/aidans-patches/commit/32b5d148cbdbc9c8677f9995c99ba43d380c57e3))",
+  "download_url": "https://github.com/ihatenodejs/aidans-patches/releases/download/v1.8.0-dev.7/patches-1.8.0-dev.7.mpp",
   "signature_download_url": "",
-  "version": "1.8.0-dev.6"
+  "version": "1.8.0-dev.7"
 }
