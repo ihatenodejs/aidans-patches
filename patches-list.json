@@ -1,6 +1,348 @@
 {
   "NOTE": "Do NOT manually edit this file. This file is automatically updated when semantic release (release.yml) runs. Manually editing this file can break your releases and break third party tools that use this file.",
   "version": "1.8.0-dev.5",
+  "apps": [
+    {
+      "packageName": "com.adobe.scan.android",
+      "name": "Adobe Scan",
+      "description": null,
+      "apkFileType": "APKM",
+      "appIconColor": "#1473E6",
+      "signatures": [
+        "b6dd0562256487fcd6c98cde137858ef50d9adb9f9cd2f1ca58c5357efdf0faf"
+      ],
+      "targets": [
+        {
+          "version": "26.09.25",
+          "versionCodes": null,
+          "isExperimental": false,
+          "minSdk": 32,
+          "description": null
+        }
+      ],
+      "patchNames": [
+        "Remove Ads and Tracking",
+        "Remove Attribution",
+        "Remove Login",
+        "Remove Useless/Promotional Items",
+        "Unlock Premium",
+        "Use System Font"
+      ],
+      "supportedVersions": [
+        "26.09.25"
+      ],
+      "latestSupportedVersion": "26.09.25"
+    },
+    {
+      "packageName": "com.aftership.AfterShip",
+      "name": "AfterShip",
+      "description": null,
+      "apkFileType": "APK",
+      "appIconColor": "#FD5B26",
+      "signatures": [],
+      "targets": [
+        {
+          "version": "5.25.8",
+          "versionCodes": null,
+          "isExperimental": false,
+          "minSdk": 23,
+          "description": null
+        }
+      ],
+      "patchNames": [
+        "Add Copy Tracking Number Option",
+        "Bypass Native Signature Check",
+        "Custom Google Maps API Key",
+        "Full AMOLED Theme",
+        "Hide Broken Tracking Map",
+        "OpenStreetMap Drop-in Replacement",
+        "Remove Ads and Tracking",
+        "Remove AfterShip Account Page Links",
+        "Remove Feedback",
+        "Remove Login",
+        "Remove Shipment Sync"
+      ],
+      "supportedVersions": [
+        "5.25.8"
+      ],
+      "latestSupportedVersion": "5.25.8"
+    },
+    {
+      "packageName": "com.ashtoncofer.Buzz",
+      "name": "Fizz",
+      "description": null,
+      "apkFileType": "APKM",
+      "appIconColor": "#7F00FF",
+      "signatures": [
+        "622850867847ccb7a1371bc42c865b1137fa51bd19987dc81b53815c9a9817bf"
+      ],
+      "targets": [
+        {
+          "version": "1.54.0",
+          "versionCodes": null,
+          "isExperimental": false,
+          "minSdk": 23,
+          "description": null
+        }
+      ],
+      "patchNames": [
+        "Enable Developer Settings",
+        "Remove Ads",
+        "Remove Tracking and Analytics",
+        "Replace Emoji Font with iOS"
+      ],
+      "supportedVersions": [
+        "1.54.0"
+      ],
+      "latestSupportedVersion": "1.54.0"
+    },
+    {
+      "packageName": "com.avinside",
+      "name": "365 Pay",
+      "description": null,
+      "apkFileType": "APKM",
+      "appIconColor": "#00A859",
+      "signatures": [
+        "8709f6fd781c4ba9a4f50df8c44f8c5a4ccb2fd2b114b71912e79eacf8857b1d"
+      ],
+      "targets": [
+        {
+          "version": "10.2605.0",
+          "versionCodes": null,
+          "isExperimental": false,
+          "minSdk": 27,
+          "description": null
+        }
+      ],
+      "patchNames": [
+        "Display Cutout Adaptation",
+        "Remove Ads",
+        "Remove Tracking",
+        "Unlock Developer Tools"
+      ],
+      "supportedVersions": [
+        "10.2605.0"
+      ],
+      "latestSupportedVersion": "10.2605.0"
+    },
+    {
+      "packageName": "com.eab.se",
+      "name": "Navigate360 Student",
+      "description": null,
+      "apkFileType": "APKM",
+      "appIconColor": "#0071CE",
+      "signatures": [
+        "7253620866df0a00048e7c1f43976992330e2fdb06f094d47fbf20045f56ec4b"
+      ],
+      "targets": [
+        {
+          "version": "26.19.22",
+          "versionCodes": null,
+          "isExperimental": false,
+          "minSdk": 31,
+          "description": null
+        }
+      ],
+      "patchNames": [
+        "Remove Tracking and Telemetry",
+        "Remove Web Telemetry"
+      ],
+      "supportedVersions": [
+        "26.19.22"
+      ],
+      "latestSupportedVersion": "26.19.22"
+    },
+    {
+      "packageName": "com.groundspeak.geocaching.intro",
+      "name": "Geocaching",
+      "description": null,
+      "apkFileType": "APKM",
+      "appIconColor": "#007D46",
+      "signatures": [
+        "6959a7790bff42cc28fbe41c20d457401e32f4854f414dbc390de9f1529c9295",
+        "7f000458070a8272e5960f2b3c9d3348372f31b0e600c86af34fc06e85f8db8c"
+      ],
+      "targets": [
+        {
+          "version": "10.21.0",
+          "versionCodes": null,
+          "isExperimental": false,
+          "minSdk": 29,
+          "description": null
+        }
+      ],
+      "patchNames": [
+        "Enable Developer Tools and Feature Flags",
+        "Local Premium",
+        "OpenStreetMap Drop-in Replacement",
+        "OpenStreetMap Preview Assets",
+        "OpenStreetMap Resource Strings",
+        "Remove Lists",
+        "Remove Shop",
+        "Remove Tracking and Analytics",
+        "Unlock Cache Filter and Sorting Tools",
+        "Unlock Experimental Features",
+        "Unlock Templates"
+      ],
+      "supportedVersions": [
+        "10.21.0"
+      ],
+      "latestSupportedVersion": "10.21.0"
+    },
+    {
+      "packageName": "com.instructure.candroid",
+      "name": "Canvas Student",
+      "description": null,
+      "apkFileType": "APKM",
+      "appIconColor": "#E62725",
+      "signatures": [
+        "abfe1362d84c5234c174c2c03d405a480405e361162f7b28dad6bec825ba02b3"
+      ],
+      "targets": [
+        {
+          "version": "8.10.0",
+          "versionCodes": null,
+          "isExperimental": false,
+          "minSdk": 28,
+          "description": null
+        }
+      ],
+      "patchNames": [
+        "Remove Tracking and Analytics"
+      ],
+      "supportedVersions": [
+        "8.10.0"
+      ],
+      "latestSupportedVersion": "8.10.0"
+    },
+    {
+      "packageName": "com.nhl.gc1112.free",
+      "name": "NHL",
+      "description": null,
+      "apkFileType": "APKM",
+      "appIconColor": "#000000",
+      "signatures": [
+        "2309209340875f6f8a008ea25dbd98d8a03e482704d43211933d2b9a91923aff"
+      ],
+      "targets": [
+        {
+          "version": "17.0.0",
+          "versionCodes": null,
+          "isExperimental": false,
+          "minSdk": 29,
+          "description": null
+        }
+      ],
+      "patchNames": [
+        "Remove Ads",
+        "Remove Tracking",
+        "Unlock Hidden Features"
+      ],
+      "supportedVersions": [
+        "17.0.0"
+      ],
+      "latestSupportedVersion": "17.0.0"
+    },
+    {
+      "packageName": "com.sezzle.sezzlemobile",
+      "name": "Sezzle",
+      "description": null,
+      "apkFileType": "APKM",
+      "appIconColor": "#5C2C94",
+      "signatures": [],
+      "targets": [
+        {
+          "version": "5.3.9",
+          "versionCodes": null,
+          "isExperimental": false,
+          "minSdk": 24,
+          "description": null
+        }
+      ],
+      "patchNames": [
+        "Clean Authentication",
+        "Configure Shortcuts",
+        "Enable App Debugging",
+        "Hide Sezzle Mobile",
+        "Patch Consent Screen",
+        "Remove Ads and Tracking",
+        "Remove Promos & Giveaways",
+        "Remove Rewards",
+        "Remove Sezzle Subscriptions",
+        "Replace AI Discover with Products",
+        "Replace Shop with Home",
+        "Suppress In-App Updates and Rating Prompts",
+        "Suppress Updates and Integrity Checks",
+        "Unlock Custom App Icons",
+        "Unlock Developer Settings",
+        "Unlock Receipt Scanner"
+      ],
+      "supportedVersions": [
+        "5.3.9"
+      ],
+      "latestSupportedVersion": "5.3.9"
+    },
+    {
+      "packageName": "com.sidelineswap.android",
+      "name": "SidelineSwap",
+      "description": null,
+      "apkFileType": "XAPK",
+      "appIconColor": "#02C874",
+      "signatures": [
+        "e434334ea79d8702a5d023ce7bfae4da9fa5539796cb9e0ba515cb471528697f"
+      ],
+      "targets": [
+        {
+          "version": "1.52.0",
+          "versionCodes": null,
+          "isExperimental": false,
+          "minSdk": 28,
+          "description": null
+        }
+      ],
+      "patchNames": [
+        "AMOLED Theme",
+        "Block Tracking and Telemetry",
+        "Change Brand Color",
+        "Remove Invite Friends"
+      ],
+      "supportedVersions": [
+        "1.52.0"
+      ],
+      "latestSupportedVersion": "1.52.0"
+    },
+    {
+      "packageName": "com.tripledot.blackjack",
+      "name": "Blackjack",
+      "description": null,
+      "apkFileType": "APKM",
+      "appIconColor": "#205B1F",
+      "signatures": [
+        "32e1c2b4c9ab0189d3e4e1c67806e6f4fc454aa758a74ccaedda8a309aa6b205"
+      ],
+      "targets": [
+        {
+          "version": "2.22.09",
+          "versionCodes": null,
+          "isExperimental": false,
+          "minSdk": 25,
+          "description": null
+        }
+      ],
+      "patchNames": [
+        "Add Custom Chip Store",
+        "Remove Ads",
+        "Remove Internet Permissions",
+        "Remove Notifications",
+        "Remove Tracking and Analytics",
+        "Skip to Next Level"
+      ],
+      "supportedVersions": [
+        "2.22.09"
+      ],
+      "latestSupportedVersion": "2.22.09"
+    }
+  ],
   "patches": [
     {
       "name": "AMOLED Theme",
