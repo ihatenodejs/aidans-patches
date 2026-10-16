@@ -1,12 +1,12 @@
 package app.aidan.patches.pay365.tracking
 
 import app.aidan.patches.pay365.shared.COMPATIBILITY_365_PAY
+import app.aidan.patches.shared.disableOptionalVoidMethods
 import app.morphe.patcher.extensions.InstructionExtensions.addInstructions
 import app.morphe.patcher.patch.BytecodePatchContext
 import app.morphe.patcher.patch.PatchException
 import app.morphe.patcher.patch.booleanOption
 import app.morphe.patcher.patch.bytecodePatch
-import com.android.tools.smali.dexlib2.Opcode
 
 @Suppress("unused")
 val removeTrackingPatch = bytecodePatch(
@@ -65,11 +65,11 @@ val removeTrackingPatch = bytecodePatch(
                 "resetAnalyticsData",
                 "setConsent"
             )
-            disableVoidMethods(
+            disableOptionalVoidMethods(
                 "Lcom/google/android/gms/measurement/AppMeasurement;",
                 "logEventInternal"
             )
-            disableVoidMethods(
+            disableOptionalVoidMethods(
                 "Lcom/google/firebase/analytics/FirebaseAnalytics;",
                 "logEvent",
                 "setAnalyticsCollectionEnabled",
@@ -80,7 +80,7 @@ val removeTrackingPatch = bytecodePatch(
         }
 
         if (disableCrashlytics.value != false) {
-            disableVoidMethods(
+            disableOptionalVoidMethods(
                 "Lio/invertase/firebase/crashlytics/ReactNativeFirebaseCrashlyticsModule;",
                 "log",
                 "recordError",
@@ -96,7 +96,7 @@ val removeTrackingPatch = bytecodePatch(
                 "setAttribute",
                 "setAttributes"
             )
-            disableVoidMethods(
+            disableOptionalVoidMethods(
                 "Lcom/google/firebase/crashlytics/FirebaseCrashlytics;",
                 "log",
                 "recordException",
@@ -109,7 +109,7 @@ val removeTrackingPatch = bytecodePatch(
         }
 
         if (disableInstana.value != false) {
-            disableVoidMethods(
+            disableOptionalVoidMethods(
                 "Lcom/instana/rn/InstanaEumModule;",
                 "setup",
                 "reportEvent",
@@ -143,7 +143,7 @@ val removeTrackingPatch = bytecodePatch(
                 "isTrackingDisabled",
                 true
             )
-            disableVoidMethods(
+            disableOptionalVoidMethods(
                 "Lio/branch/rnbranch/RNBranchModule;",
                 "initSession",
                 "reInitSession",
@@ -159,14 +159,14 @@ val removeTrackingPatch = bytecodePatch(
                 "setPreinstallCampaign",
                 "setPreinstallPartner"
             )
-            disableVoidMethods(
+            disableOptionalVoidMethods(
                 "LSj/d;",
                 "o0"
             )
         }
 
         if (disableOneSignalTracking.value != false) {
-            disableVoidMethods(
+            disableOptionalVoidMethods(
                 "Lcom/onesignal/rnonesignalandroid/RNOneSignal;",
                 "trackEvent",
                 "addOutcome",
@@ -176,13 +176,13 @@ val removeTrackingPatch = bytecodePatch(
                 "addTags",
                 "setLocationShared"
             )
-            disableVoidMethods(
+            disableOptionalVoidMethods(
                 "Lcom/onesignal/session/internal/SessionManager;",
                 "addOutcome",
                 "addOutcomeWithValue",
                 "addUniqueOutcome"
             )
-            disableVoidMethods(
+            disableOptionalVoidMethods(
                 "Lcom/onesignal/location/internal/controller/impl/GmsLocationController;",
                 "setLocationAndFire",
                 "subscribe"
@@ -242,22 +242,6 @@ private fun BytecodePatchContext.resolvePromiseBoolean(
                     return-void
                     """.trimIndent()
                 )
-            }
-        }
-    }
-}
-
-private fun BytecodePatchContext.disableVoidMethods(
-    classDescriptor: String,
-    vararg methodNames: String
-) {
-    val mutableClass = mutableClassDefByOrNull(classDescriptor) ?: return
-    val methodSet = methodNames.toSet()
-    for (method in mutableClass.methods) {
-        if (method.name in methodSet && method.returnType == "V" && method.implementation != null) {
-            val firstInst = method.implementation?.instructions?.firstOrNull()
-            if (firstInst?.opcode != Opcode.RETURN_VOID) {
-                method.addInstructions(0, "return-void")
             }
         }
     }
