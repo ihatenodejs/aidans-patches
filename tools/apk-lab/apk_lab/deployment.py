@@ -10,6 +10,7 @@ from typing import Literal
 
 from apk_lab.device import (
     AdbClient,
+    get_installed_package_signature,
     install_apk,
     launch_component_intent,
     parse_adb_devices,
@@ -69,8 +70,11 @@ def zipalign_and_sign(
     unsigned_apk: Path,
     aligned_and_signed_apk: Path,
     keystore_path: Path | None = None,
+    ks_alias: str = "androiddebugkey",
+    ks_pass: str = "android",
+    key_pass: str = "android",
 ) -> None:
-    """Aligns to 4-byte boundaries, signs with debug keystore, and verifies signature."""
+    """Aligns to 4-byte boundaries, signs with keystore, and verifies signature."""
     zipalign = find_build_tools_bin("zipalign")
     apksigner = find_build_tools_bin("apksigner")
     ks = ensure_debug_keystore(keystore_path)
@@ -94,17 +98,16 @@ def zipalign_and_sign(
         "--ks",
         str(ks),
         "--ks-key-alias",
-        "androiddebugkey",
+        ks_alias,
         "--ks-pass",
-        "pass:android",
+        f"pass:{ks_pass}",
         "--key-pass",
-        "pass:android",
+        f"pass:{key_pass}",
         str(aligned_and_signed_apk.resolve()),
     ]
     res_sign = subprocess.run(sign_cmd, capture_output=True, text=True, check=False)
     if res_sign.returncode != 0:
         raise RuntimeError(f"apksigner sign failed: {res_sign.stderr}")
-
     # 3. apksigner verify
     verify_cmd = [
         str(apksigner),
@@ -116,6 +119,60 @@ def zipalign_and_sign(
     res_verify = subprocess.run(verify_cmd, capture_output=True, text=True, check=False)
     if res_verify.returncode != 0:
         raise RuntimeError(f"apksigner verify failed: {res_verify.stderr}")
+
+
+MORPHE_KEYSTORE_SHA256 = (
+    "6959a7790bff42cc28fbe41c20d457401e32f4854f414dbc390de9f1529c9295"
+)
+
+
+def resolve_signing_keystore(
+    package_name: str | None = None,
+    device: str | None = None,
+    explicit_keystore: Path | None = None,
+    explicit_alias: str | None = None,
+    explicit_pass: str | None = None,
+    tool_manager: ToolManager | None = None,
+) -> tuple[Path, str, str, str]:
+    """Resolves signing keystore, alias, store password, and key password.
+
+    Returns a tuple of (keystore_path, ks_alias, ks_pass, key_pass).
+    - If explicit_keystore is provided, returns it with explicit or default credentials.
+    - If package_name is installed on device, queries signature and matches Morphe keystore.
+    - Defaults to standard debug keystore.
+    """
+    if explicit_keystore is not None:
+        alias = explicit_alias or "androiddebugkey"
+        password = explicit_pass or "android"
+        return (explicit_keystore.resolve(), alias, password, password)
+
+    if package_name:
+        sig = get_installed_package_signature(package_name, device=device)
+        if sig == MORPHE_KEYSTORE_SHA256:
+            tm = tool_manager or ToolManager()
+            # Check ToolManager.get_cache_dir("morphe") / "morphe-data" / "morphe.keystore"
+            # ToolManager may have get_cache_dir or get_tool_install_dir
+            morphe_dir = (
+                tm.get_cache_dir("morphe")
+                if hasattr(tm, "get_cache_dir")
+                else tm.get_tool_install_dir("morphe")
+            )
+            morphe_ks = morphe_dir / "morphe-data" / "morphe.keystore"
+            if morphe_ks.is_file():
+                return (
+                    morphe_ks.resolve(),
+                    explicit_alias or "Morphe",
+                    explicit_pass or "Morphe",
+                    explicit_pass or "Morphe",
+                )
+
+    default_ks = ensure_debug_keystore()
+    return (
+        default_ks,
+        explicit_alias or "androiddebugkey",
+        explicit_pass or "android",
+        explicit_pass or "android",
+    )
 
 
 def deploy_artifact(
@@ -130,6 +187,9 @@ def deploy_artifact(
     clean_install: bool = False,
     out_apk_path: Path | None = None,
     keystore_path: Path | None = None,
+    ks_alias: str | None = None,
+    ks_pass: str | None = None,
+    key_pass: str | None = None,
     tool_manager: ToolManager | None = None,
     adb_client: AdbClient | None = None,
 ) -> DeployResult:
@@ -183,13 +243,28 @@ def deploy_artifact(
             scratch_dir=scratch_dir,
         )
 
+        # Resolve keystore and signing credentials
+        resolved_ks, resolved_alias, resolved_ks_pass, resolved_key_pass = (
+            resolve_signing_keystore(
+                package_name=package_name,
+                device=serial,
+                explicit_keystore=keystore_path,
+                explicit_alias=ks_alias,
+                explicit_pass=ks_pass,
+                tool_manager=tm,
+            )
+        )
+        final_key_pass = key_pass or resolved_key_pass
+
         # Align and sign
         zipalign_and_sign(
             unsigned_apk=staged_unsigned,
             aligned_and_signed_apk=staged_aligned,
-            keystore_path=keystore_path,
+            keystore_path=resolved_ks,
+            ks_alias=resolved_alias,
+            ks_pass=resolved_ks_pass,
+            key_pass=final_key_pass,
         )
-
         # Re-inspect staged signed APK
         out_inspection = inspect_artifact(staged_aligned)
         if out_inspection.package_name != package_name:
@@ -256,6 +331,9 @@ def run_deploy(args: argparse.Namespace) -> int:
         clean_install=args.clean_install,
         out_apk_path=Path(args.out) if args.out else None,
         keystore_path=Path(args.keystore) if getattr(args, "keystore", None) else None,
+        ks_alias=getattr(args, "ks_alias", None),
+        ks_pass=getattr(args, "ks_pass", None),
+        key_pass=getattr(args, "key_pass", None),
     )
     print(result.format_human())
     return ExitCode.SUCCESS

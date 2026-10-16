@@ -155,6 +155,43 @@ def run_adb(device: str | None, args: list[str]) -> str:
     return result.stdout
 
 
+def get_installed_package_signature(
+    package: str, device: str | None = None
+) -> str | None:
+    """Inspects the installed package's signing certificate on device using dumpsys.
+
+    Returns the normalized (lowercase, colons removed) SHA-256 hex string, or None if
+    not installed or signature cannot be found.
+    """
+    try:
+        output = run_adb(device, ["shell", "dumpsys", "package", package])
+    except RuntimeError:
+        return None
+
+    # Locate signatures section: e.g. "signatures=PackageSignatures{...}", "signatures:", or "PackageSignatures"
+    sig_section_match = re.search(
+        r"(?:signatures\s*=|signatures:|PackageSignatures).*?(?=\n\s*[A-Za-z0-9_-]+[:=]|\Z)",
+        output,
+        re.DOTALL | re.IGNORECASE,
+    )
+    search_target = sig_section_match.group(0) if sig_section_match else output
+
+    match = re.search(r"\b([0-9a-fA-F:]{40,95})\b", search_target)
+    if match:
+        normalized = match.group(1).replace(":", "").lower()
+        if len(normalized) == 64:
+            return normalized
+
+    # Fallback to search anywhere in the full dumpsys output
+    match_full = re.search(r"\b([0-9a-fA-F:]{40,95})\b", output)
+    if match_full:
+        normalized = match_full.group(1).replace(":", "").lower()
+        if len(normalized) == 64:
+            return normalized
+
+    return None
+
+
 def harvest_recent_crashes(
     package: str, device: str | None = None, lines: int = 5000
 ) -> list[CrashReport]:

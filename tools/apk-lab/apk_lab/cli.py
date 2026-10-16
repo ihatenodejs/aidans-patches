@@ -1011,6 +1011,21 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_deploy.add_argument("--out", help="Path to write signed output APK")
     p_deploy.add_argument("--keystore", help="Path to custom keystore for signing")
+    p_deploy.add_argument(
+        "--ks-alias",
+        default=None,
+        help="Keystore key alias (defaults to androiddebugkey or auto-detected)",
+    )
+    p_deploy.add_argument(
+        "--ks-pass",
+        default=None,
+        help="Keystore password (defaults to android or auto-detected)",
+    )
+    p_deploy.add_argument(
+        "--key-pass",
+        default=None,
+        help="Key password (defaults to android or auto-detected)",
+    )
     p_deploy.set_defaults(handler=handle_deploy)
 
     # monitor
