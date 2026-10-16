@@ -1,6 +1,9 @@
 package app.aidan.patches.nhl.ads
 
 import app.aidan.patches.nhl.shared.COMPATIBILITY_NHL
+import app.aidan.patches.shared.disableRequiredVoidMethods
+import app.aidan.patches.shared.returnRequiredBoolean
+import app.aidan.patches.shared.returnRequiredNullObject
 import app.morphe.patcher.extensions.InstructionExtensions.addInstructions
 import app.morphe.patcher.patch.BytecodePatchContext
 import app.morphe.patcher.patch.PatchException
@@ -30,14 +33,14 @@ val removeAdsPatch = bytecodePatch(
         }
 
         // 1. Google Mobile Ads (GMS) SDK initialization & ContentProvider
-        disableVoidMethods("Lcom/google/android/gms/ads/MobileAds;", "a")
-        disableVoidMethods("Lcom/google/android/gms/ads/MobileAdsInitProvider;", "attachInfo")
+        disableRequiredVoidMethods("Lcom/google/android/gms/ads/MobileAds;", "a")
+        disableRequiredVoidMethods("Lcom/google/android/gms/ads/MobileAdsInitProvider;", "attachInfo")
 
         // 2. BaseAdView (kh1) loadAd neutralization
-        disableVoidMethods("Lkh1;", "b")
+        disableRequiredVoidMethods("Lkh1;", "b")
 
         // 3. Blaze GAM Banner & Native Ad Handlers
-        disableVoidMethods(
+        disableRequiredVoidMethods(
             "Lcom/blaze/gam/BlazeGAM;",
             "enableBannerAds",
             "enableCustomNativeAds",
@@ -45,24 +48,24 @@ val removeAdsPatch = bytecodePatch(
             "setBlazeAdBannerHandler"
         )
         patchBlazeBannerCreation()
-        returnNullObject("Lcom/blaze/gam/custom_native/DefaultBlazeGoogleCustomNativeAdsHandler;", "provideAd")
-        disableVoidMethods("Lcom/blaze/gam/custom_native/DefaultBlazeGoogleCustomNativeAdsHandler;", "onAdEvent")
-        disableVoidMethods("Lcom/blaze/gam/custom_native/BlazeCustomNativeAdsManager;", "requestAd")
+        returnRequiredNullObject("Lcom/blaze/gam/custom_native/DefaultBlazeGoogleCustomNativeAdsHandler;", "provideAd")
+        disableRequiredVoidMethods("Lcom/blaze/gam/custom_native/DefaultBlazeGoogleCustomNativeAdsHandler;", "onAdEvent")
+        disableRequiredVoidMethods("Lcom/blaze/gam/custom_native/BlazeCustomNativeAdsManager;", "requestAd")
 
         // 4. Blaze IMA Video Ads
-        disableVoidMethods("Lcom/blaze/ima/BlazeIMA;", "enableAds")
+        disableRequiredVoidMethods("Lcom/blaze/ima/BlazeIMA;", "enableAds")
 
         // 5. Brightcove Google IMA Video Ad Component & Event Listeners
-        disableVoidMethods(
+        disableRequiredVoidMethods(
             "Lcom/brightcove/ima/GoogleIMAComponent;",
             "internalInitializeAdsRequests",
             "reloadAdsRequest",
             "initializeAdsRequests"
         )
-        disableVoidMethods("Lcom/brightcove/ima/GoogleIMAComponent\$OnPlayListener;", "processEvent")
-        disableVoidMethods("Lcom/brightcove/ima/GoogleIMAComponent\$OnCuePointListener;", "processEvent")
-        returnBoolean("Lcom/brightcove/ima/BaseIMAComponent;", "shouldSkipAdBreak", true)
-        returnBoolean("Lcom/brightcove/ima/BaseIMAComponent;", "isPlayingAd", false)
+        disableRequiredVoidMethods("Lcom/brightcove/ima/GoogleIMAComponent\$OnPlayListener;", "processEvent")
+        disableRequiredVoidMethods("Lcom/brightcove/ima/GoogleIMAComponent\$OnCuePointListener;", "processEvent")
+        returnRequiredBoolean("Lcom/brightcove/ima/BaseIMAComponent;", "shouldSkipAdBreak", true)
+        returnRequiredBoolean("Lcom/brightcove/ima/BaseIMAComponent;", "isPlayingAd", false)
     }
 }
 
@@ -173,101 +176,5 @@ private fun BytecodePatchContext.patchBlazeBannerCreation() {
     }
     if (!patched) {
         throw PatchException("Missing required method Lcom/blaze/gam/banner/DefaultBlazeGAMBannerAdsHandler;->createAndLoadAdBannerView")
-    }
-}
-
-/**
- * Neutralizes all matched void-returning methods by injecting an immediate `return-void` at index 0.
- */
-private fun BytecodePatchContext.disableVoidMethods(
-    classDescriptor: String,
-    vararg methodNames: String,
-    optional: Boolean = false
-) {
-    val mutableClass = mutableClassDefByOrNull(classDescriptor)
-    if (mutableClass == null) {
-        if (optional) return
-        throw PatchException("Missing required class $classDescriptor")
-    }
-    val methodSet = methodNames.toSet()
-    var patchedCount = 0
-
-    for (method in mutableClass.methods) {
-        if (method.name in methodSet && method.returnType == "V" && method.implementation != null) {
-            method.addInstructions(0, "return-void")
-            patchedCount++
-        }
-    }
-
-    if (!optional && patchedCount == 0) {
-        throw PatchException("Missing required void method(s) in $classDescriptor matching: ${methodNames.joinToString()}")
-    }
-}
-
-/**
- * Stubs a method to immediately return a constant boolean value.
- */
-private fun BytecodePatchContext.returnBoolean(
-    classDescriptor: String,
-    methodName: String,
-    value: Boolean,
-    optional: Boolean = false
-) {
-    val mutableClass = mutableClassDefByOrNull(classDescriptor)
-    if (mutableClass == null) {
-        if (optional) return
-        throw PatchException("Missing required class $classDescriptor")
-    }
-    var patched = false
-
-    for (method in mutableClass.methods) {
-        if (method.name == methodName && method.returnType == "Z" && method.implementation != null) {
-            val constInstruction = if (value) "const/4 v0, 0x1" else "const/4 v0, 0x0"
-            method.addInstructions(
-                0,
-                """
-                $constInstruction
-                return v0
-                """.trimIndent()
-            )
-            patched = true
-        }
-    }
-
-    if (!optional && !patched) {
-        throw PatchException("Missing required method $classDescriptor->$methodName()Z")
-    }
-}
-
-/**
- * Stubs an object-returning method to immediately return null.
- */
-private fun BytecodePatchContext.returnNullObject(
-    classDescriptor: String,
-    methodName: String,
-    optional: Boolean = false
-) {
-    val mutableClass = mutableClassDefByOrNull(classDescriptor)
-    if (mutableClass == null) {
-        if (optional) return
-        throw PatchException("Missing required class $classDescriptor")
-    }
-    var patched = false
-
-    for (method in mutableClass.methods) {
-        if (method.name == methodName && method.returnType.startsWith("L") && method.implementation != null) {
-            method.addInstructions(
-                0,
-                """
-                const/4 v0, 0x0
-                return-object v0
-                """.trimIndent()
-            )
-            patched = true
-        }
-    }
-
-    if (!optional && !patched) {
-        throw PatchException("Missing required method $classDescriptor->$methodName")
     }
 }
