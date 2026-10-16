@@ -1010,6 +1010,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Clean install by uninstalling first",
     )
     p_deploy.add_argument("--out", help="Path to write signed output APK")
+    p_deploy.add_argument("--keystore", help="Path to custom keystore for signing")
     p_deploy.set_defaults(handler=handle_deploy)
 
     # monitor

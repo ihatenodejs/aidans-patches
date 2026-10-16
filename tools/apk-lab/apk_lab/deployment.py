@@ -255,6 +255,7 @@ def run_deploy(args: argparse.Namespace) -> int:
         launch=args.launch,
         clean_install=args.clean_install,
         out_apk_path=Path(args.out) if args.out else None,
+        keystore_path=Path(args.keystore) if getattr(args, "keystore", None) else None,
     )
     print(result.format_human())
     return ExitCode.SUCCESS
