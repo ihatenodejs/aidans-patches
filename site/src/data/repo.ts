@@ -26,48 +26,6 @@ function slugify(text: string): string {
     .replace(/^-+|-+$/g, '');
 }
 
-const BASELINE_PLAY_UPDATES: Record<
-  string,
-  { updatedAt: string; updatedOn: string }
-> = {
-  'com.sezzle.sezzlemobile': {
-    updatedAt: '2026-10-01T21:55:06.000Z',
-    updatedOn: 'Oct 1, 2026',
-  },
-  'com.ashtoncofer.Buzz': {
-    updatedAt: '2026-10-01T21:35:34.000Z',
-    updatedOn: 'Oct 1, 2026',
-  },
-  'com.adobe.scan.android': {
-    updatedAt: '2026-09-28T23:51:13.000Z',
-    updatedOn: 'Sep 28, 2026',
-  },
-  'com.aftership.AfterShip': {
-    updatedAt: '2026-09-23T07:26:28.000Z',
-    updatedOn: 'Sep 23, 2026',
-  },
-  'com.eab.se': {
-    updatedAt: '2026-09-21T01:12:34.000Z',
-    updatedOn: 'Sep 20, 2026',
-  },
-  'com.groundspeak.geocaching.intro': {
-    updatedAt: '2026-10-02T22:05:05.000Z',
-    updatedOn: 'Oct 2, 2026',
-  },
-  'com.tripledot.blackjack': {
-    updatedAt: '2026-09-17T13:50:02.000Z',
-    updatedOn: 'Sep 17, 2026',
-  },
-  'com.sidelineswap.android': {
-    updatedAt: '2026-09-03T17:25:24.000Z',
-    updatedOn: 'Sep 3, 2026',
-  },
-  'com.instructure.candroid': {
-    updatedAt: '2026-07-30T15:40:20.000Z',
-    updatedOn: 'Jul 30, 2026',
-  },
-};
-
 interface RawOption {
   key: string;
   title: string;
@@ -232,23 +190,20 @@ function buildRepositoryEntities(rawList: RawPatchesList) {
     a.name.localeCompare(b.name),
   );
 
-  const versionStatuses: AppVersionStatus[] = apps.map((app) => {
-    const baseline = BASELINE_PLAY_UPDATES[app.packageName];
-    return {
-      packageName: app.packageName,
-      appName: app.name,
-      appId: app.id,
-      appIconColor: app.appIconColor,
-      supportedVersions: app.supportedVersions,
-      latestSupportedVersion: app.latestSupportedVersion,
-      playVersion: null,
-      checkedAt: null,
-      updatedAt: baseline?.updatedAt || null,
-      updatedOn: baseline?.updatedOn || null,
-      status: 'unknown',
-      playStoreUrl: app.playStoreUrl,
-    };
-  });
+  const versionStatuses: AppVersionStatus[] = apps.map((app) => ({
+    packageName: app.packageName,
+    appName: app.name,
+    appId: app.id,
+    appIconColor: app.appIconColor,
+    supportedVersions: app.supportedVersions,
+    latestSupportedVersion: app.latestSupportedVersion,
+    playVersion: null,
+    checkedAt: null,
+    updatedAt: null,
+    updatedOn: null,
+    status: 'unknown',
+    playStoreUrl: app.playStoreUrl,
+  }));
 
   return { apps, patches, versionStatuses };
 }
@@ -380,18 +335,18 @@ export function getInitialVersionStatuses(): AppVersionStatus[] {
   return loadRepositoryData().versionStatuses;
 }
 
-export function getLatestPlayRelease(): AppVersionStatus {
+export function getLatestPlayRelease(): AppVersionStatus | null {
   const statuses = getInitialVersionStatuses();
   let latest: AppVersionStatus | null = null;
-  let latestTime = 0;
-  for (const s of statuses) {
-    if (s.updatedAt) {
-      const t = new Date(s.updatedAt).getTime();
-      if (t > latestTime) {
-        latestTime = t;
-        latest = s;
-      }
-    }
+  let latestTime = Number.NEGATIVE_INFINITY;
+  for (const status of statuses) {
+    if (!status.updatedAt) continue;
+
+    const timestamp = new Date(status.updatedAt).getTime();
+    if (Number.isNaN(timestamp) || timestamp <= latestTime) continue;
+
+    latestTime = timestamp;
+    latest = status;
   }
-  return latest || statuses[0];
+  return latest;
 }
