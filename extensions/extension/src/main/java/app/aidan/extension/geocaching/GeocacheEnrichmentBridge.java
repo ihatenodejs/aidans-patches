@@ -1,6 +1,9 @@
 package app.aidan.extension.geocaching;
 
+import android.content.ContentValues;
 import android.database.Cursor;
+import android.database.sqlite.SQLiteDatabase;
+import android.database.sqlite.SQLiteOpenHelper;
 import android.util.Log;
 import java.io.BufferedReader;
 import java.io.InputStream;
@@ -25,14 +28,29 @@ public final class GeocacheEnrichmentBridge {
 
     private static final Map<String, Object> sRememberedLiteCaches = new ConcurrentHashMap<>();
     private static final Map<String, Object> sEnrichedCaches = new ConcurrentHashMap<>();
+    private static volatile Object sY82 = null;
+
+    private static final Pattern PATTERN_GC_CODE =
+            Pattern.compile("^GC[0-9A-Z]+$");
+    private static final Pattern PATTERN_PMO_FLAG =
+            Pattern.compile("window\\.isCachePMO\\s*=\\s*['\"]Yes['\"]", Pattern.CASE_INSENSITIVE);
+    private static final Pattern PATTERN_PMO_ELEMENT =
+            Pattern.compile("class=[\"'][^\"']*premium-upgrade-widget[^\"']*[\"']|content=[\"']PMO Cache Upsell[\"']|cache_pmo\\.aspx",
+                    Pattern.CASE_INSENSITIVE);
 
     private static final Pattern PATTERN_OWNER =
             Pattern.compile("A cache by <a[^>]*>(.*?)</a>", Pattern.CASE_INSENSITIVE);
     private static final Pattern PATTERN_SHORT_DESC =
-            Pattern.compile("id=[\"']ctl00_ContentBody_ShortDescription[\"'][^>]*>(.*?)</span>",
+            Pattern.compile("id=[\"']ctl00_ContentBody_ShortDescription[\"'][^>]*>(.*?)\\s*</span>\\s*</div>\\s*(?:<br\\s*/?>\\s*)?(?:<div[^>]*>\\s*)?<span[^>]*id=[\"']ctl00_ContentBody_LongDescription[\"']",
+                    Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
+    private static final Pattern PATTERN_SHORT_DESC_FALLBACK =
+            Pattern.compile("id=[\"']ctl00_ContentBody_ShortDescription[\"'][^>]*>(.*?)\\s*</span>\\s*</div>",
                     Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
     private static final Pattern PATTERN_LONG_DESC =
-            Pattern.compile("id=[\"']ctl00_ContentBody_LongDescription[\"'][^>]*>(.*?)</span>",
+            Pattern.compile("id=[\"']ctl00_ContentBody_LongDescription[\"'][^>]*>(.*?)\\s*</span>\\s*</div>\\s*(?=<[^>]*id=[\"'](?:ctl00_ContentBody_hints|div_hint|ctl00_ContentBody_Waypoints)[\"']|<[^>]*class=[\"'][^\"']*CacheDetailNavigation)",
+                    Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
+    private static final Pattern PATTERN_LONG_DESC_FALLBACK =
+            Pattern.compile("id=[\"']ctl00_ContentBody_LongDescription[\"'][^>]*>(.*?)\\s*</span>\\s*</div>",
                     Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
     private static final Pattern PATTERN_HINT =
             Pattern.compile("id=[\"']div_hint[\"'][^>]*>(.*?)</div>",
@@ -54,10 +72,17 @@ public final class GeocacheEnrichmentBridge {
             return;
         }
         try {
+            legacyGeocache = sanitizeLoadedCache(legacyGeocache);
+            if (legacyGeocache == null) {
+                return;
+            }
             Field codeField = legacyGeocache.getClass().getField("code");
             String code = (String) codeField.get(legacyGeocache);
             if (code != null && !code.isEmpty()) {
                 sRememberedLiteCaches.put(code.toUpperCase(), legacyGeocache);
+            }
+            if (sY82 != null) {
+                cleanPoisonedCaches(sY82);
             }
         } catch (Throwable t) {
             Log.d(TAG, "rememberLiteGeocache error: " + t);
@@ -89,11 +114,16 @@ public final class GeocacheEnrichmentBridge {
                 return failure;
             }
             String upperCode = referenceCode.toUpperCase();
+            if (!PATTERN_GC_CODE.matcher(upperCode).matches()) {
+                Log.w(TAG, "Invalid GC code format: " + referenceCode);
+                return failure;
+            }
 
             // Extract any logs or waypoints that succeeded in the parallel coroutine calls
+            // In fetchLegacyCacheFromServer$2: H = logsCall, I = userWaypointsCall, J = additionalWaypointsCall
             Object logsObj = getFieldOrNull(lambdaClass, suspendLambda, "H");
-            Object addWptObj = getFieldOrNull(lambdaClass, suspendLambda, "I");
-            Object userWptObj = getFieldOrNull(lambdaClass, suspendLambda, "J");
+            Object userWptObj = getFieldOrNull(lambdaClass, suspendLambda, "I");
+            Object addWptObj = getFieldOrNull(lambdaClass, suspendLambda, "J");
 
             Object enriched = enrichGeocache(repo, upperCode, logsObj, addWptObj, userWptObj);
             if (enriched != null) {
@@ -119,6 +149,10 @@ public final class GeocacheEnrichmentBridge {
                 return failure;
             }
             String upperCode = referenceCode.toUpperCase();
+            if (!PATTERN_GC_CODE.matcher(upperCode).matches()) {
+                Log.w(TAG, "Invalid GC code format: " + referenceCode);
+                return failure;
+            }
             Object enriched = enrichGeocache(repo, upperCode, null, null, null);
             if (enriched != null) {
                 Class<?> xk9Class = Class.forName("xk9");
@@ -129,6 +163,64 @@ public final class GeocacheEnrichmentBridge {
             Log.e(TAG, "onFetchFailed enrichment failed for " + referenceCode, t);
         }
         return failure;
+    }
+
+    /**
+     * Sanitizes a LegacyGeocache loaded from y82 disk cache. If the cached object is missing
+     * essential required fields (such as a null name or null cacheType, which can occur from
+     * corrupted or incomplete previous writes), rejects it by returning null so the repository
+     * falls back to the intact LiteGeocache database record.
+     */
+    public static Object sanitizeLoadedCache(Object legacyGeocache) {
+        if (legacyGeocache == null) {
+            return null;
+        }
+        try {
+            Field nameField = legacyGeocache.getClass().getField("name");
+            Object name = nameField.get(legacyGeocache);
+            if (name == null || ((String) name).isEmpty()) {
+                Log.w(TAG, "sanitizeLoadedCache: rejecting corrupted cache with null/empty name");
+                cleanPoisonedFromCacheObject(legacyGeocache);
+                return null;
+            }
+            Field cacheTypeField = legacyGeocache.getClass().getField("cacheType");
+            if (cacheTypeField.get(legacyGeocache) == null) {
+                Log.w(TAG, "sanitizeLoadedCache: rejecting corrupted cache with null cacheType");
+                cleanPoisonedFromCacheObject(legacyGeocache);
+                return null;
+            }
+            Field containerTypeField = legacyGeocache.getClass().getField("containerType");
+            if (containerTypeField.get(legacyGeocache) == null) {
+                Log.w(TAG, "sanitizeLoadedCache: rejecting corrupted cache with null containerType");
+                cleanPoisonedFromCacheObject(legacyGeocache);
+                return null;
+            }
+            Field ownerField = legacyGeocache.getClass().getField("owner");
+            Object owner = ownerField.get(legacyGeocache);
+            if (owner != null) {
+                Field usernameField = owner.getClass().getField("username");
+                Object username = usernameField.get(owner);
+                if (username == null || ((String) username).isEmpty()) {
+                    Log.w(TAG, "sanitizeLoadedCache: rejecting corrupted cache with null owner username");
+                    cleanPoisonedFromCacheObject(legacyGeocache);
+                    return null;
+                }
+            }
+        } catch (Throwable t) {
+            Log.e(TAG, "sanitizeLoadedCache check error", t);
+        }
+        return legacyGeocache;
+    }
+
+    private static void cleanPoisonedFromCacheObject(Object legacyGeocache) {
+        try {
+            Field codeField = legacyGeocache.getClass().getField("code");
+            String code = (String) codeField.get(legacyGeocache);
+            if (sY82 != null) {
+                cleanPoisonedCache(sY82, code);
+            }
+        } catch (Throwable ignored) {
+        }
     }
 
     private static Object getFieldOrNull(Class<?> clazz, Object target, String name) {
@@ -162,6 +254,10 @@ public final class GeocacheEnrichmentBridge {
     }
 
     public static Object enrichGeocache(Object repo, String code, Object logsResult, Object addWptResult, Object userWptResult) {
+        if (code == null || !PATTERN_GC_CODE.matcher(code).matches()) {
+            Log.w(TAG, "enrichGeocache rejected invalid code: " + code);
+            return null;
+        }
         Object cached = sEnrichedCaches.get(code);
         if (cached != null) {
             return cached;
@@ -169,13 +265,22 @@ public final class GeocacheEnrichmentBridge {
 
         // 1. Look for base LegacyGeocache (from memory or DB)
         Object baseCache = sRememberedLiteCaches.get(code);
-        if (baseCache == null && repo != null) {
+        if (baseCache != null) {
+            baseCache = sanitizeLoadedCache(baseCache);
+        }
+        Object y82 = null;
+        if (repo != null) {
             try {
                 Field aField = repo.getClass().getField("a"); // Ly82;
-                Object y82 = aField.get(repo);
+                y82 = aField.get(repo);
                 if (y82 != null) {
-                    Method pMethod = y82.getClass().getMethod("p", String.class);
-                    baseCache = pMethod.invoke(y82, code);
+                    sY82 = y82;
+                    cleanPoisonedCaches(y82);
+                    if (baseCache == null) {
+                        Method pMethod = y82.getClass().getMethod("p", String.class);
+                        Object candidate = pMethod.invoke(y82, code);
+                        baseCache = sanitizeLoadedCache(candidate);
+                    }
                 }
             } catch (Throwable ignored) {
             }
@@ -183,6 +288,7 @@ public final class GeocacheEnrichmentBridge {
 
         if (baseCache == null && repo != null) {
             baseCache = queryLiteGeocacheFromDb(repo, code);
+            baseCache = sanitizeLoadedCache(baseCache);
         }
 
         // 2. Fetch and scrape public cache page
@@ -201,20 +307,9 @@ public final class GeocacheEnrichmentBridge {
             }
 
             if (enriched != null) {
-                // Save to y82 SQLite database (Geocache table with IsLite = 0)
-                if (repo != null) {
-                    try {
-                        Field aField = repo.getClass().getField("a");
-                        Object y82 = aField.get(repo);
-                        if (y82 != null) {
-                            Method jMethod = y82.getClass().getMethod("J", List.class);
-                            jMethod.invoke(y82, Collections.singletonList(enriched));
-                        }
-                    } catch (Throwable t) {
-                        Log.e(TAG, "Failed to persist enriched cache into y82", t);
-                    }
+                if (y82 != null) {
+                    saveEnrichedCacheToDb(y82, enriched);
                 }
-
                 sEnrichedCaches.put(code, enriched);
                 return enriched;
             }
@@ -291,6 +386,66 @@ public final class GeocacheEnrichmentBridge {
         builderClass.getField("v").set(builder, Boolean.TRUE); // longDescriptionIsHtml
         builderClass.getField("B").set(builder, Boolean.TRUE); // shortDescriptionIsHtml
 
+        // Ensure name is never null or empty
+        String name = (String) cacheClass.getField("name").get(origCache);
+        if (name == null || name.isEmpty()) {
+            name = (scraped.name != null && !scraped.name.isEmpty()) ? scraped.name : (String) cacheClass.getField("code").get(origCache);
+        }
+        builderClass.getField("x").set(builder, name != null ? name : "");
+
+        // Ensure cacheType is non-null
+        Object cacheType = cacheClass.getField("cacheType").get(origCache);
+        if (cacheType == null) {
+            try {
+                Class<?> cacheTypeClass = Class.forName("com.groundspeak.geocaching.intro.types.LegacyGeocache$CacheType");
+                cacheType = cacheTypeClass.getDeclaredConstructor(String.class, int.class, String.class)
+                        .newInstance("", 2, "Traditional");
+                builderClass.getField("b").set(builder, cacheType);
+            } catch (Throwable ignored) {
+            }
+        }
+
+        // Ensure containerType is non-null
+        Object containerType = cacheClass.getField("containerType").get(origCache);
+        if (containerType == null) {
+            try {
+                Class<?> containerTypeClass = Class.forName("com.groundspeak.geocaching.intro.types.LegacyGeocache$ContainerType");
+                containerType = containerTypeClass.getDeclaredConstructor(int.class, String.class)
+                        .newInstance(0, "");
+                builderClass.getField("d").set(builder, containerType);
+            } catch (Throwable ignored) {
+            }
+        }
+
+        // Ensure owner is non-null and owner.username is non-null
+        Object owner = cacheClass.getField("owner").get(origCache);
+        boolean validOwner = false;
+        if (owner != null) {
+            try {
+                Object u = owner.getClass().getField("username").get(owner);
+                if (u instanceof String && !((String) u).isEmpty()) {
+                    validOwner = true;
+                }
+            } catch (Throwable ignored) {
+            }
+        }
+        if (!validOwner) {
+            try {
+                Class<?> ownerClass = Class.forName("com.groundspeak.geocaching.intro.types.LegacyGeocache$Owner");
+                String finalUsername = (placedBy != null && !placedBy.isEmpty()) ? placedBy : "Geocacher";
+                Object newOwner;
+                try {
+                    newOwner = ownerClass.getDeclaredConstructor(String.class, String.class, String.class, String.class)
+                            .newInstance(finalUsername, "", "", "");
+                } catch (NoSuchMethodException e) {
+                    newOwner = ownerClass.getDeclaredConstructor(String.class, String.class, String.class)
+                            .newInstance(finalUsername, "", "");
+                }
+                builderClass.getField("I").set(builder, newOwner);
+            } catch (Throwable ignored) {
+            }
+        }
+
         return cacheClass.getDeclaredConstructor(builderClass).newInstance(builder);
     }
 
@@ -329,8 +484,6 @@ public final class GeocacheEnrichmentBridge {
                 if (content instanceof List) {
                     listToAdd = (List) content;
                 } else if (content != null) {
-                    // CacheUserWaypointsResponse has .a (List)
-                    // AdditionalWaypointsForCache has .a (List)
                     Field subA = content.getClass().getField("a");
                     Object subObj = subA.get(content);
                     if (subObj instanceof List) {
@@ -355,8 +508,10 @@ public final class GeocacheEnrichmentBridge {
         Class<?> cacheClass = Class.forName("com.groundspeak.geocaching.intro.types.LegacyGeocache");
 
         builderClass.getField("c").set(builder, scraped.code);
-        builderClass.getField("x").set(builder, scraped.name != null ? scraped.name : scraped.code);
-        builderClass.getField("y").set(builder, scraped.placedBy != null ? scraped.placedBy : "");
+        String name = (scraped.name != null && !scraped.name.isEmpty()) ? scraped.name : scraped.code;
+        builderClass.getField("x").set(builder, name);
+        String placedBy = scraped.placedBy != null ? scraped.placedBy : "";
+        builderClass.getField("y").set(builder, placedBy);
         builderClass.getField("A").set(builder, scraped.shortDescription != null ? scraped.shortDescription : "");
         builderClass.getField("u").set(builder, scraped.longDescription != null ? scraped.longDescription : "");
         builderClass.getField("i").set(builder, scraped.encodedHints != null ? scraped.encodedHints : "");
@@ -367,6 +522,43 @@ public final class GeocacheEnrichmentBridge {
         builderClass.getField("q").set(builder, true);  // isPublished = true
         builderClass.getField("v").set(builder, Boolean.TRUE); // longDescriptionIsHtml
         builderClass.getField("B").set(builder, Boolean.TRUE); // shortDescriptionIsHtml
+
+        // Build CacheType
+        try {
+            Class<?> cacheTypeClass = Class.forName("com.groundspeak.geocaching.intro.types.LegacyGeocache$CacheType");
+            Object cacheTypeObj = cacheTypeClass.getDeclaredConstructor(String.class, int.class, String.class)
+                    .newInstance("", 2, "Traditional");
+            builderClass.getField("b").set(builder, cacheTypeObj);
+        } catch (Throwable t) {
+            Log.e(TAG, "Failed to create CacheType", t);
+        }
+
+        // Build ContainerType
+        try {
+            Class<?> containerTypeClass = Class.forName("com.groundspeak.geocaching.intro.types.LegacyGeocache$ContainerType");
+            Object containerTypeObj = containerTypeClass.getDeclaredConstructor(int.class, String.class)
+                    .newInstance(0, "");
+            builderClass.getField("d").set(builder, containerTypeObj);
+        } catch (Throwable t) {
+            Log.e(TAG, "Failed to create ContainerType", t);
+        }
+
+        // Build Owner
+        try {
+            Class<?> ownerClass = Class.forName("com.groundspeak.geocaching.intro.types.LegacyGeocache$Owner");
+            String finalUsername = !placedBy.isEmpty() ? placedBy : "Geocacher";
+            Object owner;
+            try {
+                owner = ownerClass.getDeclaredConstructor(String.class, String.class, String.class, String.class)
+                        .newInstance(finalUsername, "", "", "");
+            } catch (NoSuchMethodException e) {
+                owner = ownerClass.getDeclaredConstructor(String.class, String.class, String.class)
+                        .newInstance(finalUsername, "", "");
+            }
+            builderClass.getField("I").set(builder, owner);
+        } catch (Throwable t) {
+            Log.e(TAG, "Failed to create Owner", t);
+        }
 
         return cacheClass.getDeclaredConstructor(builderClass).newInstance(builder);
     }
@@ -384,7 +576,7 @@ public final class GeocacheEnrichmentBridge {
             Object sdb = k0Method.invoke(helper);
             Field rawDbField = sdb.getClass().getDeclaredField("A");
             rawDbField.setAccessible(true);
-            android.database.sqlite.SQLiteDatabase db = (android.database.sqlite.SQLiteDatabase) rawDbField.get(sdb);
+            SQLiteDatabase db = (SQLiteDatabase) rawDbField.get(sdb);
 
             Cursor cursor = db.rawQuery("SELECT * FROM lite_geocaches WHERE refCode = ?", new String[]{code});
             if (cursor != null) {
@@ -409,6 +601,9 @@ public final class GeocacheEnrichmentBridge {
 
         String refCode = getCursorString(cursor, "refCode");
         String name = getCursorString(cursor, "name");
+        if (name == null || name.isEmpty()) {
+            name = refCode;
+        }
         double diff = getCursorDouble(cursor, "difficulty");
         double terr = getCursorDouble(cursor, "terrain");
         int fav = getCursorInt(cursor, "favoritePoints");
@@ -424,13 +619,13 @@ public final class GeocacheEnrichmentBridge {
 
         builderClass.getField("c").set(builder, refCode);
         builderClass.getField("x").set(builder, name);
-        builderClass.getField("h").set(builder, diff);
-        builderClass.getField("C").set(builder, terr);
+        builderClass.getField("h").set(builder, diff > 0 ? diff : 1.0);
+        builderClass.getField("C").set(builder, terr > 0 ? terr : 1.0);
         builderClass.getField("j").set(builder, fav);
         builderClass.getField("D").set(builder, track);
         builderClass.getField("t").set(builder, lat);
         builderClass.getField("w").set(builder, lng);
-        builderClass.getField("y").set(builder, placedBy != null ? placedBy : ownerUsername);
+        builderClass.getField("y").set(builder, placedBy != null && !placedBy.isEmpty() ? placedBy : (ownerUsername != null ? ownerUsername : ""));
         if (placedDate > 0) {
             Date d = new Date(placedDate);
             builderClass.getField("e").set(builder, d);
@@ -438,6 +633,26 @@ public final class GeocacheEnrichmentBridge {
         }
         builderClass.getField("r").set(builder, true);
         builderClass.getField("q").set(builder, true);
+
+        // Build CacheType
+        try {
+            Class<?> cacheTypeClass = Class.forName("com.groundspeak.geocaching.intro.types.LegacyGeocache$CacheType");
+            Object cacheTypeObj = cacheTypeClass.getDeclaredConstructor(String.class, int.class, String.class)
+                    .newInstance("", cacheType > 0 ? cacheType : 2, "");
+            builderClass.getField("b").set(builder, cacheTypeObj);
+        } catch (Throwable t) {
+            Log.e(TAG, "Failed to create CacheType", t);
+        }
+
+        // Build ContainerType
+        try {
+            Class<?> containerTypeClass = Class.forName("com.groundspeak.geocaching.intro.types.LegacyGeocache$ContainerType");
+            Object containerTypeObj = containerTypeClass.getDeclaredConstructor(int.class, String.class)
+                    .newInstance(containerType, "");
+            builderClass.getField("d").set(builder, containerTypeObj);
+        } catch (Throwable t) {
+            Log.e(TAG, "Failed to create ContainerType", t);
+        }
 
         // Build LatLng
         try {
@@ -450,10 +665,20 @@ public final class GeocacheEnrichmentBridge {
         // Build Owner
         try {
             Class<?> ownerClass = Class.forName("com.groundspeak.geocaching.intro.types.LegacyGeocache$Owner");
-            Object owner = ownerClass.getDeclaredConstructor(String.class, String.class, String.class)
-                    .newInstance(ownerRefCode, ownerUsername, "");
+            String finalUsername = (ownerUsername != null && !ownerUsername.isEmpty())
+                    ? ownerUsername
+                    : (placedBy != null && !placedBy.isEmpty() ? placedBy : "Geocacher");
+            Object owner;
+            try {
+                owner = ownerClass.getDeclaredConstructor(String.class, String.class, String.class, String.class)
+                        .newInstance(finalUsername, "", "", ownerRefCode != null ? ownerRefCode : "");
+            } catch (NoSuchMethodException e) {
+                owner = ownerClass.getDeclaredConstructor(String.class, String.class, String.class)
+                        .newInstance(finalUsername, "", "");
+            }
             builderClass.getField("I").set(builder, owner);
-        } catch (Throwable ignored) {
+        } catch (Throwable t) {
+            Log.e(TAG, "Failed to create Owner", t);
         }
 
         return cacheClass.getDeclaredConstructor(builderClass).newInstance(builder);
@@ -479,18 +704,182 @@ public final class GeocacheEnrichmentBridge {
         return idx >= 0 ? c.getLong(idx) : 0L;
     }
 
+    private static void saveEnrichedCacheToDb(Object y82, Object enriched) {
+        if (y82 == null || enriched == null) return;
+        try {
+            SQLiteDatabase db = getDatabaseFromY82(y82);
+            if (db == null || db.isReadOnly()) return;
+
+            Class<?> clazz = enriched.getClass();
+            String code = (String) clazz.getField("code").get(enriched);
+            if (code == null || code.isEmpty()) return;
+
+            String name = (String) clazz.getField("name").get(enriched);
+            if (name == null || name.isEmpty()) {
+                name = code;
+            }
+            double diff = clazz.getField("difficulty").getDouble(enriched);
+            double terr = clazz.getField("terrain").getDouble(enriched);
+            int fav = clazz.getField("favoritePoints").getInt(enriched);
+            int track = clazz.getField("trackableCount").getInt(enriched);
+            double lat = clazz.getField("latitude").getDouble(enriched);
+            double lng = clazz.getField("longitude").getDouble(enriched);
+            String placedBy = (String) clazz.getField("placedBy").get(enriched);
+            String shortDesc = (String) clazz.getField("shortDescription").get(enriched);
+            String longDesc = (String) clazz.getField("longDescription").get(enriched);
+            String hints = (String) clazz.getField("encodedHints").get(enriched);
+
+            Object cacheTypeObj = clazz.getField("cacheType").get(enriched);
+            int cacheTypeId = 2; // Default Traditional
+            if (cacheTypeObj != null) {
+                try {
+                    cacheTypeId = cacheTypeObj.getClass().getField("geocacheTypeId").getInt(cacheTypeObj);
+                } catch (Throwable ignored) {
+                }
+            }
+
+            Object containerTypeObj = clazz.getField("containerType").get(enriched);
+            int containerTypeId = 0;
+            if (containerTypeObj != null) {
+                try {
+                    containerTypeId = containerTypeObj.getClass().getField("containerTypeId").getInt(containerTypeObj);
+                } catch (Throwable ignored) {
+                }
+            }
+
+            Object ownerObj = clazz.getField("owner").get(enriched);
+            String ownerName = placedBy != null ? placedBy : "";
+            String ownerGuid = "";
+            String ownerRefCode = "";
+            String ownerAvatarUrl = "";
+            if (ownerObj != null) {
+                try {
+                    String u = (String) ownerObj.getClass().getField("username").get(ownerObj);
+                    if (u != null && !u.isEmpty()) ownerName = u;
+                    String g = (String) ownerObj.getClass().getField("publicGuid").get(ownerObj);
+                    if (g != null) ownerGuid = g;
+                    String r = (String) ownerObj.getClass().getField("refCode").get(ownerObj);
+                    if (r != null) ownerRefCode = r;
+                    String a = (String) ownerObj.getClass().getField("avatarUrl").get(ownerObj);
+                    if (a != null) ownerAvatarUrl = a;
+                } catch (Throwable ignored) {
+                }
+            }
+
+            ContentValues cv = new ContentValues();
+            cv.put("Code", code);
+            cv.put("Name", name);
+            cv.put("Difficulty", diff > 0 ? diff : 1.0);
+            cv.put("Terrain", terr > 0 ? terr : 1.0);
+            cv.put("FavoritePoints", fav);
+            cv.put("TrackableCount", track);
+            cv.put("Latitude", lat);
+            cv.put("Longitude", lng);
+            cv.put("PlacedBy", placedBy != null ? placedBy : ownerName);
+            cv.put("CacheTypeID", cacheTypeId);
+            cv.put("ContainerTypeId", containerTypeId);
+            cv.put("OwnerName", ownerName);
+            cv.put("OwnerGuid", ownerGuid);
+            cv.put("OwnerRefCode", ownerRefCode);
+            cv.put("OwnerAvatarUrl", ownerAvatarUrl);
+            cv.put("ShortDescription", shortDesc != null ? shortDesc : "");
+            cv.put("ShortDescriptionIsHtml", 1);
+            cv.put("LongDescription", longDesc != null ? longDesc : "");
+            cv.put("LongDescriptionIsHtml", 1);
+            cv.put("EncodedHints", hints != null ? hints : "");
+            cv.put("IsLite", 0);
+            cv.put("Available", 1);
+            cv.put("Published", 1);
+            cv.put("IsPremium", 0);
+            cv.put("IsLocked", 0);
+            cv.put("LastModified", System.currentTimeMillis());
+
+            db.insertWithOnConflict("Geocache", null, cv, SQLiteDatabase.CONFLICT_REPLACE);
+
+            // Also clean up any poisoned rows
+            db.delete("Geocache", "Name IS NULL OR Name = ''", null);
+            Log.i(TAG, "Successfully persisted fully enriched cache " + code + " into Geocache table");
+        } catch (Throwable t) {
+            Log.e(TAG, "Failed to persist enriched cache into y82", t);
+        }
+    }
+
+    public static void cleanPoisonedCaches(Object y82) {
+        if (y82 == null) return;
+        try {
+            SQLiteDatabase db = getDatabaseFromY82(y82);
+            if (db != null && !db.isReadOnly()) {
+                int count = db.delete("Geocache", "Name IS NULL OR Name = ''", null);
+                if (count > 0) {
+                    Log.i(TAG, "Cleaned " + count + " poisoned cache rows from Geocache table");
+                }
+            }
+        } catch (Throwable t) {
+            Log.d(TAG, "cleanPoisonedCaches error: " + t);
+        }
+    }
+
+    public static void cleanPoisonedCache(Object y82, String code) {
+        if (y82 == null) return;
+        try {
+            SQLiteDatabase db = getDatabaseFromY82(y82);
+            if (db != null && !db.isReadOnly()) {
+                if (code != null && !code.isEmpty()) {
+                    db.delete("Geocache", "Code = ? AND (Name IS NULL OR Name = '')", new String[]{code});
+                }
+                db.delete("Geocache", "Name IS NULL OR Name = ''", null);
+            }
+        } catch (Throwable t) {
+            Log.d(TAG, "cleanPoisonedCache error: " + t);
+        }
+    }
+
+    private static SQLiteDatabase getDatabaseFromY82(Object y82) {
+        if (y82 == null) return null;
+        try {
+            if (y82 instanceof SQLiteOpenHelper) {
+                return ((SQLiteOpenHelper) y82).getWritableDatabase();
+            }
+            Method getDbMethod = y82.getClass().getMethod("getWritableDatabase");
+            return (SQLiteDatabase) getDbMethod.invoke(y82);
+        } catch (Throwable t) {
+            Log.e(TAG, "Failed to get database from y82", t);
+            return null;
+        }
+    }
+
     private static ScrapedData scrapePublicCachePage(String code) {
+        if (code == null || !PATTERN_GC_CODE.matcher(code).matches()) {
+            Log.w(TAG, "Invalid GC code format for scraping: " + code);
+            return null;
+        }
         HttpURLConnection conn = null;
         try {
-            URL url = new URL("https://www.geocaching.com/geocache/" + code);
-            conn = (HttpURLConnection) url.openConnection();
-            conn.setRequestMethod("GET");
-            conn.setConnectTimeout(8000);
-            conn.setReadTimeout(8000);
-            conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 14; Mobile; rv:128.0) Gecko/128.0 Firefox/128.0");
-            conn.setInstanceFollowRedirects(true);
-            int respCode = conn.getResponseCode();
-            if (respCode != 200) {
+            URL currentUrl = new URL("https://www.geocaching.com/geocache/" + code);
+            int redirects = 0;
+            int respCode = 0;
+            while (redirects < 5) {
+                conn = (HttpURLConnection) currentUrl.openConnection();
+                conn.setRequestMethod("GET");
+                conn.setConnectTimeout(8000);
+                conn.setReadTimeout(8000);
+                conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 14; Mobile; rv:128.0) Gecko/128.0 Firefox/128.0");
+                conn.setInstanceFollowRedirects(true);
+                respCode = conn.getResponseCode();
+                if (respCode >= 300 && respCode < 400) {
+                    String location = conn.getHeaderField("Location");
+                    if (location != null && !location.isEmpty()) {
+                        currentUrl = new URL(currentUrl, location);
+                        conn.disconnect();
+                        conn = null;
+                        redirects++;
+                        continue;
+                    }
+                }
+                break;
+            }
+
+            if (respCode != 200 || conn == null) {
                 Log.w(TAG, "Public cache page returned HTTP " + respCode + " for " + code);
                 return null;
             }
@@ -504,7 +893,7 @@ public final class GeocacheEnrichmentBridge {
             reader.close();
             String html = sb.toString();
 
-            if (html.contains("window.isCachePMO = 'Yes'") || html.contains("Premium Member Only")) {
+            if (PATTERN_PMO_FLAG.matcher(html).find() || PATTERN_PMO_ELEMENT.matcher(html).find()) {
                 Log.i(TAG, code + " is a PMO cache; skipping public enrichment");
                 return null;
             }
@@ -526,19 +915,21 @@ public final class GeocacheEnrichmentBridge {
             if (mShort.find()) {
                 data.shortDescription = mShort.group(1).trim();
             } else {
-                data.shortDescription = "";
+                Matcher mShortFallback = PATTERN_SHORT_DESC_FALLBACK.matcher(html);
+                data.shortDescription = mShortFallback.find() ? mShortFallback.group(1).trim() : "";
             }
 
             Matcher mLong = PATTERN_LONG_DESC.matcher(html);
             if (mLong.find()) {
                 data.longDescription = mLong.group(1).trim();
             } else {
-                data.longDescription = "";
+                Matcher mLongFallback = PATTERN_LONG_DESC_FALLBACK.matcher(html);
+                data.longDescription = mLongFallback.find() ? mLongFallback.group(1).trim() : "";
             }
 
             Matcher mHint = PATTERN_HINT.matcher(html);
             if (mHint.find()) {
-                data.encodedHints = unescapeHtml(mHint.group(1).trim());
+                data.encodedHints = cleanHint(mHint.group(1));
             } else {
                 data.encodedHints = "";
             }
@@ -549,9 +940,27 @@ public final class GeocacheEnrichmentBridge {
             return null;
         } finally {
             if (conn != null) {
-                conn.disconnect();
+                try {
+                    conn.disconnect();
+                } catch (Throwable ignored) {
+                }
             }
         }
+    }
+
+    private static String cleanHint(String rawHint) {
+        if (rawHint == null || rawHint.isEmpty()) {
+            return "";
+        }
+        // Normalize literal and escaped <br> tags to line breaks before stripping remaining tags
+        String hint = rawHint.replaceAll("(?i)<br\\s*/?>|&lt;br\\s*/?&gt;", "\n");
+        // Remove any other HTML tags
+        hint = hint.replaceAll("<[^>]+>", "");
+        // Unescape HTML entities
+        hint = unescapeHtml(hint);
+        // Normalize carriage returns and trim
+        hint = hint.replace("\r\n", "\n").replace('\r', '\n');
+        return hint.trim();
     }
 
     private static String unescapeHtml(String input) {

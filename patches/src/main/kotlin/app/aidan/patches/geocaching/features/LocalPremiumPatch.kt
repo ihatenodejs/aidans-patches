@@ -418,6 +418,7 @@ private fun BytecodePatchContext.patchAccountFragment() {
 private fun BytecodePatchContext.patchPreventCacheDetailsError() {
     patchLegacyGeocacheRepoLiteCache()
     patchFetchLegacyCacheFallback()
+    patchSanitizeLoadedCache()
 }
 
 private fun BytecodePatchContext.patchLegacyGeocacheRepoLiteCache() {
@@ -498,6 +499,33 @@ private fun BytecodePatchContext.patchFetchLegacyCacheFallback() {
             move-object/16 v0, v$thisReg
             invoke-static {v0, v7}, Lapp/aidan/extension/geocaching/GeocacheEnrichmentBridge;->onFetchFailed(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;
             move-result-object v7
+        """.trimIndent()
+    )
+}
+
+private fun BytecodePatchContext.patchSanitizeLoadedCache() {
+    val y82Class = mutableClassDefByOrNull("Ly82;") ?: return
+    val pMethod = y82Class.methods.firstOrNull {
+        it.name == "p" &&
+            it.parameterTypes == listOf("Ljava/lang/String;") &&
+            it.returnType == "Lcom/groundspeak/geocaching/intro/types/LegacyGeocache;" &&
+            it.implementation != null
+    } ?: return
+
+    val impl = pMethod.implementation ?: return
+    val instructions = impl.instructions.toList()
+    val returnIndex = instructions.indexOfLast { it.opcode == Opcode.RETURN_OBJECT }
+    if (returnIndex == -1) return
+
+    val returnInst = instructions[returnIndex] as? OneRegisterInstruction ?: return
+    val reg = returnInst.registerA
+
+    pMethod.addInstructions(
+        returnIndex,
+        """
+            invoke-static {v$reg}, Lapp/aidan/extension/geocaching/GeocacheEnrichmentBridge;->sanitizeLoadedCache(Ljava/lang/Object;)Ljava/lang/Object;
+            move-result-object v$reg
+            check-cast v$reg, Lcom/groundspeak/geocaching/intro/types/LegacyGeocache;
         """.trimIndent()
     )
 }
