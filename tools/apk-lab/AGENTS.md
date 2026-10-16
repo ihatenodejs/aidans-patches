@@ -60,12 +60,19 @@ uv run --project tools/apk-lab apk-lab check path/to/app.apkm \
   --package com.example.app \
   --all
 
+# Rapid inner iteration loop during patch authoring: builds patches, locates artifact,
+# negotiates keystore, signs, deploys, and launches
+uv run --project tools/apk-lab apk-lab dev <app>
+
+# Or deploy explicitly:
 uv run --project tools/apk-lab apk-lab deploy path/to/app.apkm \
   --mpp patches/build/libs/patches-X.Y.Z.mpp \
   --package com.example.app \
   --all --launch
 uv run --project tools/apk-lab apk-lab monitor \
   --package com.example.app --timeout 10.0 --dump-threads
+uv run --project tools/apk-lab apk-lab crash-trace \
+  --package com.example.app
 
 uv run --project tools/apk-lab apk-lab clean --package com.example.app
 ```
