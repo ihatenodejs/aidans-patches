@@ -8,7 +8,7 @@
 | **Remove Lists** | `Interface` | `true` | Removes the Lists option from the bottom navigation bar. |
 | **Unlock Cache Filter and Sorting Tools** | `Features` | `true` | Unlocks advanced cache search filters and sorting options without prompting for Geocaching Premium. |
 | **OpenStreetMap Drop-in Replacement** | `Customization` | `true` | Replaces proprietary Google Maps tiles with free, community-driven OpenStreetMap tiles without losing geocache pins, clusters, popups, or gestures. |
-| **Local Premium** | `Interface` | `true` | Enables local Premium membership status across profile and account screens, and removes upgrade promotions, banners, and icons. |
+| **Local Premium** | `Interface` | `true` | Enables local Premium membership status across profile and account screens, removes upgrade promotions, banners, and icons, and enriches public cache details (description, hints, owner) when server blocks basic accounts. |
 | **Unlock Templates** | `Features` | `true` | Unlocks geocache log templates, allowing creating, editing, and applying custom log templates without Geocaching Premium. |
 | **Unlock Experimental Features** | `Features` | `true` | Unlocks beta and experimental features in Settings without Geocaching Premium. |
 | **Remove Shop** | `Interface` | `true` | Removes the Shop Geocaching promotional section and link from the Profile screen. |
@@ -167,6 +167,8 @@ Enables local Premium membership status across the application and removes upgra
 3. Removes the promotional upgrade card ("Artwork Geocaching Premium", "Access it all", "Go Premium") and the server-dependent Statistics item from the Profile screen.
 4. Removes the "Upgrade to Premium" menu row from the Settings screen.
 5. Removes the "Upgrade to Premium" button and spacer row from the Account screen while preserving "Disable or delete account".
+6. Enriches cache details (description, hints, placed-by owner name) for public regular and advanced caches by scraping public listing details when the server rejects basic account API requests with HTTP 403 Forbidden.
+
 ### Bytecode Modifications
 1. **Map Top-Left Upgrade Canister**:
    - Targets: `com.groundspeak.geocaching.intro.mainmap.map.SharedMapViewModel.<init>` and `A(MapMode)`
@@ -188,7 +190,12 @@ Enables local Premium membership status across the application and removes upgra
    - Target: `com.groundspeak.geocaching.intro.fragments.AccountFragment.v(a, i24, tl1, I)`
      - Intercepts `Ll65;->U(tl1, I)Ljava/lang/String;` following `R.string.membership_type_basic` (0x7f140692) and overrides the string register with `"Membership type: Premium"`.
      - Replaces `sget-object v2, e0;->g` with `BuilderInstruction30t(Opcode.GOTO_32, targetLabel)` targeting `invoke-virtual {v11, v1}, Lb44;->t(Z)V`, cleanly skipping the `f.v` upgrade item and `f.u` spacer while preserving `odb.b` and `m.g`.
-
+5. **Public Cache Data Enrichment Fallback**:
+   - Targets: `com.groundspeak.geocaching.intro.model.d.e` (`LegacyGeocacheRepo.loadGeocache`) and `com.groundspeak.geocaching.intro.model.LegacyGeocacheRepo$fetchLegacyCacheFromServer$2.invokeSuspend`
+   - In `d.e`, intercepts `Lie4.l(gf6)` to register the database's `LiteGeocache` in `GeocacheEnrichmentBridge.rememberLiteGeocache`.
+   - In `fetchLegacyCacheFromServer$2`, intercepts the error return point when server requests fail with HTTP 403 Forbidden (which the Groundspeak mobile API returns for basic accounts on traditional caches with Difficulty > 1.5 or Terrain > 1.5, and on non-traditional caches).
+   - Routes through `GeocacheEnrichmentBridge.onFetchFailed`, which scrapes the public cache page on `geocaching.com` (where all non-PMO cache descriptions, hints, and owner details are public), enriches the cache with `placedBy`, `shortDescription`, `longDescription`, and `encodedHints`, saves it into the local `y82` SQLite database with `IsLite = 0`, and returns a `Success(xk9)` result.
+   - Restores missing cache descriptions, hint button functionality, and owner attribution across cache details, description webviews, and navigation screens.
 ---
 
 ## 6. Unlock Templates

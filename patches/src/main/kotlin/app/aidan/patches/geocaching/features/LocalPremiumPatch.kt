@@ -20,7 +20,7 @@ import com.android.tools.smali.dexlib2.iface.reference.StringReference
 
 val localPremiumPatch = bytecodePatch(
     name = "Local Premium",
-    description = "Enables local Premium membership status across profile and account screens, removes upgrade promotions, banners, icons, and server-dependent profile statistics, and preserves loaded non-traditional cache details.",
+    description = "Enables local Premium membership status across profile and account screens, removes upgrade promotions, banners, icons, and server-dependent profile statistics, and enriches public cache details (description, hints, owner) when server blocks basic accounts.",
     default = true
 ) {
     category("Interface")
@@ -417,6 +417,8 @@ private fun BytecodePatchContext.patchAccountFragment() {
  */
 private fun BytecodePatchContext.patchPreventCacheDetailsError() {
     patchLegacyGeocacheRepoLiteCache()
+    patchFetchLegacyCacheFallback()
+    patchSanitizeLoadedCache()
 }
 
 private fun BytecodePatchContext.patchLegacyGeocacheRepoLiteCache() {
@@ -447,8 +449,85 @@ private fun BytecodePatchContext.patchLegacyGeocacheRepoLiteCache() {
     val nextInst = instructions.getOrNull(invokeLIndex + 2)
     val isAlreadyPatched = nextInst?.opcode == Opcode.MOVE_OBJECT
     if (!isAlreadyPatched) {
-        eMethod.addInstructions(invokeLIndex + 2, "move-object p1, p3")
+        eMethod.addInstructions(
+            invokeLIndex + 2,
+            """
+                move-object p1, p3
+                invoke-static {p3}, Lapp/aidan/extension/geocaching/GeocacheEnrichmentBridge;->rememberLiteGeocache(Ljava/lang/Object;)V
+            """.trimIndent()
+        )
     }
+}
+
+/**
+ * In LegacyGeocacheRepo$fetchLegacyCacheFromServer$2.invokeSuspend, intercepts the error return point
+ * when server requests return 403 Forbidden (which occurs for basic accounts on traditional caches
+ * with D > 1.5 or T > 1.5, or on non-traditional caches).
+ *
+ * Calls GeocacheEnrichmentBridge.onFetchFailed to scrape the public webpage (where non-PMO cache
+ * descriptions, hints, and owner details are public) and constructs an enriched LegacyGeocache
+ * wrapped in Success (xk9), persisting it to the local cache and satisfying callers seamlessly.
+ */
+private fun BytecodePatchContext.patchFetchLegacyCacheFallback() {
+    val lambdaClass = mutableClassDefByOrNull(
+        "Lcom/groundspeak/geocaching/intro/model/LegacyGeocacheRepo\$fetchLegacyCacheFromServer\$2;"
+    ) ?: return
+
+    val invokeSuspendMethod = lambdaClass.methods.firstOrNull {
+        it.name == "invokeSuspend" &&
+            it.parameterTypes == listOf("Ljava/lang/Object;") &&
+            it.implementation != null
+    } ?: return
+
+    val impl = invokeSuspendMethod.implementation ?: return
+    val instructions = impl.instructions.toList()
+
+    val logStringIndex = instructions.indexOfFirst { inst ->
+        inst.opcode == Opcode.CONST_STRING &&
+            ((inst as? ReferenceInstruction)?.reference as? StringReference)?.string ==
+            "fetchLegacyCacheFromServer: error encountered while loading cache"
+    }
+    if (logStringIndex == -1) return
+
+    // The instruction before logStringIndex is: const-string v0, "GeocacheRepo"
+    val targetIndex = logStringIndex - 1
+    val thisReg = impl.registerCount - 2
+
+    invokeSuspendMethod.addInstructions(
+        targetIndex,
+        """
+            move-object/16 v0, v$thisReg
+            invoke-static {v0, v7}, Lapp/aidan/extension/geocaching/GeocacheEnrichmentBridge;->onFetchFailed(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;
+            move-result-object v7
+        """.trimIndent()
+    )
+}
+
+private fun BytecodePatchContext.patchSanitizeLoadedCache() {
+    val y82Class = mutableClassDefByOrNull("Ly82;") ?: return
+    val pMethod = y82Class.methods.firstOrNull {
+        it.name == "p" &&
+            it.parameterTypes == listOf("Ljava/lang/String;") &&
+            it.returnType == "Lcom/groundspeak/geocaching/intro/types/LegacyGeocache;" &&
+            it.implementation != null
+    } ?: return
+
+    val impl = pMethod.implementation ?: return
+    val instructions = impl.instructions.toList()
+    val returnIndex = instructions.indexOfLast { it.opcode == Opcode.RETURN_OBJECT }
+    if (returnIndex == -1) return
+
+    val returnInst = instructions[returnIndex] as? OneRegisterInstruction ?: return
+    val reg = returnInst.registerA
+
+    pMethod.addInstructions(
+        returnIndex,
+        """
+            invoke-static {v$reg}, Lapp/aidan/extension/geocaching/GeocacheEnrichmentBridge;->sanitizeLoadedCache(Ljava/lang/Object;)Ljava/lang/Object;
+            move-result-object v$reg
+            check-cast v$reg, Lcom/groundspeak/geocaching/intro/types/LegacyGeocache;
+        """.trimIndent()
+    )
 }
 
 /**
