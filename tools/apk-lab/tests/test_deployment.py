@@ -436,3 +436,51 @@ def test_deploy_artifact_install_reinstall_vs_clean_install(tmp_path, monkeypatc
         "install",
         str(final_apk.resolve()),
     ]
+
+
+@pytest.mark.parametrize(
+    "alias_mode",
+    ["identical", "relative", "symlink"],
+)
+def test_deploy_artifact_rejects_output_aliasing_input(
+    tmp_path, monkeypatch, alias_mode
+):
+    in_apk = tmp_path / "original.apk"
+    original_bytes = b"ORIGINAL_APK_UNTOUCHED"
+    in_apk.write_bytes(original_bytes)
+
+    if alias_mode == "identical":
+        out_apk = in_apk
+    elif alias_mode == "relative":
+        monkeypatch.chdir(tmp_path)
+        out_apk = Path("original.apk")
+    elif alias_mode == "symlink":
+        out_apk = tmp_path / "link_to_original.apk"
+        out_apk.symlink_to(in_apk)
+
+    mock_client = MagicMock()
+    mock_tm = MagicMock()
+
+    with pytest.raises(
+        ValueError, match="Deployment output must not overwrite the input artifact"
+    ):
+        deploy_artifact(
+            artifact_path=in_apk,
+            mpp_path=tmp_path / "test.mpp",
+            package_name="com.test.app",
+            all_defaults=True,
+            enabled_patches=[],
+            raw_options=[],
+            out_apk_path=out_apk,
+            tool_manager=mock_tm,
+            adb_client=mock_client,
+        )
+
+    # Assert input was not clobbered
+    assert in_apk.read_bytes() == original_bytes
+    if alias_mode == "symlink":
+        assert out_apk.is_symlink()
+
+    # Assert no device or tool calls were made
+    mock_client.run.assert_not_called()
+    mock_tm.run.assert_not_called()

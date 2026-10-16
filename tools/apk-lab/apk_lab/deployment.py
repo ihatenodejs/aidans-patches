@@ -137,19 +137,22 @@ def deploy_artifact(
     tm = tool_manager or ToolManager()
     client = adb_client or AdbClient()
 
-    # 1. Resolve ADB device
-    devices = parse_adb_devices(client.run(["devices"]).stdout)
-    serial = select_device(devices, device_serial)
-
-    # 2. Resolve final output path and ensure parent exists
+    # 1. Resolve and validate output path (prevent overwriting input artifact)
     in_artifact = artifact_path.resolve()
     if out_apk_path:
         final_output = Path(out_apk_path).resolve()
     else:
         final_output = in_artifact.parent / f"{in_artifact.stem}-patched.apk"
 
+    if final_output == in_artifact:
+        raise ValueError("Deployment output must not overwrite the input artifact")
+
     final_parent = final_output.parent
     final_parent.mkdir(parents=True, exist_ok=True)
+
+    # 2. Resolve ADB device
+    devices = parse_adb_devices(client.run(["devices"]).stdout)
+    serial = select_device(devices, device_serial)
 
     # 3. Resolve patch selections
     patches_list_data = load_patches_list()
