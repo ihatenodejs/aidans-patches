@@ -37,7 +37,6 @@ interface StepResult {
   durationMs: number;
   summary: string;
   diagnostics?: Diagnostic[];
-  output?: string;
 }
 
 interface Diagnostic {
