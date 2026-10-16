@@ -636,6 +636,72 @@ def handle_deploy(args: argparse.Namespace) -> int:
         return ExitCode.INFRASTRUCTURE_FAILURE
 
 
+def handle_dev(args: argparse.Namespace) -> int:
+    try:
+        from apk_lab.deployment import (
+            build_patch_bundle,
+            deploy_artifact,
+            find_app_artifact,
+            find_repo_root,
+        )
+        from apk_lab.inspection import inspect_artifact
+
+        repo_root = find_repo_root()
+        print(f"Repository root: {repo_root}")
+
+        # 1. Build patch bundle
+        print("Building patch bundle via Gradle...")
+        mpp_path = build_patch_bundle(repo_root)
+        print(f"Built bundle: {mpp_path}")
+
+        # 2. Locate target artifact
+        artifact_path = find_app_artifact(args.app, repo_root)
+        if not artifact_path:
+            print(
+                f"Error: Could not find matching artifact for '{args.app}'",
+                file=sys.stderr,
+            )
+            return ExitCode.USAGE_OR_TOOL_ERROR
+        print(f"Found artifact: {artifact_path}")
+
+        # 3. Resolve package name
+        insp = inspect_artifact(artifact_path)
+        package_name = insp.package_name
+        print(f"Resolved package: {package_name}")
+
+        # 4. Deploy
+        clean_install = getattr(args, "clean_install", False)
+        device_serial = getattr(args, "device", None)
+        launch = getattr(args, "launch", True)
+        all_defaults = getattr(args, "all", True)
+
+        result = deploy_artifact(
+            artifact_path=artifact_path,
+            mpp_path=mpp_path,
+            package_name=package_name,
+            all_defaults=all_defaults,
+            enabled_patches=[],
+            raw_options=[],
+            device_serial=device_serial,
+            launch=launch,
+            clean_install=clean_install,
+        )
+        print(result.format_human())
+        return ExitCode.SUCCESS
+    except FileNotFoundError as e:
+        print(f"Dev iteration error: {e}", file=sys.stderr)
+        return ExitCode.USAGE_OR_TOOL_ERROR
+    except ValueError as e:
+        print(f"Dev iteration error: {e}", file=sys.stderr)
+        return ExitCode.USAGE_OR_TOOL_ERROR
+    except RuntimeError as e:
+        print(f"Dev iteration error: {e}", file=sys.stderr)
+        return ExitCode.INFRASTRUCTURE_FAILURE
+    except Exception as e:  # noqa: BLE001
+        print(f"Dev iteration error: {e}", file=sys.stderr)
+        return ExitCode.INFRASTRUCTURE_FAILURE
+
+
 def handle_monitor(args: argparse.Namespace) -> int:
     try:
         from apk_lab.device import run_monitor
@@ -972,7 +1038,12 @@ def build_parser() -> argparse.ArgumentParser:
         "deploy", help="Apply patches, sign with debug key, and install to device"
     )
     p_deploy.add_argument("artifact", help="Path to APK/APKM/XAPK/APKS artifact")
-    p_deploy.add_argument("--mpp", required=True, help="Path to patches .mpp file")
+    p_deploy.add_argument("--mpp", default=None, help="Path to patches .mpp file")
+    p_deploy.add_argument(
+        "--build",
+        action="store_true",
+        help="Automatically compile newest .mpp patch bundle via Gradle",
+    )
     p_deploy.add_argument("--package", required=True, help="Expected package name")
     g_patch = p_deploy.add_mutually_exclusive_group(required=True)
     g_patch.add_argument(
@@ -1027,6 +1098,36 @@ def build_parser() -> argparse.ArgumentParser:
         help="Key password (defaults to android or auto-detected)",
     )
     p_deploy.set_defaults(handler=handle_deploy)
+    # dev
+    p_dev = subparsers.add_parser(
+        "dev", help="Build patches, locate artifact, deploy to device, and launch"
+    )
+    p_dev.add_argument("app", help="Application name or package (e.g. 'geocaching')")
+    p_dev.add_argument("--device", help="Target ADB device serial")
+    p_dev.add_argument(
+        "--launch",
+        action="store_true",
+        default=True,
+        help="Launch main activity after installation",
+    )
+    p_dev.add_argument(
+        "--all",
+        action="store_true",
+        default=True,
+        help="Apply all compatible patches",
+    )
+    g_dev_install = p_dev.add_mutually_exclusive_group()
+    g_dev_install.add_argument(
+        "--reinstall",
+        action="store_true",
+        help="Reinstall preserving data (-r, default)",
+    )
+    g_dev_install.add_argument(
+        "--clean-install",
+        action="store_true",
+        help="Clean install by uninstalling first",
+    )
+    p_dev.set_defaults(handler=handle_dev)
 
     # monitor
     p_monitor = subparsers.add_parser(

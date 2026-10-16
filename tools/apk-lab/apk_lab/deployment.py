@@ -27,6 +27,86 @@ from apk_lab.morphe import (
 from apk_lab.tools import ToolManager
 
 
+def find_repo_root(start_path: Path | None = None) -> Path:
+    """Locates the repository root by searching upward for gradlew."""
+    curr = (start_path or Path.cwd()).resolve()
+    for parent in [curr, *curr.parents]:
+        if (parent / "gradlew").is_file():
+            return parent
+    raise RuntimeError(
+        "Could not find repository root (gradlew not found in ancestors)"
+    )
+
+
+def build_patch_bundle(repo_root: Path) -> Path:
+    """Runs ./gradlew :patches:buildAndroid and returns the newest .mpp bundle."""
+    gradlew = repo_root / "gradlew"
+    if not gradlew.is_file():
+        raise RuntimeError(f"Gradle wrapper not found at {gradlew}")
+
+    proc = subprocess.run(
+        [str(gradlew), ":patches:buildAndroid"],
+        cwd=repo_root,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if proc.returncode != 0:
+        raise RuntimeError(
+            f"Gradle build failed (exit code {proc.returncode}):\n{proc.stderr or proc.stdout}"
+        )
+
+    libs_dir = repo_root / "patches" / "build" / "libs"
+    if not libs_dir.is_dir():
+        raise RuntimeError(f"Output directory does not exist: {libs_dir}")
+
+    mpp_files = list(libs_dir.glob("*.mpp"))
+    if not mpp_files:
+        raise RuntimeError(f"No .mpp bundle found in {libs_dir}")
+
+    mpp_files.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+    return mpp_files[0]
+
+
+def find_app_artifact(target: str, repo_root: Path) -> Path | None:
+    """Searches apk/, ~/Downloads/, and .apk-lab/ for matching APK/APKM/XAPK/APKS artifacts."""
+    search_dirs = [
+        repo_root / "apk",
+        Path.home() / "Downloads",
+        repo_root / ".apk-lab",
+    ]
+    valid_extensions = {".apk", ".apkm", ".xapk", ".apks"}
+    target_lower = target.lower()
+
+    for base_dir in search_dirs:
+        if not base_dir.is_dir():
+            continue
+        # Scan files in base_dir and its subdirectories (e.g. apk/<App-Name>/)
+        candidates: list[Path] = []
+        try:
+            for entry in base_dir.rglob("*"):
+                if entry.is_file() and entry.suffix.lower() in valid_extensions:
+                    # Check if target matches filename or any directory component under base_dir
+                    rel_parts = entry.relative_to(base_dir).parts
+                    if any(target_lower in part.lower() for part in rel_parts):
+                        candidates.append(entry)
+        except OSError:
+            continue
+
+        if candidates:
+            # Prefer non-patched artifacts, then sort by mtime descending
+            candidates.sort(
+                key=lambda p: (
+                    not p.name.endswith("-patched.apk"),
+                    p.stat().st_mtime,
+                ),
+                reverse=True,
+            )
+            return candidates[0]
+
+    return None
+
+
 def ensure_debug_keystore(keystore_path: Path | None = None) -> Path:
     """Ensures a standard Android debug keystore exists, generating one if absent."""
     ks_path = keystore_path or (Path.home() / ".android" / "debug.keystore")
@@ -319,9 +399,22 @@ def deploy_artifact(
 
 def run_deploy(args: argparse.Namespace) -> int:
     """CLI handler for deploy subcommand."""
+    mpp_arg = getattr(args, "mpp", None)
+    build_flag = getattr(args, "build", False)
+
+    if not mpp_arg and not build_flag:
+        raise ValueError("Either --mpp or --build must be specified")
+
+    if not mpp_arg and build_flag:
+        repo_root = find_repo_root()
+        mpp_path = build_patch_bundle(repo_root)
+    else:
+        assert mpp_arg is not None
+        mpp_path = Path(mpp_arg)
+
     result = deploy_artifact(
         artifact_path=Path(args.artifact),
-        mpp_path=Path(args.mpp),
+        mpp_path=mpp_path,
         package_name=args.package,
         all_defaults=args.all,
         enabled_patches=args.enable,
