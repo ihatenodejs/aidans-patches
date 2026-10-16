@@ -1,6 +1,7 @@
 package app.aidan.patches.geocaching.tracking
 
 import app.aidan.patches.geocaching.shared.COMPATIBILITY_GEOCACHING
+import app.aidan.patches.shared.disableOptionalVoidMethods
 import app.morphe.patcher.extensions.InstructionExtensions.addInstructions
 import app.morphe.patcher.patch.BytecodePatchContext
 import app.morphe.patcher.patch.booleanOption
@@ -44,29 +45,29 @@ val removeTrackingAndAnalyticsPatch = bytecodePatch(
         spoofAdvertisingId()
 
         // Layer 2: Centralized First-Party Analytics (AnalyticsRepo & Helpers)
-        disableVoidMethods(
+        disableOptionalVoidMethods(
             "Lcom/groundspeak/geocaching/intro/analytics/firebase/AnalyticsRepo;",
             "m", "a", "b", "c", "f", "g", "h", "i", "j", "k", "l", "n", "o", "p", "q"
         )
-        disableVoidMethods(
+        disableOptionalVoidMethods(
             "Lcom/groundspeak/geocaching/intro/analytics/firebase/AnalyticsRepo\$a;",
             "a"
         )
-        disableVoidMethods(
+        disableOptionalVoidMethods(
             "Lvm3;",
             "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "p", "q", "r", "s", "t", "u", "v"
         )
-        disableVoidMethods(
+        disableOptionalVoidMethods(
             "Lgo3;",
             "b", "f"
         )
-        disableVoidMethods(
+        disableOptionalVoidMethods(
             "Lcom/groundspeak/geocaching/intro/analytics/firebase/AnalyticsWebInterface;",
             "logEvent"
         )
 
         // Layer 3: Firebase Analytics & Measurement Neutralization
-        disableVoidMethods(
+        disableOptionalVoidMethods(
             "Lcom/google/firebase/analytics/FirebaseAnalytics;",
             "logEvent",
             "setAnalyticsCollectionEnabled",
@@ -75,11 +76,11 @@ val removeTrackingAndAnalyticsPatch = bytecodePatch(
             "setSessionTimeoutDuration",
             "setUserId"
         )
-        disableVoidMethods(
+        disableOptionalVoidMethods(
             "Lcom/google/firebase/perf/FirebasePerformance;",
             "setPerformanceCollectionEnabled"
         )
-        disableVoidMethods(
+        disableOptionalVoidMethods(
             "Lcom/google/firebase/inappmessaging/FirebaseInAppMessaging;",
             "setAutomaticDataCollectionEnabled",
             "setMessagesSuppressed"
@@ -87,7 +88,7 @@ val removeTrackingAndAnalyticsPatch = bytecodePatch(
 
         // Layer 4: Firebase Crashlytics Neutralization
         if (stripCrashlytics.value != false) {
-            disableVoidMethods(
+            disableOptionalVoidMethods(
                 "Lcom/google/firebase/crashlytics/FirebaseCrashlytics;",
                 "log",
                 "recordException",
@@ -95,7 +96,7 @@ val removeTrackingAndAnalyticsPatch = bytecodePatch(
                 "setCustomKey",
                 "setCrashlyticsCollectionEnabled"
             )
-            disableVoidMethods(
+            disableOptionalVoidMethods(
                 "Lcom/groundspeak/geocaching/intro/analytics/crashlytics/a;",
                 "a", "b", "c", "d", "e"
             )
@@ -103,7 +104,7 @@ val removeTrackingAndAnalyticsPatch = bytecodePatch(
 
         // Layer 5: Facebook App Events Neutralization
         if (stripFacebook.value != false) {
-            disableVoidMethods(
+            disableOptionalVoidMethods(
                 "Lcom/facebook/appevents/AppEventsLogger;",
                 "activateApp",
                 "logEvent",
@@ -111,11 +112,11 @@ val removeTrackingAndAnalyticsPatch = bytecodePatch(
                 "flush",
                 "setFlushBehavior"
             )
-            disableVoidMethods(
+            disableOptionalVoidMethods(
                 "Lcom/facebook/internal/FetchedAppSettingsManager;",
                 "loadAppSettingsAsync"
             )
-            disableVoidMethods(
+            disableOptionalVoidMethods(
                 "Ldefpackage/wv;",
                 "l"
             )
@@ -123,7 +124,7 @@ val removeTrackingAndAnalyticsPatch = bytecodePatch(
 
         // Layer 6: Iterable Telemetry Neutralization
         if (stripIterable.value != false) {
-            disableVoidMethods(
+            disableOptionalVoidMethods(
                 "Lcom/iterable/iterableapi/d;",
                 "p",
                 "trackPushOpen",
@@ -136,26 +137,10 @@ val removeTrackingAndAnalyticsPatch = bytecodePatch(
 
         // Layer 7: Usercentrics Consent Telemetry Neutralization
         if (stripUsercentrics.value != false) {
-            disableVoidMethods(
+            disableOptionalVoidMethods(
                 "Lcom/groundspeak/geocaching/intro/permissions/usercentrics/a;",
                 "j"
             )
-        }
-    }
-}
-
-private fun BytecodePatchContext.disableVoidMethods(
-    classDescriptor: String,
-    vararg methodNames: String
-) {
-    val mutableClass = mutableClassDefByOrNull(classDescriptor) ?: return
-    val methodSet = methodNames.toSet()
-    for (method in mutableClass.methods) {
-        if (method.name in methodSet && method.returnType == "V" && method.implementation != null) {
-            val firstInst = method.implementation?.instructions?.firstOrNull()
-            if (firstInst?.opcode != com.android.tools.smali.dexlib2.Opcode.RETURN_VOID) {
-                method.addInstructions(0, "return-void")
-            }
         }
     }
 }
