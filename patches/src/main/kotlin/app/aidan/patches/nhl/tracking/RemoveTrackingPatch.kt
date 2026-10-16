@@ -95,9 +95,9 @@ val removeTrackingPatch = bytecodePatch(
         disableRequiredVoidMethods("Lqp;", "g", "h")
 
         // 7. Blaze SDK Analytics & Logging
-        returnRequiredNullObject("Lcom/blaze/blazesdk/analytics/AnalyticsApi;", "sendTrackEvents")
-        returnRequiredNullObject("Lcom/blaze/blazesdk/analytics/AnalyticsApi;", "sendDoNotTrackEvents")
-        returnOptionalNullObjectIncludingDefault("Lcom/blaze/blazesdk/logger/apis/BlazeLoggerApi;", "sendLogs")
+        returnRequiredNullObjectIncludingDefault("Lcom/blaze/blazesdk/analytics/AnalyticsApi;", "sendTrackEvents")
+        returnRequiredNullObjectIncludingDefault("Lcom/blaze/blazesdk/analytics/AnalyticsApi;", "sendDoNotTrackEvents")
+        returnRequiredNullObjectIncludingDefault("Lcom/blaze/blazesdk/logger/apis/BlazeLoggerApi;", "sendLogs", optional = true)
 
         // 8. Brightcove Video Analytics & Interactivity Metrics
         patchBrightcoveAnalytics()
@@ -305,11 +305,17 @@ private fun BytecodePatchContext.returnInt(
 /**
  * Stubs matching object-returning methods, including Kotlin's `$default` overload, to return null.
  */
-private fun BytecodePatchContext.returnOptionalNullObjectIncludingDefault(
+private fun BytecodePatchContext.returnRequiredNullObjectIncludingDefault(
     classDescriptor: String,
-    methodName: String
+    methodName: String,
+    optional: Boolean = false
 ) {
-    val mutableClass = mutableClassDefByOrNull(classDescriptor) ?: return
+    val mutableClass = mutableClassDefByOrNull(classDescriptor)
+    if (mutableClass == null) {
+        if (optional) return
+        throw PatchException("Missing required class $classDescriptor")
+    }
+    var patched = false
 
     for (method in mutableClass.methods) {
         val isTargetMethod = method.name == methodName || method.name == "$methodName\$default"
@@ -321,7 +327,12 @@ private fun BytecodePatchContext.returnOptionalNullObjectIncludingDefault(
                 return-object v0
                 """.trimIndent()
             )
+            patched = true
         }
+    }
+
+    if (!optional && !patched) {
+        throw PatchException("Missing required method $classDescriptor->$methodName")
     }
 }
 
