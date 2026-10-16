@@ -1095,7 +1095,7 @@
     },
     {
       "name": "Local Premium",
-      "description": "Enables local Premium membership status across profile and account screens, removes upgrade promotions, banners, icons, and server-dependent profile statistics, and preserves loaded non-traditional cache details.",
+      "description": "Enables local Premium membership status across profile and account screens, removes upgrade promotions, banners, icons, and server-dependent profile statistics, and enriches public cache details (description, hints, owner) when server blocks basic accounts.",
       "default": true,
       "category": "Interface",
       "dependencies": [],
