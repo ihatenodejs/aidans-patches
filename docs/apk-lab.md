@@ -214,6 +214,29 @@ uv run --project tools/apk-lab apk-lab monitor \
 - Live ANRs (`ANR in <pkg>`, `BIND APPLICATION ANR`) and crashes (fatal exceptions, native SIGSEGV) immediately exit with code `5` (`RUNTIME_FAILURE`).
 - On process termination, inspects `dumpsys activity exit-info`. Reasons `4` (`CRASH`), `5` (`CRASH_NATIVE`), and `6` (`ANR`) return exit code `5`. Clean exits return exit code `0`.
 
+### `crash-trace` — Recent Device Crash Harvester
+Retrieves the most recent Android logcat records for a package and extracts Java fatal exceptions and verification errors with their process, PID, timestamp, message, and stack frames.
+
+```bash
+# Show recent crash summaries for the connected device
+uv run --project tools/apk-lab apk-lab crash-trace \
+  --package com.example.app
+
+# Query a specific device and emit machine-readable reports
+uv run --project tools/apk-lab apk-lab crash-trace \
+  --package com.example.app \
+  --device emulator-5554 \
+  --lines 10000 \
+  --json
+```
+
+**Arguments:**
+- `--package PACKAGE` (required): Application package to match in crash reports.
+- `--device SERIAL`: Target a specific ADB device.
+- `--lines N`: Number of recent logcat lines to inspect (default: `5000`).
+- `--json`: Emit an array of structured crash reports instead of a human-readable summary.
+
+
 ### `inspect-code` — Targeted Class and Method Bytecode/AST Inspection & Diff
 Extracts or decompiles *only a single class or method* directly from an APK without decompiling the entire multi-gigabyte application, and provides side-by-side unified diffs between unpatched and patched APKs.
 
