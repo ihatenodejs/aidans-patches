@@ -25,12 +25,6 @@ public final class OsmMapBridge {
     private OsmMapBridge() {
     }
 
-    /**
-     * Updates the shipment map with zoom buttons hidden; see {@link #updateMap(Object, boolean)}.
-     */
-    public static void updateMap(final Object fragmentObj) {
-        updateMap(fragmentObj, false);
-    }
 
     /**
      * Updates the map from an AfterShip tracking fragment, ignoring a null fragment.
