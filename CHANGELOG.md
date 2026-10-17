@@ -1,3 +1,10 @@
+## [1.8.0-dev.9](https://github.com/ihatenodejs/aidans-patches/compare/v1.8.0-dev.8...v1.8.0-dev.9) (2026-10-17)
+
+### ✨ New Features
+
+* **geocaching:** added warning banner on PMO caches ([6f9e5ee](https://github.com/ihatenodejs/aidans-patches/commit/6f9e5eee94b0d991ffcd679da889867b72b5d8b9))
+* **worker:** added GITHUB_TOKEN support to download statistics ([a6d630f](https://github.com/ihatenodejs/aidans-patches/commit/a6d630f67851b7f53a7a129b7e474f22c8544a09))
+
 ## [1.8.0-dev.8](https://github.com/ihatenodejs/aidans-patches/compare/v1.8.0-dev.7...v1.8.0-dev.8) (2026-10-16)
 
 ### 🐛 Bug Fixes

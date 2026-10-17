@@ -42,7 +42,7 @@ My [Morphe](https://morphe.software) patches
 ## 📱 Supported Applications & Patches
 
 <!-- PATCHES_START EXPANDED -->
-> **[v1.8.0-dev.8](https://github.com/ihatenodejs/aidans-patches/releases/tag/v1.8.0-dev.8)**&nbsp;&nbsp;•&nbsp;&nbsp;`dev`&nbsp;&nbsp;•&nbsp;&nbsp;66 patches total
+> **[v1.8.0-dev.9](https://github.com/ihatenodejs/aidans-patches/releases/tag/v1.8.0-dev.9)**&nbsp;&nbsp;•&nbsp;&nbsp;`dev`&nbsp;&nbsp;•&nbsp;&nbsp;66 patches total
 <details open>
 <summary>📦 SidelineSwap&nbsp;&nbsp;•&nbsp;&nbsp;4 patches</summary>
 <br>
@@ -184,7 +184,7 @@ My [Morphe](https://morphe.software) patches
 | 💊&nbsp;Patch | 📜&nbsp;Description | ⚙️&nbsp;Options |
 |----------|----------------|-----------|
 | [Enable Developer Tools and Feature Flags](#enable-developer-tools-and-feature-flags) | Exposes the internal Debug Menu in Settings and provides selectors for LaunchDarkly feature flags, Remote Config controls, and remaining membership gates. | • Expose Debug Menu in Settings<br>• Enable Achievement Debug Tap<br>• Unlock Trails Map Types<br>• Unlock Newsletter Language Settings<br>• Unlock Hide Cache Premium Controls<br>• Enable Cache Details Redesign<br>• Show Total Log Count<br>• Enable Shareables<br>• Enable Collaborative Lists<br>• Enable Lodestones<br>• Enable Edit Log Date<br>• Enable Better Events Filter<br>• Enable Select Cache Types<br>• Enable Diagnostic Flags<br>• Force Map Tray Enabled<br>• Force Hide Last Log DNF<br>• Force Show Downtime Banner<br>• Force Disable Map Auto Update<br>• Force Send Diagnostic Logs<br>• Force Linear Callouts Enabled |
-| [Local Premium](#local-premium) | Enables local Premium membership status across profile and account screens, removes upgrade promotions, banners, icons, and server-dependent profile statistics, and enriches public cache details (description, hints, owner) when server blocks basic accounts. |  |
+| [Local Premium](#local-premium) | Enables local Premium membership status across profile and account screens, removes upgrade promotions, banners, icons, and server-dependent profile statistics, and enriches public cache details (description, hints, owner) when server blocks basic accounts. | • Show Local Premium Warnings |
 | [OpenStreetMap Drop-in Replacement](#openstreetmap-drop-in-replacement) | Replaces Google Maps with OpenStreetMap (MapLibre vector engine) and adds in-app OpenStreetMap style switching and custom URL configuration to Map settings. |  |
 | [Remove Lists](#remove-lists) | Removes the Lists option from the bottom navigation bar. |  |
 | [Remove Shop](#remove-shop) | Removes the Shop Geocaching promotional section and link from the Profile screen. |  |
