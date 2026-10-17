@@ -18,7 +18,7 @@ My [Morphe](https://morphe.software) patches
 [![AI Generated](https://img.shields.io/badge/AI%20Generated-orange?logo=googlegemini&logoColor=white)](https://img.shields.io/badge/AI%20Generated-orange?logo=googlegemini&logoColor=white)
 
 [![APK Lab Tests](https://github.com/ihatenodejs/aidans-patches/actions/workflows/apk-lab-tests.yml/badge.svg)](https://github.com/ihatenodejs/aidans-patches/actions/workflows/apk-lab-tests.yml)
-[![Compatibility](https://worker.patch.p0ntus.com/badges/compatibility.svg)](https://patch.p0ntus.com/status)
+[![Tests Passing](https://worker.patch.p0ntus.com/badges/tests.svg)](https://patch.p0ntus.com/status)
 
 [![Add to Morphe badge](https://github.com/ihatenodejs/aidans-patches/blob/main/assets/add-to-morphe.png?raw=true)](https://morphe.software/add-source?github=ihatenodejs/aidans-patches)
 <a href="https://www.buymeacoffee.com/ihatenodejs">
@@ -44,7 +44,7 @@ My [Morphe](https://morphe.software) patches
 <!-- PATCHES_START EXPANDED -->
 > **[v1.8.0-dev.9](https://github.com/ihatenodejs/aidans-patches/releases/tag/v1.8.0-dev.9)**&nbsp;&nbsp;•&nbsp;&nbsp;`dev`&nbsp;&nbsp;•&nbsp;&nbsp;66 patches total
 <details open>
-<summary>📦 SidelineSwap&nbsp;&nbsp;•&nbsp;&nbsp;4 patches</summary>
+<summary>📦 SidelineSwap&nbsp;&nbsp;•&nbsp;&nbsp;4 patches&nbsp;&nbsp;<a href="https://patch.p0ntus.com/status"><img src="https://worker.patch.p0ntus.com/badges/tests/com.sidelineswap.android.svg" alt="Tests Passing" align="absmiddle"></a></summary>
 <br>
 
 **🎯 Supported versions:**
@@ -62,7 +62,7 @@ My [Morphe](https://morphe.software) patches
 </details>
 
 <details open>
-<summary>📦 AfterShip&nbsp;&nbsp;•&nbsp;&nbsp;11 patches</summary>
+<summary>📦 AfterShip&nbsp;&nbsp;•&nbsp;&nbsp;11 patches&nbsp;&nbsp;<a href="https://patch.p0ntus.com/status"><img src="https://worker.patch.p0ntus.com/badges/tests/com.aftership.AfterShip.svg" alt="Tests Passing" align="absmiddle"></a></summary>
 <br>
 
 **🎯 Supported versions:**
@@ -87,7 +87,7 @@ My [Morphe](https://morphe.software) patches
 </details>
 
 <details open>
-<summary>📦 Blackjack&nbsp;&nbsp;•&nbsp;&nbsp;6 patches</summary>
+<summary>📦 Blackjack&nbsp;&nbsp;•&nbsp;&nbsp;6 patches&nbsp;&nbsp;<a href="https://patch.p0ntus.com/status"><img src="https://worker.patch.p0ntus.com/badges/tests/com.tripledot.blackjack.svg" alt="Tests Passing" align="absmiddle"></a></summary>
 <br>
 
 **🎯 Supported versions:**
@@ -107,7 +107,7 @@ My [Morphe](https://morphe.software) patches
 </details>
 
 <details open>
-<summary>📦 Sezzle&nbsp;&nbsp;•&nbsp;&nbsp;16 patches</summary>
+<summary>📦 Sezzle&nbsp;&nbsp;•&nbsp;&nbsp;16 patches&nbsp;&nbsp;<a href="https://patch.p0ntus.com/status"><img src="https://worker.patch.p0ntus.com/badges/tests/com.sezzle.sezzlemobile.svg" alt="Tests Passing" align="absmiddle"></a></summary>
 <br>
 
 **🎯 Supported versions:**
@@ -137,7 +137,7 @@ My [Morphe](https://morphe.software) patches
 </details>
 
 <details open>
-<summary>📦 365 Pay&nbsp;&nbsp;•&nbsp;&nbsp;4 patches</summary>
+<summary>📦 365 Pay&nbsp;&nbsp;•&nbsp;&nbsp;4 patches&nbsp;&nbsp;<a href="https://patch.p0ntus.com/status"><img src="https://worker.patch.p0ntus.com/badges/tests/com.avinside.svg" alt="Tests Passing" align="absmiddle"></a></summary>
 <br>
 
 **🎯 Supported versions:**
@@ -155,7 +155,7 @@ My [Morphe](https://morphe.software) patches
 </details>
 
 <details open>
-<summary>📦 Fizz&nbsp;&nbsp;•&nbsp;&nbsp;4 patches</summary>
+<summary>📦 Fizz&nbsp;&nbsp;•&nbsp;&nbsp;4 patches&nbsp;&nbsp;<a href="https://patch.p0ntus.com/status"><img src="https://worker.patch.p0ntus.com/badges/tests/com.ashtoncofer.Buzz.svg" alt="Tests Passing" align="absmiddle"></a></summary>
 <br>
 
 **🎯 Supported versions:**
@@ -173,7 +173,7 @@ My [Morphe](https://morphe.software) patches
 </details>
 
 <details open>
-<summary>📦 Geocaching&nbsp;&nbsp;•&nbsp;&nbsp;9 patches</summary>
+<summary>📦 Geocaching&nbsp;&nbsp;•&nbsp;&nbsp;9 patches&nbsp;&nbsp;<a href="https://patch.p0ntus.com/status"><img src="https://worker.patch.p0ntus.com/badges/tests/com.groundspeak.geocaching.intro.svg" alt="Tests Passing" align="absmiddle"></a></summary>
 <br>
 
 **🎯 Supported versions:**
@@ -196,7 +196,7 @@ My [Morphe](https://morphe.software) patches
 </details>
 
 <details open>
-<summary>📦 NHL&nbsp;&nbsp;•&nbsp;&nbsp;3 patches</summary>
+<summary>📦 NHL&nbsp;&nbsp;•&nbsp;&nbsp;3 patches&nbsp;&nbsp;<a href="https://patch.p0ntus.com/status"><img src="https://worker.patch.p0ntus.com/badges/tests/com.nhl.gc1112.free.svg" alt="Tests Passing" align="absmiddle"></a></summary>
 <br>
 
 **🎯 Supported versions:**
@@ -213,7 +213,7 @@ My [Morphe](https://morphe.software) patches
 </details>
 
 <details open>
-<summary>📦 Adobe Scan&nbsp;&nbsp;•&nbsp;&nbsp;6 patches</summary>
+<summary>📦 Adobe Scan&nbsp;&nbsp;•&nbsp;&nbsp;6 patches&nbsp;&nbsp;<a href="https://patch.p0ntus.com/status"><img src="https://worker.patch.p0ntus.com/badges/tests/com.adobe.scan.android.svg" alt="Tests Passing" align="absmiddle"></a></summary>
 <br>
 
 **🎯 Supported versions:**
@@ -233,7 +233,7 @@ My [Morphe](https://morphe.software) patches
 </details>
 
 <details open>
-<summary>📦 Canvas Student&nbsp;&nbsp;•&nbsp;&nbsp;1 patch</summary>
+<summary>📦 Canvas Student&nbsp;&nbsp;•&nbsp;&nbsp;1 patch&nbsp;&nbsp;<a href="https://patch.p0ntus.com/status"><img src="https://worker.patch.p0ntus.com/badges/tests/com.instructure.candroid.svg" alt="Tests Passing" align="absmiddle"></a></summary>
 <br>
 
 **🎯 Supported versions:**
@@ -248,7 +248,7 @@ My [Morphe](https://morphe.software) patches
 </details>
 
 <details open>
-<summary>📦 Navigate360 Student&nbsp;&nbsp;•&nbsp;&nbsp;2 patches</summary>
+<summary>📦 Navigate360 Student&nbsp;&nbsp;•&nbsp;&nbsp;2 patches&nbsp;&nbsp;<a href="https://patch.p0ntus.com/status"><img src="https://worker.patch.p0ntus.com/badges/tests/com.eab.se.svg" alt="Tests Passing" align="absmiddle"></a></summary>
 <br>
 
 **🎯 Supported versions:**
