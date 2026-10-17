@@ -6,6 +6,12 @@ import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
 import android.webkit.CookieManager;
 import android.util.Log;
+import android.content.Context;
+import android.content.res.Configuration;
+import android.graphics.Color;
+import android.graphics.drawable.GradientDrawable;
+import android.view.View;
+import android.widget.TextView;
 import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -20,6 +26,7 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -30,6 +37,10 @@ public final class GeocacheEnrichmentBridge {
     private static final Map<String, Object> sRememberedLiteCaches = new ConcurrentHashMap<>();
     private static final Map<String, Object> sEnrichedCaches = new ConcurrentHashMap<>();
     private static volatile Object sY82 = null;
+    private static final Set<String> sPmoCacheCodes = Collections.newSetFromMap(new ConcurrentHashMap<>());
+    private static final Pattern PATTERN_PMO_DESC_PREFIX =
+            Pattern.compile("^(\\s*Premium\\s+Member\\s+Only\\s+Cache\\b[.:]?)\\s*(.*)$",
+                    Pattern.CASE_INSENSITIVE | Pattern.DOTALL);
 
     private static final Pattern PATTERN_GC_CODE =
             Pattern.compile("^GC[0-9A-Z]+$");
@@ -244,6 +255,29 @@ public final class GeocacheEnrichmentBridge {
             }
         } catch (Throwable t) {
             Log.e(TAG, "sanitizeLoadedCache check error", t);
+        }
+
+        try {
+            Field codeField = legacyGeocache.getClass().getField("code");
+            String code = (String) codeField.get(legacyGeocache);
+            if (code != null) {
+                Field shortDescField = legacyGeocache.getClass().getField("shortDescription");
+                Object sd = shortDescField.get(legacyGeocache);
+                if (sd instanceof String && ((String) sd).contains("Premium Member Only")) {
+                    sPmoCacheCodes.add(code.toUpperCase());
+                }
+                Field longDescField = legacyGeocache.getClass().getField("longDescription");
+                Object ld = longDescField.get(legacyGeocache);
+                if (ld instanceof String) {
+                    String formatted = formatPmoDescription((String) ld);
+                    if (!formatted.equals(ld)) {
+                        longDescField.setAccessible(true);
+                        longDescField.set(legacyGeocache, formatted);
+                        sPmoCacheCodes.add(code.toUpperCase());
+                    }
+                }
+            }
+        } catch (Throwable ignored) {
         }
         return legacyGeocache;
     }
@@ -579,6 +613,185 @@ public final class GeocacheEnrichmentBridge {
                 }
             }
         } catch (Throwable ignored) {
+        }
+    }
+
+    public static void bindCacheSummaryWarning(View itemView, Object data) {
+        if (itemView == null) return;
+        try {
+            View warningContainer = itemView.findViewWithTag("pmo_warning_container");
+            if (warningContainer == null) {
+                int resId = itemView.getResources().getIdentifier("pmo_warning_container", "id", itemView.getContext().getPackageName());
+                if (resId != 0) {
+                    warningContainer = itemView.findViewById(resId);
+                }
+            }
+            if (warningContainer == null) return;
+
+            String code = null;
+            boolean isPmo = false;
+            if (data != null) {
+                try {
+                    Field stubField = data.getClass().getField("a");
+                    Object stub = stubField.get(data);
+                    if (stub != null) {
+                        try {
+                            Field codeField = stub.getClass().getField("code");
+                            Object c = codeField.get(stub);
+                            if (c instanceof String) {
+                                code = (String) c;
+                            }
+                        } catch (Throwable ignored) {
+                        }
+                        try {
+                            Field premiumField = stub.getClass().getField("premium");
+                            isPmo = premiumField.getBoolean(stub);
+                        } catch (Throwable ignored) {
+                        }
+                    }
+                } catch (Throwable t) {
+                    Log.w(TAG, "Failed to resolve cache premium status for warning banner", t);
+                }
+            }
+            if (code == null) {
+                int codeResId = itemView.getResources().getIdentifier("textview_summary_cachecode", "id", itemView.getContext().getPackageName());
+                if (codeResId != 0) {
+                    View codeView = itemView.findViewById(codeResId);
+                    if (codeView instanceof TextView) {
+                        CharSequence txt = ((TextView) codeView).getText();
+                        if (txt != null) {
+                            code = txt.toString().trim();
+                        }
+                    }
+                }
+            }
+
+            if (!isPmo && code != null) {
+                isPmo = isCachePmo(code);
+            }
+
+            Log.i(TAG, "bindCacheSummaryWarning: code=" + code + ", isPmo=" + isPmo);
+            if (!isPmo) {
+                warningContainer.setVisibility(View.GONE);
+                return;
+            }
+
+            warningContainer.setVisibility(View.VISIBLE);
+
+            Context context = itemView.getContext();
+            boolean isDark = isDarkMode(context);
+            float density = context.getResources().getDisplayMetrics().density;
+
+            GradientDrawable bg = new GradientDrawable();
+            bg.setCornerRadius(8f * density);
+            int strokeWidth = Math.max(1, Math.round(1f * density));
+
+            if (isDark) {
+                bg.setColor(Color.parseColor("#332211"));
+                bg.setStroke(strokeWidth, Color.parseColor("#885522"));
+            } else {
+                bg.setColor(Color.parseColor("#FFF3E0"));
+                bg.setStroke(strokeWidth, Color.parseColor("#FFB74D"));
+            }
+            warningContainer.setBackground(bg);
+
+            View textView = warningContainer.findViewWithTag("pmo_warning_text");
+            if (textView == null) {
+                int textResId = itemView.getResources().getIdentifier("pmo_warning_text", "id", itemView.getContext().getPackageName());
+                if (textResId != 0) {
+                    textView = warningContainer.findViewById(textResId);
+                }
+            }
+            if (textView instanceof TextView) {
+                ((TextView) textView).setTextColor(
+                        isDark ? Color.parseColor("#FFA726") : Color.parseColor("#B54B00")
+                );
+            }
+        } catch (Throwable t) {
+            Log.w(TAG, "Failed to bind cache summary warning", t);
+        }
+    }
+
+    public static boolean isCachePmo(String code) {
+        if (code == null || code.isEmpty()) return false;
+        String upper = code.toUpperCase();
+        if (sPmoCacheCodes.contains(upper)) return true;
+        Object enriched = sEnrichedCaches.get(upper);
+        if (enriched != null) {
+            try {
+                Field shortDescField = enriched.getClass().getField("shortDescription");
+                String sd = (String) shortDescField.get(enriched);
+                if (sd != null && sd.contains("Premium Member Only")) {
+                    sPmoCacheCodes.add(upper);
+                    return true;
+                }
+                Field longDescField = enriched.getClass().getField("longDescription");
+                String ld = (String) longDescField.get(enriched);
+                if (ld != null && ld.contains("Premium Member Only")) {
+                    sPmoCacheCodes.add(upper);
+                    return true;
+                }
+            } catch (Throwable ignored) {
+            }
+        }
+        Object lite = sRememberedLiteCaches.get(upper);
+        if (lite != null) {
+            try {
+                Field shortDescField = lite.getClass().getField("shortDescription");
+                String sd = (String) shortDescField.get(lite);
+                if (sd != null && sd.contains("Premium Member Only")) {
+                    sPmoCacheCodes.add(upper);
+                    return true;
+                }
+            } catch (Throwable ignored) {
+            }
+        }
+        if (sY82 != null) {
+            try {
+                SQLiteDatabase db = getDatabaseFromY82(sY82);
+                if (db != null && db.isOpen()) {
+                    Cursor c = db.rawQuery("SELECT ShortDescription, LongDescription FROM Geocache WHERE Code = ?", new String[]{upper});
+                    if (c != null) {
+                        try {
+                            if (c.moveToFirst()) {
+                                String sd = c.getString(0);
+                                String ld = c.getString(1);
+                                if ((sd != null && sd.contains("Premium Member Only")) ||
+                                        (ld != null && ld.contains("Premium Member Only"))) {
+                                    sPmoCacheCodes.add(upper);
+                                    return true;
+                                }
+                            }
+                        } finally {
+                            c.close();
+                        }
+                    }
+                }
+            } catch (Throwable ignored) {
+            }
+        }
+        return false;
+    }
+
+    private static String formatPmoDescription(String desc) {
+        if (desc == null || desc.isEmpty()) return desc;
+        Matcher m = PATTERN_PMO_DESC_PREFIX.matcher(desc);
+        if (m.find()) {
+            String prefix = m.group(1).trim();
+            String rest = m.group(2).trim();
+            if (!rest.isEmpty() && !desc.contains("<br") && !desc.contains("\n\n")) {
+                return prefix + "<br/><br/>\n\n" + rest;
+            }
+        }
+        return desc;
+    }
+
+    private static boolean isDarkMode(Context context) {
+        try {
+            int nightMode = context.getResources().getConfiguration().uiMode & Configuration.UI_MODE_NIGHT_MASK;
+            return nightMode == Configuration.UI_MODE_NIGHT_YES;
+        } catch (Throwable ignored) {
+            return false;
         }
     }
 
@@ -1129,7 +1342,7 @@ public final class GeocacheEnrichmentBridge {
                     Matcher mOgDesc = PATTERN_META_OG_DESC.matcher(html);
                     if (mOgDesc.find()) {
                         String desc = mOgDesc.group(1) != null ? mOgDesc.group(1) : mOgDesc.group(2);
-                        data.longDescription = unescapeHtml(desc.trim());
+                        data.longDescription = formatPmoDescription(unescapeHtml(desc.trim()));
                     } else {
                         data.longDescription = "Premium Member Only geocache. Basic metadata unlocked via Local Premium.";
                     }
@@ -1180,6 +1393,9 @@ public final class GeocacheEnrichmentBridge {
                 }
             }
 
+            if (data.isPmo && code != null) {
+                sPmoCacheCodes.add(code.toUpperCase());
+            }
             return data;
         } catch (Throwable t) {
             Log.e(TAG, "Error scraping geocache " + code, t);

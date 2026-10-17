@@ -1119,7 +1119,17 @@
           ]
         }
       ],
-      "options": []
+      "options": [
+        {
+          "key": "showLocalPremiumWarnings",
+          "title": "Show Local Premium Warnings",
+          "description": "Shows an informational warning banner on Premium Member Only caches indicating that complete cache data is restricted by the server for basic accounts.",
+          "required": false,
+          "type": "kotlin.Boolean",
+          "default": true,
+          "values": null
+        }
+      ]
     },
     {
       "name": "OpenStreetMap Drop-in Replacement",

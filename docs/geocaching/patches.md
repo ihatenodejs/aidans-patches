@@ -169,7 +169,15 @@ Enables local Premium membership status across the application and removes upgra
 4. Removes the "Upgrade to Premium" menu row from the Settings screen.
 5. Removes the "Upgrade to Premium" button and spacer row from the Account screen while preserving "Disable or delete account".
 6. Enriches cache details (description, hints, placed-by owner name) for public regular and advanced caches by scraping public listing details when the server rejects basic account API requests with HTTP 403 Forbidden.
+7. Injects a styled light-orange alert banner directly above the Difficulty / Terrain / Size meters for Premium Member Only caches to notify users that full cache details (complete description, hints, activity logs) are restricted by the server.
 
+### Options
+- `showLocalPremiumWarnings` (Boolean, default `true`): Displays styled in-app warning alerts on Premium Member Only caches where full cache data is restricted by the server.
+
+### Resource Modifications
+1. **Cache Summary Warning Alert**:
+   - Target: `res/layout/cd_item_summary.xml`
+   - Injects a `LinearLayout` container (`@+id/pmo_warning_container`, `android:tag="pmo_warning_container"`) constrained between `@id/view_extra_space` and `@id/dts_container`. Contains a warning icon (`@drawable/warning_filled`) and notice text. Initial visibility is set to `gone` and dynamically toggled at runtime.
 ### Bytecode Modifications
 1. **Map Top-Left Upgrade Canister**:
    - Targets: `com.groundspeak.geocaching.intro.mainmap.map.SharedMapViewModel.<init>` and `A(MapMode)`
@@ -197,6 +205,9 @@ Enables local Premium membership status across the application and removes upgra
    - In `fetchLegacyCacheFromServer$2`, intercepts the error return point when server requests fail with HTTP 403 Forbidden (which the Groundspeak mobile API returns for basic accounts on traditional caches with Difficulty > 1.5 or Terrain > 1.5, and on non-traditional caches).
    - Routes through `GeocacheEnrichmentBridge.onFetchFailed`, which scrapes the public cache page on `geocaching.com` (where all non-PMO cache descriptions, hints, and owner details are public). When public listing data is retrieved, enriches the cache with `placedBy`, `shortDescription`, `longDescription`, and `encodedHints`, preserving the original cache's availability and publication status, saves it into the local `y82` SQLite database with `IsLite = 0`, and returns a `Success(xk9)` result. If public scraping fails or times out, the original failure is preserved so stale/blank records are not cached or stored.
    - Restores missing cache descriptions, hint button functionality, and owner attribution across cache details, description webviews, and navigation screens.
+6. **Cache Summary PMO Warning Banner Binding**:
+   - Target: `com.groundspeak.geocaching.intro.geocachedetails.overviewitems.CacheSummaryItem.bindViewHolder(Li56;)V`
+   - Injects a call to `GeocacheEnrichmentBridge.bindCacheSummaryWarning(itemView, data)` before view binding. Resolves the cache stub's `premium` status, applies light-orange alert styling (supporting both dark and light UI modes), and sets warning banner visibility.
 ---
 
 ## 6. Unlock Templates
