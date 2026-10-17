@@ -10,14 +10,23 @@ Scope: CI workflows, release/deploy automation, issue templates, and Python gene
 - `workflows/deploy-worker.yml`: Worker typecheck/test and conditional Wrangler deployment.
 - `workflows/deploy-site.yml`: icon check, tests, Astro check/build, and conditional Pages deployment.
 - `workflows/sync-app-icons.yml`: scheduled/manual icon synchronization in a PR targeting `dev`.
+- `workflows/google-play-metadata.yml`: scheduled or manual authenticated Google Play metadata enrichment via the Rust `play-metadata` tool.
+- `workflows/open_pull_request.yml`: automatic `dev` → `main` PR creation on pushes to `dev`; manual `workflow_dispatch` uses the selected workflow ref as the source branch.
 
 Use pinned actions and least-privilege `permissions`. Preserve path filters and release handoffs when moving generated inputs; they determine whether metadata reaches Worker/site.
 
 ## Generator Scripts
 
-- `scripts/generate_patches_readme.py`: rewrites only the README block between `PATCHES_START` and `PATCHES_END` from `patches-list.json`.
-- `scripts/sync_app_icons.py`: check or synchronize `site/public/icons/<package>.png` and `site/src/data/icons.ts` from patch metadata/Play images.
+- `scripts/generate_patches_readme.py`: rewrites the README block between `PATCHES_START` and `PATCHES_END` from `patches-list.json`, and updates any matching template repository or add-source URLs elsewhere in `README.md`.
+- `scripts/sync_app_icons.py`: check or synchronize `site/public/icons/<package>.png` from patch metadata/Play images.
 - `scripts/prepare_emoji_font.py`: downloads a pinned source, verifies SHA-256, transforms/checks the font, and writes a generated build resource/cache.
+
+## Dependency Automation (Dependabot)
+
+`.github/dependabot.yml` configures monthly dependency update checks targeting the `dev` branch with empty labels across three ecosystems:
+- `github-actions`: workflow actions.
+- `npm`: root and workspace dependencies; intentionally ignores `conventional-changelog-conventionalcommits` to preserve custom changelog release rules.
+- `gradle`: Gradle wrapper and plugin dependencies.
 
 Python scripts follow Ruff formatting/lint rules, validate paths/input shape, fail with actionable errors, and must not print secret values.
 

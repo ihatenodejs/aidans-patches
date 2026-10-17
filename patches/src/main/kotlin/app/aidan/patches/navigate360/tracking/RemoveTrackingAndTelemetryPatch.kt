@@ -1,6 +1,7 @@
 package app.aidan.patches.navigate360.tracking
 
 import app.aidan.patches.navigate360.shared.COMPATIBILITY_NAVIGATE360
+import app.aidan.patches.shared.disableRequiredVoidMethodsByName
 import app.morphe.patcher.extensions.InstructionExtensions.addInstructions
 import app.morphe.patcher.patch.BytecodePatchContext
 import app.morphe.patcher.patch.PatchException
@@ -19,7 +20,7 @@ val removeTrackingAndTelemetryPatch = bytecodePatch(
     compatibleWith(COMPATIBILITY_NAVIGATE360)
 
     execute {
-        disableVoidMethods(
+        disableRequiredVoidMethodsByName(
             GAINSIGHT_PLUGIN,
             "pluginInitialize",
             "onStart",
@@ -31,7 +32,7 @@ val removeTrackingAndTelemetryPatch = bytecodePatch(
         returnBoolean(GAINSIGHT_PLUGIN, "loadBridgeScript", false)
         returnBoolean(GAINSIGHT_PLUGIN, "execute", false)
 
-        disableVoidMethods(
+        disableRequiredVoidMethodsByName(
             GAINSIGHT_PX,
             "attachToWebView",
             "loadScript",
@@ -44,34 +45,6 @@ val removeTrackingAndTelemetryPatch = bytecodePatch(
             "flush"
         )
         returnNullObject(GAINSIGHT_PX_BUILDER, "build")
-    }
-}
-
-/**
- * Makes all implemented void overloads with the requested names return immediately.
- *
- * @throws PatchException if the class is absent or any requested name has no matching
- * method. Other matches may already have been patched when a missing name is detected.
- */
-private fun BytecodePatchContext.disableVoidMethods(
-    classDescriptor: String,
-    vararg methodNames: String
-) {
-    val mutableClass = mutableClassDefByOrNull(classDescriptor)
-        ?: throw PatchException("Missing required class $classDescriptor")
-    val methodSet = methodNames.toSet()
-    val foundMethods = mutableSetOf<String>()
-
-    for (method in mutableClass.methods) {
-        if (method.name in methodSet && method.returnType == "V" && method.implementation != null) {
-            method.addInstructions(0, "return-void")
-            foundMethods += method.name
-        }
-    }
-
-    val missingMethods = methodSet - foundMethods
-    if (missingMethods.isNotEmpty()) {
-        throw PatchException("Missing required void method(s) ${missingMethods.joinToString()} in $classDescriptor")
     }
 }
 

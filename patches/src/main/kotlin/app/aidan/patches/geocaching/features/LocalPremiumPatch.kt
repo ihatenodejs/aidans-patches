@@ -4,11 +4,13 @@ import app.aidan.patches.geocaching.shared.COMPATIBILITY_GEOCACHING
 import app.aidan.patches.geocaching.shared.patchAllL3cChecksToValue
 import app.aidan.patches.geocaching.shared.patchIncludeOwnedDisabledCachesToNull
 import app.aidan.patches.geocaching.shared.patchSanitizeFilterModel
+import app.aidan.patches.shared.compositeFeaturePatch
 import app.morphe.patcher.extensions.InstructionExtensions.addInstructions
 import app.morphe.patcher.extensions.InstructionExtensions.replaceInstruction
 import app.morphe.patcher.patch.BytecodePatchContext
 import app.morphe.patcher.patch.PatchException
-import app.morphe.patcher.patch.bytecodePatch
+import app.morphe.patcher.patch.ResourcePatchContext
+import app.morphe.patcher.patch.booleanOption
 import com.android.tools.smali.dexlib2.Opcode
 import com.android.tools.smali.dexlib2.builder.instruction.BuilderInstruction30t
 import com.android.tools.smali.dexlib2.iface.instruction.NarrowLiteralInstruction
@@ -17,17 +19,31 @@ import com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction
 import com.android.tools.smali.dexlib2.iface.reference.FieldReference
 import com.android.tools.smali.dexlib2.iface.reference.MethodReference
 import com.android.tools.smali.dexlib2.iface.reference.StringReference
+import org.w3c.dom.Element
 
-val localPremiumPatch = bytecodePatch(
+val localPremiumPatch = compositeFeaturePatch(
     name = "Local Premium",
-    description = "Enables local Premium membership status across profile and account screens, removes upgrade promotions, banners, icons, and server-dependent profile statistics, and preserves loaded non-traditional cache details.",
+    description = "Enables local Premium membership status across profile and account screens, removes upgrade promotions, banners, icons, and server-dependent profile statistics, and enriches public cache details (description, hints, owner) when server blocks basic accounts.",
     default = true
 ) {
     category("Interface")
     compatibleWith(COMPATIBILITY_GEOCACHING)
     extendWith("extensions/extension.mpe")
 
-    execute {
+    val showLocalPremiumWarnings = booleanOption(
+        key = "showLocalPremiumWarnings",
+        title = "Show Local Premium Warnings",
+        description = "Shows an informational warning banner on Premium Member Only caches indicating that complete cache data is restricted by the server for basic accounts.",
+        default = true
+    )
+
+    resources {
+        if (showLocalPremiumWarnings.value != false) {
+            patchCacheSummaryWarningLayout()
+        }
+    }
+
+    bytecode {
         patchProfileMembershipLabel()
         patchMapUpgradeIcon()
         patchProfileUpgradeCard()
@@ -37,6 +53,11 @@ val localPremiumPatch = bytecodePatch(
         patchPreventCacheDetailsError()
         patchPreventMapSearchError()
         patchPreventNavigationLoadError()
+        patchDescriptionFragmentWebViewLineBreak()
+        if (showLocalPremiumWarnings.value != false) {
+            patchGeocacheDetailsActivityRoute()
+            patchCacheSummaryWarningBinding()
+        }
     }
 }
 
@@ -417,6 +438,8 @@ private fun BytecodePatchContext.patchAccountFragment() {
  */
 private fun BytecodePatchContext.patchPreventCacheDetailsError() {
     patchLegacyGeocacheRepoLiteCache()
+    patchFetchLegacyCacheFallback()
+    patchSanitizeLoadedCache()
 }
 
 private fun BytecodePatchContext.patchLegacyGeocacheRepoLiteCache() {
@@ -447,8 +470,85 @@ private fun BytecodePatchContext.patchLegacyGeocacheRepoLiteCache() {
     val nextInst = instructions.getOrNull(invokeLIndex + 2)
     val isAlreadyPatched = nextInst?.opcode == Opcode.MOVE_OBJECT
     if (!isAlreadyPatched) {
-        eMethod.addInstructions(invokeLIndex + 2, "move-object p1, p3")
+        eMethod.addInstructions(
+            invokeLIndex + 2,
+            """
+                move-object p1, p3
+                invoke-static {p3}, Lapp/aidan/extension/geocaching/GeocacheEnrichmentBridge;->rememberLiteGeocache(Ljava/lang/Object;)V
+            """.trimIndent()
+        )
     }
+}
+
+/**
+ * In LegacyGeocacheRepo$fetchLegacyCacheFromServer$2.invokeSuspend, intercepts the error return point
+ * when server requests return 403 Forbidden (which occurs for basic accounts on traditional caches
+ * with D > 1.5 or T > 1.5, or on non-traditional caches).
+ *
+ * Calls GeocacheEnrichmentBridge.onFetchFailed to scrape the public webpage (where non-PMO cache
+ * descriptions, hints, and owner details are public) and constructs an enriched LegacyGeocache
+ * wrapped in Success (xk9), persisting it to the local cache and satisfying callers seamlessly.
+ */
+private fun BytecodePatchContext.patchFetchLegacyCacheFallback() {
+    val lambdaClass = mutableClassDefByOrNull(
+        "Lcom/groundspeak/geocaching/intro/model/LegacyGeocacheRepo\$fetchLegacyCacheFromServer\$2;"
+    ) ?: return
+
+    val invokeSuspendMethod = lambdaClass.methods.firstOrNull {
+        it.name == "invokeSuspend" &&
+            it.parameterTypes == listOf("Ljava/lang/Object;") &&
+            it.implementation != null
+    } ?: return
+
+    val impl = invokeSuspendMethod.implementation ?: return
+    val instructions = impl.instructions.toList()
+
+    val logStringIndex = instructions.indexOfFirst { inst ->
+        inst.opcode == Opcode.CONST_STRING &&
+            ((inst as? ReferenceInstruction)?.reference as? StringReference)?.string ==
+            "fetchLegacyCacheFromServer: error encountered while loading cache"
+    }
+    if (logStringIndex == -1) return
+
+    // The instruction before logStringIndex is: const-string v0, "GeocacheRepo"
+    val targetIndex = logStringIndex - 1
+    val thisReg = impl.registerCount - 2
+
+    invokeSuspendMethod.addInstructions(
+        targetIndex,
+        """
+            move-object/16 v0, v$thisReg
+            invoke-static {v0, v7}, Lapp/aidan/extension/geocaching/GeocacheEnrichmentBridge;->onFetchFailed(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;
+            move-result-object v7
+        """.trimIndent()
+    )
+}
+
+private fun BytecodePatchContext.patchSanitizeLoadedCache() {
+    val y82Class = mutableClassDefByOrNull("Ly82;") ?: return
+    val pMethod = y82Class.methods.firstOrNull {
+        it.name == "p" &&
+            it.parameterTypes == listOf("Ljava/lang/String;") &&
+            it.returnType == "Lcom/groundspeak/geocaching/intro/types/LegacyGeocache;" &&
+            it.implementation != null
+    } ?: return
+
+    val impl = pMethod.implementation ?: return
+    val instructions = impl.instructions.toList()
+    val returnIndex = instructions.indexOfLast { it.opcode == Opcode.RETURN_OBJECT }
+    if (returnIndex == -1) return
+
+    val returnInst = instructions[returnIndex] as? OneRegisterInstruction ?: return
+    val reg = returnInst.registerA
+
+    pMethod.addInstructions(
+        returnIndex,
+        """
+            invoke-static {v$reg}, Lapp/aidan/extension/geocaching/GeocacheEnrichmentBridge;->sanitizeLoadedCache(Ljava/lang/Object;)Ljava/lang/Object;
+            move-result-object v$reg
+            check-cast v$reg, Lcom/groundspeak/geocaching/intro/types/LegacyGeocache;
+        """.trimIndent()
+    )
 }
 
 /**
@@ -502,4 +602,193 @@ private fun BytecodePatchContext.patchPreventNavigationLoadError() {
             const/4 p2, 0x0
         """.trimIndent()
     )
+}
+
+private const val CD_ITEM_SUMMARY_LAYOUT = "res/layout/cd_item_summary.xml"
+private const val CACHE_SUMMARY_ITEM_CLASS =
+    "Lcom/groundspeak/geocaching/intro/geocachedetails/overviewitems/CacheSummaryItem;"
+private const val CACHE_TITLE_RES_ID = 0x7f0a0543
+
+/**
+ * Injects a light-orange warning banner container into the cache details summary layout
+ * directly between the favorites section divider (view_extra_space) and the difficulty meters
+ * (dts_container). The banner is initially GONE and made visible at runtime for PMO caches.
+ */
+private fun ResourcePatchContext.patchCacheSummaryWarningLayout() {
+    document(CD_ITEM_SUMMARY_LAYOUT).use { doc ->
+        val existing = doc.getElementsByTagName("LinearLayout")
+        for (i in 0 until existing.length) {
+            val elem = existing.item(i) as? Element ?: continue
+            val tag = elem.getAttribute("android:tag")
+            val id = elem.getAttribute("android:id")
+            if (tag == "pmo_warning_container" || id.contains("pmo_warning_container")) {
+                return@use
+            }
+        }
+
+        val allElements = doc.getElementsByTagName("*")
+        var dtsContainer: Element? = null
+        for (i in 0 until allElements.length) {
+            val elem = allElements.item(i) as? Element ?: continue
+            val id = elem.getAttribute("android:id")
+            if (id == "@id/dts_container" || id.endsWith("dts_container")) {
+                dtsContainer = elem
+                break
+            }
+        }
+
+        if (dtsContainer == null) {
+            throw PatchException("[$CD_ITEM_SUMMARY_LAYOUT] Could not find @id/dts_container element")
+        }
+
+        val parent = dtsContainer.parentNode
+            ?: throw PatchException("[$CD_ITEM_SUMMARY_LAYOUT] @id/dts_container has no parent")
+
+        val warning = doc.createElement("LinearLayout")
+        warning.setAttribute("android:id", "@+id/pmo_warning_container")
+        warning.setAttribute("android:tag", "pmo_warning_container")
+        warning.setAttribute("android:orientation", "horizontal")
+        warning.setAttribute("android:gravity", "center_vertical")
+        warning.setAttribute("android:visibility", "gone")
+        warning.setAttribute("android:layout_width", "0dp")
+        warning.setAttribute("android:layout_height", "wrap_content")
+        warning.setAttribute("android:layout_marginLeft", "@dimen/large")
+        warning.setAttribute("android:layout_marginRight", "@dimen/large")
+        warning.setAttribute("android:layout_marginStart", "@dimen/large")
+        warning.setAttribute("android:layout_marginEnd", "@dimen/large")
+        warning.setAttribute("android:layout_marginTop", "@dimen/small")
+        warning.setAttribute("android:layout_marginBottom", "@dimen/small")
+        warning.setAttribute("android:paddingLeft", "@dimen/large")
+        warning.setAttribute("android:paddingRight", "@dimen/large")
+        warning.setAttribute("android:paddingStart", "@dimen/large")
+        warning.setAttribute("android:paddingEnd", "@dimen/large")
+        warning.setAttribute("android:paddingTop", "@dimen/medium")
+        warning.setAttribute("android:paddingBottom", "@dimen/medium")
+        warning.setAttribute("app:layout_constraintStart_toStartOf", "parent")
+        warning.setAttribute("app:layout_constraintEnd_toEndOf", "parent")
+        warning.setAttribute("app:layout_constraintTop_toBottomOf", "@id/view_extra_space")
+
+        val icon = doc.createElement("ImageView")
+        icon.setAttribute("android:id", "@+id/pmo_warning_icon")
+        icon.setAttribute("android:tag", "pmo_warning_icon")
+        icon.setAttribute("android:layout_width", "20.0dp")
+        icon.setAttribute("android:layout_height", "20.0dp")
+        icon.setAttribute("android:layout_marginRight", "@dimen/medium")
+        icon.setAttribute("android:layout_marginEnd", "@dimen/medium")
+        icon.setAttribute("android:src", "@drawable/warning_filled")
+        icon.setAttribute("android:contentDescription", "@null")
+        warning.appendChild(icon)
+
+        val text = doc.createElement("com.google.android.material.textview.MaterialTextView")
+        text.setAttribute("android:id", "@+id/pmo_warning_text")
+        text.setAttribute("android:tag", "pmo_warning_text")
+        text.setAttribute("android:layout_width", "0dp")
+        text.setAttribute("android:layout_height", "wrap_content")
+        text.setAttribute("android:layout_weight", "1.0")
+        text.setAttribute("android:textAppearance", "@style/textAppearanceCaption1")
+        text.setAttribute("android:textColor", "#b54b00")
+        text.setAttribute("android:text", "Premium Member Only cache. Complete cache data (description, hints, logs) is unavailable for basic accounts due to a server restriction.")
+        warning.appendChild(text)
+
+        parent.insertBefore(warning, dtsContainer)
+        dtsContainer.setAttribute("app:layout_constraintTop_toBottomOf", "@id/pmo_warning_container")
+    }
+}
+
+/**
+ * Injects a call to GeocacheEnrichmentBridge.bindCacheSummaryWarning in CacheSummaryItem.bindViewHolder
+ * to evaluate the cache's PMO status, dynamically apply light-orange alert theming, and reveal the warning banner.
+ */
+private fun BytecodePatchContext.patchCacheSummaryWarningBinding() {
+    val summaryItemClass = mutableClassDefBy(CACHE_SUMMARY_ITEM_CLASS)
+    val bindMethod = summaryItemClass.methods.firstOrNull {
+        it.name == "bindViewHolder" && it.implementation != null
+    } ?: throw PatchException("[$CACHE_SUMMARY_ITEM_CLASS] bindViewHolder method not found")
+
+    val impl = bindMethod.implementation
+        ?: throw PatchException("Missing implementation in bindViewHolder")
+    val instructions = impl.instructions.toList()
+
+    val constIdx = instructions.indexOfFirst {
+        (it as? NarrowLiteralInstruction)?.narrowLiteral == CACHE_TITLE_RES_ID
+    }
+    if (constIdx < 0) {
+        throw PatchException("[$CACHE_SUMMARY_ITEM_CLASS] Could not find 0x7f0a0543 in bindViewHolder")
+    }
+
+    val igetIdx = constIdx - 1
+    if (igetIdx < 0 || instructions[igetIdx].opcode != Opcode.IGET_OBJECT) {
+        throw PatchException("[$CACHE_SUMMARY_ITEM_CLASS] Expected iget-object directly before const 0x7f0a0543")
+    }
+
+    bindMethod.addInstructions(
+        igetIdx,
+        """
+        iget-object v0, p1, Landroidx/recyclerview/widget/o0;->itemView:Landroid/view/View;
+        invoke-virtual {p0}, Lcom/groundspeak/geocaching/intro/geocachedetails/LifecycleItemAdapter${'$'}Item;->getData()Ljava/lang/Object;
+        move-result-object v1
+        invoke-static {v0, v1}, Lapp/aidan/extension/geocaching/GeocacheEnrichmentBridge;->bindCacheSummaryWarning(Landroid/view/View;Ljava/lang/Object;)V
+        """.trimIndent()
+    )
+}
+
+private const val GEOCACHE_DETAILS_ACTIVITY_COMPANION =
+    "Lcom/groundspeak/geocaching/intro/geocachedetails/GeocacheDetailsActivity\$a;"
+private const val DESCRIPTION_FRAGMENT_CLASS = "Lr64;"
+
+/**
+ * Ensures GeocacheDetailsActivity (the XML-backed details screen containing cd_item_summary.xml)
+ * is launched instead of the experimental Jetpack Compose rewrite (GeocacheDetailsActivity2)
+ * so the warning banner is displayed between the favorites divider and difficulty meters.
+ */
+private fun BytecodePatchContext.patchGeocacheDetailsActivityRoute() {
+    val companionClass = mutableClassDefByOrNull(GEOCACHE_DETAILS_ACTIVITY_COMPANION) ?: return
+    val aMethod = companionClass.methods.firstOrNull {
+        it.name == "a" && it.implementation != null
+    } ?: return
+
+    val impl = aMethod.implementation ?: return
+    val instructions = impl.instructions.toList()
+
+    for (i in instructions.indices) {
+        val inst = instructions[i]
+        if (inst.opcode == Opcode.CONST_CLASS) {
+            val typeRef = (inst as? ReferenceInstruction)?.reference as? com.android.tools.smali.dexlib2.iface.reference.TypeReference
+            if (typeRef?.type == "Lcom/groundspeak/geocaching/intro/geocachedetails/GeocacheDetailsActivity2;") {
+                val reg = (inst as OneRegisterInstruction).registerA
+                aMethod.replaceInstruction(
+                    i,
+                    "const-class v$reg, Lcom/groundspeak/geocaching/intro/geocachedetails/GeocacheDetailsActivity;"
+                )
+                break
+            }
+        }
+    }
+}
+
+/**
+ * Ensures WebView in DescriptionFragment (r64.y) uses HTML line breaks (<br/><br/>\n\n) between
+ * the short description ("Premium Member Only Cache") and the long description so that WebView
+ * renders a blank line instead of collapsing the whitespace.
+ */
+private fun BytecodePatchContext.patchDescriptionFragmentWebViewLineBreak() {
+    val r64Class = mutableClassDefByOrNull(DESCRIPTION_FRAGMENT_CLASS) ?: return
+    val yMethod = r64Class.methods.firstOrNull {
+        it.name == "y" && it.implementation != null
+    } ?: return
+
+    val impl = yMethod.implementation ?: return
+    val instructions = impl.instructions.toList()
+
+    for (i in instructions.indices) {
+        val inst = instructions[i]
+        if (inst.opcode == Opcode.CONST_STRING) {
+            val strRef = (inst as? ReferenceInstruction)?.reference as? StringReference
+            if (strRef?.string == "\n\n") {
+                val reg = (inst as OneRegisterInstruction).registerA
+                yMethod.replaceInstruction(i, "const-string v$reg, \"<br/><br/>\\n\\n\"")
+                break
+            }
+        }
+    }
 }

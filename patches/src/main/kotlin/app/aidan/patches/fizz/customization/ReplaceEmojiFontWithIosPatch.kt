@@ -16,7 +16,7 @@ private object FontResourceHolder
 @Suppress("unused")
 val replaceEmojiFontWithIosPatch = compositeFeaturePatch(
     name = "Replace Emoji Font with iOS",
-    description = "Replaces Android system emoji with iOS Apple Color Emoji across Compose UI, posts, comments, and direct messages.",
+    description = "Replaces Android system emoji with iOS Apple Color Emoji across Compose UI, posts, comments, and direct messages (effective on Android 10+ / API 29+).",
     default = true
 ) {
     category("Customization")

@@ -58,6 +58,7 @@ for patch in data["patches"]:
         name = pkg_entry.get("name") or pkg  # fall back to package name if no label
         if pkg not in by_pkg:
             by_pkg[pkg] = {
+                "pkg": pkg,
                 "name": name,
                 "emoji": pkg_emoji(pkg),
                 "patches": {},
@@ -124,7 +125,7 @@ def versions_table(targets):
     return "\n".join(rows)
 
 
-def spoiler(label, count, targets, tbl, expanded=False):
+def spoiler(label, pkg, count, targets, tbl, expanded=False):
     """Wrap a patches table in a <details> spoiler with a versions sub-table.
     If expanded=True, the spoiler is open by default (for repos with few patches).
     """
@@ -132,8 +133,13 @@ def spoiler(label, count, targets, tbl, expanded=False):
     vtbl = versions_table(targets)
     versions_section = f"**🎯 Supported versions:**\n\n{vtbl}\n\n" if vtbl else ""
     tag = "<details open>" if expanded else "<details>"
+    badge = (
+        f'<a href="https://patch.p0ntus.com/status">'
+        f'<img src="https://worker.patch.p0ntus.com/badges/tests/{pkg}.svg" '
+        f'alt="Tests Passing" align="absmiddle"></a>'
+    )
     return f"""{tag}
-<summary>{label}&nbsp;&nbsp;•&nbsp;&nbsp;{count} {noun}</summary>
+<summary>{label}&nbsp;&nbsp;•&nbsp;&nbsp;{count} {noun}&nbsp;&nbsp;{badge}</summary>
 <br>
 
 {versions_section}{tbl}
@@ -157,7 +163,12 @@ def build_content(expanded=False):
         label = f"{entry['emoji']} {entry['name']}"
         lines.append(
             spoiler(
-                label, len(patches), entry["targets"], patches_table(patches), expanded
+                label,
+                entry["pkg"],
+                len(patches),
+                entry["targets"],
+                patches_table(patches),
+                expanded,
             )
         )
         lines.append("")

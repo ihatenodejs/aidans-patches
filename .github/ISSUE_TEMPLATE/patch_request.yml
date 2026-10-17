@@ -1,0 +1,85 @@
+name: 🧩 Patch request
+description: Request a new patch for an existing, already-supported app.
+title: 'feat(<app>): '
+labels: ['patch support', 'enhancement']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        # Submission Guidelines
+
+        Before creating a new patch request, please keep the following in mind:
+
+        - **Do not submit a duplicate request**: Search open and closed issues [here](https://github.com/ihatenodejs/aidans-patches/issues?q=label%3Aenhancement).
+        - **Verify app support**: This template is only for apps currently supported by this repository. For new apps, please use the **App support request** template.
+  - type: dropdown
+    id: app
+    attributes:
+      label: Target application
+      description: Select the supported app this patch request is for.
+      options:
+        - 365 Pay (com.avinside)
+        - Adobe Scan (com.adobe.scan.android)
+        - AfterShip (com.aftership.AfterShip)
+        - Blackjack (com.tripledot.blackjack)
+        - Canvas Student (com.instructure.candroid)
+        - Fizz (com.ashtoncofer.Buzz)
+        - Geocaching (com.groundspeak.geocaching.intro)
+        - Navigate360 Student (com.eab.se)
+        - NHL (com.nhl.gc1112.free)
+        - Sezzle (com.sezzle.sezzlemobile)
+        - SidelineSwap (com.sidelineswap.android)
+        - Other (not listed above; must be already supported)
+    validations:
+      required: true
+  - type: input
+    id: app-version
+    attributes:
+      label: Target app version (optional)
+      description: Specific app version(s) tested or targeted (e.g. 5.25.8), or leave blank for the latest supported version.
+      placeholder: e.g. 5.25.8
+  - type: textarea
+    id: patch-description
+    attributes:
+      label: Patch description
+      description: |
+        - Describe what the patch should do in detail
+        - Specify what UI, functionality, tracking, ads, or behavior should be modified, added, removed, or unlocked
+      placeholder: Detailed description of the requested patch...
+    validations:
+      required: true
+  - type: textarea
+    id: motivation
+    attributes:
+      label: Motivation
+      description: |
+        - Why should this patch be added?
+        - What is the explicit use case?
+        - How does this benefit users?
+      placeholder: Explain why this patch is useful...
+    validations:
+      required: true
+  - type: textarea
+    id: technical-details
+    attributes:
+      label: Technical details / Implementation ideas (optional)
+      description: If you have investigated the app (e.g. Smali methods, activities, resources, preferences, or prior art from other patch sets), share your findings here.
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional context (optional)
+      description: Add any images, videos, logs, or other references here.
+  - type: checkboxes
+    id: acknowledgements
+    attributes:
+      label: Acknowledgements
+      description: Your request may be closed if you do not follow the checklist below.
+      options:
+        - label: I have checked all open and closed issues and this is not a duplicate.
+          required: true
+        - label: This request is for an existing, already-supported app.
+          required: true
+        - label: "I have chosen an appropriate title (e.g. 'feat(<app>): <short description>')."
+          required: true
+        - label: All requested information has been provided properly.
+          required: true

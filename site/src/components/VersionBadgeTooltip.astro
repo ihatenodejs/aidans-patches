@@ -1,0 +1,60 @@
+---
+interface Props {
+  text: string;
+  badgeId?: string;
+  className?: string;
+  alignment?: 'start' | 'end';
+}
+
+const { text, badgeId, className = '', alignment = 'end' } = Astro.props;
+---
+
+<div class={`relative inline-flex items-center group/tooltip ${className}`}>
+  <span
+    id={badgeId}
+    data-app-version-badge
+    tabindex="0"
+    role="status"
+    aria-label={`Target version ${text}`}
+    class="relative z-10 inline-block px-1.5 py-0.5 font-mono text-[9px] font-semibold tracking-tight border bg-zinc-900 text-zinc-400 border-white/10 transition-colors cursor-help focus:outline-none focus-visible:ring-1 focus-visible:ring-white/40 select-none"
+  >
+    {text}
+  </span>
+
+  <div
+    data-tooltip-bubble
+    role="tooltip"
+    class={`pointer-events-none absolute top-full mt-1.5 hidden w-max max-w-[260px] flex-col gap-1.5 z-50 rounded-sm border border-white/15 bg-black p-2 shadow-2xl transition-opacity duration-150 group-hover/tooltip:flex group-focus-within/tooltip:flex ${
+      alignment === 'start' ? 'left-0' : 'right-0'
+    }`}
+  >
+    <div
+      class={`absolute -top-1 h-1.5 w-1.5 rotate-45 border-t border-l border-white/15 bg-black ${
+        alignment === 'start' ? 'left-2.5' : 'right-2.5'
+      }`}
+      aria-hidden="true"
+    ></div>
+
+    <div class="flex items-center justify-between gap-3 text-[10px] font-mono">
+      <span class="text-zinc-500">Compatibility</span>
+      <span
+        data-tooltip-test-badge
+        class="inline-flex items-center gap-1.5 px-1.5 py-0.5 rounded-sm text-[9px] font-semibold bg-zinc-900 text-zinc-400 border border-white/10"
+      >
+        <span class="w-1.5 h-1.5 rounded-full bg-zinc-500"></span>
+        <span data-tooltip-test-label>Checking...</span>
+      </span>
+    </div>
+
+    <div class="flex items-center justify-between gap-3 text-[10px] font-mono pt-0.5">
+      <span class="text-zinc-500">Latest Play</span>
+      <span
+        data-tooltip-play-badge
+        class="inline-flex items-center gap-1.5 px-1.5 py-0.5 rounded-sm text-[9px] font-semibold bg-zinc-900 text-zinc-400 border border-white/10"
+      >
+        <span class="w-1.5 h-1.5 rounded-full bg-zinc-500"></span>
+        <span data-tooltip-play-label>Checking...</span>
+      </span>
+    </div>
+  </div>
+</div>

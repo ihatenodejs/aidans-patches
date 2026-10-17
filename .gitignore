@@ -76,6 +76,7 @@ node_modules/
 !.agents/skills/
 .agents/skills/*
 !.agents/skills/apk-lab/
+!.agents/skills/morphe-patches/
 .claude
 
 # Font assets
@@ -92,3 +93,13 @@ __pycache__/
 .venv/
 .tools/
 .ruff_cache/
+
+# Rust & Cargo
+target/
+**/*.rs.bk
+*.pdb
+
+# Google Play Accounts & Credentials
+google-play-accounts.json
+*google-play-accounts*.json
+*.ini

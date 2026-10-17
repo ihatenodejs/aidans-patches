@@ -209,7 +209,9 @@ public final boolean onKeyDown(int i2, KeyEvent event) {
 
 ---
 
-## Exhaustive Feature Flag & Config Inventory
+Scope: The entries below are reverse-engineering observations from the analyzed Fizz 1.54.0 APK and are not claims that every item is implemented or shipped by this repository. Repository implementation status is authoritative only where explicitly identified in `## Shipped Patch Cross-Reference`; that section covers current repository patches, not upstream-app release contents.
+
+## Observed Feature Flag & Config Inventory
 
 ### Category 1: Mobile Studio, Developer Drawer, & Debugger Tools
 

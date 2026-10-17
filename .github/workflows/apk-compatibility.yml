@@ -125,8 +125,7 @@ jobs:
           R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
           R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-          APKEEP_EMAIL: ${{ secrets.APKEEP_EMAIL }}
-          APKEEP_AAS_TOKEN: ${{ secrets.APKEEP_AAS_TOKEN }}
+          APKEEP_ACCOUNTS: ${{ secrets.APKEEP_ACCOUNTS }}
           COMPATIBILITY_STATUS_SECRET: ${{ secrets.COMPATIBILITY_STATUS_SECRET }}
 
       - name: Register Run Start
@@ -157,8 +156,7 @@ jobs:
           R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
           R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
           R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
-          APKEEP_EMAIL: ${{ secrets.APKEEP_EMAIL }}
-          APKEEP_AAS_TOKEN: ${{ secrets.APKEEP_AAS_TOKEN }}
+          APKEEP_ACCOUNTS: ${{ secrets.APKEEP_ACCOUNTS }}
           COMPATIBILITY_STATUS_SECRET: ${{ secrets.COMPATIBILITY_STATUS_SECRET }}
 
       - name: Report compatibility pipeline failure

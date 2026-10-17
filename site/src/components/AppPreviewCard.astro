@@ -1,5 +1,5 @@
 ---
-import { Image } from 'astro:assets';
+import AppIcon from './AppIcon.astro';
 import type { App } from '../data/types';
 
 interface Props {
@@ -12,29 +12,21 @@ const { app, className = '', loading = 'lazy' } = Astro.props;
 ---
 
 <a
-  href={`/patches#${app.id}`}
+  href={`/apps/${app.id}`}
   class={`group relative bg-[#090909] p-3.5 sm:p-5 hover:bg-white/[0.02] hover:shadow-[0_0_20px_rgba(255,255,255,0.06)] transition-[background-color,box-shadow] duration-150 flex flex-col justify-between ${className}`}
 >
   <!-- Inset 1px hover highlight border (zero layout reflow, zero flickering) -->
   <div class="absolute inset-0 border border-transparent group-hover:border-white/35 pointer-events-none transition-colors duration-150"></div>
   <div class="flex items-center gap-3 mb-4 min-w-0">
-    {app.iconUrl ? (
-      <Image
-        src={app.iconUrl}
-        alt={app.name}
-        width={32}
-        height={32}
-        loading={loading}
-        class="w-8 h-8 rounded-md object-cover border border-white/10 shrink-0 transition-transform group-hover:scale-105"
-      />
-    ) : (
-      <div
-        class="w-8 h-8 rounded-sm flex items-center justify-center font-mono text-xs font-bold transition-transform group-hover:scale-105"
-        style={`background-color: ${app.appIconColor}1a; color: ${app.appIconColor}; border: 1px solid ${app.appIconColor}40;`}
-      >
-        {app.name.charAt(0)}
-      </div>
-    )}
+    <AppIcon
+      packageName={app.packageName}
+      name={app.name}
+      size={32}
+      loading={loading}
+      className="w-8 h-8 rounded-md border border-white/10 shrink-0 transition-transform group-hover:scale-105"
+      fallbackClassName="rounded-md text-xs font-bold"
+      fallbackColor={app.appIconColor}
+    />
     <div class="min-w-0">
       <h4 class="font-sans text-sm font-semibold text-white truncate">
         {app.name}

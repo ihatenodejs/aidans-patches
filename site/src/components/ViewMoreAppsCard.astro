@@ -1,22 +1,14 @@
 ---
-import { Image } from 'astro:assets';
+import AppIcon from './AppIcon.astro';
 import type { App } from '../data/types';
 
 interface Props {
   count: number;
-  totalApps: number;
-  totalPatches?: number;
   remainingApps?: App[];
   className?: string;
 }
 
-const {
-  count,
-  totalApps,
-  totalPatches,
-  remainingApps = [],
-  className = '',
-} = Astro.props;
+const { count, remainingApps = [], className = '' } = Astro.props;
 
 const title =
   count > 0
@@ -28,14 +20,12 @@ const title =
 // - > 3 additional apps: show 2 real app icons + 1 tile with +X
 const showPlusTile = count > 3;
 const previewCount = count <= 3 ? count : 2;
-const previewApps = remainingApps
-  .filter((a) => a.iconUrl)
-  .slice(0, previewCount);
+const previewApps = remainingApps.slice(0, previewCount);
 const plusCount = count === 4 ? 1 : count - 2;
 ---
 
 <a
-  href="/patches"
+  href="/apps"
   data-smoke-card
   class={`group relative p-3.5 sm:p-5 hover:shadow-[0_0_25px_rgba(63,27,71,0.25)] transition-all duration-150 flex flex-col justify-between overflow-hidden ${className}`}
   style="background-color: #040206; background-image: radial-gradient(circle at 30% 20%, rgba(63, 27, 71, 0.35), transparent 70%), radial-gradient(circle at 80% 80%, rgba(28, 10, 34, 0.30), transparent 70%);"
@@ -54,12 +44,14 @@ const plusCount = count === 4 ? 1 : count - 2;
   <div class="relative z-10 flex items-center justify-between gap-2 min-w-0">
     <div class="flex items-center -space-x-1.5 shrink-0">
       {previewApps.map((app) => (
-        <Image
-          src={app.iconUrl!}
-          alt={app.name}
-          width={28}
-          height={28}
-          class="w-7 h-7 rounded-md object-cover border border-[#090909] bg-zinc-900 shrink-0 ring-1 ring-white/15"
+        <AppIcon
+          packageName={app.packageName}
+          name={app.name}
+          size={28}
+          loading="lazy"
+          className="w-7 h-7 rounded-md border border-[#090909] bg-zinc-900 shrink-0 ring-1 ring-white/15"
+          fallbackClassName="rounded-md text-[10px]"
+          fallbackColor={app.appIconColor}
         />
       ))}
       {showPlusTile && plusCount > 0 && (

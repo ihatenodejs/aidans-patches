@@ -16,11 +16,12 @@ This document specifies patches for **Adobe Scan** (`com.adobe.scan.android`).
 - **Dependencies:** None
 - **Compatibility:** `COMPATIBILITY_ADOBE_SCAN` (`ApkFileType.APKM`, target `26.09.25`, `minSdk` 32)
 - **Options:**
-  - `Clean Up Auth Components` (`cleanUpAuthComponents`, default `true`): Removes the profile icon and sign-out option from the Settings menu.
+  - `Clean Up Auth Components` (`cleanUpAuthComponents`, default `true`): Removes the profile icon, sign-out, and sign-in options from the Settings menu.
   - `Remove Link Sharing` (`removeLinkSharing`, default `true`): Removes cloud link sharing options from the Share sheet, preserving local PDF sharing.
   - `Remove Edit Text` (`removeEditText`, default `true`): Removes the non-functional Edit text option from file option menus and the preview screen.
   - `Remove Move` (`removeMove`, default `true`): Removes the non-functional Move file option from file option menus.
   - `Remove Save as Word Doc` (`removeSaveAsWord`, default `true`): Removes the cloud-dependent Save as Word doc option from scan cards.
+  - `Remove Compress PDF` (`removeCompressPdf`, default `true`): Removes the broken Compress PDF option from file option menus and the Share sheet.
 
 ### 1. Motivation & Purpose
 
@@ -38,14 +39,16 @@ The **Remove Login** patch unlocks Adobe Scan as a standalone, offline, privacy-
 - **Anchor:** Immediately after `invoke-direct/range` on `Lcom/adobe/scan/android/SplashActivity$a;-><init>` (`initIndex + 1`).
 - **Injected Bytecode:**
   ```smali
-  sget-object p2, Lcom/adobe/scan/android/ScanApplication;->C:Lcom/adobe/scan/android/ScanApplication;
-  const/4 p3, 0x0
-  const/4 p5, 0x0
-  sget-object p4, Lcom/adobe/scan/android/ScanApplication$LoginActionType;->LOGIN:Lcom/adobe/scan/android/ScanApplication$LoginActionType;
-  invoke-virtual {p2, p3, p1, p4, p5}, Lcom/adobe/scan/android/ScanApplication;->f(ZLcom/adobe/scan/android/SplashActivity$a;Lcom/adobe/scan/android/ScanApplication$LoginActionType;Lcom/adobe/scan/android/ScanApplication$LandingScreen;)Landroid/content/Intent;
-  move-result-object p1
-  invoke-virtual {p0, p1}, Landroid/content/Context;->startActivity(Landroid/content/Intent;)V
-  invoke-virtual {p0}, Landroid/app/Activity;->finish()V
+  move-object/from16 v5, p0
+  sget-object v0, Lcom/adobe/scan/android/ScanApplication;->C:Lcom/adobe/scan/android/ScanApplication;
+  const/4 v1, 0x0
+  move-object v2, p1
+  sget-object v3, Lcom/adobe/scan/android/ScanApplication$LoginActionType;->LOGIN:Lcom/adobe/scan/android/ScanApplication$LoginActionType;
+  const/4 v4, 0x0
+  invoke-virtual {v0, v1, v2, v3, v4}, Lcom/adobe/scan/android/ScanApplication;->f(ZLcom/adobe/scan/android/SplashActivity$a;Lcom/adobe/scan/android/ScanApplication$LoginActionType;Lcom/adobe/scan/android/ScanApplication$LandingScreen;)Landroid/content/Intent;
+  move-result-object v0
+  invoke-virtual {v5, v0}, Landroid/content/Context;->startActivity(Landroid/content/Intent;)V
+  invoke-virtual {v5}, Landroid/app/Activity;->finish()V
   return-void
   ```
 - **Effect:** Unconditionally delegates intent creation to `ScanApplication.f` with action `LOGIN`, starts `FileBrowserActivity`, finishes `SplashActivity`, and exits without evaluating `cr.d.p()` or instantiating `ScanTourViewActivity`.
@@ -109,7 +112,7 @@ The **Remove Login** patch unlocks Adobe Scan as a standalone, offline, privacy-
 - **Target Method:** `X2(Lcom/adobe/dcmscan/a$a;Z)V`
 - **Injected Bytecode (at index 0):**
   ```smali
-  const/4 p2, 0x0
+  const/16 p2, 0x0
   ```
 - **Effect:** Forces the second parameter (`promptSignIn` boolean `z11`) to `false`. When the user taps "Save PDF", the check `if (z11 && qe.c1.a != null)` evaluates to `false`, immediately executing `p2()` and saving the PDF to local storage.
 
@@ -202,11 +205,19 @@ The **Remove Login** patch unlocks Adobe Scan as a standalone, offline, privacy-
 - **Injected Bytecode:** Replaces `const v2, 0x7f142937` (`waiting_to_upload`) with `const/4 v2, 0x0`.
 - **Effect:** Prevents local unuploaded scans from returning the `R.string.waiting_to_upload` status identifier. On both the Home and Files screens, documents cleanly render their local state ("Available Offline", date, and file size) without displaying the misleading "Waiting to upload..." status indicator.
 ---
+#### Layer 15: Remove Compress PDF (`qt/u.a`, `qt/q2.i`)
+- **Target Class 1:** `Lqt/u;`
+- **Target Method:** `a(Lqt/a;Lfu/b;Ljava/util/List;)Lm90/b;`
+- **Target Class 2:** `Lqt/q2;`
+- **Target Method:** `i(Lqt/d3;Lqt/q1;Lg3/o;I)V`
+- **Injected Bytecode:** Replaces the `invoke-virtual Ljava/util/ArrayList;->add` call for `0x7f1421b3` (`compress_pdf`) in `qt.u` with `nop`, and replaces the `invoke-static Lqt/q2;->g` render call for `0x7f1427dd` (`send_compressed`) in `qt.q2` with `nop`.
+- **Effect:** Completely removes the broken cloud-dependent "Compress PDF" action (which fails offline with "File is still uploading. Please wait." because post-save compression is a Document Cloud server feature) from the File Options bottom sheet across all surfaces, and removes "Send compressed" from the local Share PDF bottom sheet. Local compression during scan save in `CaptureActivity` remains fully functional.
+
 
 ### 3. Preconditions & Verification
 
 1. **Strict Target Validation:** Gates strictly on `com.adobe.scan.android` version `26.09.25` signed with SHA-256 certificate `b6dd0562256487fcd6c98cde137858ef50d9adb9f9cd2f1ca58c5357efdf0faf`.
-2. **Fail-Fast Invariants:** Every method lookup verifies the presence of the class, expected parameter count, return type, and anchor instructions before modifying bytecode; throws `PatchException` on any mismatch.
+2. **Fail-Fast Invariants:** Method lookups verify the presence of target classes, methods, and expected anchor instructions before modifying bytecode; throws `PatchException` on any mismatch.
 3. **Compilation Verification:** Build patch bundle via `./gradlew :patches:buildAndroid clean --no-daemon`.
 4. **Metadata Verification:** Run `./gradlew generatePatchesList`.
 5. **Runtime Verification:** Apply patch to APKM via Morphe CLI, install on `emulator-5554`, clear data, disconnect network, capture a document, tap Save PDF, force-stop, relaunch, and confirm document persistence and export via "Copy to device".
@@ -274,7 +285,7 @@ When **Remove Settings** is enabled, the patch hides the `USAGE INFO` category a
   - `Rate App` (`removeRateApp`, default `true`): Removes the Rate app item from the Settings menu.
   - `Online Support Forum` (`removeSupportForum`, default `true`): Removes the Online support forum item from the Settings menu.
   - `Share This App` (`removeShareApp`, default `true`): Removes the Share this app item from the Settings menu.
-  - `Fill & Sign` (`removeFillAndSign`, default `true`): Removes the Fill & Sign item from the File Options bottom sheet.
+  - `Fill & Sign` (`removeFillAndSign`, default `true`): Removes the Fill & Sign item from file option menus and Recent scan cards.
   - `Open in Adobe Acrobat` (`removeOpenInAcrobat`, default `false`): Removes the Open in Adobe Acrobat option from file option menus and the preview screen.
 ### 1. Motivation & Purpose
 
@@ -286,7 +297,7 @@ The Settings menu and file menus in Adobe Scan feature non-essential promotional
 |---|---|---|
 | **Preference Inflation** | `Ljt/v2;->E(Ljava/lang/String;)V` (after `b.F`) | Sets `C(false)` (`setVisible(false)`) on selected preferences (`0x7f141f71`, `0x7f141f73`, `0x7f141f78`, `0x7f141f72`, `0x7f141f79`). If all support items are removed, hides the parent `PreferenceCategory` (`v0.J.C(false)`), eliminating the 72px gray separator bar. |
 | **Rate App Visibility Override** | `Ljt/v2;->onCreate(Landroid/os/Bundle;)V` (after last `Preference.C(Z)V`) | Injects `const/4 p1, 0x0 \n invoke-virtual {v0, p1}, Landroidx/preference/Preference;->C(Z)V` to ensure Rate app remains hidden even if Google Play Services availability checks evaluate to `true`. |
-| **File Options Fill & Sign** | `Lqt/u;->a(...)Lm90/b;` (before `IF_EQZ` for `0x7f142619`) | Injects `const/4 v<reg>, 0x0` immediately before the conditional branch guarding Fill & Sign creation, bypassing item instantiation and preventing Play Store redirection prompts. |
+| **Fill & Sign Removal** | `Lqt/u;->a(...)Lm90/b;` (before `IF_EQZ` for `0x7f142619`) & `Lut/r0$b;-><clinit>()V` | Injects `const/4 v<reg>, 0x0` immediately before the conditional branch guarding Fill & Sign creation in File Options, and reassigns `Lut/r0$b->h` from `Lut/r0$c->h` in `<clinit>`, excluding Fill & Sign from Recent scan card tool lists. |
 | **Open in Acrobat** | `Lqt/u;->a(...)Lm90/b;`, `Lvt/b2;->a(...)V`, `Lut/r0;-><init>(...)V` | Neutralizes addition of `0x7f142617` in the File Options bottom sheet, nulls out `Lvt/r4;->e` in the preview bottom toolbar array for `Ll90/s;->u`, and trims `r0.d` to `{Share, SaveAsJpeg}`. |
 
 ### 3. Preconditions & Verification
@@ -294,7 +305,7 @@ The Settings menu and file menus in Adobe Scan feature non-essential promotional
 1. **Target Validation:** Gates on `com.adobe.scan.android` version `26.09.25`.
 2. **Compilation Verification:** Build patch bundle via `./gradlew :patches:buildAndroid clean --no-daemon`.
 3. **Metadata Verification:** Run `./gradlew generatePatchesList`.
-4. **Runtime Verification:** Apply patch with `-e "Remove Useless/Promotional Items"`, install on `emulator-5554`, verify Settings shows only `Preferences` with no gray separator bar, and verify File Options bottom sheet omits `Fill & Sign`.
+4. **Runtime Verification:** Apply patch with `-e "Remove Useless/Promotional Items"`, install on `emulator-5554`, verify Settings shows only `Preferences` with no gray separator bar, and verify File Options bottom sheet and Recent scan cards omit `Fill & Sign`.
 
 ---
 
@@ -335,7 +346,7 @@ Adobe Scan packages Adobe Clean `.otf` resources for legacy XML layouts, Spectru
 - **Name:** Unlock Premium
 - **Target Package:** `com.adobe.scan.android`
 - **Supported Versions:** `26.09.25`
-- **Default State:** `false` (Opt-in)
+- **Default State:** `true` (Enabled by default)
 - **Type:** Dalvik Bytecode Patch (`bytecodePatch`)
 - **Dependencies:** None
 - **Compatibility:** `COMPATIBILITY_ADOBE_SCAN` (`ApkFileType.APKM`, target `26.09.25`, `minSdk` 32)
@@ -368,3 +379,42 @@ The global entitlement cutover replaces caller-local synthetic-lambda hooks. Con
 2. **Compilation Verification:** Build the patch bundle with `./gradlew :patches:buildAndroid clean --no-daemon`.
 3. **Metadata Verification:** Run `./gradlew generatePatchesList` and confirm that **Unlock Premium** exposes both options.
 4. **Bytecode Verification:** After applying to the target APKM, confirm that `Lcr/d0$a$a;` and `Lcr/y0;` methods `d`, `e`, `j`, and `n` begin with `const/4 v0, 0x1` and `return v0`; `Loe/a;->isPremiumLocked()Z` begins with `const/4 v0, 0x0`; and `Lqt/u;->a` omits Generative summary with its removal option enabled.
+
+---
+
+## Patch: Remove Attribution
+
+- **Name:** Remove Attribution
+- **Target Package:** `com.adobe.scan.android`
+- **Supported Versions:** `26.09.25`
+- **Default State:** `true` (Enabled by default)
+- **Type:** Dalvik Bytecode Patch (`bytecodePatch`)
+- **Dependencies:** None
+- **Compatibility:** `COMPATIBILITY_ADOBE_SCAN` (`ApkFileType.APKM`, target `26.09.25`, `minSdk` 32)
+- **Options:**
+  - `Remove Scan Name Attribution` (`removeScanAttribution`, default `true`): Names new scans 'Scan on [date]' instead of 'Adobe Scan [date]'.
+  - `Remove Share Attribution Text` (`removeShareAttribution`, default `true`): Removes the promotional 'Created and shared using Adobe Scan.' text from shared files.
+
+### 1. Motivation & Purpose
+
+Adobe Scan applies brand attribution in two prominent user-facing areas:
+1. When importing photos or creating new scans, the default document filename is formatted using the app name as the scan type prefix, yielding "Adobe Scan [date]" (e.g. "Adobe Scan Oct 13, 2026").
+2. When sharing a scan via the OS share sheet ("Send a copy", "Send compressed") or email, Adobe Scan attaches the text "Created and shared using Adobe Scan." in `Intent.EXTRA_TEXT`.
+
+The **Remove Attribution** patch neutralizes both forms of branding: scans are cleanly named "Scan on [date]" instead, and external shares contain only the PDF document without promotional body text.
+
+### 2. Technical Implementation & Injection Points
+
+| Layer | Target Descriptor / Anchor | Stock Behavior | Patched Behavior |
+|---|---|---|---|
+| **Scan Type Evaluation** | `Lcom/adobe/dcmscan/rename/d;->b(Context, boolean)String` (at `Context.getString` after `0x7f142073`) | Evaluates `CaptureMode.DOCUMENT` to `R.string.adobe_scan_filename` ("Adobe Scan"). | Replaces `Context.getString` call with `const-string v<dest>, "Scan on"` and nops `move-result-object`, causing composite scan names to format as "Scan on [date]". |
+| **OS Share Sheet** | `Lcom/adobe/scan/android/util/b;->r(...)Lk90/m;` (at `putExtra` for `EXTRA_TEXT`) | Calls `intent.putExtra("android.intent.extra.TEXT", promoString)`. | Replaces `putExtra` call with `nop`, ensuring the OS share chooser intent contains only the PDF attachment stream. |
+| **Email Attachment Share** | `Lcom/adobe/scan/android/util/b;->q(...)Lk90/m;` (at `putExtra` for `EXTRA_TEXT`) | Adds `EXTRA_TEXT` to the primary intent and each resolved email client intent. | Replaces all `putExtra` calls referencing the `EXTRA_TEXT` register with `nop`. |
+| **Formatted Text Generator** | `Lcom/adobe/scan/android/util/b;->j(...)String` (at `0x7f142844`) | Appends `\n\n` and `share_via_email_promotion_message` to the result string. | Replaces both `StringBuilder.append` calls with `nop`. |
+
+### 3. Preconditions & Verification
+
+1. **Target Validation:** Gates on Adobe Scan `26.09.25` through `COMPATIBILITY_ADOBE_SCAN`.
+2. **Compilation Verification:** Build patch bundle via `./gradlew :patches:buildAndroid clean --no-daemon`.
+3. **Metadata Verification:** Run `./gradlew generatePatchesList`.
+4. **Runtime Verification:** Deploy to device/emulator, import photo, confirm title renders "Scan on [date]", tap Share -> Send a copy, and confirm share intent Extras omit `android.intent.extra.TEXT`.

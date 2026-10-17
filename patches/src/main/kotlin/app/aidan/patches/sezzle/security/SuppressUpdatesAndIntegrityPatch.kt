@@ -1,7 +1,7 @@
 package app.aidan.patches.sezzle.security
 
 import app.aidan.patches.sezzle.shared.Constants.COMPATIBILITY_SEZZLE
-import app.aidan.patches.sezzle.shared.HermesBundleEditor
+import app.aidan.patches.shared.HermesBundleEditor
 import app.morphe.patcher.extensions.InstructionExtensions.addInstructions
 import app.morphe.patcher.patch.BytecodePatchContext
 import app.morphe.patcher.patch.PatchException

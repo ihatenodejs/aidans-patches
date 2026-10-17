@@ -1,0 +1,90 @@
+name: 📱 App support request
+description: Request support and patches for a new app not already supported.
+title: 'feat: Support <app name>'
+labels: ['app support', 'enhancement']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        # Submission Guidelines
+
+        Before requesting support for a new app, please keep the following in mind:
+
+        - **Do not submit a duplicate request**: Search open and closed issues [here](https://github.com/ihatenodejs/aidans-patches/issues?q=label%3Aenhancement).
+        - **Check existing support**: Confirm the app is not already listed in the [README](https://github.com/ihatenodejs/aidans-patches#readme). If it is already supported and you want a new patch, use the **Patch request** template instead.
+        - **Public availability**: The app must be publicly accessible on Google Play or a reputable source (e.g. APKMirror). Paid apps are not eligible.
+  - type: input
+    id: app-name
+    attributes:
+      label: App name
+      description: The public name of the application.
+      placeholder: e.g. MyFitnessPal
+    validations:
+      required: true
+  - type: input
+    id: package-name
+    attributes:
+      label: Package name (Application ID)
+      description: The Android package name (e.g. from the Google Play URL `details?id=<package>`).
+      placeholder: e.g. com.myfitnesspal.android
+    validations:
+      required: true
+  - type: input
+    id: download-link
+    attributes:
+      label: Download link / Store listing
+      description: Direct link to the Google Play Store, APKMirror, or official download source.
+      placeholder: https://play.google.com/store/apps/details?id=...
+    validations:
+      required: true
+  - type: textarea
+    id: proposed-patches
+    attributes:
+      label: Proposed patches
+      description: |
+        What specific patches would you like to see for this app?
+        - e.g. Ad and telemetry blocking
+        - e.g. AMOLED / dark theme
+        - e.g. Feature unlocks / bypasses
+      placeholder: |
+        - Patch 1: Remove in-app ads and analytics
+        - Patch 2: Enable dark theme
+    validations:
+      required: true
+  - type: textarea
+    id: motivation
+    attributes:
+      label: Motivation
+      description: |
+        - Why should this app be supported?
+        - What is the explicit use case?
+        - How many people would benefit?
+      placeholder: Explain why this app would be a great addition to Aidan's Morphe Patches...
+    validations:
+      required: true
+  - type: textarea
+    id: technical-details
+    attributes:
+      label: Technical details / Architecture (optional)
+      description: If known, mention the app's framework (Native Android/Kotlin, React Native/Hermes, Flutter, Unity, WebView) or any root/tamper protections.
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional context (optional)
+      description: Add any images, videos, or additional references here.
+  - type: checkboxes
+    id: acknowledgements
+    attributes:
+      label: Acknowledgements
+      description: Your request may be closed if you do not follow the checklist below.
+      options:
+        - label: I have checked all open and closed issues and this is not a duplicate.
+          required: true
+        - label: This application is not already supported in this repository.
+          required: true
+        - label: The app is free to download and publicly available (no paid APKs).
+          required: true
+        - label: "I have chosen an appropriate title (e.g. 'feat: Support <app name>')."
+          required: true
+        - label: All requested information has been provided properly.
+          required: true

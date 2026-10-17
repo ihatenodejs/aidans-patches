@@ -1,0 +1,103 @@
+---
+import AppIcon from './AppIcon.astro';
+import VersionBadgeTooltip from './VersionBadgeTooltip.astro';
+import type { App, Patch } from '../data/types';
+import { getFallbackCategory, getFallbackSummary } from '../data/app-store';
+interface Props {
+  app: App;
+  patches: Patch[];
+  loading?: 'lazy' | 'eager';
+  className?: string;
+}
+
+const { app, patches, loading = 'lazy', className = '' } = Astro.props;
+
+const fallbackCategory = getFallbackCategory(app.id);
+const fallbackSummary = getFallbackSummary(app.id);
+
+const searchText = [
+  app.name,
+  app.packageName,
+  fallbackCategory.name,
+  fallbackSummary,
+  ...patches.flatMap((patch) => [patch.name, patch.description]),
+]
+  .join(' ')
+  .toLowerCase();
+---
+
+<article
+  data-app-card={app.packageName}
+  data-app-id={app.id}
+  data-package={app.packageName}
+  data-category={fallbackCategory.id}
+  data-search={searchText}
+  class={`group relative flex w-[78vw] sm:w-[320px] md:w-[340px] shrink-0 snap-start flex-col justify-between overflow-visible border border-white/[0.08] bg-[#080808] p-5 transition-all duration-200 hover:border-white/25 hover:bg-[#0c0c0c] ${className}`}
+>
+  <!-- Subtle brand glow on hover -->
+  <div
+    class="pointer-events-none absolute inset-x-0 top-0 h-32 opacity-0 transition-opacity duration-200 group-hover:opacity-100"
+    style={`background: radial-gradient(circle at 20% 0%, ${app.appIconColor}26, transparent 70%);`}
+    aria-hidden="true"
+  ></div>
+
+  <!-- Inset hover highlight border -->
+  <div
+    class="pointer-events-none absolute inset-0 border border-transparent transition-colors duration-150 group-hover:border-white/20"
+    aria-hidden="true"
+  ></div>
+
+  <!-- Header: 72px app icon and identity perfectly top-aligned -->
+  <div class="relative z-20 flex items-start gap-4">
+    <AppIcon
+      packageName={app.packageName}
+      name={app.name}
+      size={72}
+      loading={loading}
+      className="h-[72px] w-[72px] rounded-xl border border-white/10 bg-zinc-900 shadow-xl shrink-0 transition-transform duration-200 group-hover:scale-[1.03]"
+      fallbackClassName="rounded-xl text-2xl font-bold"
+      fallbackColor={app.appIconColor}
+    />
+    <div class="min-w-0 flex-1 flex flex-col justify-between self-stretch">
+      <div>
+        <h3 class="min-w-0 truncate font-sans text-base font-bold leading-tight tracking-tight text-white group-hover:text-white">
+          <a
+            href={`/apps/${app.id}`}
+            class="focus:outline-none focus-visible:underline"
+          >
+            <span class="absolute inset-0" aria-hidden="true"></span>
+            {app.name}
+          </a>
+        </h3>
+        <p class="mt-1 truncate font-mono text-[10px] leading-tight text-zinc-500">
+          {app.packageName}
+        </p>
+      </div>
+
+      <div class="mt-2 flex items-center gap-2">
+        <VersionBadgeTooltip
+          text={`v${app.latestSupportedVersion}`}
+          className="relative z-20 shrink-0"
+          alignment="start"
+        />
+        <span class="inline-flex items-center gap-1 rounded-sm border border-white/[0.08] bg-white/[0.04] px-1.5 py-0.5 font-mono text-[9px] font-semibold text-zinc-300">
+          <span>{app.patchCount}</span>
+          <span class="font-normal text-zinc-500">
+            {app.patchCount === 1 ? 'patch' : 'patches'}
+          </span>
+        </span>
+      </div>
+    </div>
+  </div>
+  <!-- Body: Rich app description/summary -->
+  <div class="relative z-10 mt-4 flex-1">
+    <p
+      data-app-summary
+      class="line-clamp-3 text-xs leading-relaxed text-zinc-400 font-sans"
+    >
+      {fallbackSummary}
+    </p>
+  </div>
+
+  <!-- No extra footer spacer; padding matches top (p-5 on container) -->
+</article>

@@ -1,0 +1,734 @@
+---
+import AppCatalogCard from '../../components/AppCatalogCard.astro';
+import CategoryCard from '../../components/CategoryCard.astro';
+import CarouselControls from '../../components/CarouselControls.astro';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { getApps, getPatches } from '../../data/repo';
+import {
+  STORE_CATEGORIES,
+  APP_FALLBACK_CATEGORIES,
+  buildDiscoverySections,
+  type StoreCategoryId,
+} from '../../data/app-store';
+
+const apps = getApps();
+const allPatches = getPatches();
+const patchesByAppId = new Map(
+  apps.map((app) => [
+    app.id,
+    allPatches.filter((patch) => patch.compatibleAppIds.includes(app.id)),
+  ]),
+);
+
+const discoverySections = buildDiscoverySections(apps);
+
+// Compute unique fallback counts for populated categories
+const populatedCategoryIds: StoreCategoryId[] = ['all'];
+const categoryCounts: Record<string, number> = {
+  all: apps.length,
+};
+
+for (const app of apps) {
+  const cat = APP_FALLBACK_CATEGORIES[app.id] || 'other';
+  categoryCounts[cat] = (categoryCounts[cat] || 0) + 1;
+}
+
+// Order populated categories according to STORE_CATEGORIES keys
+const allCategoryKeys = Object.keys(STORE_CATEGORIES) as StoreCategoryId[];
+for (const key of allCategoryKeys) {
+  if (key !== 'all' && (categoryCounts[key] || 0) > 0) {
+    populatedCategoryIds.push(key);
+  }
+}
+---
+
+<BaseLayout
+  title="Apps — Aidan's Morphe Patches"
+  description={`Browse ${apps.length} supported Android apps across categories and discover privacy, feature, and UI enhancements.`}
+  currentPath="/apps"
+>
+  <!-- 1. Header & Live Search Bar -->
+  <section class="relative overflow-hidden border-b border-white/[0.08] px-5 py-5 sm:px-8 sm:py-8">
+    <div class="pointer-events-none absolute inset-0 bg-technical-grid opacity-20"></div>
+
+    <div class="relative flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
+      <div class="max-w-xl">
+        <h1 class="font-sans text-2xl font-bold tracking-tight text-white sm:text-3xl">
+          Discover apps to patch.
+        </h1>
+        <p class="mt-2 text-xs leading-relaxed text-zinc-400 sm:text-sm">
+          Browse by category or explore curated discovery collections. Every
+          listing highlights what the app does first, so you can pick what to
+          enhance in Morphe.
+        </p>
+      </div>
+      <div class="w-full md:w-80">
+        <label class="relative block w-full">
+          <span class="sr-only">Search apps, categories, or features</span>
+          <svg
+            class="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-zinc-500"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            stroke-width="2"
+            aria-hidden="true"
+          >
+            <circle cx="11" cy="11" r="7"></circle>
+            <path d="m20 20-3.5-3.5"></path>
+          </svg>
+          <input
+            id="app-search"
+            type="search"
+            placeholder="Search apps, categories, features..."
+            class="w-full rounded-sm border border-white/10 bg-[#080808] py-2 pl-9 pr-3 font-mono text-xs text-white placeholder:text-zinc-600 focus:border-white/30 focus:outline-none focus:ring-1 focus:ring-white/20"
+          />
+        </label>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2. Categories Carousel Rail -->
+  <section
+    class="border-b border-white/[0.08] px-5 py-5 sm:px-8 sm:py-8"
+    aria-labelledby="categories-heading"
+  >
+    <div class="flex min-h-11 items-center justify-between gap-4">
+      <div>
+        <h2
+          id="categories-heading"
+          class="font-sans text-sm font-semibold tracking-tight text-white uppercase tracking-wider text-[11px] text-zinc-400"
+        >
+          Categories
+        </h2>
+      </div>
+      <CarouselControls
+        targetRailId="categories-rail"
+        ariaLabelPrefix="Categories carousel"
+      />
+    </div>
+
+    <div
+      id="categories-rail"
+      data-carousel-rail
+      class="no-scrollbar mt-4 -mx-1 flex items-center gap-3 overflow-x-auto scroll-smooth px-1 snap-x snap-mandatory"
+      style="overscroll-behavior-inline: contain;"
+    >
+      {populatedCategoryIds.map((catId, idx) => (
+        <CategoryCard
+          category={STORE_CATEGORIES[catId]}
+          count={categoryCounts[catId]}
+          isSelected={idx === 0}
+        />
+      ))}
+    </div>
+  </section>
+
+  <!-- 3. Curated Discovery Carousels (shown when 'All apps' is active) -->
+  <div id="discovery-sections" class="divide-y divide-white/[0.08]">
+    {discoverySections.map((section) => (
+      <section
+        data-discovery-section={section.id}
+        class="px-5 py-5 sm:px-8 sm:py-8"
+        aria-labelledby={`section-heading-${section.id}`}
+      >
+        <div class="flex items-end justify-between gap-4">
+          <div class="max-w-xl">
+            <h2
+              id={`section-heading-${section.id}`}
+              class="font-sans text-lg font-bold tracking-tight text-white sm:text-xl"
+            >
+              {section.title}
+            </h2>
+            <p class="mt-1 text-xs text-zinc-400">{section.description}</p>
+          </div>
+          <CarouselControls
+            targetRailId={`rail-${section.id}`}
+            ariaLabelPrefix={`${section.title} carousel`}
+          />
+        </div>
+
+        <div
+          id={`rail-${section.id}`}
+          data-carousel-rail
+          class="no-scrollbar mt-5 -mx-1 flex items-stretch gap-4 overflow-x-auto scroll-smooth px-1 snap-x snap-mandatory"
+          style="overscroll-behavior-inline: contain;"
+        >
+          {section.apps.map((app) => (
+            <AppCatalogCard
+              app={app}
+              patches={patchesByAppId.get(app.id) || []}
+            />
+          ))}
+        </div>
+      </section>
+    ))}
+  </div>
+
+  <!-- 4. Category-specific Flat App Grid (shown when a specific category is selected) -->
+  <section
+    id="category-grid-section"
+    class="hidden px-5 py-5 sm:px-8 sm:py-8"
+    aria-labelledby="category-grid-heading"
+  >
+    <div class="mb-6 flex items-end justify-between gap-4">
+      <div>
+        <h2
+          id="category-grid-heading"
+          class="font-sans text-lg font-bold tracking-tight text-white sm:text-xl"
+        >
+          <span id="category-grid-heading-name">Applications</span>
+          <span
+            id="category-grid-heading-count"
+            class="ml-1 font-mono text-base font-bold tracking-normal text-zinc-300 sm:text-lg"
+          ></span>
+        </h2>
+        <p id="category-grid-desc" class="mt-1 text-xs text-zinc-400">
+          Showing matching apps
+        </p>
+      </div>
+    </div>
+
+    <div
+      id="category-grid"
+      class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
+    >
+      {apps.map((app) => (
+        <AppCatalogCard
+          app={app}
+          patches={patchesByAppId.get(app.id) || []}
+          className="!w-full"
+        />
+      ))}
+    </div>
+  </section>
+  <div
+    id="apps-empty"
+    class="hidden border-b border-white/[0.08] bg-[#080808] px-5 py-5 sm:px-8 sm:py-8 text-center"
+  >
+    <div class="mx-auto flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.03] text-zinc-400">
+      <svg
+        class="h-5 w-5"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+        stroke-width="2"
+      >
+        <circle cx="11" cy="11" r="7"></circle>
+        <path d="m20 20-3.5-3.5"></path>
+      </svg>
+    </div>
+    <p class="mt-3 text-sm font-semibold text-zinc-200">
+      No matching applications
+    </p>
+    <p class="mt-1 text-xs text-zinc-500 max-w-sm mx-auto">
+      No apps found matching your active filter. Try selecting "All apps" or
+      clearing your search term.
+    </p>
+    <button
+      id="reset-filter-btn"
+      type="button"
+      class="mt-4 inline-flex items-center gap-1.5 rounded-sm border border-white/15 bg-white/[0.04] px-3 py-1.5 font-mono text-[11px] text-zinc-300 transition-colors hover:border-white/30 hover:bg-white/[0.08] hover:text-white"
+    >
+      <span>Reset filters</span>
+    </button>
+  </div>
+
+  <script>
+    import {
+      loadStatusPayload,
+      type PublicStatusPayload,
+    } from '../../data/status-client';
+    import {
+      normalizePlayCategoryId,
+      type StoreCategoryId,
+    } from '../../data/app-store';
+    (() => {
+      // 1. Horizontal Carousel Rails Arrow Scrolling
+      const rails = document.querySelectorAll<HTMLElement>(
+        '[data-carousel-rail]',
+      );
+
+      function updateRailControls(rail: HTMLElement) {
+        const id = rail.id;
+        const prevBtn = document.querySelector<HTMLButtonElement>(
+          `[data-carousel-prev="${id}"]`,
+        );
+        const nextBtn = document.querySelector<HTMLButtonElement>(
+          `[data-carousel-next="${id}"]`,
+        );
+        if (!prevBtn || !nextBtn) return;
+
+        const maxScroll = rail.scrollWidth - rail.clientWidth;
+        const current = rail.scrollLeft;
+
+        prevBtn.disabled = current <= 2;
+        nextBtn.disabled = current >= maxScroll - 2;
+      }
+
+      rails.forEach((rail) => {
+        const id = rail.id;
+        const prevBtn = document.querySelector<HTMLButtonElement>(
+          `[data-carousel-prev="${id}"]`,
+        );
+        const nextBtn = document.querySelector<HTMLButtonElement>(
+          `[data-carousel-next="${id}"]`,
+        );
+
+        const scrollAmount = () => Math.max(280, rail.clientWidth * 0.85);
+
+        prevBtn?.addEventListener('click', () => {
+          rail.scrollBy({ left: -scrollAmount(), behavior: 'smooth' });
+        });
+
+        nextBtn?.addEventListener('click', () => {
+          rail.scrollBy({ left: scrollAmount(), behavior: 'smooth' });
+        });
+
+        rail.addEventListener('scroll', () => updateRailControls(rail), {
+          passive: true,
+        });
+        window.addEventListener('resize', () => updateRailControls(rail), {
+          passive: true,
+        });
+        // Initial state check
+        updateRailControls(rail);
+      });
+
+      // 2. Combined Search & Category Filtering
+      const searchInput = document.getElementById(
+        'app-search',
+      ) as HTMLInputElement | null;
+      const categoryButtons = document.querySelectorAll<HTMLButtonElement>(
+        '[data-category-card]',
+      );
+      const discoveryContainer = document.getElementById('discovery-sections');
+      const categoryGridSection = document.getElementById(
+        'category-grid-section',
+      );
+      const categoryGridDesc = document.getElementById('category-grid-desc');
+      const categoryGridCards = document.querySelectorAll<HTMLElement>(
+        '#category-grid [data-app-card]',
+      );
+      const sections = document.querySelectorAll<HTMLElement>(
+        '[data-discovery-section]',
+      );
+      const emptyState = document.getElementById('apps-empty');
+      const resetBtn = document.getElementById('reset-filter-btn');
+
+      let activeCategory: StoreCategoryId = 'all';
+
+      function applyFilters() {
+        const query = (searchInput?.value || '').toLowerCase().trim();
+        let totalVisibleCards = 0;
+        if (activeCategory === 'all') {
+          // Show discovery carousel sections
+          if (discoveryContainer) discoveryContainer.classList.remove('hidden');
+          if (categoryGridSection) categoryGridSection.classList.add('hidden');
+
+          sections.forEach((section) => {
+            const sectionCards =
+              section.querySelectorAll<HTMLElement>('[data-app-card]');
+            let visibleInSection = 0;
+
+            sectionCards.forEach((card) => {
+              const matchesQuery =
+                !query || (card.dataset.search || '').includes(query);
+              card.classList.toggle('hidden', !matchesQuery);
+              if (matchesQuery) {
+                visibleInSection++;
+                totalVisibleCards++;
+              }
+            });
+
+            section.classList.toggle('hidden', visibleInSection === 0);
+
+            const rail = section.querySelector<HTMLElement>(
+              '[data-carousel-rail]',
+            );
+            if (rail) updateRailControls(rail);
+          });
+        } else {
+          // Specific category: hide discovery sections, show clean app grid
+          if (discoveryContainer) discoveryContainer.classList.add('hidden');
+          if (categoryGridSection)
+            categoryGridSection.classList.remove('hidden');
+
+          const activeBtn = document.querySelector<HTMLButtonElement>(
+            `[data-category-card="${activeCategory}"]`,
+          );
+          const catName = activeBtn?.dataset.categoryName || 'Category';
+          const catDesc = activeBtn?.dataset.categoryDescription || '';
+          const catCount = activeBtn?.dataset.categoryCount || '';
+          const categoryGridHeadingName = document.getElementById(
+            'category-grid-heading-name',
+          );
+          const categoryGridHeadingCount = document.getElementById(
+            'category-grid-heading-count',
+          );
+
+          if (categoryGridHeadingName)
+            categoryGridHeadingName.textContent = catName;
+          if (categoryGridHeadingCount)
+            categoryGridHeadingCount.textContent = catCount
+              ? `(${catCount})`
+              : '';
+          if (categoryGridDesc) categoryGridDesc.textContent = catDesc;
+
+          categoryGridCards.forEach((card) => {
+            const matchesCat = card.dataset.category === activeCategory;
+            const matchesQuery =
+              !query || (card.dataset.search || '').includes(query);
+            const isVisible = matchesCat && matchesQuery;
+
+            card.classList.toggle('hidden', !isVisible);
+            if (isVisible) {
+              totalVisibleCards++;
+            }
+          });
+        }
+
+        if (emptyState) {
+          emptyState.classList.toggle('hidden', totalVisibleCards > 0);
+        }
+      }
+
+      searchInput?.addEventListener('input', applyFilters);
+
+      categoryButtons.forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const targetCat =
+            (btn.dataset.categoryCard as StoreCategoryId) || 'all';
+          activeCategory = targetCat;
+
+          categoryButtons.forEach((b) => {
+            const isMatch = b === btn;
+
+            b.setAttribute('aria-pressed', isMatch ? 'true' : 'false');
+            b.classList.remove(
+              'border-white',
+              'bg-[#101010]',
+              'shadow-[0_0_24px_rgba(255,255,255,0.08)]',
+              'ring-1',
+              'ring-white/30',
+              'border-white/[0.08]',
+              'bg-[#080808]',
+            );
+
+            if (isMatch) {
+              b.classList.add(
+                'border-white',
+                'bg-[#101010]',
+                'shadow-[0_0_24px_rgba(255,255,255,0.08)]',
+                'ring-1',
+                'ring-white/30',
+              );
+            } else {
+              b.classList.add('border-white/[0.08]', 'bg-[#080808]');
+            }
+          });
+
+          applyFilters();
+        });
+      });
+
+      resetBtn?.addEventListener('click', () => {
+        if (searchInput) searchInput.value = '';
+        const allBtn = document.querySelector<HTMLButtonElement>(
+          '[data-category-card="all"]',
+        );
+        allBtn?.click();
+      });
+
+      // 3. Live Google Play Metadata Hydration from Worker
+      loadStatusPayload().then((payload: PublicStatusPayload | null) => {
+        if (!payload || !payload.apps) return;
+
+        const packageToCategory = new Map<string, StoreCategoryId>();
+
+        const allCards =
+          document.querySelectorAll<HTMLElement>('[data-app-card]');
+
+        allCards.forEach((card) => {
+          const pkg = card.dataset.package;
+          if (!pkg) return;
+
+          const appStatus = payload.apps[pkg];
+          if (!appStatus) return;
+
+          const meta = appStatus.playMetadata;
+
+          // Update live summary text
+          if (meta?.summary && meta.summary.trim()) {
+            const summaryEl =
+              card.querySelector<HTMLElement>('[data-app-summary]');
+            if (summaryEl) {
+              summaryEl.textContent = meta.summary.trim();
+            }
+          }
+
+          // Update category data attribute for filtering
+          if (meta?.categoryId) {
+            const currentFallback =
+              (card.dataset.category as StoreCategoryId) || 'other';
+            const normalized = normalizePlayCategoryId(
+              meta.categoryId,
+              currentFallback,
+            );
+            card.dataset.category = normalized;
+            packageToCategory.set(pkg, normalized);
+          }
+
+          // Update version badge color and dual-row tooltip according to /status rules
+          const badgeEl = card.querySelector<HTMLElement>(
+            '[data-app-version-badge]',
+          );
+          if (badgeEl) {
+            const status = appStatus.status;
+            const targetCompat = appStatus.targetCompatibility;
+
+            // 1. Color trigger badge
+            badgeEl.classList.remove(
+              'bg-zinc-900',
+              'text-zinc-400',
+              'border-white/10',
+              'bg-emerald-950/60',
+              'text-emerald-400',
+              'border-emerald-800/40',
+              'bg-amber-950/60',
+              'text-amber-400',
+              'border-amber-800/40',
+              'bg-rose-950/60',
+              'text-rose-400',
+              'border-rose-800/40',
+            );
+
+            if (targetCompat?.status === 'compatible') {
+              badgeEl.classList.add(
+                'bg-emerald-950/60',
+                'text-emerald-400',
+                'border-emerald-800/40',
+              );
+            } else if (
+              targetCompat?.status === 'incompatible' ||
+              targetCompat?.status === 'error'
+            ) {
+              badgeEl.classList.add(
+                'bg-rose-950/60',
+                'text-rose-400',
+                'border-rose-800/40',
+              );
+            } else if (status === 'up-to-date') {
+              badgeEl.classList.add(
+                'bg-emerald-950/60',
+                'text-emerald-400',
+                'border-emerald-800/40',
+              );
+            } else if (status === 'newer-available') {
+              badgeEl.classList.add(
+                'bg-amber-950/60',
+                'text-amber-400',
+                'border-amber-800/40',
+              );
+            } else {
+              badgeEl.classList.add(
+                'bg-zinc-900',
+                'text-zinc-400',
+                'border-white/10',
+              );
+            }
+
+            // 2. Tooltip Row 1: Test status badge (passed tests count, compatible/incompatible)
+            const testBadge = card.querySelector<HTMLElement>(
+              '[data-tooltip-test-badge]',
+            );
+            const testLabel = card.querySelector<HTMLElement>(
+              '[data-tooltip-test-label]',
+            );
+
+            if (testBadge && testLabel) {
+              testBadge.classList.remove(
+                'bg-zinc-900',
+                'text-zinc-400',
+                'border-white/10',
+                'bg-emerald-950/60',
+                'text-emerald-400',
+                'border-emerald-800/40',
+                'bg-rose-950/60',
+                'text-rose-400',
+                'border-rose-800/40',
+                'bg-amber-950/60',
+                'text-amber-400',
+                'border-amber-800/40',
+              );
+
+              const dotEl = testBadge.querySelector('span:first-child');
+              if (dotEl) {
+                dotEl.className = 'w-1.5 h-1.5 rounded-full';
+              }
+
+              if (targetCompat?.status === 'compatible') {
+                testBadge.classList.add(
+                  'bg-emerald-950/60',
+                  'text-emerald-400',
+                  'border-emerald-800/40',
+                );
+                dotEl?.classList.add('bg-emerald-400');
+                const passed = targetCompat.passedCount || 0;
+                const total = passed + (targetCompat.failedCount || 0);
+                testLabel.textContent =
+                  total > 0 ? `${passed}/${total} passed` : 'Compatible';
+              } else if (targetCompat?.status === 'incompatible') {
+                testBadge.classList.add(
+                  'bg-rose-950/60',
+                  'text-rose-400',
+                  'border-rose-800/40',
+                );
+                dotEl?.classList.add('bg-rose-400');
+                const passed = targetCompat.passedCount || 0;
+                const total = passed + (targetCompat.failedCount || 0);
+                testLabel.textContent = `${passed}/${total} passed`;
+              } else if (targetCompat?.status === 'error') {
+                testBadge.classList.add(
+                  'bg-rose-950/60',
+                  'text-rose-400',
+                  'border-rose-800/40',
+                );
+                dotEl?.classList.add('bg-rose-400');
+                testLabel.textContent = 'Test error';
+              } else if (
+                appStatus.outstandingRequest?.expectedRoles?.includes('target')
+              ) {
+                testBadge.classList.add(
+                  'bg-amber-950/60',
+                  'text-amber-400',
+                  'border-amber-800/40',
+                );
+                dotEl?.classList.add('bg-amber-400');
+                testLabel.textContent = 'Queued';
+              } else {
+                testBadge.classList.add(
+                  'bg-zinc-900',
+                  'text-zinc-400',
+                  'border-white/10',
+                );
+                dotEl?.classList.add('bg-zinc-500');
+                testLabel.textContent = 'Not tested';
+              }
+            }
+
+            // 3. Tooltip Row 2: Play Store version badge (orange for newer, green for latest)
+            const playBadge = card.querySelector<HTMLElement>(
+              '[data-tooltip-play-badge]',
+            );
+            const playLabel = card.querySelector<HTMLElement>(
+              '[data-tooltip-play-label]',
+            );
+
+            if (playBadge && playLabel) {
+              playBadge.classList.remove(
+                'bg-zinc-900',
+                'text-zinc-400',
+                'border-white/10',
+                'bg-emerald-950/60',
+                'text-emerald-400',
+                'border-emerald-800/40',
+                'bg-amber-950/60',
+                'text-amber-400',
+                'border-amber-800/40',
+                'bg-rose-950/60',
+                'text-rose-400',
+                'border-rose-800/40',
+              );
+
+              const dotEl = playBadge.querySelector('span:first-child');
+              if (dotEl) {
+                dotEl.className = 'w-1.5 h-1.5 rounded-full';
+              }
+
+              if (status === 'up-to-date') {
+                playBadge.classList.add(
+                  'bg-emerald-950/60',
+                  'text-emerald-400',
+                  'border-emerald-800/40',
+                );
+                dotEl?.classList.add('bg-emerald-400');
+                playLabel.textContent = appStatus.playVersion
+                  ? `v${appStatus.playVersion}`
+                  : 'Latest';
+              } else if (status === 'newer-available') {
+                playBadge.classList.add(
+                  'bg-amber-950/60',
+                  'text-amber-400',
+                  'border-amber-800/40',
+                );
+                dotEl?.classList.add('bg-amber-400');
+                playLabel.textContent = appStatus.playVersion
+                  ? `v${appStatus.playVersion}`
+                  : 'Newer available';
+              } else if (status === 'not-on-play-store') {
+                playBadge.classList.add(
+                  'bg-zinc-900',
+                  'text-zinc-500',
+                  'border-white/10',
+                );
+                dotEl?.classList.add('bg-zinc-600');
+                playLabel.textContent = 'Not on Play';
+              } else if (status === 'check-failed') {
+                playBadge.classList.add(
+                  'bg-rose-950/60',
+                  'text-rose-400',
+                  'border-rose-800/40',
+                );
+                dotEl?.classList.add('bg-rose-400');
+                playLabel.textContent = 'Check failed';
+              } else {
+                playBadge.classList.add(
+                  'bg-zinc-900',
+                  'text-zinc-400',
+                  'border-white/10',
+                );
+                dotEl?.classList.add('bg-zinc-500');
+                playLabel.textContent = appStatus.playVersion
+                  ? `v${appStatus.playVersion}`
+                  : 'Unknown';
+              }
+            }
+          }
+          // Update search index on card
+          const title = card.querySelector('h3')?.textContent || '';
+          const summary =
+            card.querySelector('[data-app-summary]')?.textContent || '';
+          card.dataset.search = `${title} ${pkg} ${summary}`.toLowerCase();
+        });
+
+        // Recompute unique counts per category button
+        const uniqueAppCounts: Record<string, number> = { all: 0 };
+        const seenPackages = new Set<string>();
+
+        allCards.forEach((card) => {
+          const pkg = card.dataset.package;
+          if (!pkg || seenPackages.has(pkg)) return;
+          seenPackages.add(pkg);
+
+          uniqueAppCounts.all = (uniqueAppCounts.all || 0) + 1;
+          const cat = card.dataset.category || 'other';
+          uniqueAppCounts[cat] = (uniqueAppCounts[cat] || 0) + 1;
+        });
+
+        categoryButtons.forEach((btn) => {
+          const catId = btn.dataset.categoryCard;
+          if (!catId) return;
+          const countEl = btn.querySelector<HTMLElement>(
+            '[data-category-count]',
+          );
+          if (countEl) {
+            countEl.textContent = String(uniqueAppCounts[catId] || 0);
+          }
+        });
+
+        // Re-run filter in case active category was affected
+        applyFilters();
+      });
+    })();
+  </script>
+</BaseLayout>

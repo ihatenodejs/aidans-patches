@@ -20,6 +20,8 @@ private const val SETTINGS_FRAGMENT = "Ljt/v2;"
 private const val FILE_OPTIONS_MENU_HELPER = "Lqt/u;"
 private const val FILE_LIST_TOOLS = "Lut/p0;"
 private const val FILE_LIST_TOOLS_ACTIONS = "Lut/r0;"
+private const val FILE_LIST_TOOLS_ACTIONS_B = "Lut/r0${'$'}b;"
+private const val FILE_LIST_TOOLS_ACTIONS_C = "Lut/r0${'$'}c;"
 private const val PREVIEW_BOTTOM_TOOLBAR = "Lvt/b2;"
 private const val PREVIEW_TOOLBAR_ITEMS = "Lvt/r4;"
 
@@ -78,13 +80,13 @@ val removeUselessPromotionalItemsPatch = bytecodePatch(
         key = "removeFillAndSign",
         default = true,
         title = "Fill & Sign",
-        description = "Removes the Fill & Sign item from the File Options bottom sheet."
+        description = "Removes the Fill & Sign item from file option menus and Recent scan cards."
     )
     val removeOpenInAcrobat = booleanOption(
         key = "removeOpenInAcrobat",
         default = false,
         title = "Open in Adobe Acrobat",
-        description = "Removes the Open in Adobe Acrobat option from file option menus and the preview screen."
+        description = "Removes the Open in Adobe Acrobat option from file option menus, the preview screen, and Recent scan cards."
     )
 
     execute {
@@ -111,7 +113,7 @@ val removeUselessPromotionalItemsPatch = bytecodePatch(
         if (removeFillAndSign.value != false) {
             removeFillAndSign()
         }
-        if (removeOpenInAcrobat.value == true) {
+        if (removeOpenInAcrobat.value != false) {
             removeOpenInAcrobat()
         }
     }
@@ -151,8 +153,8 @@ private fun BytecodePatchContext.hideSettingsPreferences(resourceIds: List<Int>,
         move-result-object v0
         invoke-virtual {p0, v0}, Landroidx/preference/b;->o(Ljava/lang/String;)Landroidx/preference/Preference;
         move-result-object v0
-        const/4 v1, 0x0
-        invoke-virtual {v0, v1}, Landroidx/preference/Preference;->C(Z)V
+        const/4 p1, 0x0
+        invoke-virtual {v0, p1}, Landroidx/preference/Preference;->C(Z)V
         """.trimIndent()
     }
 
@@ -164,8 +166,8 @@ private fun BytecodePatchContext.hideSettingsPreferences(resourceIds: List<Int>,
         invoke-virtual {p0, v0}, Landroidx/preference/b;->o(Ljava/lang/String;)Landroidx/preference/Preference;
         move-result-object v0
         iget-object v0, v0, Landroidx/preference/Preference;->J:Landroidx/preference/PreferenceGroup;
-        const/4 v1, 0x0
-        invoke-virtual {v0, v1}, Landroidx/preference/Preference;->C(Z)V
+        const/4 p1, 0x0
+        invoke-virtual {v0, p1}, Landroidx/preference/Preference;->C(Z)V
         """.trimIndent()
     } else {
         ""
@@ -216,7 +218,7 @@ private fun BytecodePatchContext.neutralizeRateAppOnCreate() {
 }
 
 /**
- * Neutralizes the Fill & Sign item in File Options bottom sheet.
+ * Neutralizes the Fill & Sign item in File Options bottom sheet and Recent scan card actions.
  * Fill & Sign opens the Play Store when the external Adobe Fill & Sign app is not installed.
  */
 private fun BytecodePatchContext.removeFillAndSign() {
@@ -256,6 +258,21 @@ private fun BytecodePatchContext.removeFillAndSign() {
     }
 
     optionsMethod.addInstructions(ifEqzIdx, "const/4 v${moveResult.registerA}, 0x0")
+    val bClass = mutableClassDefByOrNull(FILE_LIST_TOOLS_ACTIONS_B)
+        ?: throw PatchException("FileListTools actions class $FILE_LIST_TOOLS_ACTIONS_B not found")
+    val clinitMethod = bClass.methods.firstOrNull {
+        it.name == "<clinit>" &&
+            it.implementation != null
+    } ?: throw PatchException("FileListTools actions subclass B <clinit> not found")
+
+    clinitMethod.addInstructions(
+        0,
+        """
+        sget-object v0, $FILE_LIST_TOOLS_ACTIONS_C->h:$FILE_LIST_TOOLS_ACTIONS_C
+        sput-object v0, $FILE_LIST_TOOLS_ACTIONS_B->h:$FILE_LIST_TOOLS_ACTIONS_B
+        return-void
+        """.trimIndent()
+    )
 }
 
 /**
@@ -334,7 +351,6 @@ private fun BytecodePatchContext.removeOpenInAcrobat() {
 
     val initInstructions = initMethod.implementation?.instructions
         ?: throw PatchException("FileListTools actions constructor has no implementation")
-
     val acrobatSgetIndexInInit = initInstructions.indexOfFirst { inst ->
         val ref = (inst as? ReferenceInstruction)?.reference as? FieldReference
         inst.opcode == Opcode.SGET_OBJECT &&

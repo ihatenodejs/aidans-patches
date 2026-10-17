@@ -6,17 +6,20 @@ Apply Morphe patches, align, sign with debug keystore, stream to connected ADB d
 
 ## 1. `deploy` — Deterministic Patch, Sign & Install
 
-Applies Morphe patches from a `.mpp` bundle to an APK or split container (APKM/XAPK/APKS), aligns with `zipalign`, signs with the Android debug keystore, installs to an ADB device/emulator, and optionally cold-launches the app.
+Applies Morphe patches from a `.mpp` bundle to an APK or split container (APKM/XAPK/APKS), aligns with `zipalign`, signs with the negotiated keystore, installs to an ADB device/emulator, and optionally cold-launches the app.
 
 ### Deployment Pipeline & Invariants
 1. **Patch Application**: Executes pinned Morphe Desktop in a temporary scratch workspace.
-2. **Alignment**: Runs `zipalign -f -p 4` to align 32-bit and 64-bit uncompressed shared libraries to 4-byte boundaries.
-3. **Debug Signing**: Signs the aligned APK using `apksigner` and the standard Android debug keystore (`~/.android/debug.keystore`). If absent, automatically generates the keystore with secure `0600` permissions.
+2. **Alignment**: Runs `zipalign -f 4` to align 32-bit and 64-bit uncompressed shared libraries to 4-byte boundaries.
+3. **Keystore Negotiation & Signing**:
+   - Signs the aligned APK using `apksigner`.
+   - **Automatic Keystore Negotiation**: If `--keystore` is omitted, `apk-lab` inspects the installed package signature on the target device via ADB. If the installed app signature matches Morphe's bundled key (`6959a7790bff42cc...`), Morphe's cached keystore (`morphe-data/morphe.keystore`) is used automatically with alias `Morphe` and password `Morphe`, avoiding `INSTALL_FAILED_UPDATE_INCOMPATIBLE`. Otherwise, it defaults to the standard Android debug keystore (`~/.android/debug.keystore`, auto-created with secure `0600` permissions if absent).
+   - Explicit credentials can be provided via `--keystore PATH`, `--ks-alias ALIAS`, `--ks-pass PASS`, and `--key-pass PASS`.
 4. **ADB Streaming Install**:
    - Default / `--reinstall`: Runs `adb install -r` (preserves existing app data and sandbox).
-   - `--clean-install`: Runs `adb uninstall <package>` first (clears app data), then `adb install`.
+   - `--clean-install`: Attempts `adb uninstall <package>` first (clears app data; uninstall failure is ignored), then `adb install`.
 5. **Launcher Activity Execution**: When `--launch` is passed, parses the launchable activity from manifest badging and invokes `adb shell am start -n <package>/<activity>`.
-6. **Atomic File Staging**: Staging occurs inside a temporary directory in the final output's parent folder, ensuring `os.replace` is same-filesystem atomic. Failures leave existing output files untouched.
+6. **Atomic File Staging & Input Preservation**: Staging occurs inside a temporary directory in the final output's parent folder, ensuring `os.replace` is same-filesystem atomic. Output paths are checked upfront to guarantee they never alias or overwrite the source artifact. Failures before destination replacement leave existing output files untouched; installation or launch failures occur after the destination file has already been replaced.
 
 ### CLI Invocation
 
@@ -28,14 +31,21 @@ uv run --project tools/apk-lab apk-lab deploy path/to/app.apkm \
   --all \
   --launch
 
-# Deploy specific patch with options to a specific emulator
+# Automatically compile patch bundle via Gradle and deploy
+uv run --project tools/apk-lab apk-lab deploy path/to/app.apkm \
+  --build \
+  --package com.example.app \
+  --all
+
+# Deploy with custom keystore credentials
 uv run --project tools/apk-lab apk-lab deploy path/to/app.apkm \
   --mpp patches/build/libs/patches-X.X.X.mpp \
   --package com.example.app \
-  -e "Change Brand Color" \
-  -O primaryColor=#FF5722 \
-  --device emulator-5554 \
-  --out /tmp/deployed.apk
+  --all \
+  --keystore /path/to/custom.keystore \
+  --ks-alias mykey \
+  --ks-pass secretpass \
+  --key-pass secretpass
 
 # Clean install (destructively clears existing app data before installing)
 uv run --project tools/apk-lab apk-lab deploy path/to/app.apkm \
@@ -47,7 +57,8 @@ uv run --project tools/apk-lab apk-lab deploy path/to/app.apkm \
 
 ### CLI Arguments
 - `artifact` (required positional): Path to APK/APKM/XAPK/APKS.
-- `--mpp MPP` (required): Path to `.mpp` patch bundle.
+- `--mpp MPP`: Path to `.mpp` patch bundle (optional if `--build` is specified).
+- `--build`: Automatically compile newest `.mpp` patch bundle via Gradle (`./gradlew :patches:buildAndroid`).
 - `--package PACKAGE` (required): Package name.
 - `--all` or `-e` / `--enable PATCH ...` (one required, mutually exclusive): Select all default patches or specific patches.
 - `-O` / `--option KEY=VALUE ...`: Configuration options for selected patches.
@@ -55,7 +66,12 @@ uv run --project tools/apk-lab apk-lab deploy path/to/app.apkm \
 - `--launch`: Cold-launch the main activity after installation.
 - `--reinstall`: Reinstall preserving data (`adb install -r`, default).
 - `--clean-install`: Uninstall before install (`adb uninstall && adb install`).
+- `--keystore PATH`: Custom signing keystore (must use alias `androiddebugkey` and password `android`).
 - `--out PATH`: Copy the patched, signed APK to a specific output path.
+- `--keystore PATH`: Custom signing keystore.
+- `--ks-alias ALIAS`: Keystore key alias.
+- `--ks-pass PASS`: Keystore password.
+- `--key-pass PASS`: Key password.
 
 ### Exit Codes
 - `0`: Deployment succeeded.
@@ -108,16 +124,70 @@ uv run --project tools/apk-lab apk-lab monitor \
 
 ### Exit Codes
 - `0`: Healthy monitoring session or clean process termination.
-- `2`: Device not connected, multiple devices without `--device`, or package not running.
-- `5`: `RUNTIME_FAILURE` — High CPU spin loop, ANR, crash, or fatal exit-info reason.
+- `2`: Device not connected or multiple devices without `--device`.
+- `5`: `RUNTIME_FAILURE` — Package did not start before `--timeout`, high CPU spin loop, ANR, crash, or fatal exit-info reason.
+
+
+## 3. `crash-trace` — Smali-Aware Crash Harvester
+
+Harvests recent Android logcat crash reports for a package, extracting fatal exceptions, ANRs, and verification errors. When an analysis workspace exists at `.apk-lab/<package>`, stack trace frames are cross-referenced with Smali bytecode across multi-dex directories (`smali/`, `smali_classes2/`, etc.) to show exact file locations, method signatures, and instruction snippets.
+
+### CLI Invocation
+
+```bash
+# Harvest recent crash reports for a package
+uv run --project tools/apk-lab apk-lab crash-trace --package com.example.app
+
+# Output structured JSON including resolved Smali frames
+uv run --project tools/apk-lab apk-lab crash-trace \
+  --package com.example.app \
+  --device emulator-5554 \
+  --lines 10000 \
+  --json
+```
+
+### CLI Arguments
+- `--package PACKAGE` (required): Target application package name.
+- `--device SERIAL`: Specific ADB device serial.
+- `--lines N`: Number of logcat lines to inspect (default: `5000`).
+- `--json`: Output structured JSON reports including `resolved_frames` (`smali_path`, `method_signature`, `code_snippet`).
 
 ---
 
-## 3. Python API Reference
+## 4. `dev` — Rapid Iteration Workflow
+
+Automates the inner development loop for patch development. Executes a complete iteration cycle with a single command:
+1. **Repo Root Discovery**: Resolves the root of the Git repository containing patch sources.
+2. **Patch Compilation**: Executes `./gradlew :patches:buildAndroid` to compile the newest `.mpp` patch bundle.
+3. **Artifact Discovery**: Locates the matching target APK/APKM artifact for the given application slug/name.
+4. **Package Inspection**: Inspects the artifact manifest to extract the target package name.
+5. **Keystore Negotiation & Deployment**: Evaluates target device signatures, resolves the appropriate keystore (Morphe vs. debug), applies patches, zipaligns, signs, installs to device, and cold-launches the application.
+
+### CLI Invocation
+
+```bash
+# Iterate on an app: compile patches, locate artifact, deploy, and launch
+uv run --project tools/apk-lab apk-lab dev geocaching
+
+# Target specific emulator with clean installation
+uv run --project tools/apk-lab apk-lab dev sezzle --device emulator-5554 --clean-install
+```
+
+### CLI Arguments
+- `app` (required positional): Application name or package identifier (e.g. `geocaching`, `sezzle`).
+- `--device SERIAL`: Specific ADB device serial.
+- `--launch`: Launch main activity after installation (default: `True`).
+- `--all`: Apply all compatible patches (default: `True`).
+- `--reinstall`: Reinstall preserving data (`adb install -r`, default).
+- `--clean-install`: Clean install by uninstalling first.
+
+---
+
+## 5. Python API Reference
 
 ```python
 from pathlib import Path
-from apk_lab.device import AdbClient, select_device, monitor_application
+from apk_lab.device import AdbClient, select_device, monitor_application, harvest_recent_crashes
 from apk_lab.deployment import deploy_artifact
 from apk_lab.tools import ToolManager
 
@@ -133,7 +203,7 @@ result = deploy_artifact(
     mpp_path=Path("patches/build/libs/patches-1.0.0.mpp"),
     package_name="com.example.app",
     all_defaults=True,
-    requested_patches=None,
+    enabled_patches=[],
     raw_options=[],
     device_serial=serial,
     launch=True,
@@ -158,4 +228,9 @@ if exit_code == 0:
     print("Application running healthy!")
 else:
     print("Application encountered spin, ANR, or crash!")
+
+# Harvest recent crash reports from logcat
+crashes = harvest_recent_crashes(package="com.example.app", device=serial, lines=5000)
+for crash in crashes:
+    print(f"Crash: {crash.exception_class}: {crash.message}")
 ```

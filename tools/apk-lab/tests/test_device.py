@@ -7,12 +7,17 @@ import pytest
 from apk_lab.device import (
     AdbClient,
     AdbDevice,
+    CrashReport,
+    harvest_recent_crashes,
     monitor_application,
     parse_adb_devices,
     parse_exit_info_records,
     parse_launcher_activity,
     parse_proc_stat,
     parse_proc_system_stat,
+    resolve_crash_frames,
+    resolve_crash_report,
+    resolve_frame_in_smali,
     select_device,
 )
 from apk_lab.models import ExitCode
@@ -551,3 +556,148 @@ def test_monitor_activity_manager_anr_token_matching():
         poll_interval=0.002,
     )
     assert code_exact == ExitCode.RUNTIME_FAILURE
+
+
+def test_harvest_crashes_verify_error(monkeypatch):
+    logcat = """
+10-15 12:00:00.000  1234  1234 E AndroidRuntime: FATAL EXCEPTION: main
+10-15 12:00:00.000  1234  1234 E AndroidRuntime: Process: com.example.app, PID: 1234
+10-15 12:00:00.000  1234  1234 E AndroidRuntime: java.lang.VerifyError: Rejecting class com.example.Bad
+10-15 12:00:00.000  1234  1234 E AndroidRuntime:     at com.example.app.MainActivity.onCreate(MainActivity.java:20)
+"""
+    monkeypatch.setattr("apk_lab.device.run_adb", lambda _device, _args: logcat)
+
+    reports = harvest_recent_crashes("com.example.app", device="emulator-5554")
+
+    assert len(reports) == 1
+    assert reports[0].process == "com.example.app"
+    assert reports[0].pid == 1234
+    assert reports[0].exception_type == "java.lang.VerifyError"
+    assert reports[0].message == "Rejecting class com.example.Bad"
+    assert reports[0].stack_trace == [
+        "at com.example.app.MainActivity.onCreate(MainActivity.java:20)"
+    ]
+
+
+def test_harvest_crashes_fatal_exception(monkeypatch):
+    logcat = """
+10-15 12:01:00.000  4567  4567 E AndroidRuntime: FATAL EXCEPTION: main
+10-15 12:01:00.000  4567  4567 E AndroidRuntime: Process: com.example.app, PID: 4567
+10-15 12:01:00.000  4567  4567 E AndroidRuntime: java.lang.IllegalStateException: Broken state
+10-15 12:01:00.000  4567  4567 E AndroidRuntime:     at com.example.app.Widget.create(Widget.java:9)
+"""
+    monkeypatch.setattr("apk_lab.device.run_adb", lambda _device, _args: logcat)
+
+    reports = harvest_recent_crashes("com.example.app")
+
+    assert len(reports) == 1
+    assert reports[0].exception_type == "java.lang.IllegalStateException"
+    assert reports[0].message == "Broken state"
+    assert reports[0].timestamp == "10-15 12:01:00.000"
+
+
+def test_harvest_crashes_no_matches(monkeypatch):
+    logcat = """
+10-15 12:02:00.000   100   100 I ActivityManager: Start proc 100:com.example.app/u0a1
+10-15 12:02:01.000   100   100 I com.example.app: Application started
+"""
+    monkeypatch.setattr("apk_lab.device.run_adb", lambda _device, _args: logcat)
+
+    assert harvest_recent_crashes("com.example.app") == []
+
+
+def test_resolve_frame_in_smali(tmp_path):
+    smali_dir = tmp_path / "smali"
+    smali_dir.mkdir()
+    target_smali = smali_dir / "ie4.smali"
+    target_smali.write_text(
+        """.class public Lie4;
+.super Ljava/lang/Object;
+
+.method public static final m()V
+    .registers 1
+
+    const/4 v0, 0x0
+    return-void
+.end method
+""",
+        encoding="utf-8",
+    )
+
+    frame = "    at ie4.m(SourceFile:1239)"
+    resolved = resolve_frame_in_smali(frame, smali_dir)
+
+    assert resolved.raw_frame == frame
+    assert resolved.class_name == "ie4"
+    assert resolved.method_name == "m"
+    assert resolved.smali_path == target_smali
+    assert resolved.method_signature == ".method public static final m()V"
+    assert resolved.code_snippet is not None
+    assert ".registers 1" in resolved.code_snippet
+    assert "const/4 v0, 0x0" in resolved.code_snippet
+    assert "return-void" in resolved.code_snippet
+
+
+def test_resolve_frame_missing_smali(tmp_path):
+    smali_dir = tmp_path / "smali"
+    smali_dir.mkdir()
+
+    frame = "    at ie4.m(SourceFile:1239)"
+    resolved = resolve_frame_in_smali(frame, smali_dir)
+
+    assert resolved.raw_frame == frame
+    assert resolved.class_name == "ie4"
+    assert resolved.method_name == "m"
+    assert resolved.smali_path is None
+    assert resolved.method_signature is None
+    assert resolved.code_snippet is None
+
+
+def test_resolve_crash_report_and_multidex(tmp_path):
+    root_dir = tmp_path / "workspace"
+    classes2_smali = root_dir / "smali_classes2" / "com" / "example" / "foo"
+    classes2_smali.mkdir(parents=True)
+    bar_smali = classes2_smali / "Bar.smali"
+    bar_smali.write_text(
+        """.class public Lcom/example/foo/Bar;
+.super Ljava/lang/Object;
+
+.method public doWork(Ljava/lang/String;)I
+    .registers 3
+    const/4 v0, 0x1
+    return v0
+.end method
+""",
+        encoding="utf-8",
+    )
+
+    crash = CrashReport(
+        process="com.example.foo",
+        pid=1234,
+        exception_type="java.lang.NullPointerException",
+        message="attempt to read from null",
+        stack_trace=[
+            "    at com.example.foo.Bar.doWork(Bar.java:42)",
+            "    at com.example.foo.Missing.run(Missing.java:10)",
+        ],
+    )
+
+    resolved_crash = resolve_crash_report(crash, root_dir)
+    assert resolved_crash.resolved_frames is not None
+    assert len(resolved_crash.resolved_frames) == 2
+
+    f1 = resolved_crash.resolved_frames[0]
+    assert f1.class_name == "com.example.foo.Bar"
+    assert f1.method_name == "doWork"
+    assert f1.smali_path == bar_smali
+    assert f1.method_signature == ".method public doWork(Ljava/lang/String;)I"
+    assert f1.code_snippet == [".registers 3", "const/4 v0, 0x1", "return v0"]
+
+    f2 = resolved_crash.resolved_frames[1]
+    assert f2.class_name == "com.example.foo.Missing"
+    assert f2.method_name == "run"
+    assert f2.smali_path is None
+
+    frames_only = resolve_crash_frames(crash, root_dir)
+    assert len(frames_only) == 2
+    assert frames_only[0].smali_path == bar_smali

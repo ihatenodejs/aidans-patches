@@ -37,7 +37,12 @@ interface StepResult {
   durationMs: number;
   summary: string;
   diagnostics?: Diagnostic[];
-  output?: string;
+}
+
+interface PhaseResult {
+  category: string;
+  success: boolean;
+  results: StepResult[];
 }
 
 interface Diagnostic {
@@ -151,9 +156,10 @@ function printSectionHeader(title: string, subtitle?: string): void {
   console.log(`${c.bold}${c.cyan}=== ${title.toUpperCase()} ===${c.reset}${subtitle ? ` ${c.gray}(${subtitle})${c.reset}` : ''}`);
 }
 
-function printResultsSummary(category: string, results: StepResult[]): boolean {
+function printResultsSummary(category: string, results: StepResult[]): PhaseResult {
   const totalDuration = results.reduce((acc, r) => acc + r.durationMs, 0);
   const allPassed = results.every((r) => r.success);
+  const maxTitleLen = Math.max(28, ...results.map((r) => r.title.length));
 
   console.log();
   console.log(`${c.bold}${c.gray}${'―'.repeat(70)}${c.reset}`);
@@ -163,8 +169,9 @@ function printResultsSummary(category: string, results: StepResult[]): boolean {
   for (const res of results) {
     const icon = res.success ? sym.ok : sym.err;
     const dur = c.gray + formatDuration(res.durationMs).padStart(8) + c.reset;
-    const name = res.title.padEnd(28);
-    console.log(`  ${icon} ${name} ${dur}  ${c.dim}${res.summary}${c.reset}`);
+    const name = res.title.padEnd(maxTitleLen);
+    const summaryStyle = res.success ? c.dim : c.red;
+    console.log(`  ${icon} ${name} ${dur}  ${summaryStyle}${res.summary}${c.reset}`);
   }
 
   console.log(`${c.bold}${c.gray}${'―'.repeat(70)}${c.reset}`);
@@ -174,6 +181,50 @@ function printResultsSummary(category: string, results: StepResult[]): boolean {
     const failedCount = results.filter((r) => !r.success).length;
     console.log(`  ${c.bold}${c.red}✖ ${failedCount} of ${results.length} checks failed${c.reset} ${c.gray}in ${formatDuration(totalDuration)}${c.reset}`);
   }
+  console.log();
+  return { category, success: allPassed, results };
+}
+
+function printFullAuditSummary(phases: PhaseResult[]): boolean {
+  const allResults = phases.flatMap((p) => p.results);
+  const totalDuration = allResults.reduce((acc, r) => acc + r.durationMs, 0);
+  const allPassed = phases.every((p) => p.success);
+  const maxTitleLen = Math.max(30, ...allResults.map((r) => r.title.length));
+
+  console.log();
+  console.log(`${c.bold}${c.cyan}${'═'.repeat(70)}${c.reset}`);
+  console.log(`${c.bold}  FULL AUDIT SUMMARY${c.reset}`);
+  console.log(`${c.bold}${c.cyan}${'═'.repeat(70)}${c.reset}`);
+
+  for (const phase of phases) {
+    const phaseDur = phase.results.reduce((acc, r) => acc + r.durationMs, 0);
+    const phaseIcon = phase.success ? sym.ok : sym.err;
+    console.log();
+    console.log(
+      `  ${phaseIcon} ${c.bold}${phase.category.toUpperCase()}${c.reset} ${c.gray}(${formatDuration(phaseDur)})${c.reset}`,
+    );
+    for (const res of phase.results) {
+      const icon = res.success ? sym.ok : sym.err;
+      const dur = c.gray + formatDuration(res.durationMs).padStart(8) + c.reset;
+      const name = res.title.padEnd(maxTitleLen);
+      const summaryStyle = res.success ? c.dim : c.red;
+      console.log(`    ${icon} ${name} ${dur}  ${summaryStyle}${res.summary}${c.reset}`);
+    }
+  }
+
+  console.log();
+  console.log(`${c.bold}${c.gray}${'―'.repeat(70)}${c.reset}`);
+  if (allPassed) {
+    console.log(
+      `  ${c.bold}${c.green}✔ All ${allResults.length} checks passed cleanly across ${phases.length} phases${c.reset} ${c.gray}in ${formatDuration(totalDuration)}${c.reset}`,
+    );
+  } else {
+    const failedCount = allResults.filter((r) => !r.success).length;
+    console.log(
+      `  ${c.bold}${c.red}✖ ${failedCount} of ${allResults.length} checks failed across ${phases.length} phases${c.reset} ${c.gray}in ${formatDuration(totalDuration)}${c.reset}`,
+    );
+  }
+  console.log(`${c.bold}${c.cyan}${'═'.repeat(70)}${c.reset}`);
   console.log();
   return allPassed;
 }
@@ -200,7 +251,7 @@ function printRawCommandOutput(stdout: string, stderr: string): void {
 // ============================================================================
 // FORMAT COMMAND
 // ============================================================================
-async function runFormat(checkOnly = false): Promise<boolean> {
+async function runFormat(checkOnly = false): Promise<PhaseResult> {
   printSectionHeader('Format', checkOnly ? 'audit check only' : 'formatting in place');
   const results: StepResult[] = [];
   const ktlintPath = await ensureKtlint();
@@ -210,6 +261,7 @@ async function runFormat(checkOnly = false): Promise<boolean> {
   const prettierPatterns = [
     'worker/**/*.{ts,json,jsonc}',
     'site/src/**/*.{ts,astro}',
+    'site/test/**/*.ts',
     'package.json',
     '.prettierrc.json',
     '.oxlintrc.json',
@@ -285,13 +337,39 @@ async function runFormat(checkOnly = false): Promise<boolean> {
     summary: kSummary,
   });
 
+  // 4. Rust (play-metadata cargo fmt)
+  process.stdout.write(`  ${sym.arrow} Formatting Rust play-metadata sources (cargo fmt)... `);
+  const rustFmtArgs = ['fmt', '--manifest-path', 'tools/play-metadata/Cargo.toml'];
+  if (checkOnly) rustFmtArgs.push('--check');
+  const rustFmtRes = await execCommand('cargo', rustFmtArgs);
+  const rustFmtPassed = rustFmtRes.code === 0;
+  const rustFmtMissing = rustFmtRes.code !== 0 && rustFmtRes.stderr.includes('ENOENT');
+  const rustFmtSummary = rustFmtMissing
+    ? 'cargo not found in PATH; install Rust toolchain (rustup.rs)'
+    : checkOnly
+      ? rustFmtPassed
+        ? 'All Rust files formatted'
+        : 'Rust files need formatting'
+      : 'Formatted Rust sources';
+  console.log(rustFmtPassed ? sym.ok : sym.err);
+  if (!rustFmtPassed) {
+    printRawCommandOutput(rustFmtRes.stdout, rustFmtRes.stderr);
+  }
+  results.push({
+    title: 'Rust (cargo fmt)',
+    tool: 'cargo fmt',
+    success: rustFmtPassed,
+    durationMs: rustFmtRes.durationMs,
+    summary: rustFmtSummary,
+  });
+
   return printResultsSummary('Format', results);
 }
 
 // ============================================================================
 // LINT COMMAND
 // ============================================================================
-async function runLint(autoFix = false): Promise<boolean> {
+async function runLint(autoFix = false): Promise<PhaseResult> {
   printSectionHeader('Lint', autoFix ? 'auto-fix enabled' : 'auditing code quality');
   const results: StepResult[] = [];
   const allDiagnostics: Diagnostic[] = [];
@@ -419,6 +497,38 @@ async function runLint(autoFix = false): Promise<boolean> {
     diagnostics: kDiags,
   });
 
+  // 4. Rust (play-metadata clippy)
+  process.stdout.write(`  ${sym.arrow} Linting Rust play-metadata sources (clippy)... `);
+  const clippyArgs = [
+    'clippy',
+    '--locked',
+    '--manifest-path',
+    'tools/play-metadata/Cargo.toml',
+    '--all-targets',
+    ...(autoFix ? ['--fix', '--allow-dirty', '--allow-staged'] : []),
+    '--',
+    '-D',
+    'warnings',
+  ];
+  const clippyRes = await execCommand('cargo', clippyArgs);
+  const clippyPassed = clippyRes.code === 0;
+  const clippyMissing = clippyRes.code !== 0 && clippyRes.stderr.includes('ENOENT');
+  console.log(clippyPassed ? sym.ok : sym.err);
+  if (!clippyPassed) {
+    printRawCommandOutput(clippyRes.stdout, clippyRes.stderr);
+  }
+  results.push({
+    title: 'Rust (clippy)',
+    tool: 'clippy',
+    success: clippyPassed,
+    durationMs: clippyRes.durationMs,
+    summary: clippyMissing
+      ? 'cargo not found in PATH; install Rust toolchain (rustup.rs)'
+      : clippyPassed
+        ? 'No issues'
+        : 'Clippy warnings/errors detected',
+  });
+
   renderDiagnostics(allDiagnostics);
   return printResultsSummary('Lint', results);
 }
@@ -426,8 +536,8 @@ async function runLint(autoFix = false): Promise<boolean> {
 // ============================================================================
 // TYPECHECK COMMAND
 // ============================================================================
-async function runTypecheck(): Promise<boolean> {
-  printSectionHeader('Typecheck', 'TypeScript, Astro, Python, and Kotlin/Java');
+async function runTypecheck(): Promise<PhaseResult> {
+  printSectionHeader('Typecheck', 'TypeScript, Astro, Python, Rust, and Kotlin/Java');
   const results: StepResult[] = [];
 
   // 1. Worker TypeScript (tsc)
@@ -507,13 +617,41 @@ async function runTypecheck(): Promise<boolean> {
     summary: gPassed ? 'Kotlin and Java compilation successful' : 'Compilation failed',
   });
 
+  // 5. Rust (play-metadata cargo check)
+  process.stdout.write(`  ${sym.arrow} Checking Rust play-metadata types (cargo check)... `);
+  const rustCheckArgs = [
+    'check',
+    '--locked',
+    '--manifest-path',
+    'tools/play-metadata/Cargo.toml',
+    '--all-targets',
+  ];
+  const rustCheckRes = await execCommand('cargo', rustCheckArgs);
+  const rustCheckPassed = rustCheckRes.code === 0;
+  const rustCheckMissing = rustCheckRes.code !== 0 && rustCheckRes.stderr.includes('ENOENT');
+  console.log(rustCheckPassed ? sym.ok : sym.err);
+  if (!rustCheckPassed) {
+    printRawCommandOutput(rustCheckRes.stdout, rustCheckRes.stderr);
+  }
+  results.push({
+    title: 'Rust Play Metadata (cargo check)',
+    tool: 'cargo check',
+    success: rustCheckPassed,
+    durationMs: rustCheckRes.durationMs,
+    summary: rustCheckMissing
+      ? 'cargo not found in PATH; install Rust toolchain (rustup.rs)'
+      : rustCheckPassed
+        ? 'All targets checked clean'
+        : 'Cargo check errors detected',
+  });
+
   return printResultsSummary('Typecheck', results);
 }
 
 // ============================================================================
 // TEST COMMAND
 // ============================================================================
-async function runTest(): Promise<boolean> {
+async function runTest(): Promise<PhaseResult> {
   printSectionHeader('Test', 'auditing all automated test suites');
   const results: StepResult[] = [];
 
@@ -571,6 +709,36 @@ async function runTest(): Promise<boolean> {
     summary: sSummary,
   });
 
+  // 4. Rust Play Metadata test suite (cargo test)
+  process.stdout.write(`  ${sym.arrow} Running Rust Play Metadata tests (cargo test)... `);
+  const cargoTestRes = await execCommand('cargo', [
+    'test',
+    '--locked',
+    '--manifest-path',
+    'tools/play-metadata/Cargo.toml',
+  ]);
+  const cargoTestPassed = cargoTestRes.code === 0;
+  const cargoTestMissing = cargoTestRes.code !== 0 && cargoTestRes.stderr.includes('ENOENT');
+  const cargoSummaryMatch = cargoTestRes.stdout.match(/test result: ok\.\s+([0-9]+ passed[^\n]*)/);
+  const cargoSummary = cargoTestMissing
+    ? 'cargo not found in PATH; install Rust toolchain (rustup.rs)'
+    : cargoSummaryMatch
+      ? cargoSummaryMatch[1].trim()
+      : cargoTestPassed
+        ? 'All tests passed'
+        : 'Tests failed';
+  console.log(cargoTestPassed ? sym.ok : sym.err);
+  if (!cargoTestPassed) {
+    printRawCommandOutput(cargoTestRes.stdout, cargoTestRes.stderr);
+  }
+  results.push({
+    title: 'Rust Play Metadata (cargo test)',
+    tool: 'cargo test',
+    success: cargoTestPassed,
+    durationMs: cargoTestRes.durationMs,
+    summary: cargoSummary,
+  });
+
   // 4. Target Application Icons Check
   process.stdout.write(`  ${sym.arrow} Verifying application icon assets... `);
   const iconRes = await execCommand('python3', ['.github/scripts/sync_app_icons.py', '--check-only']);
@@ -601,36 +769,42 @@ async function main() {
   switch (cmd) {
     case 'format': {
       const checkOnly = args.includes('--check');
-      success = await runFormat(checkOnly);
+      const phase = await runFormat(checkOnly);
+      success = phase.success;
       break;
     }
     case 'format:check': {
-      success = await runFormat(true);
+      const phase = await runFormat(true);
+      success = phase.success;
       break;
     }
     case 'lint': {
       const autoFix = args.includes('--fix');
-      success = await runLint(autoFix);
+      const phase = await runLint(autoFix);
+      success = phase.success;
       break;
     }
     case 'lint:fix': {
-      success = await runLint(true);
+      const phase = await runLint(true);
+      success = phase.success;
       break;
     }
     case 'typecheck': {
-      success = await runTypecheck();
+      const phase = await runTypecheck();
+      success = phase.success;
       break;
     }
     case 'test': {
-      success = await runTest();
+      const phase = await runTest();
+      success = phase.success;
       break;
     }
     case 'all': {
-      const fOk = await runFormat(true);
-      const lOk = await runLint(false);
-      const tOk = await runTypecheck();
-      const testOk = await runTest();
-      success = fOk && lOk && tOk && testOk;
+      const fPhase = await runFormat(true);
+      const lPhase = await runLint(false);
+      const tPhase = await runTypecheck();
+      const testPhase = await runTest();
+      success = printFullAuditSummary([fPhase, lPhase, tPhase, testPhase]);
       break;
     }
     default: {

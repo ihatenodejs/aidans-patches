@@ -5,10 +5,11 @@
 This document details the binary bytecode and resource patches available for **SidelineSwap** (`com.sidelineswap.android`).
 
 | Patch Name | Type | Default | Description |
-| [AMOLED Theme](#amoled-theme) | `resourcePatch` | `false` | Forces SidelineSwap into a pure-black AMOLED theme with dark system bars, black app surfaces, and readable light text and icons. |
+|---|---|---|---|
+| [AMOLED Theme](#amoled-theme) | `compositeFeaturePatch` | `false` | Forces SidelineSwap into a pure-black AMOLED theme with dark system bars, black app surfaces, readable light text and icons, and force dark mode on embedded WebViews. |
 | [Block Tracking and Telemetry](#block-tracking-and-telemetry) | `bytecodePatch` | `true` | Neutralizes first-party analytics, third-party behavioral trackers, diagnostic logging, payment telemetry, and AAID. |
 | [Change Brand Color](#change-brand-color) | `resourcePatch` | `false` | Customizes primary brand accent colors across buttons, navigation highlights, badges, and status bars. |
-| [Remove Invite Friends](#remove-invite-friends) | `bytecodePatch` | `true` | Removes the Invite Friends option from the Account screen and eliminates the phantom orange dot badge on the Account navbar icon. |
+| [Remove Invite Friends](#remove-invite-friends) | `compositeFeaturePatch` | `true` | Removes the Invite Friends option from the Account screen and eliminates the phantom orange dot badge on the Account navbar icon. |
 ---
 
 ## Block Tracking and Telemetry
@@ -71,7 +72,7 @@ Allows users to personalize the SidelineSwap interface by replacing the default 
 | `primaryDarkColor` | Primary Dark Color | `String` | `#1565C0` | Hex color code for status bars and dark headers. |
 
 ### Technical Strategy
-- Utilizes Morphe `resourcePatch` to parse and rewrite `res/values/colors.xml` and `res/values-night/colors.xml`.
+- Utilizes Morphe `resourcePatch` to parse and rewrite `res/values/colors.xml` and, when present, `res/values-night/colors.xml` (missing night palettes are skipped).
 - Modifies the following resource entries:
   - `colorPrimary`: Updated to `primaryColor`
   - `colorPrimaryDark`: Updated to `primaryDarkColor`
@@ -90,7 +91,7 @@ SidelineSwap defaults to an entirely light application theme (`Theme.MaterialCom
 The **AMOLED Theme** patch converts all app-owned surfaces to pure black (`#000000`), sets system navigation and status bars to black with light foreground icons, adjusts app-bar/popup overlays to dark Material components, and updates text, icons, dividers, message bubbles, and cards to high-contrast readable light palettes—delivering maximum battery savings on OLED displays and comfortable low-light viewing while preserving brand accents and vendor payment flows.
 
 ### Technical Strategy
-The patch operates entirely at the Android XML resource level via Morphe `resourcePatch`. Because SidelineSwap combines theme-level inheritance, centralized color tokens, hardcoded layout literals, and custom vector drawables, the transformation is executed across four coordinated layers with strict fail-fast validation.
+The patch combines Android XML resource mutations with Dalvik bytecode hooks and the injected `DarkWebViewBridge` runtime extension via Morphe `compositeFeaturePatch`. Because SidelineSwap combines theme-level inheritance, centralized color tokens, hardcoded layout literals, custom vector drawables, and embedded WebViews, the transformation is executed across coordinated resource and bytecode layers with strict fail-fast validation.
 
 #### 1. Theme and Style Re-parenting (`res/values/styles.xml`)
 - Re-parents `AppTheme` from `@style/Theme.MaterialComponents.Light.NoActionBar` to `@style/Theme.MaterialComponents.NoActionBar`.
@@ -175,14 +176,14 @@ SidelineSwap promotes its referral program with an "Invite Friends" entry positi
 The **Remove Invite Friends** patch removes the Invite Friends option and its layout divider while completely eliminating the phantom orange dot.
 
 ### Technical Strategy
-The feature is coordinated across companion resource and bytecode layers:
+The feature is coordinated across internal companion resource and bytecode layers within a unified `compositeFeaturePatch`:
 
-1. **Resource Layer (`Remove Invite Friends Resource`)**:
+1. **Internal Resource Stage**:
    - In `res/layout/fragment_account_details.xml`: sets `android:visibility="gone"` on `@id/inviteFriends` (`FrameLayout`) and the immediately following divider `<View>`, preserving clean single-line divider spacing between "My Locker" and "Seller Dashboard".
    - In `res/layout/badge_red.xml`: sets `android:visibility="gone"` on `@id/badge` (`ImageView`) as a safeguard.
    - In `AndroidManifest.xml`: removes `requiredSplitTypes="base__density"` and Google Play split meta-data to normalize standalone APK installation.
 
-2. **Bytecode Layer (`Remove Invite Friends`)**:
+2. **Bytecode Stage**:
    - In `Lcom/sidelineswap/android/MainActivity;->setupAccountBadge()V`: prepends `return-void` at index 0. This halts inflation of `badge_red` into the Account tab, prevents the startup `ClassCastException`, and eliminates the non-functional orange dot badge entirely.
    - In `Lcom/sidelineswap/android/MainActivity$processDeepLink$target$7;->invoke()V`: prepends `return-void` at index 0, neutralizing deep links targeting the Invite Friends screen.
    - In `Lcom/sidelineswap/android/account/AccountDetailsFragment;`: scans and injects `return-void` into any method invoking `inviteFriends`, neutralizing the referral click handler.

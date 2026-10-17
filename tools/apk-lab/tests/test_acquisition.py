@@ -1,4 +1,5 @@
 import io
+import json
 import subprocess
 import zipfile
 from pathlib import Path
@@ -72,9 +73,21 @@ def test_command_builders():
 
 
 def test_apkeep_credentials_ini_and_isolation(monkeypatch, tmp_path):
-    monkeypatch.setenv("APKEEP_EMAIL", "my_user@test.org")
-    monkeypatch.setenv("APKEEP_AAS_TOKEN", "super_secret_token_val")
-
+    accounts_json = json.dumps(
+        {
+            "version": 1,
+            "accounts": [
+                {
+                    "label": "my-account",
+                    "email": "my_user@test.org",
+                    "aasToken": "super_secret_token_val",
+                    "device": "px_9a",
+                    "locale": "en_US",
+                }
+            ],
+        }
+    )
+    monkeypatch.setenv("APKEEP_ACCOUNTS", accounts_json)
     out_dir = tmp_path / "out"
     out_dir.mkdir()
 
@@ -212,9 +225,19 @@ def test_version_validation_both_providers(monkeypatch, tmp_path):
     )
 
     # 1. Apkeep with version code mismatch
-    monkeypatch.setenv("APKEEP_EMAIL", "u@test.com")
-    monkeypatch.setenv("APKEEP_AAS_TOKEN", "tok")
-
+    accounts_json = json.dumps(
+        {
+            "version": 1,
+            "accounts": [
+                {
+                    "label": "u",
+                    "email": "u@test.com",
+                    "aasToken": "tok",
+                }
+            ],
+        }
+    )
+    monkeypatch.setenv("APKEEP_ACCOUNTS", accounts_json)
     mock_tool_mgr = MagicMock()
     mock_tool_mgr.is_tool_installed.return_value = True
 
@@ -395,3 +418,55 @@ def test_apkmirror_rejects_unsafe_bundle_before_extraction(
     assert exc.value.exit_code == ExitCode.INVALID_ARTIFACT
     extract.assert_not_called()
     assert list(tmp_path.iterdir()) == []
+
+
+def test_acquire_artifact_ordered_account_fallback(monkeypatch, tmp_path):
+    out_dir = tmp_path / "out"
+    out_dir.mkdir()
+
+    accounts_json = json.dumps(
+        {
+            "version": 1,
+            "accounts": [
+                {
+                    "label": "primary",
+                    "email": "primary@example.com",
+                    "aasToken": "tok_prim",
+                    "enabled": True,
+                },
+                {
+                    "label": "secondary",
+                    "email": "secondary@example.com",
+                    "aasToken": "tok_sec",
+                    "enabled": True,
+                },
+            ],
+        }
+    )
+    monkeypatch.setenv("APKEEP_ACCOUNTS", accounts_json)
+
+    mock_tool_mgr = MagicMock()
+    mock_tool_mgr.is_tool_installed.return_value = True
+
+    attempted_accounts = []
+
+    def mock_acquire_with_apkeep(package_name, attempt_out_dir, **kwargs):
+        acc = kwargs.get("account")
+        attempted_accounts.append(acc.label)
+        if acc.label == "primary":
+            raise AcquisitionError(
+                "primary account unavailable", ExitCode.INFRASTRUCTURE_FAILURE
+            )
+        # secondary succeeds
+        target_apkm = Path(attempt_out_dir) / f"{package_name}.apkm"
+        target_apkm.write_bytes(b"content")
+        return target_apkm
+
+    monkeypatch.setattr(
+        "apk_lab.acquisition.acquire_with_apkeep", mock_acquire_with_apkeep
+    )
+
+    res_path, source = acquire_artifact("com.example", out_dir, tool_mgr=mock_tool_mgr)
+    assert source == AcquisitionSource.APKEEP
+    assert attempted_accounts == ["primary", "secondary"]
+    assert res_path.exists()

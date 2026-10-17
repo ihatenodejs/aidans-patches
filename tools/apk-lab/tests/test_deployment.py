@@ -6,8 +6,10 @@ from unittest.mock import MagicMock
 
 import pytest
 from apk_lab.deployment import (
+    MORPHE_KEYSTORE_SHA256,
     deploy_artifact,
     ensure_debug_keystore,
+    resolve_signing_keystore,
     zipalign_and_sign,
 )
 from apk_lab.inspection import ArtifactInspection
@@ -436,3 +438,155 @@ def test_deploy_artifact_install_reinstall_vs_clean_install(tmp_path, monkeypatc
         "install",
         str(final_apk.resolve()),
     ]
+
+
+@pytest.mark.parametrize(
+    "alias_mode",
+    ["identical", "relative", "symlink"],
+)
+def test_deploy_artifact_rejects_output_aliasing_input(
+    tmp_path, monkeypatch, alias_mode
+):
+    in_apk = tmp_path / "original.apk"
+    original_bytes = b"ORIGINAL_APK_UNTOUCHED"
+    in_apk.write_bytes(original_bytes)
+
+    if alias_mode == "identical":
+        out_apk = in_apk
+    elif alias_mode == "relative":
+        monkeypatch.chdir(tmp_path)
+        out_apk = Path("original.apk")
+    elif alias_mode == "symlink":
+        out_apk = tmp_path / "link_to_original.apk"
+        out_apk.symlink_to(in_apk)
+
+    mock_client = MagicMock()
+    mock_tm = MagicMock()
+
+    with pytest.raises(
+        ValueError, match="Deployment output must not overwrite the input artifact"
+    ):
+        deploy_artifact(
+            artifact_path=in_apk,
+            mpp_path=tmp_path / "test.mpp",
+            package_name="com.test.app",
+            all_defaults=True,
+            enabled_patches=[],
+            raw_options=[],
+            out_apk_path=out_apk,
+            tool_manager=mock_tm,
+            adb_client=mock_client,
+        )
+
+    # Assert input was not clobbered
+    assert in_apk.read_bytes() == original_bytes
+    if alias_mode == "symlink":
+        assert out_apk.is_symlink()
+
+    # Assert no device or tool calls were made
+    mock_client.run.assert_not_called()
+    mock_tm.run.assert_not_called()
+
+
+def test_zipalign_and_sign_with_custom_credentials(tmp_path, monkeypatch):
+    unsigned = tmp_path / "unsigned.apk"
+    unsigned.write_bytes(b"unsigned")
+    aligned = tmp_path / "aligned.apk"
+    ks = tmp_path / "custom.keystore"
+    ks.write_bytes(b"custom_key")
+
+    commands: list[list[str]] = []
+
+    def fake_run(cmd, **kwargs):
+        commands.append(cmd)
+        return subprocess.CompletedProcess(cmd, 0, "", "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    monkeypatch.setattr(
+        "apk_lab.deployment.find_build_tools_bin", lambda name: Path(f"/sdk/bin/{name}")
+    )
+    monkeypatch.setattr("apk_lab.deployment.ensure_debug_keystore", lambda path: ks)
+
+    zipalign_and_sign(
+        unsigned_apk=unsigned,
+        aligned_and_signed_apk=aligned,
+        keystore_path=ks,
+        ks_alias="custom_alias",
+        ks_pass="secret123",
+        key_pass="keysecret456",
+    )
+
+    assert len(commands) == 3
+    # 1. zipalign
+    assert commands[0][0] == "/sdk/bin/zipalign"
+    # 2. apksigner sign
+    sign_cmd = commands[1]
+    assert sign_cmd[0] == "/sdk/bin/apksigner"
+    assert sign_cmd[1] == "sign"
+    assert "--ks-key-alias" in sign_cmd
+    alias_idx = sign_cmd.index("--ks-key-alias")
+    assert sign_cmd[alias_idx + 1] == "custom_alias"
+    assert "--ks-pass" in sign_cmd
+    ks_pass_idx = sign_cmd.index("--ks-pass")
+    assert sign_cmd[ks_pass_idx + 1] == "pass:secret123"
+    assert "--key-pass" in sign_cmd
+    key_pass_idx = sign_cmd.index("--key-pass")
+    assert sign_cmd[key_pass_idx + 1] == "pass:keysecret456"
+
+
+def test_resolve_signing_keystore_auto_matches_morphe_when_installed(
+    tmp_path, monkeypatch
+):
+    morphe_ks = tmp_path / "morphe-install" / "morphe-data" / "morphe.keystore"
+    morphe_ks.parent.mkdir(parents=True)
+    morphe_ks.write_bytes(b"morphe_keystore_bytes")
+
+    mock_tm = MagicMock()
+    mock_tm.get_tool_install_dir.return_value = tmp_path / "morphe-install"
+    mock_tm.get_cache_dir.return_value = tmp_path / "morphe-install"
+
+    monkeypatch.setattr(
+        "apk_lab.deployment.get_installed_package_signature",
+        lambda pkg, device=None: MORPHE_KEYSTORE_SHA256,
+    )
+
+    ks, alias, ks_pass, key_pass = resolve_signing_keystore(
+        package_name="com.test.app",
+        device="emulator-5554",
+        explicit_keystore=None,
+        explicit_alias=None,
+        explicit_pass=None,
+        tool_manager=mock_tm,
+    )
+
+    assert ks == morphe_ks.resolve()
+    assert alias == "Morphe"
+    assert ks_pass == "Morphe"
+    assert key_pass == "Morphe"
+
+
+def test_resolve_signing_keystore_defaults_to_debug_keystore(tmp_path, monkeypatch):
+    debug_ks = tmp_path / "debug.keystore"
+    debug_ks.write_bytes(b"debug_ks")
+
+    monkeypatch.setattr(
+        "apk_lab.deployment.get_installed_package_signature",
+        lambda pkg, device=None: None,
+    )
+    monkeypatch.setattr(
+        "apk_lab.deployment.ensure_debug_keystore",
+        lambda keystore_path=None: debug_ks,
+    )
+
+    ks, alias, ks_pass, key_pass = resolve_signing_keystore(
+        package_name="com.unknown.app",
+        device="emulator-5554",
+        explicit_keystore=None,
+        explicit_alias=None,
+        explicit_pass=None,
+    )
+
+    assert ks == debug_ks
+    assert alias == "androiddebugkey"
+    assert ks_pass == "android"
+    assert key_pass == "android"

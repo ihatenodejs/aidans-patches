@@ -1,3 +1,4 @@
+import hashlib
 import io
 import warnings
 import zipfile
@@ -5,6 +6,7 @@ import zipfile
 import pytest
 from apk_lab.archives import (
     ArchiveSecurityError,
+    compute_zip_member_sha256,
     inspect_safe_zip,
     materialize_artifact_apks,
     safe_extract_all,
@@ -19,6 +21,41 @@ def create_in_memory_zip(entries: dict[str, bytes]) -> io.BytesIO:
             zf.writestr(name, data)
     buf.seek(0)
     return buf
+
+
+def test_compute_zip_member_sha256_by_name():
+    payload = b"member contents"
+    with zipfile.ZipFile(create_in_memory_zip({"member.bin": payload})) as zf:
+        assert (
+            compute_zip_member_sha256(zf, "member.bin")
+            == hashlib.sha256(payload).hexdigest()
+        )
+
+
+def test_compute_zip_member_sha256_by_zip_info():
+    payload = b"member contents"
+    with zipfile.ZipFile(create_in_memory_zip({"member.bin": payload})) as zf:
+        assert (
+            compute_zip_member_sha256(zf, zf.getinfo("member.bin"))
+            == hashlib.sha256(payload).hexdigest()
+        )
+
+
+def test_compute_zip_member_sha256_streams_large_member():
+    payload = b"0123456789abcdef" * (64 * 1024 // 16 + 1)
+    with zipfile.ZipFile(create_in_memory_zip({"member.bin": payload})) as zf:
+        assert (
+            compute_zip_member_sha256(zf, "member.bin")
+            == hashlib.sha256(payload).hexdigest()
+        )
+
+
+def test_compute_zip_member_sha256_missing_member_raises_key_error():
+    with (
+        zipfile.ZipFile(create_in_memory_zip({})) as zf,
+        pytest.raises(KeyError),
+    ):
+        compute_zip_member_sha256(zf, "missing.bin")
 
 
 def test_safe_zip_normal():

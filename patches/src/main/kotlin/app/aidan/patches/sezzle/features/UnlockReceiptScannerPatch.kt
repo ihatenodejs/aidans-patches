@@ -2,7 +2,7 @@ package app.aidan.patches.sezzle.features
 
 import app.aidan.patches.sezzle.dev.unlockDevSettingsPatch
 import app.aidan.patches.sezzle.shared.Constants.COMPATIBILITY_SEZZLE
-import app.aidan.patches.sezzle.shared.HermesBundleEditor
+import app.aidan.patches.shared.HermesBundleEditor
 import app.morphe.patcher.patch.PatchException
 import app.morphe.patcher.patch.rawResourcePatch
 

@@ -3,4 +3,5 @@
 interface Env {
   PATCHES_KV: KVNamespace;
   GITHUB_REPO: 'ihatenodejs/aidans-patches';
+  PLAY_MEDIA: R2Bucket;
 }

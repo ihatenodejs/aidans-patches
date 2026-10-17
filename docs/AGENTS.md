@@ -26,7 +26,7 @@ Source package and docs directory names may differ (for example `adobescan` sour
 - Root README content between `PATCHES_START` and `PATCHES_END` is generated from `patches-list.json`; never edit it manually.
 - `CHANGELOG.md`, `patches-bundle.json`, release-version metadata, and the README patch block are semantic-release outputs.
 - `patches-list.json` is generated from Kotlin patch declarations, not authored documentation.
-- App docs under `docs/` are hand-maintained and should not restate generated patch tables.
+- App docs under `docs/` are hand-maintained and should not restate the full generated patch metadata schema; concise patch inventories and option tables for human navigation are expected.
 
 ## Verification
 
@@ -35,4 +35,4 @@ For docs-only changes:
 - Re-read changed sections against the cited source/config and verify links/paths/commands.
 - Run the affected command's non-mutating help/check mode when changing command examples.
 - If docs changed because code behavior changed, use the code module's required tests and root `bun run audit`.
-- If README generation changed, run the generator on intentional inputs and inspect only the marker-delimited diff; do not hand-repair generated output.
+- If README generation changed, run the generator on intentional inputs and inspect the marker-delimited diff along with any supported template-URL substitutions outside it; do not hand-repair generated output.

@@ -1,0 +1,62 @@
+---
+interface Props {
+  className?: string;
+  label: string;
+}
+
+const { className = '', label } = Astro.props;
+---
+
+<div class={`pixel-phone ${className}`} aria-label={label}>
+  <img
+    class="pixel-phone-frame"
+    src="/pixel-10-frame.webp"
+    alt=""
+    width="379"
+    height="800"
+    aria-hidden="true"
+  />
+  <div class="pixel-phone-screen">
+    <slot />
+  </div>
+  <span class="pixel-phone-camera" aria-hidden="true"></span>
+</div>
+
+<style>
+  .pixel-phone {
+    position: relative;
+    aspect-ratio: 379 / 800;
+  }
+
+  .pixel-phone-frame {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+  }
+
+  .pixel-phone-screen {
+    position: absolute;
+    inset: 2.5% 5.54% 2.375% 5.01%;
+    z-index: 2;
+    overflow: hidden;
+    border-radius: 14.2% / 6.3%;
+    background: #0b0b0b;
+  }
+
+  .pixel-phone-camera {
+    position: absolute;
+    top: 4.75%;
+    left: 50%;
+    z-index: 3;
+    width: 6.3%;
+    aspect-ratio: 1;
+    transform: translateX(-50%);
+    border: 1px solid #262636;
+    border-radius: 9999px;
+    background: #08080d;
+    box-shadow: 0 0 0 1px rgb(255 255 255 / 8%);
+  }
+</style>

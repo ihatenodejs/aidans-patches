@@ -1,0 +1,163 @@
+---
+import AppIcon from './AppIcon.astro';
+import type { App, Patch } from '../data/types';
+import { getFallbackSummary } from '../data/app-store';
+import { formatAndroidVersion } from '../data/android-version';
+import GlowButton from './GlowButton.astro';
+import MorpheIcon from './icons/MorpheIcon.astro';
+import GooglePlayIcon from './icons/GooglePlayIcon.astro';
+
+interface Props {
+  app: App;
+  patches: Patch[];
+}
+
+const { app, patches } = Astro.props;
+const defaultCount = patches.filter((patch) => patch.default).length;
+const configurableCount = patches.filter(
+  (patch) => patch.options.length > 0,
+).length;
+
+const fallbackSummary = getFallbackSummary(app.id);
+const androidVersion = formatAndroidVersion(app.minSdk, '+');
+---
+
+<section
+  data-hero-package={app.packageName}
+  class="relative overflow-hidden border-y border-white/[0.08] bg-[#080808] px-5 py-5 sm:px-8 sm:py-8"
+>
+  <div
+    class="pointer-events-none absolute inset-0 opacity-80"
+    style={`background-image: radial-gradient(circle at 8% 12%, ${app.appIconColor}26, transparent 32%), linear-gradient(to right, transparent, rgba(255,255,255,0.015));`}
+  ></div>
+  <div class="pointer-events-none absolute inset-0 bg-technical-grid opacity-20"></div>
+
+  <div class="relative flex flex-col gap-7 sm:flex-row sm:items-start">
+    <AppIcon
+      packageName={app.packageName}
+      name={app.name}
+      size={168}
+      loading="eager"
+      className="h-[120px] w-[120px] sm:h-[168px] sm:w-[168px] rounded-[26px] sm:rounded-[34px] border border-white/15 bg-zinc-900 shadow-2xl shrink-0 self-start"
+      fallbackClassName="rounded-[26px] sm:rounded-[34px] text-4xl sm:text-5xl"
+      fallbackColor={app.appIconColor}
+    />
+    <div class="min-w-0 flex-1 flex flex-col justify-between self-stretch">
+      <h1 class="font-sans text-3xl font-bold tracking-tight text-white sm:text-4xl">
+        {app.name}
+      </h1>
+
+      <p
+        data-hero-summary
+        class="mt-2 max-w-2xl text-sm leading-relaxed text-zinc-300"
+      >
+        {fallbackSummary}
+      </p>
+
+      <!-- Store Metrics Row (hidden until hydrated) -->
+      <div
+        data-store-metrics
+        class="mt-2.5 hidden flex-wrap items-center gap-x-4 gap-y-2 text-xs font-mono text-zinc-400"
+      >
+        <div data-metric-rating class="hidden items-center gap-1.5">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            class="h-3.5 w-3.5 text-amber-400 shrink-0"
+            aria-hidden="true"
+          >
+            <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+            <path d="M12 17.75l-6.172 3.245l1.179 -6.873l-5 -4.867l6.9 -1l3.086 -6.253l3.086 6.253l6.9 1l-5 4.867l1.179 6.873l-6.158 -3.245" />
+          </svg>
+          <span data-metric-score class="font-semibold text-white"></span>
+          <span data-metric-reviews class="text-zinc-500 text-[11px]"></span>
+        </div>
+        <div
+          data-metric-downloads-divider
+          class="hidden h-3 w-px bg-white/10"
+        ></div>
+        <div data-metric-downloads class="hidden items-center gap-1">
+          <span
+            data-metric-downloads-val
+            class="font-semibold text-white"
+          ></span>
+          <span class="text-zinc-500 text-[11px]">downloads</span>
+        </div>
+        <div
+          data-metric-content-divider
+          class="hidden h-3 w-px bg-white/10"
+        ></div>
+        <div data-metric-content-rating class="hidden items-center gap-1.5">
+          <img
+            data-metric-content-icon
+            class="hidden h-3.5 w-3.5 object-contain"
+            alt=""
+          />
+          <span
+            data-metric-content-val
+            class="text-zinc-300 text-[11px]"
+          ></span>
+        </div>
+      </div>
+
+      <div class="mt-5 flex flex-wrap items-center gap-2.5 font-mono text-xs">
+        <GlowButton
+          variant="morphe"
+          href="https://morphe.software/add-source?github=ihatenodejs/aidans-patches"
+        >
+          <MorpheIcon class="h-3.5 w-4 shrink-0 transition-transform duration-300 group-hover:scale-110" />
+          <span>Add to Morphe</span>
+        </GlowButton>
+
+        <!-- View patches button removed per feedback -->
+        <GlowButton variant="google-play" href={app.playStoreUrl}>
+          <GooglePlayIcon
+            colored={true}
+            class="h-3.5 w-3.5 shrink-0 transition-transform duration-300 group-hover:scale-110"
+          />
+          <span>Google Play</span>
+        </GlowButton>
+      </div>
+    </div>
+  </div>
+
+  <div class="relative mt-9 grid grid-cols-2 border border-white/[0.08] bg-black/25 sm:grid-cols-4 sm:divide-x sm:divide-white/[0.08]">
+    <div class="border-b border-r border-white/[0.08] px-4 py-3.5 sm:border-b-0">
+      <div class="font-mono text-[9px] uppercase tracking-wider text-zinc-600">
+        Compatible version
+      </div>
+      <div class="mt-1 truncate text-sm font-semibold text-zinc-200">
+        {app.latestSupportedVersion}
+      </div>
+    </div>
+    <div class="border-b border-white/[0.08] px-4 py-3.5 sm:border-b-0">
+      <div class="font-mono text-[9px] uppercase tracking-wider text-zinc-600">
+        Package format
+      </div>
+      <div class="mt-1 text-sm font-semibold text-zinc-200">
+        {app.apkFileType}
+      </div>
+    </div>
+    <div class="border-r border-white/[0.08] px-4 py-3.5 sm:border-r-0">
+      <div class="font-mono text-[9px] uppercase tracking-wider text-zinc-600">
+        Android
+      </div>
+      <div class="mt-1 text-sm font-semibold text-zinc-200">
+        {androidVersion}
+      </div>
+    </div>
+    <div class="px-4 py-3.5">
+      <div class="font-mono text-[9px] uppercase tracking-wider text-zinc-600">
+        Included patches
+      </div>
+      <div class="mt-1 text-sm font-semibold text-zinc-200">
+        {defaultCount} default · {configurableCount} configurable
+      </div>
+    </div>
+  </div>
+</section>

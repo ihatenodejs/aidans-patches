@@ -1,0 +1,213 @@
+---
+import { getCachedAppIconUrl } from '../data/app-icons';
+
+interface Props {
+  packageName: string;
+  name: string;
+  size: number;
+  alt?: string;
+  title?: string;
+  loading?: 'eager' | 'lazy';
+  className?: string;
+  fallbackClassName?: string;
+  fallbackColor?: string;
+  id?: string;
+}
+
+const {
+  packageName,
+  name,
+  size,
+  alt = name,
+  title,
+  loading = 'lazy',
+  className = '',
+  fallbackClassName = '',
+  fallbackColor,
+  id,
+} = Astro.props;
+
+const initial = (name || packageName || '?').charAt(0).toUpperCase();
+const cachedUrl = getCachedAppIconUrl(packageName);
+
+const fallbackStyle = fallbackColor
+  ? `background-color: ${fallbackColor}20; color: ${fallbackColor}; border-color: ${fallbackColor}40;`
+  : undefined;
+---
+
+<app-icon
+  id={id}
+  package-name={packageName}
+  name={name}
+  class={`inline-block relative overflow-hidden select-none shrink-0 ${className}`}
+  style={`width: ${size}px; height: ${size}px;`}
+  title={title}
+>
+  <img
+    class="w-full h-full object-cover opacity-0 transition-opacity duration-150"
+    width={size}
+    height={size}
+    loading={loading}
+    alt={alt}
+    title={title}
+  />
+  <span
+    class={`app-icon-fallback absolute inset-0 w-full h-full flex items-center justify-center font-mono font-bold leading-none select-none ${fallbackClassName}`}
+    style={fallbackStyle}
+    aria-hidden="true"
+  >
+    {initial}
+  </span>
+  {cachedUrl && (
+    <noscript>
+      <img
+        src={cachedUrl}
+        width={size}
+        height={size}
+        loading={loading}
+        alt={alt}
+        title={title}
+        class="w-full h-full object-cover"
+      />
+    </noscript>
+  )}
+</app-icon>
+
+<script>
+  import { loadStatusPayload } from '../data/status-client';
+  import {
+    getCachedAppIconUrl,
+    resolveGooglePlayIconUrl,
+  } from '../data/app-icons';
+
+  class AppIconElement extends HTMLElement {
+    static observedAttributes = ['package-name', 'name'];
+
+    private requestToken = 0;
+    private imgEl: HTMLImageElement | null = null;
+    private fallbackEl: HTMLElement | null = null;
+
+    connectedCallback() {
+      this.initDOMElements();
+      this.resolveIcon();
+    }
+
+    attributeChangedCallback(
+      name: string,
+      oldValue: string | null,
+      newValue: string | null,
+    ) {
+      if (oldValue !== newValue && this.isConnected) {
+        this.initDOMElements();
+        if (name === 'name' && this.fallbackEl) {
+          const appName = newValue || this.getAttribute('package-name') || '?';
+          this.fallbackEl.textContent = appName.charAt(0).toUpperCase();
+        }
+        this.resolveIcon();
+      }
+    }
+
+    private initDOMElements() {
+      this.imgEl = this.querySelector(':scope > img');
+      this.fallbackEl = this.querySelector(':scope > .app-icon-fallback');
+    }
+
+    private resolveIcon() {
+      const currentToken = ++this.requestToken;
+      const pkg = this.getAttribute('package-name') || '';
+      const img = this.imgEl;
+      const fallback = this.fallbackEl;
+
+      if (!img) return;
+
+      // Reset image event listeners
+      img.onload = null;
+      img.onerror = null;
+
+      if (!pkg.trim()) {
+        img.src = '';
+        img.classList.remove('opacity-100');
+        img.classList.add('opacity-0');
+        if (fallback) fallback.classList.remove('hidden');
+        return;
+      }
+
+      loadStatusPayload().then((payload) => {
+        if (this.requestToken !== currentToken) return;
+
+        const googleUrl = resolveGooglePlayIconUrl(payload, pkg);
+        if (googleUrl) {
+          this.loadWithFallback(img, googleUrl, pkg, currentToken);
+        } else {
+          this.loadCachedOnly(img, pkg, currentToken);
+        }
+      });
+    }
+
+    private setImgSrc(img: HTMLImageElement, url: string) {
+      const isLazy = img.getAttribute('loading') === 'lazy';
+      if (isLazy) {
+        img.removeAttribute('loading');
+      }
+      img.src = url;
+      if (isLazy) {
+        img.setAttribute('loading', 'lazy');
+      }
+    }
+
+    private loadWithFallback(
+      img: HTMLImageElement,
+      googleUrl: string,
+      pkg: string,
+      token: number,
+    ) {
+      img.onload = () => {
+        if (this.requestToken !== token) return;
+        img.classList.remove('opacity-0');
+        img.classList.add('opacity-100');
+        if (this.fallbackEl) this.fallbackEl.classList.add('hidden');
+      };
+
+      img.onerror = () => {
+        if (this.requestToken !== token) return;
+        img.onload = null;
+        img.onerror = null;
+        this.loadCachedOnly(img, pkg, token);
+      };
+
+      this.setImgSrc(img, googleUrl);
+    }
+
+    private loadCachedOnly(img: HTMLImageElement, pkg: string, token: number) {
+      const cachedUrl = getCachedAppIconUrl(pkg);
+      if (!cachedUrl) {
+        img.src = '';
+        img.classList.remove('opacity-100');
+        img.classList.add('opacity-0');
+        if (this.fallbackEl) this.fallbackEl.classList.remove('hidden');
+        return;
+      }
+
+      img.onload = () => {
+        if (this.requestToken !== token) return;
+        img.classList.remove('opacity-0');
+        img.classList.add('opacity-100');
+        if (this.fallbackEl) this.fallbackEl.classList.add('hidden');
+      };
+
+      img.onerror = () => {
+        if (this.requestToken !== token) return;
+        img.src = '';
+        img.classList.remove('opacity-100');
+        img.classList.add('opacity-0');
+        if (this.fallbackEl) this.fallbackEl.classList.remove('hidden');
+      };
+
+      this.setImgSrc(img, cachedUrl);
+    }
+  }
+
+  if (!customElements.get('app-icon')) {
+    customElements.define('app-icon', AppIconElement);
+  }
+</script>

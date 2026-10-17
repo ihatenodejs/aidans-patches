@@ -6,8 +6,7 @@ This document details the binary bytecode and native asset patches available for
 
 | Patch Name | Type | Default | Description |
 |---|---|---|---|
-| [Custom Chip Store Binary Hook](#patch-custom-chip-store-binary-hook) | `rawResourcePatch` | `true` | Installs the native ARM64 hook in `libil2cpp.so` to redirect store taps to the Android popup dialog and enable setting chip balances. |
-| [Add Custom Chip Store](#patch-add-custom-chip-store) | `bytecodePatch` | `true` | Replaces the defunct in-game chip store with a native Android dialog allowing players to enter any chip amount. |
+| [Add Custom Chip Store](#patch-add-custom-chip-store) | `compositeFeaturePatch` | `true` | Replaces the defunct in-game chip store with a native Android dialog allowing players to enter any chip amount, backed by an internal ARM64 native hook in `libil2cpp.so`. |
 | [Skip to Next Level](#patch-skip-to-next-level) | `bytecodePatch` | `true` | Allows players to skip to the next level by tapping the level progress indicator in the main menu. |
 | [Remove Ads](#patch-remove-ads) | `rawResourcePatch` | `true` | Removes banner, interstitial, and rewarded advertising and removes ad-based chip offers. |
 | [Remove Tracking and Analytics](#patch-remove-tracking-and-analytics) | `rawResourcePatch` | `true` | Neutralizes active advertising telemetry, analytics, attribution, and crash reporting. |
@@ -17,81 +16,31 @@ This document details the binary bytecode and native asset patches available for
 
 ---
 
-## Patch: Custom Chip Store Binary Hook
-
-- **Name:** Custom Chip Store Binary Hook
-- **Target Package:** `com.tripledot.blackjack`
-- **Supported Versions:** `2.22.09`
-- **Default State:** `true` (Enabled by default)
-- **Type:** Raw Binary / Asset Patch (`rawResourcePatch`)
-- **Dependencies:** None
-
-### 1. Motivation & Purpose
-
-In offline or patched environments, Blackjack's native in-game chip store is non-functional. Furthermore, the game contains no native debugging UI or console for setting chip balances or advancing levels.
-
-The **Custom Chip Store Binary Hook** patch provides the foundational native ARM64 engine modifications inside `lib/arm64-v8a/libil2cpp.so`:
-1. **Redirects Store Taps:** Rewires `BlackjackApplication.OpenShop` to invoke the native dialog bridge `MNAndroidNative.showDialog`, surfacing the Android popup.
-2. **Unified Command Dispatcher:** Replaces `BlackjackApplication.CheckUpdateToVersion` with a custom 192-byte ARM64 assembly routine (`UNIFIED_APP_HOOK`). When messages arrive from Java via `UnityPlayer.UnitySendMessage("BlackjackApplication", "CheckUpdateToVersion", message)`:
-   - If the message parses as an integer: updates player chips. If the new balance is less than or equal to current chips, it calls `PlayerProfile.SetDebugCredit`. If greater, it calls `BlackjackApplication.AddChips` with the delta and plays chip reward animations.
-   - If the message equals `"skip_level"`: reads `PlayerProfile.LevelData.XPPerLevel`, sets `PlayerData.XP` to the target threshold, calls `PlayerProfile.EarnXp(bet = 1)` to trigger level-up routines, and re-enters the table via `BlackjackApplication.GoToLastPlayedTable`.
-
-### 2. Technical Implementation & Binary Modifications
-
-#### Target File: `lib/arm64-v8a/libil2cpp.so`
-
-1. **`BlackjackApplication.OpenShop` (Offset `0x1fcf6d4`):**
-   - Stripped method names and metadata indices are discovered using `apk-lab il2cpp <artifact> --query OpenShop`. Relative branch targets and register moves are assembled into Morphe Kotlin byte arrays using `apk-lab asm`.
-   - **Expected Prologue:** `fe 0f 1a f8 fc 6f 01 a9 fa 67 02 a9 f8 5f 03 a9 f6 57 04 a9` (or previous legacy grant bytes)
-   - **Replacement Hook (32 bytes):**
-     ```arm64
-     str x30, [sp, #-0x10]!
-     mov x0, xzr
-     mov x1, xzr
-     mov x2, xzr
-     mov x3, xzr
-     bl  0x3c98ce4             ; bl MNAndroidNative.showDialog
-     ldr x30, [sp], #0x10
-     ret
-     ```
-     Opcodes: `fe 0f 1f f8 e0 03 1f aa e1 03 1f aa e2 03 1f aa e3 03 1f aa 7f 25 73 94 fe 07 41 f8 c0 03 5f d6`
-
-2. **`BlackjackApplication.CheckUpdateToVersion` (Offset `0x1fd0850`):**
-   - **Expected Prologue:** `fe 5f bd a9 f6 57 01 a9 f4 4f 02 a9` (or previous set credit hook bytes)
-   - **Replacement Hook (192 bytes, `UNIFIED_APP_HOOK`):**
-     - Saves `x19` (this pointer) and `x30` (link register).
-     - Calls `System.Int64.TryParse(x0 = message, out x1 = sp + 0x10)` at `0x35a655c`.
-     - On parse success:
-       - Loads `x19->PlayerProfile` (`[x19, #0x38]`) and current chips (`[[x2, #0x10], #0x10]`).
-       - Calculates delta (`newCredit - oldCredit`).
-       - If non-positive: invokes `PlayerProfile.SetDebugCredit(x0, x1)` at `0x1fca9b8`.
-       - If positive: invokes `BlackjackApplication.AddChips(x0, delta, RewardOption.None = 0, visualize = 1)` at `0x1fcfd40`.
-     - On parse failure (e.g. `"skip_level"`):
-       - Obtains `PlayerProfile.get_LevelData()` at `0x1fc99c4`.
-       - Reads `LevelData.XPPerLevel` (`[x0, #0x20]`).
-       - Overwrites `PlayerProfile.PlayerData.XP` (`[x8, #0x20] = XPPerLevel`).
-       - Invokes `PlayerProfile.EarnXp(x0, bet = 1)` at `0x1fca098`.
-       - Invokes `BlackjackApplication.GoToLastPlayedTable(x0)` at `0x1fcfee8`.
-       - Restores registers and returns `true` (`1`).
-
----
-
 ## Patch: Add Custom Chip Store
 
 - **Name:** Add Custom Chip Store
 - **Target Package:** `com.tripledot.blackjack`
 - **Supported Versions:** `2.22.09`
 - **Default State:** `true` (Enabled by default)
-- **Type:** Dalvik Bytecode Patch (`bytecodePatch`) with Extension DEX (`extendWith`)
-- **Dependencies:** `Custom Chip Store Binary Hook`
+- **Type:** Composite Feature Patch (`compositeFeaturePatch`) with Extension DEX (`extendWith`)
+- **Dependencies:** None
 - **Extension Classes:** `app.aidan.extension.blackjack.ChipBalanceDialog`
 
 ### 1. Motivation & Purpose
 
-When the player taps the in-game chip store button in the navigation bar, `Custom Chip Store Binary Hook` redirects execution to `MNAndroidNative.showDialog`. This Dalvik patch intercepts that bridge method and displays a native Android `AlertDialog` with an editable text field pre-populated with the user's current chips.
+In offline or patched environments, Blackjack's native in-game chip store is non-functional, and the game contains no debugging console. The **Add Custom Chip Store** composite patch modifies the native ARM64 engine inside `lib/arm64-v8a/libil2cpp.so` and injects an Android Dalvik dialog hook to allow players to set arbitrary chip balances.
 
-### 2. Technical Implementation & Bytecode Hook
+### 2. Technical Implementation & Injection Points
 
+#### Native ARM64 Hook Layer (`lib/arm64-v8a/libil2cpp.so`)
+1. **`BlackjackApplication.OpenShop` (Offset `0x1fcf6d4`):**
+   - Replaces store opening with a call to `MNAndroidNative.showDialog` (`0x3c98ce4`).
+2. **`BlackjackApplication.CheckUpdateToVersion` (Offset `0x1fd0850`):**
+   - Replaces prologue with the unified 192-byte app hook (`UNIFIED_APP_HOOK`).
+   - If input is numeric, parses the chip balance, calculates the delta against `PlayerProfile.SetDebugCredit`, and executes `BlackjackApplication.AddChips`.
+   - If input is `"skip_level"`, advances to the next level via `PlayerProfile.EarnXp` and `GoToLastPlayedTable`.
+
+#### Dalvik Bytecode Hook Layer
 - **Class:** `Lcom/mnp/popups/NativePopupsManager;`
 - **Method:** `ShowDialog(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V`
 - **Injected Bytecode (at instruction offset 0):**
@@ -109,8 +58,6 @@ When the player taps the in-game chip store button in the navigation bar, `Custo
    - Clamps negative values to `0`.
    - Sends the decimal string to Unity via `UnitySendMessage("BlackjackApplication", "CheckUpdateToVersion", amount)`.
 
----
-
 ## Patch: Skip to Next Level
 
 - **Name:** Skip to Next Level
@@ -118,7 +65,7 @@ When the player taps the in-game chip store button in the navigation bar, `Custo
 - **Supported Versions:** `2.22.09`
 - **Default State:** `true` (Enabled by default)
 - **Type:** Dalvik Bytecode Patch (`bytecodePatch`) with Extension DEX (`extendWith`)
-- **Dependencies:** `Add Custom Chip Store`
+- **Dependencies:** None
 - **Extension Classes:** `app.aidan.extension.blackjack.SkipLevelDialog`
 
 ### 1. Motivation & Purpose
@@ -137,9 +84,9 @@ Advancing levels in Blackjack normally requires grinding hundreds of hands to ac
 #### Touch Proxy & Dialog Flow (`SkipLevelDialog.java`):
 1. Replaces the activity's `Window.Callback` with a dynamic `java.lang.reflect.Proxy`.
 2. Inspects `dispatchTouchEvent` events for `MotionEvent.ACTION_UP`.
-3. Validates coordinates against a safe-area-relative next-level badge rectangle:
-   - `0.75 <= (rawX / screenWidth) <= 0.85`
-   - `-0.02 <= ((rawY - topSystemInset) / safeAreaHeight) <= 0.05`
+3. Validates touch coordinates against the safe-area-relative next-level badge rectangle using `MotionEvent.getX()` and `getY()` against the decor-view bounds and root window insets:
+   - `0.75 <= (event.getX() / decorView.getWidth()) <= 0.85`
+   - `-0.02 <= ((event.getY() - topSystemInset) / contentHeight) <= 0.05`
    - The badge is anchored at the top of Unity's safe area, which accounts for display cutouts and differing status-bar heights without making the entire top HUD interactive.
 4. Debounces taps within 1,500 ms to prevent duplicate dialogs.
 5. Reads `value.Level` from `PlayerData.json`.

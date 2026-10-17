@@ -14,8 +14,10 @@ Resolves resource entries, layout IDs, and raw members across the base APK and a
 - **Package-Prefixed Reference**: `com.example.app:string/app_name`.
 - **Archive Path**: `res/drawable-xxhdpi/icon.webp`, `assets/index.android.bundle`, `lib/arm64-v8a/libfoo.so`, or `AndroidManifest.xml`.
 - **Bare Name**: `map_preview_trails` (matches resource name or file basename).
+- **Text/Value Substring**: `text:<query>`, `val:<query>`, `value:<query>`, or `--text <query>` / `--value <query>` flag aliases (case-insensitive substring search across string tables in `resources.arsc`).
 
 ### Invariants & Output Intelligence
+- **Split Handling**: Split packages lacking `resources.arsc` (such as native library splits `config.arm64_v8a.apk`) are gracefully skipped during ARSC table inspection without error, while raw archive members (assets, libraries, manifest) remain searchable and accessible.
 - **Morphe Mode Guidance**:
   - `AndroidManifest.xml` and files under `res/...` advise `resourcePatch` (`document(...)` for XML DOM manipulation, `get(...)` for binary resources).
   - Files under `assets/...` and `lib/...` advise `rawResourcePatch` (raw ZIP asset manipulation).
@@ -24,8 +26,8 @@ Resolves resource entries, layout IDs, and raw members across the base APK and a
   - `equivalent`: Resource or file exists in multiple splits with identical SHA-256 or scalar value.
   - `conflict`: Resource or file exists in multiple splits with **differing hashes or values** (requires careful split targeting).
 - **Extraction Preflight**:
-  - When `--extract <dir>` is supplied, preflights all targets into `<extract_dir>/<split_slug>-<hash8>/...`.
-  - Refuses extraction if any destination escapes the target directory, is a symlink, collides with another matched file, or already exists on disk.
+  - When `--extract <dir>` is supplied, preflights and extracts matched file-backed resources only into `<extract_dir>/<split_slug>-<hash8>/...`; scalar ARSC values are skipped with a warning.
+  - Refuses extraction if the extract root is a symlink or regular file, if resolved destination paths escape the target root, or if destinations collide or already exist on disk.
 
 ### CLI Invocation
 
@@ -36,6 +38,12 @@ uv run --project tools/apk-lab apk-lab res path/to/app.apkm --query 0x7f08028e
 # Query by type and name
 uv run --project tools/apk-lab apk-lab res path/to/app.apkm --query @drawable/brand_logo
 
+# Search resource string values by substring
+uv run --project tools/apk-lab apk-lab res path/to/app.apkm --text "Upgrade to Premium"
+
+# Search resource string values using prefix query
+uv run --project tools/apk-lab apk-lab res path/to/app.apkm --query text:"Upgrade to Premium"
+
 # Query by file path and safely extract matched files to disk
 uv run --project tools/apk-lab apk-lab res path/to/app.apkm \
   --query res/drawable-xxhdpi/brand_logo.webp \
@@ -44,13 +52,14 @@ uv run --project tools/apk-lab apk-lab res path/to/app.apkm \
 
 ### Exit Codes
 - `0`: Query executed successfully.
-- `2`: Artifact not found, invalid query format, extraction safety error, or build tool failure.
-
+- `2`: Artifact not found or invalid query format.
+- `3`: Archive security error or extraction safety violation.
+- `4`: Uncaught infrastructure failure or build tool error.
 ---
 
 ## 2. `unity` — Unity Serialized Asset & GameObject Inspector
 
-Parses Unity serialized asset files (`assets/bin/Data/*.assets`, `*.assets.split*`, `globalgamemanagers`) across single APKs and split containers (APKM, APKS, XAPK). Locates `GameObject` records by name, reports containing asset splits, and computes the exact byte offset and value of the `m_IsActive` boolean property.
+Parses Unity serialized asset files (`assets/bin/Data/*.assets`, `*.assets.split*`, `globalgamemanagers`) across single APKs and split containers (APKM, APKS, XAPK). Locates `GameObject` records by name, reports matched asset member paths and file offsets, and computes the exact byte offset and value of the `m_IsActive` boolean property.
 
 ### Purpose for Patching
 In Unity games, disabling unwanted promotional buttons, help centers, or ad prompts can be accomplished by setting the GameObject's `m_IsActive` byte to `0x00` in the serialized asset file via a Morphe `rawResourcePatch`. This tool finds the exact file offset.
@@ -122,7 +131,7 @@ uv run --project tools/apk-lab apk-lab asm "mov w1, #1" --format hex
 
 ## 4. `il2cpp` — Unity IL2CPP Metadata Querying
 
-Extracts and parses Unity `assets/bin/Data/Managed/Metadata/global-metadata.dat` (supported layouts: version 29 and 31) across single APKs and split bundles. Enables instant querying of stripped C# type definitions, method signatures, parameter counts, and namespaces without external tooling.
+Extracts and parses Unity `assets/bin/Data/Managed/Metadata/global-metadata.dat` (supported layouts: version 29 and 31) across single APKs and split bundles. Enables instant querying of stripped C# type definitions, method names, parameter counts, and namespaces without external tooling.
 
 ### CLI Invocation
 
@@ -136,7 +145,7 @@ uv run --project tools/apk-lab apk-lab il2cpp path/to/game.apkm --query "Blackja
 
 ### CLI Arguments
 - `artifact` (required positional): Path to APK or split bundle.
-- `--query` / `-q`: Case-insensitive regex or substring query. Searches namespace, type name, and method signatures.
+- `--query` / `-q`: Case-insensitive regex or substring query. Searches namespace, type name, and method names.
 - `--json [PATH|-]`: Output structured JSON array.
 
 ### Exit Codes
@@ -167,7 +176,7 @@ with materialize_artifact_apks(artifact, inspect_artifact(artifact)) as mat_apks
 # Unity GameObject Offset Lookup
 unity_matches = inspect_unity_assets(artifact, name_filter="Button_HelpCenter")
 for u in unity_matches:
-    print(f"File: {u['file_path']} Offset: {hex(u['m_is_active_offset'])} Active: {u['m_is_active_value']}")
+    print(f"Member: {u['member']} Offset: {hex(u['is_active_offset'])} Active: {u['is_active_value']}")
 
 # ARM64 Assembly & Relocation
 opcode = assemble_statement("bl 0x3c98ce4", pc=0x1fcf6e8)
@@ -177,5 +186,5 @@ print(kotlin_syntax)  # byteArrayOf(0x7f, 0x25, 0x73, 0x94.toByte())
 # IL2CPP Metadata Query
 symbols = analyze_il2cpp(artifact, query="OpenShop")
 for s in symbols:
-    print(f"{s['namespace']}.{s['type']}::{s['method']}(params={s['parameter_count']})")
+    print(f"{s['namespace']}.{s['type']}::{s['method']}(params={s['parameters_count']})")
 ```

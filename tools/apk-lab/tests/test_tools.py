@@ -40,14 +40,15 @@ def test_tool_unknown_raises(tmp_path):
 
 
 def test_doctor_credentials_masking(monkeypatch, tmp_path):
-    monkeypatch.setenv("APKEEP_EMAIL", "secret_user@example.com")
-    monkeypatch.setenv("APKEEP_AAS_TOKEN", "super_secret_token_12345")
+    monkeypatch.setenv(
+        "APKEEP_ACCOUNTS",
+        '{"version":1,"accounts":[{"label":"p","email":"secret_user@example.com","aasToken":"super_secret_token_12345"}]}',
+    )
 
     report = check_host_prerequisites(ci_mode=True, workspace_root=tmp_path)
     d = report.to_dict()
 
-    assert d["credentialsPresent"]["APKEEP_EMAIL"] is True
-    assert d["credentialsPresent"]["APKEEP_AAS_TOKEN"] is True
+    assert d["credentialsPresent"]["APKEEP_ACCOUNTS"] is True
     # Values MUST never appear in report output
     assert "secret_user@example.com" not in json.dumps(d)
     assert "super_secret_token_12345" not in json.dumps(d)

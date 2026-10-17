@@ -10,6 +10,7 @@
     "typecheck": "bun scripts/audit.ts typecheck",
     "test": "bun scripts/audit.ts test",
     "audit": "bun scripts/audit.ts all",
+    "play-accounts": "uv run --project tools/apk-lab apk-lab play-accounts",
     "prepare": "pre-commit install --install-hooks -t pre-commit -t pre-push || true"
   },
   "devDependencies": {

@@ -11,9 +11,9 @@ APK Lab orchestrates external tools pinned with immutable SHA-256 digests in `to
 | Requirement | Supported Versions | Resolution / Detection Order |
 |---|---|---|
 | **Python** | `3.12+` | Managed via `uv` (`tools/apk-lab/pyproject.toml`) |
-| **Java / JDK** | `21+` (Eclipse Temurin recommended) | PATH (`java`, `keytool`) |
-| **Android Build Tools** | `36.0.0` (`aapt2`, `apksigner`, `zipalign`, `dexdump`) | `$ANDROID_HOME/build-tools/`, `$ANDROID_SDK_ROOT/build-tools/`, `local.properties` (`sdk.dir`), PATH |
-| **Android Platform Tools** | `adb` | `$ANDROID_HOME/platform-tools/adb`, `$ANDROID_SDK_ROOT/platform-tools/adb`, PATH |
+| **Java / JDK** | `21+` (Eclipse Temurin recommended) | PATH (`java`) |
+| **Android Build Tools** | `36.0.0` (`aapt2`, `apksigner`, `zipalign`, `dexdump`) | `$ANDROID_HOME/build-tools/`, `$ANDROID_SDK_ROOT/build-tools/`, `local.properties` (`sdk.dir`) |
+| **Android Platform Tools** | `adb` | `$ANDROID_HOME/platform-tools/adb`, `$ANDROID_SDK_ROOT/platform-tools/adb`, PATH (runtime only; not probed by `doctor`) |
 | **uv** | Modern | PATH (`uv run --project tools/apk-lab`) |
 
 External tools cached in `~/.cache/aidans-patches/apk-lab/tools/`:
@@ -27,9 +27,10 @@ External tools cached in `~/.cache/aidans-patches/apk-lab/tools/`:
 ---
 
 ## 2. CLI Reference
-
-All commands run through `uv run --project tools/apk-lab apk-lab <subcommand>`.
-
+Global options (e.g. `--workspace-root PATH`, default: `.apk-lab`) precede the subcommand:
+```bash
+uv run --project tools/apk-lab apk-lab [--workspace-root PATH] <subcommand> [flags]
+```
 ### `setup` — Toolchain Download & Verification
 
 Downloads and verifies all pinned tools for the specified profile using SHA-256 checksums from `tools.lock.json`.
@@ -64,10 +65,10 @@ uv run --project tools/apk-lab apk-lab doctor --json report.json
 ```
 
 - **Arguments**:
-  - `--ci`: Check CI credentials (`APKEEP_EMAIL`, `APKEEP_AAS_TOKEN`, `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `COMPATIBILITY_STATUS_SECRET`) as boolean flags without printing values.
+  - `--ci`: Check CI credentials (`APKEEP_ACCOUNTS`, `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `COMPATIBILITY_STATUS_SECRET`) as boolean flags without printing values.
   - `--profile {analysis,ci}`: Check prerequisites for specified profile.
   - `--json [PATH|-]`: Output structured JSON (stdout if `-` or flag without path).
-  - `--workspace-root PATH`: Probe custom workspace root (default: `.apk-lab`).
+- Note: To customize the workspace root, pass global `--workspace-root PATH` before `doctor`.
 - **Exit Codes**:
   - `0`: All prerequisites and tools satisfied.
   - `2`: Missing prerequisite, uninstalled tool, or unwritable workspace.
@@ -98,11 +99,13 @@ uv run --project tools/apk-lab apk-lab clean --package com.example.app --dry-run
 - **Safety Invariants**:
   - Validates that target path is inside workspace root.
   - Rejects symlinks and unresolved path escapes.
-  - Requires valid schema-1 `.marker.json` inside each run directory. Refuses deletion if marker is absent or invalid.
+  - Requires valid schema-1 `.marker.json` inside run directories.
+  - `--run PATH`: strictly rejects targets with missing, corrupted, or unmanaged markers (returns exit code `2`).
+  - `--package NAME` and `--stale DAYS`: safely skip invalid, unreadable, or unmarked directories and proceed with valid targets (returns exit code `0`).
   - Automatically removes empty parent package directories after cleaning runs.
 - **Exit Codes**:
-  - `0`: Cleanup succeeded.
-  - `2`: Target not found, unsafe path, or invalid workspace marker.
+  - `0`: Cleanup succeeded (or completed skipping invalid candidates in package/stale mode).
+  - `2`: Target not found, unsafe path, or invalid workspace marker in `--run` mode.
 
 ---
 
@@ -125,10 +128,8 @@ Analysis runs create isolated, reproducible workspaces under `.apk-lab/`:
 ```json
 {
   "schemaVersion": 1,
-  "packageName": "com.example.app",
-  "versionCode": 100,
+  "inputCanonicalPath": "/path/to/app.apkm",
   "inputSha256": "3a7b...",
-  "inputPath": "/path/to/app.apkm",
   "command": "analyze",
   "configDigest": "def987654321",
   "toolVersions": {

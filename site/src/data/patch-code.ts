@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { PATCH_SOURCE_FILES } from './source-links';
+import { getPatchSourceMap } from './source-links';
 
 export interface PatchCodeEntry {
   patchName: string;
@@ -17,10 +17,11 @@ export function getPatchCodeMap(): Record<string, PatchCodeEntry> {
 
   const currentDir = path.dirname(fileURLToPath(import.meta.url));
   const repoRoot = path.resolve(currentDir, '../../../');
+  const sourceMap = getPatchSourceMap();
 
   const result: Record<string, PatchCodeEntry> = {};
 
-  for (const [key, relPath] of Object.entries(PATCH_SOURCE_FILES)) {
+  for (const [key, relPath] of Object.entries(sourceMap)) {
     const fullPath = path.resolve(repoRoot, relPath);
     if (fs.existsSync(fullPath)) {
       const raw = fs.readFileSync(fullPath, 'utf-8');

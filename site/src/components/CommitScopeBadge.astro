@@ -1,0 +1,224 @@
+---
+import AppIcon from './AppIcon.astro';
+
+interface Props {
+  scope?: string | null;
+  appId?: string | null;
+  appName?: string | null;
+  appPackageName?: string | null;
+}
+
+const { scope, appId, appName, appPackageName } = Astro.props;
+
+interface ScopeStyle {
+  badgeClass: string;
+  iconBorderClass: string;
+  paths: string;
+}
+
+const PATHS = {
+  browser: `<path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M4 8h16" /><path d="M4 6a2 2 0 0 1 2 -2h12a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-12a2 2 0 0 1 -2 -2l0 -12" /><path d="M8 4v4" />`,
+  tag: `<path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M6.5 7.5a1 1 0 1 0 2 0a1 1 0 1 0 -2 0" /><path d="M3 6v5.172a2 2 0 0 0 .586 1.414l7.71 7.71a2.41 2.41 0 0 0 3.408 0l5.592 -5.592a2.41 2.41 0 0 0 0 -3.408l-7.71 -7.71a2 2 0 0 0 -1.414 -.586h-5.172a3 3 0 0 0 -3 3" />`,
+  server: `<path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M3 7a3 3 0 0 1 3 -3h12a3 3 0 0 1 3 3v2a3 3 0 0 1 -3 3h-12a3 3 0 0 1 -3 -3v-2" /><path d="M3 15a3 3 0 0 1 3 -3h12a3 3 0 0 1 3 3v2a3 3 0 0 1 -3 3h-12a3 3 0 0 1 -3 -3l0 -2" /><path d="M7 8l0 .01" /><path d="M7 16l0 .01" />`,
+  flask: `<path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M9 3l6 0" /><path d="M10 9l4 0" /><path d="M10 3v6l-4 11a.7 .7 0 0 0 .5 1h11a.7 .7 0 0 0 .5 -1l-4 -11v-6" />`,
+  gitBranch: `<path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M5 18a2 2 0 1 0 4 0a2 2 0 1 0 -4 0" /><path d="M5 6a2 2 0 1 0 4 0a2 2 0 1 0 -4 0" /><path d="M15 6a2 2 0 1 0 4 0a2 2 0 1 0 -4 0" /><path d="M7 8l0 8" /><path d="M9 18h6a2 2 0 0 0 2 -2v-5" /><path d="M14 14l3 -3l3 3" />`,
+  shieldCheck: `<path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M11.46 20.846a12 12 0 0 1 -7.96 -14.846a12 12 0 0 0 8.5 -3a12 12 0 0 0 8.5 3a12 12 0 0 1 -.09 7.06" /><path d="M15 19l2 2l4 -4" />`,
+  book: `<path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M3 19a9 9 0 0 1 9 0a9 9 0 0 1 9 0" /><path d="M3 6a9 9 0 0 1 9 0a9 9 0 0 1 9 0" /><path d="M3 6l0 13" /><path d="M12 6l0 13" /><path d="M21 6l0 13" />`,
+  package: `<path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M12 3l8 4.5l0 9l-8 4.5l-8 -4.5l0 -9l8 -4.5" /><path d="M12 12l8 -4.5" /><path d="M12 12l0 9" /><path d="M12 12l-8 -4.5" /><path d="M16 5.25l-8 4.5" />`,
+  palette: `<path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M12 21a9 9 0 0 1 0 -18c4.97 0 9 3.582 9 8c0 1.06 -.474 2.078 -1.318 2.828c-.844 .75 -1.989 1.172 -3.182 1.172h-2.5a2 2 0 0 0 -1 3.75a1.3 1.3 0 0 1 -1 2.25" /><path d="M7.5 10.5a1 1 0 1 0 2 0a1 1 0 1 0 -2 0" /><path d="M11.5 7.5a1 1 0 1 0 2 0a1 1 0 1 0 -2 0" /><path d="M15.5 10.5a1 1 0 1 0 2 0a1 1 0 1 0 -2 0" />`,
+  googlePlay: `<path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M4 3.71v16.58a.7 .7 0 0 0 1.05 .606l14.622 -8.42a.55 .55 0 0 0 0 -.953l-14.622 -8.419a.7 .7 0 0 0 -1.05 .607l0 -.001" /><path d="M15 9l-10.5 11.5" /><path d="M4.5 3.5l10.5 11.5" />`,
+  puzzle: `<path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M4 7h3a1 1 0 0 0 1 -1v-1a2 2 0 0 1 4 0v1a1 1 0 0 0 1 1h3a1 1 0 0 1 1 1v3a1 1 0 0 0 1 1h1a2 2 0 0 1 0 4h-1a1 1 0 0 0 -1 1v3a1 1 0 0 1 -1 1h-3a1 1 0 0 1 -1 -1v-1a2 2 0 0 0 -4 0v1a1 1 0 0 1 -1 1h-3a1 1 0 0 1 -1 -1v-3a1 1 0 0 1 1 -1h1a2 2 0 0 0 0 -4h-1a1 1 0 0 1 -1 -1v-3a1 1 0 0 1 1 -1" />`,
+  github: `<path stroke="none" d="M0 0h24v24H0z" fill="none" /><path d="M9 19c-4.3 1.4 -4.3 -2.5 -6 -3m12 5v-3.5c0 -1 .1 -1.4 -.5 -2c2.8 -.3 5.5 -1.4 5.5 -6a4.6 4.6 0 0 0 -1.3 -3.2a4.2 4.2 0 0 0 -.1 -3.2s-1.1 -.3 -3.5 1.3a12.3 12.3 0 0 0 -6.2 0c-2.4 -1.6 -3.5 -1.3 -3.5 -1.3a4.2 4.2 0 0 0 -.1 3.2a4.6 4.6 0 0 0 -1.3 3.2c0 4.6 2.7 5.7 5.5 6c-.6 .6 -.6 1.2 -.5 2v3.5" />`,
+};
+
+function normalizeScopeKey(rawScope: string): string {
+  const s = rawScope.toLowerCase().trim();
+  if (
+    s.startsWith('tools/apk-lab') ||
+    s.startsWith('skills/apk-lab') ||
+    s === 'apk-lab'
+  )
+    return 'apk-lab';
+  if (s.startsWith('site/') || s === 'site') return 'site';
+  if (s.startsWith('patches/') || s === 'patches') return 'patches';
+  if (s.startsWith('play-metadata') || s.startsWith('tools/play-metadata'))
+    return 'play-metadata';
+  if (s.startsWith('ci/') || s === 'ci' || s === 'workflows') return 'ci';
+  if (s === 'deps' || s === 'dependencies') return 'deps';
+  if (s === 'app-icons' || s === 'icons') return 'icons';
+  if (s === 'github') return 'github';
+  if (s === 'compatibility') return 'compatibility';
+  if (s === 'release') return 'release';
+  if (s === 'worker') return 'worker';
+  if (s === 'audit') return 'audit';
+  if (s === 'docs' || s === 'agents') return 'docs';
+  return s;
+}
+
+const SCOPE_DISPLAY_NAMES: Record<string, string> = {
+  site: 'Site',
+  release: 'Release',
+  worker: 'Worker',
+  'apk-lab': 'APK Lab',
+  ci: 'CI',
+  audit: 'Audit',
+  docs: 'Docs',
+  deps: 'Deps',
+  icons: 'Icons',
+  'play-metadata': 'Play Metadata',
+  patches: 'Patches',
+  github: 'GitHub',
+  compatibility: 'Compatibility',
+};
+
+function formatScopeName(rawScope: string): string {
+  const norm = normalizeScopeKey(rawScope);
+  if (SCOPE_DISPLAY_NAMES[norm]) {
+    return SCOPE_DISPLAY_NAMES[norm];
+  }
+  return rawScope
+    .split(/[-_/ ]+/)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ');
+}
+
+function getScopeStyle(normalizedKey: string): ScopeStyle {
+  switch (normalizedKey) {
+    case 'site':
+      return {
+        badgeClass: 'bg-teal-950/60 text-teal-300 border-teal-800/40',
+        iconBorderClass: 'border-r border-teal-800/40 bg-teal-900/20',
+        paths: PATHS.browser,
+      };
+    case 'release':
+      return {
+        badgeClass: 'bg-fuchsia-950/60 text-fuchsia-300 border-fuchsia-800/40',
+        iconBorderClass: 'border-r border-fuchsia-800/40 bg-fuchsia-900/20',
+        paths: PATHS.tag,
+      };
+    case 'worker':
+      return {
+        badgeClass: 'bg-amber-950/60 text-amber-300 border-amber-800/40',
+        iconBorderClass: 'border-r border-amber-800/40 bg-amber-900/20',
+        paths: PATHS.server,
+      };
+    case 'apk-lab':
+      return {
+        badgeClass: 'bg-indigo-950/60 text-indigo-300 border-indigo-800/40',
+        iconBorderClass: 'border-r border-indigo-800/40 bg-indigo-900/20',
+        paths: PATHS.flask,
+      };
+    case 'ci':
+      return {
+        badgeClass: 'bg-cyan-950/60 text-cyan-300 border-cyan-800/40',
+        iconBorderClass: 'border-r border-cyan-800/40 bg-cyan-900/20',
+        paths: PATHS.gitBranch,
+      };
+    case 'audit':
+      return {
+        badgeClass: 'bg-lime-950/60 text-lime-300 border-lime-800/40',
+        iconBorderClass: 'border-r border-lime-800/40 bg-lime-900/20',
+        paths: PATHS.shieldCheck,
+      };
+    case 'docs':
+      return {
+        badgeClass: 'bg-sky-950/60 text-sky-300 border-sky-800/40',
+        iconBorderClass: 'border-r border-sky-800/40 bg-sky-900/20',
+        paths: PATHS.book,
+      };
+    case 'deps':
+      return {
+        badgeClass: 'bg-rose-950/60 text-rose-300 border-rose-800/40',
+        iconBorderClass: 'border-r border-rose-800/40 bg-rose-900/20',
+        paths: PATHS.package,
+      };
+    case 'icons':
+      return {
+        badgeClass: 'bg-pink-950/60 text-pink-300 border-pink-800/40',
+        iconBorderClass: 'border-r border-pink-800/40 bg-pink-900/20',
+        paths: PATHS.palette,
+      };
+    case 'play-metadata':
+      return {
+        badgeClass: 'bg-teal-950/60 text-teal-300 border-teal-800/40',
+        iconBorderClass: 'border-r border-teal-800/40 bg-teal-900/20',
+        paths: PATHS.googlePlay,
+      };
+    case 'patches':
+      return {
+        badgeClass: 'bg-violet-950/60 text-violet-300 border-violet-800/40',
+        iconBorderClass: 'border-r border-violet-800/40 bg-violet-900/20',
+        paths: PATHS.puzzle,
+      };
+    case 'github':
+      return {
+        badgeClass: 'bg-zinc-800/60 text-zinc-200 border-zinc-700/60',
+        iconBorderClass: 'border-r border-zinc-700/60 bg-zinc-800/30',
+        paths: PATHS.github,
+      };
+    case 'compatibility':
+      return {
+        badgeClass: 'bg-blue-950/60 text-blue-300 border-blue-800/40',
+        iconBorderClass: 'border-r border-blue-800/40 bg-blue-900/20',
+        paths: PATHS.shieldCheck,
+      };
+    default:
+      return {
+        badgeClass: 'bg-zinc-900 text-zinc-400 border-white/10',
+        iconBorderClass: 'border-r border-white/10 bg-white/[0.02]',
+        paths: PATHS.tag,
+      };
+  }
+}
+
+const isApp = Boolean(appPackageName);
+const normalizedKey = scope ? normalizeScopeKey(scope) : '';
+const scopeStyle = !isApp && scope ? getScopeStyle(normalizedKey) : null;
+---
+
+{isApp && appPackageName ? (
+  <a
+    href={appId ? `/apps/${appId}` : undefined}
+    class="inline-flex rounded-[4px] focus:outline-none focus-visible:ring-1 focus-visible:ring-white/70"
+  >
+    <span class="inline-flex items-center h-5 rounded-[4px] border border-white/10 bg-white/[0.04] text-zinc-300 font-mono text-[10px] overflow-hidden shrink-0 transition-colors hover:border-white/20 hover:text-white">
+      <AppIcon
+        packageName={appPackageName}
+        name={appName || appPackageName}
+        size={20}
+        loading="lazy"
+        alt={appName || ''}
+        title={appName || ''}
+        className="w-5 h-5 shrink-0 border-r border-white/10"
+        fallbackClassName="font-mono text-[10px]"
+      />
+      <span class="px-1.5 font-medium leading-none truncate max-w-[140px]">
+        {appName || appPackageName}
+      </span>
+    </span>
+  </a>
+) : scope && scopeStyle ? (
+  <span
+    class={`inline-flex items-center h-5 rounded-[4px] border font-mono text-[10px] overflow-hidden shrink-0 ${scopeStyle.badgeClass}`}
+  >
+    <span
+      class={`w-5 h-5 flex items-center justify-center shrink-0 ${scopeStyle.iconBorderClass}`}
+    >
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        class="w-3 h-3"
+        aria-hidden="true"
+        set:html={scopeStyle.paths}
+      />
+    </span>
+    <span class="px-1.5 font-medium leading-none truncate max-w-[140px]">
+      {formatScopeName(scope)}
+    </span>
+  </span>
+) : null}

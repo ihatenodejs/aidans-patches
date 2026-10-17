@@ -9,6 +9,10 @@ import type {
   LatestReleaseSummary,
   OutstandingCompatibilityRequest,
   PatchCompatibilityStatus,
+  PlayMediaAsset,
+  PlayMetadataSubmission,
+  PlayStoreMetadata,
+  PlayVersionSource,
   WorkerEnv,
 } from './types';
 import { fetchGooglePlayApp } from './scraper';
@@ -25,6 +29,8 @@ import {
   renderReleaseDownloadsChartSvg,
   renderTotalDownloadsChartSvg,
 } from './statistics-charts';
+import { buildMediaAsset } from './scraper';
+import { mirrorAssetsBatch } from './media-mirror';
 
 let memoryCache: { payload: KVVersionPayload; expiresAt: number } | null = null;
 const MEMORY_CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour fallback
@@ -132,6 +138,7 @@ export async function loadStatusPayload(
         targetCompatibility: null,
         outstandingRequest: null,
         outstandingRequestId: null,
+        playMetadata: null,
       };
     }
   }
@@ -159,13 +166,30 @@ export async function performVersionCheck(
 ): Promise<KVVersionPayload> {
   const now = new Date().toISOString();
   const appsRecord: Record<string, AppVersionRecord> = {};
+  let mirroredMediaCount = 0;
+  const MAX_MEDIA_PER_INVOCATION = 24;
 
   for (const app of MONITORED_APPS) {
     const priorRecord = await loadAppRecord(env, app.packageName);
     const scraped = await fetchGooglePlayApp(app.packageName);
-
+    if (scraped.rawError) {
+      console.error(
+        `Scrape failed for ${app.packageName}: ${scraped.rawError}`,
+      );
+    }
     let playVersion: string | null = null;
+    let playVersionCode: number | null = priorRecord?.playVersionCode ?? null;
+    let playVersionSource: PlayVersionSource =
+      priorRecord?.playVersionSource ?? null;
+    let playVersionVerifiedForUpdatedAt: string | null =
+      priorRecord?.playVersionVerifiedForUpdatedAt ?? null;
+    let needsAuthenticatedVersion = false;
+
     let iconUrl = scraped.iconUrl || priorRecord?.iconUrl || null;
+    let iconAsset: PlayMediaAsset | null = scraped.iconUrl
+      ? buildMediaAsset(scraped.iconUrl, null, null, `${app.name} icon`)
+      : (priorRecord?.iconAsset ?? null);
+
     let updatedAt = scraped.updatedAt || priorRecord?.updatedAt || null;
     let updatedOn = scraped.updatedOn || priorRecord?.updatedOn || null;
     let status: FreshnessStatus;
@@ -175,23 +199,42 @@ export async function performVersionCheck(
     if (scraped.isNotFound) {
       status = 'not-on-play-store';
       playVersion = null;
+      playVersionCode = null;
+      playVersionSource = null;
       playVersionReleaseUpdatedAt = null;
+      playVersionVerifiedForUpdatedAt = null;
+      needsAuthenticatedVersion = false;
     } else if (scraped.rawError) {
       status = 'check-failed';
       playVersion = priorRecord?.playVersion ?? null;
+      needsAuthenticatedVersion =
+        priorRecord?.needsAuthenticatedVersion ?? false;
     } else if (scraped.playVersion) {
       playVersion = scraped.playVersion;
+      playVersionSource = 'web';
       status = compareAppVersions(app.latestSupportedVersion, playVersion);
       playVersionReleaseUpdatedAt = scraped.updatedAt ?? null;
+      playVersionVerifiedForUpdatedAt = null;
+      needsAuthenticatedVersion = false;
     } else {
-      // App exists on Google Play (not 404, not error), but Google Play web HTML omits
-      // the version string (e.g. multi-split App Bundle where version varies with device).
-      if (priorRecord?.playVersion) {
+      // App exists on Google Play but public HTML omits version
+      const isVerifiedForCurrentUpdate =
+        Boolean(scraped.updatedAt) &&
+        priorRecord?.playVersionVerifiedForUpdatedAt === scraped.updatedAt &&
+        priorRecord?.playVersionSource === 'authenticated';
+
+      if (isVerifiedForCurrentUpdate && priorRecord?.playVersion) {
         playVersion = priorRecord.playVersion;
+        playVersionCode = priorRecord.playVersionCode ?? null;
+        playVersionSource = 'authenticated';
         status = compareAppVersions(app.latestSupportedVersion, playVersion);
+        needsAuthenticatedVersion = false;
       } else {
-        playVersion = null;
+        // Retain prior version for display but mark freshness unknown and request authentication
+        playVersion = priorRecord?.playVersion ?? null;
+        playVersionCode = priorRecord?.playVersionCode ?? null;
         status = 'unknown';
+        needsAuthenticatedVersion = true;
       }
     }
     let targetCompat = priorRecord?.targetCompatibility ?? null;
@@ -224,11 +267,130 @@ export async function performVersionCheck(
         outstandingRequest = null;
       }
     }
+    let mergedMetadata: PlayStoreMetadata | null = null;
+    const priorMeta = priorRecord?.playMetadata;
+
+    if (scraped.isNotFound || scraped.rawError) {
+      mergedMetadata = priorMeta ?? null;
+    } else {
+      const sMeta = scraped.metadata;
+      mergedMetadata = {
+        summary:
+          sMeta?.summary !== undefined
+            ? sMeta.summary
+            : (priorMeta?.summary ?? null),
+        description:
+          sMeta?.description !== undefined
+            ? sMeta.description
+            : (priorMeta?.description ?? null),
+        developer:
+          sMeta?.developer !== undefined
+            ? sMeta.developer
+            : (priorMeta?.developer ?? null),
+        category:
+          sMeta?.category !== undefined
+            ? sMeta.category
+            : (priorMeta?.category ?? null),
+        categoryId:
+          sMeta?.categoryId !== undefined
+            ? sMeta.categoryId
+            : (priorMeta?.categoryId ?? null),
+        releaseNotes:
+          sMeta?.releaseNotes !== undefined
+            ? sMeta.releaseNotes
+            : (priorMeta?.releaseNotes ?? null),
+        installs:
+          sMeta?.installs !== undefined
+            ? sMeta.installs
+            : (priorMeta?.installs ?? null),
+        score:
+          sMeta?.score !== undefined ? sMeta.score : (priorMeta?.score ?? null),
+        ratingsCount:
+          sMeta?.ratingsCount !== undefined
+            ? sMeta.ratingsCount
+            : (priorMeta?.ratingsCount ?? null),
+        reviewsCount:
+          sMeta?.reviewsCount !== undefined
+            ? sMeta.reviewsCount
+            : (priorMeta?.reviewsCount ?? null),
+        contentRating:
+          sMeta?.contentRating !== undefined
+            ? sMeta.contentRating
+            : (priorMeta?.contentRating ?? null),
+        contentRatingIcon:
+          sMeta?.contentRatingIcon !== undefined
+            ? sMeta.contentRatingIcon
+            : (priorMeta?.contentRatingIcon ?? null),
+        releasedOn:
+          sMeta?.releasedOn !== undefined
+            ? sMeta.releasedOn
+            : (priorMeta?.releasedOn ?? null),
+        minAndroid:
+          sMeta?.minAndroid !== undefined
+            ? sMeta.minAndroid
+            : (priorMeta?.minAndroid ?? null),
+        inAppPurchases:
+          sMeta?.inAppPurchases !== undefined
+            ? sMeta.inAppPurchases
+            : (priorMeta?.inAppPurchases ?? null),
+        permissionGroups:
+          sMeta?.permissionGroups !== undefined
+            ? sMeta.permissionGroups
+            : (priorMeta?.permissionGroups ?? []),
+        screenshots:
+          sMeta?.screenshots !== undefined
+            ? sMeta.screenshots
+            : (priorMeta?.screenshots ?? []),
+        featuredReviews:
+          sMeta?.featuredReviews !== undefined
+            ? sMeta.featuredReviews
+            : (priorMeta?.featuredReviews ?? []),
+      };
+    }
+
+    // Collect media assets to mirror into R2 (bounded, max 24 per entire invocation across apps)
+    if (
+      env.PLAY_MEDIA &&
+      mergedMetadata &&
+      mirroredMediaCount < MAX_MEDIA_PER_INVOCATION
+    ) {
+      const assetsToMirror: PlayMediaAsset[] = [];
+      if (iconAsset && !iconAsset.fallbackPath) assetsToMirror.push(iconAsset);
+      if (
+        mergedMetadata.contentRatingIcon &&
+        !mergedMetadata.contentRatingIcon.fallbackPath
+      ) {
+        assetsToMirror.push(mergedMetadata.contentRatingIcon);
+      }
+      for (const s of mergedMetadata.screenshots) {
+        if (!s.fallbackPath) assetsToMirror.push(s);
+      }
+      for (const r of mergedMetadata.featuredReviews) {
+        if (r.avatar && !r.avatar.fallbackPath) assetsToMirror.push(r.avatar);
+      }
+      const remainingQuota = MAX_MEDIA_PER_INVOCATION - mirroredMediaCount;
+      if (assetsToMirror.length > 0 && remainingQuota > 0) {
+        const toMirror = assetsToMirror.slice(0, remainingQuota);
+        await mirrorAssetsBatch(
+          env.PLAY_MEDIA,
+          app.packageName,
+          toMirror,
+          remainingQuota,
+          4,
+        );
+        mirroredMediaCount += toMirror.length;
+      }
+    }
 
     const appRecord: AppVersionRecord = {
       appName: app.name,
       playVersion,
+      playVersionCode,
+      playVersionSource,
+      playVersionVerifiedForUpdatedAt,
+      needsAuthenticatedVersion,
       iconUrl,
+      iconAsset,
       updatedAt,
       updatedOn,
       checkedAt: now,
@@ -239,6 +401,7 @@ export async function performVersionCheck(
       targetCompatibility: targetCompat,
       outstandingRequest,
       outstandingRequestId: outstandingRequest?.requestId ?? null,
+      playMetadata: mergedMetadata,
     };
     await saveAppRecord(env, app.packageName, appRecord);
     appsRecord[app.packageName] = appRecord;
@@ -776,6 +939,10 @@ export default {
       if (submission.acquiredPlayVersion) {
         const acquired = submission.acquiredPlayVersion.trim();
         appRecord.playVersion = acquired;
+        appRecord.playVersionCode = submission.acquiredPlayVersionCode ?? null;
+        appRecord.playVersionSource = 'authenticated';
+        appRecord.playVersionVerifiedForUpdatedAt = appRecord.updatedAt ?? null;
+        appRecord.needsAuthenticatedVersion = false;
         appRecord.status = compareAppVersions(
           appRecord.latestSupportedVersion,
           acquired,
@@ -825,6 +992,184 @@ export default {
       });
     }
 
+    // 3. Authenticated Play metadata enrichment endpoint
+    if (url.pathname === '/api/play-metadata' && request.method === 'POST') {
+      const authHeader = request.headers.get('Authorization') || '';
+      const token = authHeader.startsWith('Bearer ')
+        ? authHeader.slice(7).trim()
+        : '';
+
+      if (
+        !env.COMPATIBILITY_STATUS_SECRET ||
+        !token ||
+        !timingSafeEqual(token, env.COMPATIBILITY_STATUS_SECRET)
+      ) {
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+          status: 401,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+
+      let body: PlayMetadataSubmission;
+      try {
+        body = (await request.json()) as PlayMetadataSubmission;
+      } catch {
+        return new Response(JSON.stringify({ error: 'Malformed JSON' }), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+
+      if (!body || !Array.isArray(body.results)) {
+        return new Response(
+          JSON.stringify({
+            error: 'Invalid submission format: results array required',
+          }),
+          {
+            status: 400,
+            headers: { 'Content-Type': 'application/json' },
+          },
+        );
+      }
+
+      const seenPackages = new Set<string>();
+      const updatedPackages: string[] = [];
+
+      for (const item of body.results) {
+        if (
+          !item ||
+          typeof item !== 'object' ||
+          typeof item.packageName !== 'string' ||
+          !item.packageName.trim() ||
+          typeof item.versionName !== 'string' ||
+          !item.versionName.trim() ||
+          !Number.isInteger(item.versionCode) ||
+          item.versionCode <= 0
+        ) {
+          return new Response(
+            JSON.stringify({ error: 'Malformed result item' }),
+            {
+              status: 400,
+              headers: { 'Content-Type': 'application/json' },
+            },
+          );
+        }
+
+        if (seenPackages.has(item.packageName)) {
+          return new Response(
+            JSON.stringify({
+              error: `Duplicate package in submission: ${item.packageName}`,
+            }),
+            {
+              status: 400,
+              headers: { 'Content-Type': 'application/json' },
+            },
+          );
+        }
+        seenPackages.add(item.packageName);
+
+        const appRecord = await loadAppRecord(env, item.packageName);
+        if (!appRecord) {
+          return new Response(
+            JSON.stringify({ error: `Unknown package: ${item.packageName}` }),
+            {
+              status: 400,
+              headers: { 'Content-Type': 'application/json' },
+            },
+          );
+        }
+
+        // listingUpdatedAt must equal current scraped updatedAt
+        const currentUpdatedAt = appRecord.updatedAt ?? null;
+        if (item.listingUpdatedAt !== currentUpdatedAt) {
+          return new Response(
+            JSON.stringify({
+              error: `Stale listingUpdatedAt for package ${item.packageName}`,
+              currentUpdatedAt,
+              receivedUpdatedAt: item.listingUpdatedAt,
+            }),
+            {
+              status: 409,
+              headers: { 'Content-Type': 'application/json' },
+            },
+          );
+        }
+
+        appRecord.playVersion = item.versionName.trim();
+        appRecord.playVersionCode = item.versionCode;
+        appRecord.playVersionSource = 'authenticated';
+        appRecord.playVersionVerifiedForUpdatedAt = currentUpdatedAt;
+        appRecord.needsAuthenticatedVersion = false;
+        appRecord.status = compareAppVersions(
+          appRecord.latestSupportedVersion,
+          appRecord.playVersion,
+        );
+
+        await saveAppRecord(env, item.packageName, appRecord);
+        updatedPackages.push(item.packageName);
+      }
+
+      return new Response(JSON.stringify({ success: true, updatedPackages }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    // 4. Public R2 media fallback proxy route
+    if (
+      url.pathname.startsWith('/media/play/') &&
+      (request.method === 'GET' || request.method === 'HEAD')
+    ) {
+      // Expected path: /media/play/<package>/<hash>.<ext>
+      const segments = url.pathname.replace(/^\/media\/play\//, '').split('/');
+      if (segments.length !== 2) {
+        return new Response('Invalid media path', { status: 400 });
+      }
+      const [pkg, file] = segments;
+      if (
+        !/^[a-zA-Z0-9_.]+$/.test(pkg) ||
+        !/^[a-f0-9]{64}\.(png|jpg|webp|gif|svg)$/i.test(file)
+      ) {
+        return new Response('Invalid media path parameters', { status: 400 });
+      }
+
+      if (!env.PLAY_MEDIA) {
+        return new Response('Media bucket unavailable', { status: 503 });
+      }
+
+      const r2Key = `play-media/${pkg}/${file}`;
+      const object = await env.PLAY_MEDIA.get(r2Key);
+
+      if (!object) {
+        return new Response('Media not found', {
+          status: 404,
+          headers: {
+            'Cache-Control': 'no-cache',
+            'Access-Control-Allow-Origin': '*',
+          },
+        });
+      }
+
+      const headers = new Headers();
+      object.writeHttpMetadata(headers);
+      headers.set('ETag', object.httpEtag);
+      headers.set('Cache-Control', 'public, max-age=31536000, immutable');
+      headers.set('Access-Control-Allow-Origin', '*');
+      headers.set('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+
+      if (request.headers.get('if-none-match') === object.httpEtag) {
+        return new Response(null, {
+          status: 304,
+          headers,
+        });
+      }
+
+      return new Response(request.method === 'HEAD' ? null : object.body, {
+        status: 200,
+        headers,
+      });
+    }
+
     // 3. Aggregate compatibility badge
     if (url.pathname === '/badges/compatibility.svg') {
       const payload = await loadStatusPayload(env);
@@ -840,7 +1185,49 @@ export default {
       });
     }
 
-    // 4. Per-package compatibility badge: /badges/compatibility/:packageName.svg
+    // 4. Aggregate tests badge: /badges/tests.svg
+    if (
+      url.pathname === '/badges/tests.svg' ||
+      url.pathname === '/badges/tests'
+    ) {
+      const payload = await loadStatusPayload(env);
+      let totalPassed = 0;
+      let totalFailed = 0;
+
+      for (const appRecord of Object.values(payload.apps)) {
+        const compat = appRecord.targetCompatibility;
+        if (compat) {
+          totalPassed += compat.passedCount ?? 0;
+          totalFailed += compat.failedCount ?? 0;
+        }
+      }
+
+      const totalTests = totalPassed + totalFailed;
+      const amountStr = `${totalPassed}/${totalTests}`;
+
+      let color = '#cf222e'; // red (<90% or 0 tests)
+      if (totalTests > 0) {
+        const pct = (totalPassed / totalTests) * 100;
+        if (totalPassed === totalTests) {
+          color = '#238636'; // green (100%)
+        } else if (pct >= 90) {
+          color = '#bc4c00'; // orange (90-99%)
+        } else {
+          color = '#cf222e'; // red (<90%)
+        }
+      }
+
+      const svg = renderBadgeSvg('tests passing', amountStr, color, true);
+      return new Response(svg, {
+        status: 200,
+        headers: {
+          'Content-Type': 'image/svg+xml; charset=utf-8',
+          'Cache-Control': 'public, max-age=300',
+        },
+      });
+    }
+
+    // 5. Per-package compatibility badge: /badges/compatibility/:packageName.svg
     if (url.pathname.startsWith('/badges/compatibility/')) {
       const rawPkg = url.pathname
         .replace('/badges/compatibility/', '')
@@ -897,7 +1284,50 @@ export default {
       });
     }
 
-    // 5. Download Statistics Charts
+    // 6. Per-package tests passing badge: /badges/tests/:packageName.svg
+    if (url.pathname.startsWith('/badges/tests/')) {
+      const rawPkg = url.pathname
+        .replace('/badges/tests/', '')
+        .replace(/\.svg$/, '');
+      const packageName = decodeURIComponent(rawPkg);
+
+      const record = await loadAppRecord(env, packageName);
+      const targetCompat = record?.targetCompatibility;
+      const passedCount = targetCompat?.passedCount ?? 0;
+      const failedCount = targetCompat?.failedCount ?? 0;
+      const totalTests = passedCount + failedCount;
+
+      // For apps with no tests (including untested or 0/0), return an empty SVG so
+      // the image link can always be present without displaying an empty badge.
+      if (!targetCompat || totalTests === 0) {
+        return new Response(
+          '<svg xmlns="http://www.w3.org/2000/svg" width="0" height="0"/>',
+          {
+            status: 200,
+            headers: {
+              'Content-Type': 'image/svg+xml; charset=utf-8',
+              'Cache-Control': 'public, max-age=300',
+            },
+          },
+        );
+      }
+
+      const status = targetCompat.status;
+      const allPassing = status === 'compatible' && failedCount === 0;
+      const color = allPassing ? '#238636' : '#cf222e';
+      const amountStr = `${passedCount}/${totalTests}`;
+
+      const svg = renderBadgeSvg('tests passing', amountStr, color, true);
+      return new Response(svg, {
+        status: 200,
+        headers: {
+          'Content-Type': 'image/svg+xml; charset=utf-8',
+          'Cache-Control': 'public, max-age=300',
+        },
+      });
+    }
+
+    // 7. Download Statistics Charts
     if (
       url.pathname === '/charts/total-downloads.svg' &&
       request.method === 'GET'

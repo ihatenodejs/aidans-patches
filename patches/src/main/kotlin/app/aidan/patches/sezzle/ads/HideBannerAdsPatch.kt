@@ -1,7 +1,7 @@
 package app.aidan.patches.sezzle.ads
 
 import app.aidan.patches.sezzle.shared.Constants.COMPATIBILITY_SEZZLE
-import app.aidan.patches.sezzle.shared.HermesBundleEditor
+import app.aidan.patches.shared.HermesBundleEditor
 import app.aidan.patches.shared.compositeFeaturePatch
 import app.morphe.patcher.extensions.InstructionExtensions.addInstructions
 import app.morphe.patcher.patch.BytecodePatchContext
@@ -116,14 +116,12 @@ private fun findUniqueSequence(bytes: ByteArray, sequence: ByteArray, descriptio
 }
 
 /**
- * Cross-Layer Companion Asset Patch:
+ * Unified Composite Feature Patch:
  *
- * In Morphe, bytecode patches exclusively mutate Dalvik DEX ASTs and run in STRIP_FAST mode,
- * which does not decode or repackage APK assets (such as assets/index.android.bundle).
- * To ensure post-payment offers (Thanks network and Rokt placements) in Hermes bytecode
- * are stripped whenever "Remove Ads and Tracking" is enabled, this companion rawResourcePatch
- * is linked via `dependsOn`. Morphe's patcher graph automatically resolves the dependency,
- * stages the bundle, applies the 10 bytecode edits, and repackages it into the output APK.
+ * Combines Dalvik DEX bytecode neutralization of native ad and tracking SDKs
+ * with Hermes bytecode substitutions in assets/index.android.bundle (stripping
+ * Thanks network and Rokt post-payment reward modals). Applies nine Hermes bytecode
+ * edits, followed by an automatic footer SHA-1 rehash.
  */
 @Suppress("unused")
 val removeAdsAndTrackingPatch = compositeFeaturePatch(

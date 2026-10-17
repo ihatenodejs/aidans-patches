@@ -59,6 +59,16 @@ jobs:
       - name: Sync apk-lab dependencies
         run: uv sync --locked --project tools/apk-lab
 
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: tools/play-metadata -> tools/play-metadata/target
+
       - name: Audit formatting
         run: bun run format:check
 

@@ -18,7 +18,7 @@ My [Morphe](https://morphe.software) patches
 [![AI Generated](https://img.shields.io/badge/AI%20Generated-orange?logo=googlegemini&logoColor=white)](https://img.shields.io/badge/AI%20Generated-orange?logo=googlegemini&logoColor=white)
 
 [![APK Lab Tests](https://github.com/ihatenodejs/aidans-patches/actions/workflows/apk-lab-tests.yml/badge.svg)](https://github.com/ihatenodejs/aidans-patches/actions/workflows/apk-lab-tests.yml)
-[![Compatibility](https://worker.patch.p0ntus.com/badges/compatibility.svg)](https://patch.p0ntus.com/status)
+[![Tests Passing](https://worker.patch.p0ntus.com/badges/tests.svg)](https://patch.p0ntus.com/status)
 
 [![Add to Morphe badge](https://github.com/ihatenodejs/aidans-patches/blob/main/assets/add-to-morphe.png?raw=true)](https://morphe.software/add-source?github=ihatenodejs/aidans-patches)
 <a href="https://www.buymeacoffee.com/ihatenodejs">
@@ -42,9 +42,9 @@ My [Morphe](https://morphe.software) patches
 ## 📱 Supported Applications & Patches
 
 <!-- PATCHES_START EXPANDED -->
-> **[v1.7.0](https://github.com/ihatenodejs/aidans-patches/releases/tag/v1.7.0)**&nbsp;&nbsp;•&nbsp;&nbsp;`main`&nbsp;&nbsp;•&nbsp;&nbsp;60 patches total
+> **[v1.8.0-dev.9](https://github.com/ihatenodejs/aidans-patches/releases/tag/v1.8.0-dev.9)**&nbsp;&nbsp;•&nbsp;&nbsp;`dev`&nbsp;&nbsp;•&nbsp;&nbsp;66 patches total
 <details open>
-<summary>📦 SidelineSwap&nbsp;&nbsp;•&nbsp;&nbsp;4 patches</summary>
+<summary>📦 SidelineSwap&nbsp;&nbsp;•&nbsp;&nbsp;4 patches&nbsp;&nbsp;<a href="https://patch.p0ntus.com/status"><img src="https://worker.patch.p0ntus.com/badges/tests/com.sidelineswap.android.svg" alt="Tests Passing" align="absmiddle"></a></summary>
 <br>
 
 **🎯 Supported versions:**
@@ -62,7 +62,7 @@ My [Morphe](https://morphe.software) patches
 </details>
 
 <details open>
-<summary>📦 AfterShip&nbsp;&nbsp;•&nbsp;&nbsp;11 patches</summary>
+<summary>📦 AfterShip&nbsp;&nbsp;•&nbsp;&nbsp;11 patches&nbsp;&nbsp;<a href="https://patch.p0ntus.com/status"><img src="https://worker.patch.p0ntus.com/badges/tests/com.aftership.AfterShip.svg" alt="Tests Passing" align="absmiddle"></a></summary>
 <br>
 
 **🎯 Supported versions:**
@@ -87,7 +87,7 @@ My [Morphe](https://morphe.software) patches
 </details>
 
 <details open>
-<summary>📦 Blackjack&nbsp;&nbsp;•&nbsp;&nbsp;6 patches</summary>
+<summary>📦 Blackjack&nbsp;&nbsp;•&nbsp;&nbsp;6 patches&nbsp;&nbsp;<a href="https://patch.p0ntus.com/status"><img src="https://worker.patch.p0ntus.com/badges/tests/com.tripledot.blackjack.svg" alt="Tests Passing" align="absmiddle"></a></summary>
 <br>
 
 **🎯 Supported versions:**
@@ -107,7 +107,7 @@ My [Morphe](https://morphe.software) patches
 </details>
 
 <details open>
-<summary>📦 Sezzle&nbsp;&nbsp;•&nbsp;&nbsp;16 patches</summary>
+<summary>📦 Sezzle&nbsp;&nbsp;•&nbsp;&nbsp;16 patches&nbsp;&nbsp;<a href="https://patch.p0ntus.com/status"><img src="https://worker.patch.p0ntus.com/badges/tests/com.sezzle.sezzlemobile.svg" alt="Tests Passing" align="absmiddle"></a></summary>
 <br>
 
 **🎯 Supported versions:**
@@ -137,7 +137,25 @@ My [Morphe](https://morphe.software) patches
 </details>
 
 <details open>
-<summary>📦 Fizz&nbsp;&nbsp;•&nbsp;&nbsp;4 patches</summary>
+<summary>📦 365 Pay&nbsp;&nbsp;•&nbsp;&nbsp;4 patches&nbsp;&nbsp;<a href="https://patch.p0ntus.com/status"><img src="https://worker.patch.p0ntus.com/badges/tests/com.avinside.svg" alt="Tests Passing" align="absmiddle"></a></summary>
+<br>
+
+**🎯 Supported versions:**
+
+| 10.2605.0 |
+| :---: |
+
+| 💊&nbsp;Patch | 📜&nbsp;Description | ⚙️&nbsp;Options |
+|----------|----------------|-----------|
+| [Display Cutout Adaptation](#display-cutout-adaptation) | Dynamically adjusts header height and top padding on devices with camera cutouts or tall status bars so location selectors and action icons clear the camera hole. |  |
+| [Remove Ads](#remove-ads) | Removes in-app promotional message campaigns and popups (OneSignal In-App Messages), neutralizes in-app review and rating prompts, and zeroes Google Play and Huawei Advertising IDs. | • Remove In-App Messages<br>• Remove Review Prompts<br>• Zero Advertising ID |
+| [Remove Tracking](#remove-tracking) | Neutralizes diagnostic telemetry, event logging, and user tracking (Firebase Analytics, Crashlytics, Instana APM, Branch Metrics, and OneSignal session and outcome tracking). | • Disable Firebase Analytics<br>• Disable Firebase Crashlytics<br>• Disable Instana APM<br>• Disable Branch Metrics<br>• Disable OneSignal Telemetry |
+| [Unlock Developer Tools](#unlock-developer-tools) | Exposes the internal developer and diagnostics screen (Environment Settings) on the Welcome Screen, and allows booting directly with Debug Messages or Demo Mode enabled. | • Unlock Developer Settings<br>• Start with Debug Messages<br>• Start in Demo Mode |
+
+</details>
+
+<details open>
+<summary>📦 Fizz&nbsp;&nbsp;•&nbsp;&nbsp;4 patches&nbsp;&nbsp;<a href="https://patch.p0ntus.com/status"><img src="https://worker.patch.p0ntus.com/badges/tests/com.ashtoncofer.Buzz.svg" alt="Tests Passing" align="absmiddle"></a></summary>
 <br>
 
 **🎯 Supported versions:**
@@ -150,12 +168,12 @@ My [Morphe](https://morphe.software) patches
 | [Enable Developer Settings](#enable-developer-settings) | Adds an in-app developer mod menu accessible via a top-bar header button, with controls for Mobile Studio. | • Mobile Studio |
 | [Remove Ads](#remove-ads) | Removes sponsored feed advertisements and optional marketplace listing advertisements from the feed. | • Remove Marketplace Ads |
 | [Remove Tracking and Analytics](#remove-tracking-and-analytics) | Neutralizes first-party client event tracking, Mixpanel analytics, Airbridge and Adjust attribution SDKs, Google Advertising ID (AAID) collection, and bypasses PairIP Play Integrity verification, with options for silent DM screenshots and Sentry telemetry removal. | • Silent Screenshots<br>• Disable Crash Reporting |
-| [Replace Emoji Font with iOS](#replace-emoji-font-with-ios) | Replaces Android system emoji with iOS Apple Color Emoji across Compose UI, posts, comments, and direct messages. |  |
+| [Replace Emoji Font with iOS](#replace-emoji-font-with-ios) | Replaces Android system emoji with iOS Apple Color Emoji across Compose UI, posts, comments, and direct messages (effective on Android 10+ / API 29+). |  |
 
 </details>
 
 <details open>
-<summary>📦 Geocaching&nbsp;&nbsp;•&nbsp;&nbsp;11 patches</summary>
+<summary>📦 Geocaching&nbsp;&nbsp;•&nbsp;&nbsp;9 patches&nbsp;&nbsp;<a href="https://patch.p0ntus.com/status"><img src="https://worker.patch.p0ntus.com/badges/tests/com.groundspeak.geocaching.intro.svg" alt="Tests Passing" align="absmiddle"></a></summary>
 <br>
 
 **🎯 Supported versions:**
@@ -166,10 +184,8 @@ My [Morphe](https://morphe.software) patches
 | 💊&nbsp;Patch | 📜&nbsp;Description | ⚙️&nbsp;Options |
 |----------|----------------|-----------|
 | [Enable Developer Tools and Feature Flags](#enable-developer-tools-and-feature-flags) | Exposes the internal Debug Menu in Settings and provides selectors for LaunchDarkly feature flags, Remote Config controls, and remaining membership gates. | • Expose Debug Menu in Settings<br>• Enable Achievement Debug Tap<br>• Unlock Trails Map Types<br>• Unlock Newsletter Language Settings<br>• Unlock Hide Cache Premium Controls<br>• Enable Cache Details Redesign<br>• Show Total Log Count<br>• Enable Shareables<br>• Enable Collaborative Lists<br>• Enable Lodestones<br>• Enable Edit Log Date<br>• Enable Better Events Filter<br>• Enable Select Cache Types<br>• Enable Diagnostic Flags<br>• Force Map Tray Enabled<br>• Force Hide Last Log DNF<br>• Force Show Downtime Banner<br>• Force Disable Map Auto Update<br>• Force Send Diagnostic Logs<br>• Force Linear Callouts Enabled |
-| [Local Premium](#local-premium) | Enables local Premium membership status across profile and account screens, removes upgrade promotions, banners, icons, and server-dependent profile statistics, and preserves loaded non-traditional cache details. |  |
+| [Local Premium](#local-premium) | Enables local Premium membership status across profile and account screens, removes upgrade promotions, banners, icons, and server-dependent profile statistics, and enriches public cache details (description, hints, owner) when server blocks basic accounts. | • Show Local Premium Warnings |
 | [OpenStreetMap Drop-in Replacement](#openstreetmap-drop-in-replacement) | Replaces Google Maps with OpenStreetMap (MapLibre vector engine) and adds in-app OpenStreetMap style switching and custom URL configuration to Map settings. |  |
-| [OpenStreetMap Preview Assets](#openstreetmap-preview-assets) | Replaces proprietary Google Map type preview webp images with rendered OpenStreetMap style thumbnails in a busy location. |  |
-| [OpenStreetMap Resource Strings](#openstreetmap-resource-strings) | Updates map type names and descriptions in strings.xml to reflect OpenStreetMap styles. |  |
 | [Remove Lists](#remove-lists) | Removes the Lists option from the bottom navigation bar. |  |
 | [Remove Shop](#remove-shop) | Removes the Shop Geocaching promotional section and link from the Profile screen. |  |
 | [Remove Tracking and Analytics](#remove-tracking-and-analytics) | Neutralizes first-party analytics (AnalyticsRepo), Google Analytics / Firebase (Analytics, Crashlytics, Performance, In-App Messaging), Facebook App Events, Iterable marketing telemetry, Usercentrics consent collection, and zeros the Google Play Advertising ID (AAID). | • Disable Firebase Crashlytics<br>• Disable Facebook Telemetry<br>• Disable Iterable Marketing Telemetry<br>• Disable Usercentrics Consent Telemetry |
@@ -180,7 +196,24 @@ My [Morphe](https://morphe.software) patches
 </details>
 
 <details open>
-<summary>📦 Adobe Scan&nbsp;&nbsp;•&nbsp;&nbsp;5 patches</summary>
+<summary>📦 NHL&nbsp;&nbsp;•&nbsp;&nbsp;3 patches&nbsp;&nbsp;<a href="https://patch.p0ntus.com/status"><img src="https://worker.patch.p0ntus.com/badges/tests/com.nhl.gc1112.free.svg" alt="Tests Passing" align="absmiddle"></a></summary>
+<br>
+
+**🎯 Supported versions:**
+
+| 17.0.0 |
+| :---: |
+
+| 💊&nbsp;Patch | 📜&nbsp;Description | ⚙️&nbsp;Options |
+|----------|----------------|-----------|
+| [Remove Ads](#remove-ads) | Removes Google Ad Manager banner and native advertisements, disables Blaze story/moment sponsored placements, blocks Google Interactive Media Ads (IMA) video ad requests, and neutralizes Brightcove IMA mid-roll and pre-roll ad playback. | • Remove Promotions Carousel |
+| [Remove Tracking](#remove-tracking) | Removes the OneTrust CMP tracking consent popup, zeros Google Play Advertising ID (AAID), blocks host application analytics, disables Firebase Analytics, AppMeasurement, Firebase Performance Monitoring, Crashlytics, and Sessions telemetry, neutralizes UrbanAirship and Blaze tracking and logging, suppresses Brightcove video metrics reporting, and blocks Ticketmaster telemetry. | • Remove Broken Privacy Settings |
+| [Unlock Hidden Features](#unlock-hidden-features) | Unlocks the internal Developer Settings menu, Draft Mini Tracker, and NHL GameZone on the Home surface, with independent options for each feature. | • Enable Developer Tools & Settings<br>• Enable Draft Mini Tracker<br>• Show GameZone on Home |
+
+</details>
+
+<details open>
+<summary>📦 Adobe Scan&nbsp;&nbsp;•&nbsp;&nbsp;6 patches&nbsp;&nbsp;<a href="https://patch.p0ntus.com/status"><img src="https://worker.patch.p0ntus.com/badges/tests/com.adobe.scan.android.svg" alt="Tests Passing" align="absmiddle"></a></summary>
 <br>
 
 **🎯 Supported versions:**
@@ -191,7 +224,8 @@ My [Morphe](https://morphe.software) patches
 | 💊&nbsp;Patch | 📜&nbsp;Description | ⚙️&nbsp;Options |
 |----------|----------------|-----------|
 | [Remove Ads and Tracking](#remove-ads-and-tracking) | Disables Adobe, Branch, Facebook, Creative SDK, and Crashlytics telemetry; removes in-app ads and review prompts; blocks install-referrer collection; and zeroes the Google Play Advertising ID. | • Remove Settings |
-| [Remove Login](#remove-login) | Starts Adobe Scan in its existing account-free local workspace and removes account sign-in gates; Adobe cloud features are unavailable. | • Clean Up Auth Components<br>• Remove Link Sharing<br>• Remove Edit Text<br>• Remove Move<br>• Remove Save as Word Doc |
+| [Remove Attribution](#remove-attribution) | Names new scans 'Scan on [date]' instead of 'Adobe Scan [date]' and removes the attribution text from shared files. | • Remove Scan Name Attribution<br>• Remove Share Attribution Text |
+| [Remove Login](#remove-login) | Starts Adobe Scan in its existing account-free local workspace and removes account sign-in gates; Adobe cloud features are unavailable. | • Clean Up Auth Components<br>• Remove Link Sharing<br>• Remove Edit Text<br>• Remove Move<br>• Remove Save as Word Doc<br>• Remove Compress PDF |
 | [Remove Useless/Promotional Items](#remove-useless-promotional-items) | Removes promotional, feedback, and support items from Settings and file menus. | • About Adobe Scan<br>• Help<br>• Rate App<br>• Online Support Forum<br>• Share This App<br>• Fill & Sign<br>• Open in Adobe Acrobat |
 | [Unlock Premium](#unlock-premium) | Enables locally executable premium OCR, editing, compression, and page-organization tools without cloud or GenAI access. | • Remove Broken Features<br>• Enable Cloud Tools (Experimental) |
 | [Use System Font](#use-system-font) | Overrides Adobe Clean fonts across XML layouts, dialogs, and Jetpack Compose screens with the device's system font. |  |
@@ -199,7 +233,7 @@ My [Morphe](https://morphe.software) patches
 </details>
 
 <details open>
-<summary>📦 Canvas Student&nbsp;&nbsp;•&nbsp;&nbsp;1 patch</summary>
+<summary>📦 Canvas Student&nbsp;&nbsp;•&nbsp;&nbsp;1 patch&nbsp;&nbsp;<a href="https://patch.p0ntus.com/status"><img src="https://worker.patch.p0ntus.com/badges/tests/com.instructure.candroid.svg" alt="Tests Passing" align="absmiddle"></a></summary>
 <br>
 
 **🎯 Supported versions:**
@@ -214,7 +248,7 @@ My [Morphe](https://morphe.software) patches
 </details>
 
 <details open>
-<summary>📦 Navigate360 Student&nbsp;&nbsp;•&nbsp;&nbsp;2 patches</summary>
+<summary>📦 Navigate360 Student&nbsp;&nbsp;•&nbsp;&nbsp;2 patches&nbsp;&nbsp;<a href="https://patch.p0ntus.com/status"><img src="https://worker.patch.p0ntus.com/badges/tests/com.eab.se.svg" alt="Tests Passing" align="absmiddle"></a></summary>
 <br>
 
 **🎯 Supported versions:**
@@ -234,7 +268,7 @@ My [Morphe](https://morphe.software) patches
 
 ### Prerequisites
 
-- JDK 17+ (JDK 27 tested)
+- JDK 21+ (Eclipse Temurin baseline)
 - Android SDK (set `sdk.dir` in `local.properties` or export `ANDROID_HOME`)
 
 ### Build Command

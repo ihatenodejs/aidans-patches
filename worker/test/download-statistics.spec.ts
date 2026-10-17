@@ -266,6 +266,68 @@ describe('Download statistics collection and aggregation', () => {
     const currentKv = await env.PATCHES_KV.get(DOWNLOAD_STATISTICS_KV_KEY);
     expect(currentKv).toBe(originalSeededJson);
   });
+
+  it('includes Authorization header when GITHUB_TOKEN is configured in environment', async () => {
+    let capturedHeaders: HeadersInit | undefined;
+    globalThis.fetch = vi.fn(
+      async (_input: RequestInfo | URL, init?: RequestInit) => {
+        capturedHeaders = init?.headers;
+        return new Response(
+          JSON.stringify([
+            {
+              draft: false,
+              tag_name: 'v1.0.0',
+              assets: [{ id: 4001, download_count: 10 }],
+            },
+          ]),
+          { status: 200 },
+        );
+      },
+    );
+
+    const envWithToken: WorkerEnv = {
+      ...workerEnv,
+      GITHUB_TOKEN: 'gho_test_secret_token_123',
+    };
+
+    await refreshDownloadStatistics(envWithToken);
+
+    expect(capturedHeaders).toBeDefined();
+    const headers = new Headers(capturedHeaders);
+    expect(headers.get('Authorization')).toBe(
+      'Bearer gho_test_secret_token_123',
+    );
+  });
+
+  it('omits Authorization header when GITHUB_TOKEN is not configured', async () => {
+    let capturedHeaders: HeadersInit | undefined;
+    globalThis.fetch = vi.fn(
+      async (_input: RequestInfo | URL, init?: RequestInit) => {
+        capturedHeaders = init?.headers;
+        return new Response(
+          JSON.stringify([
+            {
+              draft: false,
+              tag_name: 'v1.0.0',
+              assets: [{ id: 4002, download_count: 10 }],
+            },
+          ]),
+          { status: 200 },
+        );
+      },
+    );
+
+    const envWithoutToken: WorkerEnv = {
+      ...workerEnv,
+      GITHUB_TOKEN: undefined,
+    };
+
+    await refreshDownloadStatistics(envWithoutToken);
+
+    expect(capturedHeaders).toBeDefined();
+    const headers = new Headers(capturedHeaders);
+    expect(headers.has('Authorization')).toBe(false);
+  });
 });
 
 describe('Scheduled task dispatching', () => {

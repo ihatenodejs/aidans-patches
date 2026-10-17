@@ -36,11 +36,11 @@ Scope: the Python 3.12+ `apk-lab` CLI, its deterministic workspaces/toolchain, a
 
 ## Managed Workspace Invariant
 
-All APK extraction/decompilation uses `.apk-lab/<package>/...` through `WorkspaceManager`.
+All APK extraction/decompilation uses `.apk-lab/<package>/...` (or custom root specified via global `--workspace-root PATH` before the subcommand) through `WorkspaceManager`.
 
 - Never create ad hoc unzip/JADX/Apktool directories elsewhere in the repo.
 - Never use raw `rm -rf` on a workspace.
-- Use `apk-lab clean --run <path>` or `apk-lab clean --package <pkg>`; cleanup intentionally refuses escaped, symlinked, or unmarked paths.
+- Use `apk-lab clean --run <path>` (strictly rejects invalid markers or uncontained paths) or `apk-lab clean --package <pkg>` / `--stale <days>` (skips malformed or unmarked runs and cleans valid entries).
 - `inspect` should not create a persistent workspace; analysis/check commands print their managed location and cleanup command.
 
 ## Core Commands
@@ -60,12 +60,19 @@ uv run --project tools/apk-lab apk-lab check path/to/app.apkm \
   --package com.example.app \
   --all
 
+# Rapid inner iteration loop during patch authoring: builds patches, locates artifact,
+# negotiates keystore, signs, deploys, and launches
+uv run --project tools/apk-lab apk-lab dev <app>
+
+# Or deploy explicitly:
 uv run --project tools/apk-lab apk-lab deploy path/to/app.apkm \
   --mpp patches/build/libs/patches-X.Y.Z.mpp \
   --package com.example.app \
   --all --launch
 uv run --project tools/apk-lab apk-lab monitor \
   --package com.example.app --timeout 10.0 --dump-threads
+uv run --project tools/apk-lab apk-lab crash-trace \
+  --package com.example.app
 
 uv run --project tools/apk-lab apk-lab clean --package com.example.app
 ```
@@ -74,12 +81,12 @@ Targeted tools: `asm`, `il2cpp`, `unity`, `inspect-code`, `validate-smali`, `res
 
 ## Compatibility Contract
 
-`apk-lab check ... --all` must independently exercise every compatible patch plus each inverted boolean-option case and verify:
+`apk-lab check ... --all` tests the baseline patch configuration plus each independent boolean-option inversion and verifies:
 
 - Morphe reports success and produces an APK.
-- Package name, version name, and version code remain unchanged.
+- Package name and version code remain unchanged.
 - Android `dexdump -c` structural verification passes.
-- Expected archive members change while unrelated sentinels remain unchanged.
+- At least one patchable member (DEX, manifest/resources, assets/lib) is modified in the output.
 - Injected extension classes are inventoried when present.
 
 Never declare a target version compatible from `inspect`/`compare` metadata alone. For app updates, first capture the forced failing baseline, remap against targeted analysis, rebuild, pass `check --all`, and smoke the actual device flow.

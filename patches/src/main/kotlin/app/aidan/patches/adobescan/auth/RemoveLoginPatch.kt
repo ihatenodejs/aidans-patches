@@ -43,6 +43,8 @@ private const val FILE_LIST_TOOLS = "Lut/p0;"
 private const val SCAN_FILE = "Lcom/adobe/scan/android/file/m0;"
 private const val RES_WAITING_TO_UPLOAD = 0x7f142937
 private const val RES_FILE_LIST_MOVE = 0x7f142396
+private const val RES_COMPRESS_PDF = 0x7f1421b3
+private const val RES_SEND_COMPRESSED = 0x7f1427dd
 
 @Suppress("unused")
 val removeLoginPatch = bytecodePatch(
@@ -56,7 +58,7 @@ val removeLoginPatch = bytecodePatch(
         key = "cleanUpAuthComponents",
         default = true,
         title = "Clean Up Auth Components",
-        description = "Removes the profile icon and sign-out option from the Settings menu."
+        description = "Removes the profile icon, sign-out, and sign-in options from the Settings menu."
     )
     val removeLinkSharing = booleanOption(
         key = "removeLinkSharing",
@@ -81,6 +83,12 @@ val removeLoginPatch = bytecodePatch(
         default = true,
         title = "Remove Save as Word Doc",
         description = "Removes the cloud-dependent Save as Word doc option from scan cards."
+    )
+    val removeCompressPdf = booleanOption(
+        key = "removeCompressPdf",
+        default = true,
+        title = "Remove Compress PDF",
+        description = "Removes the broken Compress PDF option from file option menus and the Share sheet."
     )
 
     execute {
@@ -109,6 +117,9 @@ val removeLoginPatch = bytecodePatch(
         }
         if (removeSaveAsWord.value != false) {
             removeSaveAsWord()
+        }
+        if (removeCompressPdf.value != false) {
+            removeCompressPdf()
         }
     }
 }
@@ -423,20 +434,21 @@ private fun BytecodePatchContext.cleanUpAuthComponents() {
         invoke-virtual {p0, v0}, Landroidx/fragment/app/Fragment;->getString(I)Ljava/lang/String;
         move-result-object v0
         invoke-virtual {p0, v0}, Landroidx/preference/b;->o(Ljava/lang/String;)Landroidx/preference/Preference;
-        const/4 v1, 0x0
-        invoke-virtual {v0, v1}, Landroidx/preference/Preference;->C(Z)V
+        move-result-object v0
+        const/4 p1, 0x0
+        invoke-virtual {v0, p1}, Landroidx/preference/Preference;->C(Z)V
         const v0, 0x7f141f75
         invoke-virtual {p0, v0}, Landroidx/fragment/app/Fragment;->getString(I)Ljava/lang/String;
         move-result-object v0
         invoke-virtual {p0, v0}, Landroidx/preference/b;->o(Ljava/lang/String;)Landroidx/preference/Preference;
         move-result-object v0
-        invoke-virtual {v0, v1}, Landroidx/preference/Preference;->C(Z)V
+        invoke-virtual {v0, p1}, Landroidx/preference/Preference;->C(Z)V
         const v0, 0x7f141f74
         invoke-virtual {p0, v0}, Landroidx/fragment/app/Fragment;->getString(I)Ljava/lang/String;
         move-result-object v0
         invoke-virtual {p0, v0}, Landroidx/preference/b;->o(Ljava/lang/String;)Landroidx/preference/Preference;
         move-result-object v0
-        invoke-virtual {v0, v1}, Landroidx/preference/Preference;->C(Z)V
+        invoke-virtual {v0, p1}, Landroidx/preference/Preference;->C(Z)V
         """.trimIndent()
     )
 }
@@ -614,4 +626,67 @@ private fun BytecodePatchContext.suppressWaitingToUpload() {
 
     val narrowInst = instructions[waitingUploadIndex] as OneRegisterInstruction
     bMethod.replaceInstruction(waitingUploadIndex, "const/4 v${narrowInst.registerA}, 0x0")
+}
+
+/**
+ * Neutralizes the Compress PDF option in File Options bottom sheet
+ * and Send compressed in the Share bottom sheet.
+ * Post-save PDF compression requires Adobe Document Cloud server infrastructure
+ * which is non-functional offline.
+ */
+private fun BytecodePatchContext.removeCompressPdf() {
+    val fileOptionsClass = mutableClassDefByOrNull(FILE_OPTIONS_MENU_HELPER)
+        ?: throw PatchException("FileOptionsMenuBottomSheet class $FILE_OPTIONS_MENU_HELPER not found")
+    val optionsMethod = fileOptionsClass.methods.singleOrNull {
+        it.name == "a" &&
+            it.parameterTypes.map(CharSequence::toString) == listOf("Lqt/a;", "Lfu/b;", "Ljava/util/List;") &&
+            it.returnType == "Lm90/b;" &&
+            it.implementation != null
+    } ?: throw PatchException("FileOptionsMenuBottomSheet options method not found")
+
+    val instructions = optionsMethod.implementation?.instructions
+        ?: throw PatchException("FileOptionsMenuBottomSheet options method has no implementation")
+
+    val compressStringIndex = instructions.indexOfFirst {
+        it is NarrowLiteralInstruction && it.narrowLiteral == RES_COMPRESS_PDF
+    }
+    if (compressStringIndex < 0) {
+        throw PatchException("Could not find Compress PDF resource id in FileOptionsMenuBottomSheet")
+    }
+
+    val addIndex = (compressStringIndex + 1..minOf(instructions.size - 1, compressStringIndex + 15)).firstOrNull { idx ->
+        val ref = (instructions[idx] as? ReferenceInstruction)?.reference as? MethodReference
+        instructions[idx].opcode == Opcode.INVOKE_VIRTUAL &&
+            ref?.name == "add"
+    } ?: throw PatchException("Could not find add instruction for Compress PDF")
+
+    optionsMethod.replaceInstruction(addIndex, "nop")
+
+    val shareSheetClass = mutableClassDefByOrNull(SHARE_BOTTOM_SHEET)
+        ?: throw PatchException("Share bottom sheet class $SHARE_BOTTOM_SHEET not found")
+    val iMethod = shareSheetClass.methods.firstOrNull {
+        it.name == "i" &&
+            it.parameterTypes.map(CharSequence::toString) == listOf("Lqt/d3;", "Lqt/q1;", "Lg3/o;", "I") &&
+            it.returnType == "V" &&
+            it.implementation != null
+    } ?: throw PatchException("Share bottom sheet composable method i not found in $SHARE_BOTTOM_SHEET")
+
+    val iInstructions = iMethod.implementation?.instructions
+        ?: throw PatchException("Method i has no implementation in $SHARE_BOTTOM_SHEET")
+
+    val sendCompressedIndex = iInstructions.indexOfFirst {
+        it is NarrowLiteralInstruction && it.narrowLiteral == RES_SEND_COMPRESSED
+    }
+    if (sendCompressedIndex < 0) {
+        throw PatchException("Could not find Send compressed resource id in Share bottom sheet")
+    }
+
+    val gCallIndex = (sendCompressedIndex + 1..minOf(iInstructions.size - 1, sendCompressedIndex + 25)).firstOrNull { idx ->
+        val ref = (iInstructions[idx] as? ReferenceInstruction)?.reference as? MethodReference
+        iInstructions[idx].opcode == Opcode.INVOKE_STATIC &&
+            ref?.definingClass == SHARE_BOTTOM_SHEET &&
+            ref.name == "g"
+    } ?: throw PatchException("Could not find Share bottom sheet item render call g for Send compressed")
+
+    iMethod.replaceInstruction(gCallIndex, "nop")
 }

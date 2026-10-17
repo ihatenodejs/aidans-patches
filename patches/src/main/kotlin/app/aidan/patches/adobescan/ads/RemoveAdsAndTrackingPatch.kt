@@ -325,8 +325,8 @@ private fun BytecodePatchContext.hideTelemetrySettings() {
         invoke-virtual {p0, v0}, Landroidx/preference/b;->o(Ljava/lang/String;)Landroidx/preference/Preference;
         move-result-object v0
         iget-object v0, v0, Landroidx/preference/Preference;->J:Landroidx/preference/PreferenceGroup;
-        const/4 v1, 0x0
-        invoke-virtual {v0, v1}, Landroidx/preference/Preference;->C(Z)V
+        const/4 p1, 0x0
+        invoke-virtual {v0, p1}, Landroidx/preference/Preference;->C(Z)V
         """.trimIndent()
     )
 }

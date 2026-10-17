@@ -24,9 +24,9 @@ Read `docs/<app>/architecture.md` and `docs/<app>/patches.md` before changing an
 
 A `bytecodePatch` cannot reliably stage raw APK asset changes. If a feature spans DEX plus XML/assets/native libraries:
 
-1. **1-to-1 feature-private companions**: Use `compositeFeaturePatch` from `app.aidan.patches.shared.compositeFeaturePatch` with a `resources { ... }` or `rawResources { ... }` block and a `bytecode { ... }` block. This keeps the internal resource layer encapsulated and prevents bloat in `patches-list.json`. See `geocaching/features/RemoveListsPatch.kt`, `blackjack/customization/AddCustomChipStorePatch.kt`, or `fizz/customization/ReplaceEmojiFontWithIosPatch.kt`.
+1. **1-to-1 feature-private companions**: Use `compositeFeaturePatch` from `app.aidan.patches.shared.compositeFeaturePatch` with a `resources { ... }` or `rawResources { ... }` block and a `bytecode { ... }` block. This keeps the internal resource layer encapsulated and prevents bloat in `patches-list.json`. See `geocaching/features/RemoveListsPatch.kt`, `geocaching/customization/OpenStreetMapPatch.kt`, `blackjack/customization/AddCustomChipStorePatch.kt`, or `fizz/customization/ReplaceEmojiFontWithIosPatch.kt`.
 2. **Shared multi-feature prerequisites**: Define a standalone `resourcePatch` or `rawResourcePatch` and link each dependent patch via `dependsOn(...)`. See `aftership/auth/RemoveLoginPatch.kt` (`bypassSignatureCheckResourcePatch`).
-3. **Multi-companion DAGs**: Define standalone companion patches linked via `dependsOn(...)` when a feature requires multiple resource contexts. See `geocaching/customization/OpenStreetMapPatch.kt`.
+3. **Multi-companion DAGs**: Define standalone companion patches linked via `dependsOn(...)` when a feature requires multiple resource contexts (e.g. both XML resources and raw assets).
 4. Use `extendWith(...)` separately when injected Java extension classes are called.
 ## Declaration Pattern
 
@@ -50,7 +50,7 @@ val samplePatch = bytecodePatch(
 }
 ```
 
-Use `bytecodePatch`, `resourcePatch`, or `rawResourcePatch`; never legacy `@Patch` or `@CompatiblePackage` annotations. Patch names, descriptions, categories, options, and compatibility are public API because metadata generation and UI consume them.
+Use `bytecodePatch`, `resourcePatch`, `rawResourcePatch`, or `compositeFeaturePatch`; never legacy `@Patch` or `@CompatiblePackage` annotations. Patch names, descriptions, categories, options, and compatibility are public API because metadata generation and UI consume them.
 
 ## Bytecode Patterns
 

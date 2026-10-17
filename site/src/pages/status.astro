@@ -1,5 +1,5 @@
 ---
-import { Image } from 'astro:assets';
+import AppIcon from '../components/AppIcon.astro';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import {
   getApps,
@@ -11,8 +11,6 @@ const apps = getApps();
 const initialStatuses = getInitialVersionStatuses();
 const stats = getRepositoryStats();
 const latestReleaseApp = getLatestPlayRelease();
-const workerUrl =
-  import.meta.env.PUBLIC_WORKER_URL || 'https://worker.patch.p0ntus.com';
 
 function getNextCheckCountdown(): string {
   const now = new Date();
@@ -68,11 +66,7 @@ function formatRelativeTime(dateStr: string): string {
   description="Check real-time compatibility for all supported Android apps. See tested versions compared with the latest Google Play releases."
   currentPath="/status"
 >
-  <div
-    class="px-4 sm:px-6 py-10 space-y-8"
-    id="status-container"
-    data-worker-url={workerUrl}
-  >
+  <div class="space-y-8 px-4 py-4 sm:px-6 sm:py-6" id="status-container">
     <!-- Header Section -->
     <div class="space-y-3">
       <h1 class="font-sans text-3xl font-extrabold tracking-tight text-white">
@@ -114,41 +108,36 @@ function formatRelativeTime(dateStr: string): string {
           Latest App Update
         </div>
         <div class="flex items-center gap-2.5 min-h-[32px]">
-          {latestReleaseApp.iconUrl ? (
-            <Image
-              id="latest-release-icon"
-              src={latestReleaseApp.iconUrl}
-              alt={latestReleaseApp.appName}
-              width={24}
-              height={24}
-              class="w-6 h-6 rounded-sm object-cover border border-white/10 shrink-0"
-              loading="eager"
-            />
-          ) : (
-            <span
-              id="latest-release-fallback-icon"
-              class="w-6 h-6 rounded-sm bg-zinc-900 border border-white/10 flex items-center justify-center font-mono text-[10px] text-zinc-400 shrink-0"
-            >
-              {latestReleaseApp.appName.charAt(0)}
-            </span>
-          )}
+          <AppIcon
+            id="latest-release-app-icon"
+            packageName={latestReleaseApp?.packageName ?? ''}
+            name={latestReleaseApp?.appName ?? ''}
+            size={24}
+            loading="eager"
+            className="w-6 h-6 rounded-sm border border-white/10 shrink-0"
+            fallbackClassName="rounded-sm font-mono text-[10px]"
+            fallbackColor={latestReleaseApp?.appIconColor}
+          />
           <div class="flex items-baseline gap-2 min-w-0">
-            <span
+            <a
               id="latest-release-name"
-              class="text-2xl font-bold font-sans text-white truncate"
+              href={
+                latestReleaseApp ? `/apps/${latestReleaseApp.appId}` : undefined
+              }
+              class="truncate font-sans text-2xl font-bold text-white transition-colors hover:text-zinc-200"
             >
-              {latestReleaseApp.appName}
-            </span>
+              {latestReleaseApp?.appName ?? 'Live status loading'}
+            </a>
             <span
               id="latest-release-time"
               class="font-mono text-xs text-zinc-400 font-normal shrink-0"
               title={
-                latestReleaseApp.updatedOn
+                latestReleaseApp?.updatedOn
                   ? `Updated on Google Play: ${latestReleaseApp.updatedOn}`
                   : ''
               }
             >
-              {latestReleaseApp.updatedAt
+              {latestReleaseApp?.updatedAt
                 ? formatRelativeTime(latestReleaseApp.updatedAt)
                 : ''}
             </span>
@@ -217,29 +206,24 @@ function formatRelativeTime(dateStr: string): string {
           <tbody class="divide-y divide-white/[0.06]" id="status-tbody">
             {initialStatuses.map((item) => (
               <tr
-                class="hover:bg-white/[0.02] transition-colors group/row"
+                class="hover:bg-white/[0.02] group/row"
                 data-package={item.packageName}
                 data-app-name={item.appName.toLowerCase()}
               >
                 <!-- Sticky Left: Application Cell -->
                 <td class="py-3.5 px-4 font-sans font-semibold text-white sticky left-0 z-10 bg-[#080808] group-hover/row:bg-[#0c0c0c] shadow-[1px_0_0_rgba(255,255,255,0.08)] whitespace-nowrap">
                   <div class="flex items-center gap-2.5">
-                    {item.iconUrl ? (
-                      <Image
-                        src={item.iconUrl}
-                        alt={item.appName}
-                        width={20}
-                        height={20}
-                        class="w-5 h-5 rounded-sm object-cover border border-white/10 shrink-0"
-                        loading="eager"
-                      />
-                    ) : (
-                      <span class="w-5 h-5 rounded-sm bg-zinc-900 border border-white/10 flex items-center justify-center font-mono text-[10px] text-zinc-400 shrink-0">
-                        {item.appName.charAt(0)}
-                      </span>
-                    )}
+                    <AppIcon
+                      packageName={item.packageName}
+                      name={item.appName}
+                      size={20}
+                      loading="eager"
+                      className="w-5 h-5 rounded-sm border border-white/10 shrink-0"
+                      fallbackClassName="rounded-sm font-mono text-[10px]"
+                      fallbackColor={item.appIconColor}
+                    />
                     <a
-                      href={`/patches#${item.appId}`}
+                      href={`/apps/${item.appId}`}
                       class="hover:text-zinc-200 transition-colors"
                     >
                       {item.appName}
@@ -340,11 +324,10 @@ function formatRelativeTime(dateStr: string): string {
   <!-- Client-side hydration, countdown timer, and search filter script -->
   <script>
     import { renderCompatBadgeHtml } from '../data/status';
-
-    const container = document.getElementById('status-container');
-    const workerUrl =
-      container?.getAttribute('data-worker-url') ||
-      'https://worker.patch.p0ntus.com';
+    import {
+      loadStatusPayload,
+      type PublicStatusPayload,
+    } from '../data/status-client';
 
     // 1. Live Countdown Timer to next UTC six-hour boundary (for Google Play freshness)
     function updateCountdown() {
@@ -429,11 +412,8 @@ function formatRelativeTime(dateStr: string): string {
         }
       });
     }
-    // 5. Hydrate from live Cloudflare Worker API with sessionStorage caching
-    const STATUS_CACHE_KEY = 'aidans_patches_status_cache';
-    const STATUS_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
-    function applyStatusData(data: Record<string, any>) {
+    function applyStatusData(data: PublicStatusPayload) {
       if (!data || !data.apps) return;
 
       const lastUpdatedEl = document.getElementById('last-updated-label');
@@ -443,23 +423,24 @@ function formatRelativeTime(dateStr: string): string {
       }
 
       // Update Latest Release card if live data is available
-      const latestIconEl = document.getElementById(
-        'latest-release-icon',
-      ) as HTMLImageElement | null;
-      const latestFallbackIconEl = document.getElementById(
-        'latest-release-fallback-icon',
+      const latestAppIconEl = document.getElementById(
+        'latest-release-app-icon',
       );
-      const latestNameEl = document.getElementById('latest-release-name');
+      const latestNameEl = document.getElementById(
+        'latest-release-name',
+      ) as HTMLAnchorElement | null;
       const latestTimeEl = document.getElementById('latest-release-time');
 
-      let latestApp = data.latestRelease;
+      let latestApp =
+        data.latestRelease && data.latestRelease.packageName
+          ? data.latestRelease
+          : null;
       if (!latestApp && data.apps) {
         let maxTime = 0;
-        for (const [pkg, rawAppData] of Object.entries(data.apps)) {
-          const appData = rawAppData as Record<string, any>;
-          if (appData.updatedAt) {
+        for (const [pkg, appData] of Object.entries(data.apps)) {
+          if (appData && appData.updatedAt) {
             const t = new Date(appData.updatedAt).getTime();
-            if (t > maxTime) {
+            if (!Number.isNaN(t) && t > maxTime) {
               maxTime = t;
               const row = document.querySelector(
                 `#status-tbody tr[data-package="${pkg}"]`,
@@ -470,7 +451,7 @@ function formatRelativeTime(dateStr: string): string {
               latestApp = {
                 packageName: pkg,
                 appName: appName || pkg,
-                iconUrl: appData.iconUrl || `/icons/${pkg}.png`,
+                iconUrl: appData.iconUrl,
                 updatedAt: appData.updatedAt,
                 updatedOn: appData.updatedOn,
               };
@@ -480,17 +461,19 @@ function formatRelativeTime(dateStr: string): string {
       }
 
       if (latestApp) {
-        if (latestIconEl) {
-          const iconSrc =
-            latestApp.iconUrl || `/icons/${latestApp.packageName}.png`;
-          latestIconEl.src = iconSrc;
-          latestIconEl.alt = latestApp.appName || 'Latest release icon';
-          latestIconEl.classList.remove('hidden');
-          if (latestFallbackIconEl)
-            latestFallbackIconEl.classList.add('hidden');
+        if (latestAppIconEl && latestApp.packageName) {
+          latestAppIconEl.setAttribute('package-name', latestApp.packageName);
+          if (latestApp.appName) {
+            latestAppIconEl.setAttribute('name', latestApp.appName);
+          }
         }
         if (latestNameEl && latestApp.appName) {
           latestNameEl.textContent = latestApp.appName;
+          const latestRow = document.querySelector(
+            `#status-tbody tr[data-package="${latestApp.packageName}"]`,
+          );
+          const appLink = latestRow?.querySelector<HTMLAnchorElement>('td a');
+          if (appLink) latestNameEl.href = appLink.href;
         }
         if (latestTimeEl) {
           const timeText = latestApp.updatedAt
@@ -558,48 +541,10 @@ function formatRelativeTime(dateStr: string): string {
       });
     }
 
-    (async function hydrate() {
-      try {
-        const cached = sessionStorage.getItem(STATUS_CACHE_KEY);
-        if (cached) {
-          try {
-            const parsed = JSON.parse(cached);
-            if (
-              parsed &&
-              parsed.data &&
-              Date.now() - parsed.timestamp < STATUS_CACHE_TTL_MS
-            ) {
-              applyStatusData(parsed.data);
-              return;
-            }
-          } catch {
-            // Ignore invalid cache JSON
-          }
-        }
-
-        const endpoint =
-          typeof workerUrl !== 'undefined' && workerUrl
-            ? new URL('/api/status', workerUrl).toString()
-            : 'https://worker.patch.p0ntus.com/api/status';
-        const response = await fetch(endpoint);
-        if (!response.ok) return;
-
-        const data = await response.json();
-        if (!data || !data.apps) return;
-
-        try {
-          sessionStorage.setItem(
-            STATUS_CACHE_KEY,
-            JSON.stringify({ data, timestamp: Date.now() }),
-          );
-        } catch {
-          // Ignore storage quota / private browsing errors
-        }
-
-        applyStatusData(data);
-      } catch {
-        // Keep static fallback
+    loadStatusPayload().then((payload) => {
+      if (payload) {
+        applyStatusData(payload);
       }
-    })();
+    });
   </script>
 </BaseLayout>

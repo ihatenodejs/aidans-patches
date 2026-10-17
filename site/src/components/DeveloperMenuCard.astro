@@ -1,0 +1,570 @@
+---
+import BentoCard from './BentoCard.astro';
+import PixelPhoneFrame from './PixelPhoneFrame.astro';
+import WifiIcon from './icons/WifiIcon.astro';
+interface Props {
+  developerPatchCount: number;
+}
+
+const { developerPatchCount } = Astro.props;
+---
+
+<BentoCard title="Developer & Testing Tools" className="overflow-hidden">
+  <!-- Tool icon from Tabler Icons -->
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    width="24"
+    height="24"
+    viewBox="0 0 24 24"
+    slot="icon"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    class="h-4 w-4 shrink-0 text-violet-400"
+  >
+    <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+    <path d="M7 10h3v-3l-3.5 -3.5a6 6 0 0 1 8 8l6 6a2 2 0 0 1 -3 3l-6 -6a6 6 0 0 1 -8 -8l3.5 3.5" />
+  </svg>
+  <p class="mb-6 text-xs leading-relaxed text-zinc-400">
+    Take advantage of our {developerPatchCount} developer-focused patches.
+  </p>
+
+  <div class="mb-6 grid grid-cols-3 gap-2.5">
+    <article class="group/menus relative aspect-square overflow-hidden border border-blue-400/20 bg-blue-950/15 p-3 transition-colors hover:border-blue-300/40">
+      <div class="absolute inset-0 bg-[radial-gradient(circle_at_100%_0%,rgba(96,165,250,0.16),transparent_56%)]"></div>
+      <div class="relative flex h-full flex-col justify-between">
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="24"
+          height="24"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          class="h-6 w-6 text-blue-300 transition-transform duration-300 group-hover/menus:-translate-y-0.5"
+          aria-hidden="true"
+        >
+          <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+          <path d="M8 9l3 3l-3 3" />
+          <path d="M13 15l3 0" />
+          <path d="M3 6a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2h-14a2 2 0 0 1 -2 -2l0 -12" />
+        </svg>
+        <h4 class="font-sans text-xs font-semibold leading-tight tracking-tight text-white">
+          Expose developer menus
+        </h4>
+      </div>
+    </article>
+
+    <article class="group/debug relative aspect-square overflow-hidden border border-amber-400/20 bg-amber-950/15 p-3 transition-colors hover:border-amber-300/40">
+      <div class="absolute inset-0 bg-[radial-gradient(circle_at_0%_0%,rgba(251,191,36,0.16),transparent_56%)]"></div>
+      <div class="relative flex h-full flex-col justify-between">
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="24"
+          height="24"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          class="h-6 w-6 text-amber-300 transition-transform duration-300 group-hover/debug:-translate-y-0.5"
+          aria-hidden="true"
+        >
+          <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+          <path d="M9 9v-1a3 3 0 0 1 6 0v1" />
+          <path d="M8 9h8a6 6 0 0 1 1 3v3a5 5 0 0 1 -10 0v-3a6 6 0 0 1 1 -3" />
+          <path d="M3 13l4 0" />
+          <path d="M17 13l4 0" />
+          <path d="M12 20l0 -6" />
+          <path d="M4 19l3.35 -2" />
+          <path d="M20 19l-3.35 -2" />
+          <path d="M4 7l3.75 2.4" />
+          <path d="M20 7l-3.75 2.4" />
+        </svg>
+        <h4 class="font-sans text-xs font-semibold leading-tight tracking-tight text-white">
+          Unlock debug tools
+        </h4>
+      </div>
+    </article>
+
+    <article class="group/flags relative aspect-square overflow-hidden border border-violet-400/20 bg-violet-950/15 p-3 transition-colors hover:border-violet-300/40">
+      <div class="absolute inset-0 bg-[radial-gradient(circle_at_100%_0%,rgba(192,132,252,0.16),transparent_56%)]"></div>
+      <div class="relative flex h-full flex-col justify-between">
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="24"
+          height="24"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          class="h-6 w-6 text-violet-300 transition-transform duration-300 group-hover/flags:-translate-y-0.5"
+          aria-hidden="true"
+        >
+          <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+          <path d="M14 12a2 2 0 1 0 4 0a2 2 0 1 0 -4 0" />
+          <path d="M2 12a6 6 0 0 1 6 -6h8a6 6 0 0 1 6 6a6 6 0 0 1 -6 6h-8a6 6 0 0 1 -6 -6" />
+        </svg>
+        <h4 class="font-sans text-xs font-semibold leading-tight tracking-tight text-white">
+          Control feature flags
+        </h4>
+      </div>
+    </article>
+  </div>
+
+  <div class="developer-menu-stage">
+    <PixelPhoneFrame
+      className="developer-menu-phone"
+      label="Fizz developer settings menu"
+    >
+      <div class="developer-menu-screen">
+        <!-- Pixel Status Bar -->
+        <div class="pixel-status-bar">
+          <span class="pixel-status-time">7:07</span>
+          <div class="pixel-status-icons">
+            <!-- WiFi icon component from Google Material Symbols -->
+            <WifiIcon size={10} class="pixel-status-icon pixel-wifi-icon" />
+            <!-- Pixel Rounded-Rectangle Battery icon (100% level, smooth rx=8.5, bold text matching real device) -->
+            <svg
+              class="pixel-status-battery"
+              height="11"
+              viewBox="0 0 56 26"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+              aria-label="100% battery"
+            >
+              <!-- Main body: fully solid white with smooth rounded corners rx=8.5 -->
+              <rect
+                x="1"
+                y="0.5"
+                width="46"
+                height="25"
+                rx="8.5"
+                fill="#ffffff"
+              />
+              <!-- Terminal cap on right: solid white -->
+              <rect
+                x="49"
+                y="7"
+                width="3.5"
+                height="12"
+                rx="1.75"
+                fill="#ffffff"
+              />
+              <!-- Text 100: bold, large with minimal padding matching real device -->
+              <text
+                x="23.5"
+                y="13.2"
+                dominant-baseline="central"
+                font-family="'Google Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+                font-size="22"
+                font-weight="900"
+                fill="#1d181e"
+                stroke="#1d181e"
+                stroke-width="0.6"
+                stroke-linejoin="round"
+                text-anchor="middle"
+                letter-spacing="-1.4px"
+              >
+                100
+              </text>
+            </svg>
+          </div>
+        </div>
+
+        <!-- Pixel App Bar (Apps page design: back button and title on same row) -->
+        <div class="developer-menu-appbar">
+          <div class="developer-menu-back" aria-hidden="true">
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M19 12H5M12 19l-7-7 7-7" />
+            </svg>
+          </div>
+          <div class="developer-menu-title">Developer Settings</div>
+        </div>
+
+        <!-- Section 1: Features (grouped card container following Apps page design) -->
+        <div class="developer-menu-section-header">Features</div>
+        <div class="developer-menu-card-group">
+          <!-- Mobile Studio -->
+          <div class="developer-menu-item">
+            <div class="developer-menu-app-icon developer-menu-icon-violet">
+              ✦
+            </div>
+            <div class="developer-menu-item-text">
+              <div class="developer-menu-item-name">Mobile Studio</div>
+              <div class="developer-menu-item-sub">
+                Experiment tools and previews
+              </div>
+            </div>
+          </div>
+          <div class="developer-menu-divider"></div>
+
+          <!-- Debug controls with bug report icon -->
+          <div class="developer-menu-item">
+            <div class="developer-menu-app-icon developer-menu-icon-blue">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="16"
+                height="16"
+                viewBox="0 -960 960 960"
+                fill="currentColor"
+                aria-hidden="true"
+              >
+                <path d="M480-200q66 0 113-47t47-113v-160q0-66-47-113t-113-47q-66 0-113 47t-47 113v160q0 66 47 113t113 47Zm-80-120h160v-80H400v80Zm0-160h160v-80H400v80Zm80 40Zm0 320q-65 0-120.5-32T272-240H160v-80h84q-3-20-3.5-40t-.5-40h-80v-80h80q0-20 .5-40t3.5-40h-84v-80h112q14-23 31.5-43t40.5-35l-64-66 56-56 86 86q28-9 57-9t57 9l88-86 56 56-66 66q23 15 41.5 34.5T688-640h112v80h-84q3 20 3.5 40t.5 40h80v80h-80q0 20-.5 40t-3.5 40h84v80H688q-32 56-87.5 88T480-120Z" />
+              </svg>
+            </div>
+            <div class="developer-menu-item-text">
+              <div class="developer-menu-item-name">Debug controls</div>
+              <div class="developer-menu-item-sub">
+                Internal app settings and feature flags
+              </div>
+            </div>
+          </div>
+          <div class="developer-menu-divider"></div>
+
+          <!-- Restart application -->
+          <div class="developer-menu-item">
+            <div class="developer-menu-app-icon developer-menu-icon-emerald">
+              ↻
+            </div>
+            <div class="developer-menu-item-text">
+              <div class="developer-menu-item-name">Restart application</div>
+              <div class="developer-menu-item-sub">
+                Apply pending state & overlay changes
+              </div>
+            </div>
+          </div>
+          <div class="developer-menu-divider"></div>
+
+          <!-- Action row matching Apps page 'See all apps' layout -->
+          <div class="developer-menu-action-item">
+            <div class="developer-menu-chevron-box">
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M9 18l6-6-6-6" />
+              </svg>
+            </div>
+            <span class="developer-menu-action-label">
+              See all developer options
+            </span>
+          </div>
+        </div>
+
+        <!-- Section 2: General (matching Apps page General section design) -->
+        <div class="developer-menu-section-header">General</div>
+        <div class="developer-menu-card-group">
+          <div class="developer-menu-text-item">
+            <div class="developer-menu-item-name">Default environment</div>
+            <div class="developer-menu-item-sub">
+              Production (api.fizzsocial.com)
+            </div>
+          </div>
+          <div class="developer-menu-divider"></div>
+          <div class="developer-menu-text-item">
+            <div class="developer-menu-item-name">Quick settings shortcut</div>
+            <div class="developer-menu-item-sub">Developer tile enabled</div>
+          </div>
+          <div class="developer-menu-divider"></div>
+          <div class="developer-menu-text-item">
+            <div class="developer-menu-item-name">Network inspector</div>
+            <div class="developer-menu-item-sub">
+              HTTP traffic logging active
+            </div>
+          </div>
+          <div class="developer-menu-divider"></div>
+          <div class="developer-menu-text-item">
+            <div class="developer-menu-item-name">Cache storage</div>
+            <div class="developer-menu-item-sub">
+              Clear disk and image caches
+            </div>
+          </div>
+        </div>
+
+        <!-- Android gesture navigation bar -->
+        <div class="developer-menu-nav-bar">
+          <div class="developer-menu-gesture-pill"></div>
+        </div>
+      </div>
+    </PixelPhoneFrame>
+  </div>
+</BentoCard>
+
+<style is:global>
+  @import url('https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&display=swap');
+
+  .developer-menu-stage {
+    position: relative;
+    height: 240px;
+    margin: 0 -1.5rem -1.5rem;
+    padding-top: 1.5rem;
+    overflow: hidden;
+    border-top: 1px solid rgb(255 255 255 / 0.08);
+    background: radial-gradient(
+      circle at 50% 100%,
+      rgb(168 85 247 / 0.16),
+      transparent 60%
+    );
+  }
+
+  .developer-menu-phone {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    width: 342px;
+    height: 722px;
+    transform: translateX(-50%);
+    filter: drop-shadow(0 18px 24px rgb(0 0 0 / 0.6));
+  }
+
+  .developer-menu-screen {
+    position: relative;
+    box-sizing: border-box;
+    height: 100%;
+    padding: 0 0 16px;
+    color: #f2eff4;
+    background: #1d181e;
+    font-family:
+      'Google Sans',
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      Roboto,
+      sans-serif;
+    overflow-y: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    user-select: none;
+  }
+
+  .developer-menu-screen::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Status bar */
+  .pixel-status-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 14px;
+    padding: 21px 24px 6px 22px;
+    box-sizing: content-box;
+  }
+
+  .pixel-status-time {
+    display: flex;
+    align-items: center;
+    height: 14px;
+    color: #f2eff4;
+    font-family:
+      'Google Sans',
+      -apple-system,
+      sans-serif;
+    font-size: 11.5px;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: -0.01em;
+  }
+
+  .pixel-status-icons {
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    height: 14px;
+  }
+
+  .pixel-wifi-icon {
+    display: block;
+    height: 10px;
+    width: auto;
+    color: #f2eff4;
+    flex-shrink: 0;
+  }
+
+  .pixel-status-battery {
+    display: block;
+    height: 11px;
+    width: auto;
+    flex-shrink: 0;
+  }
+
+  /* App bar - evenly and compactly spaced above and below */
+  .developer-menu-appbar {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 16px 16px 15px;
+  }
+  .developer-menu-back {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    color: #f2eff4;
+    background: rgba(255, 255, 255, 0.08);
+    flex-shrink: 0;
+  }
+
+  .developer-menu-title {
+    font-size: 18px;
+    font-weight: 500;
+    letter-spacing: -0.01em;
+    color: #f2eff4;
+  }
+
+  /* Section headers */
+  .developer-menu-section-header {
+    padding: 0 16px 8px;
+    font-size: 10.5px;
+    font-weight: 500;
+    color: #cdbec5;
+    letter-spacing: 0.01em;
+  }
+
+  /* Grouped cards */
+  .developer-menu-card-group {
+    background: #2e2930;
+    border-radius: 20px;
+    margin: 0 10px;
+    padding: 2px 0;
+    overflow: hidden;
+  }
+  /* Dividers between menu items */
+  .developer-menu-divider {
+    height: 2px;
+    background: #1d181e;
+    width: 100%;
+  }
+
+  /* List items */
+  .developer-menu-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 14px;
+  }
+
+  .developer-menu-app-icon {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .developer-menu-icon-violet {
+    color: #e7baff;
+    background: #52236f;
+  }
+
+  .developer-menu-icon-blue {
+    color: #cad5ff;
+    background: #213d8f;
+  }
+
+  .developer-menu-icon-emerald {
+    color: #a7f3d0;
+    background: #065f46;
+  }
+
+  .developer-menu-item-text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  .developer-menu-item-name {
+    font-size: 11.5px;
+    font-weight: 500;
+    color: #f2eff4;
+    line-height: 1.25;
+  }
+
+  .developer-menu-item-sub {
+    font-size: 9.5px;
+    font-weight: 400;
+    color: #ada8b0;
+    line-height: 1.25;
+    margin-top: 1px;
+  }
+
+  /* Action row: See all developer options */
+  .developer-menu-action-item {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 11px 14px 11px 20px;
+  }
+
+  .developer-menu-chevron-box {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #cdbec5;
+  }
+
+  .developer-menu-action-label {
+    font-size: 11.5px;
+    font-weight: 500;
+    color: #f2eff4;
+  }
+
+  /* General text rows */
+  .developer-menu-text-item {
+    padding: 8px 14px;
+  }
+
+  /* Navigation gesture bar */
+  .developer-menu-nav-bar {
+    display: flex;
+    justify-content: center;
+    padding: 16px 0 8px;
+  }
+
+  .developer-menu-gesture-pill {
+    width: 64px;
+    height: 3px;
+    border-radius: 9999px;
+    background: #ffffff;
+  }
+
+  @media (max-width: 430px) {
+    .developer-menu-stage {
+      height: 220px;
+    }
+    .developer-menu-phone {
+      top: -2px;
+      width: 288px;
+      height: 608px;
+    }
+  }
+</style>

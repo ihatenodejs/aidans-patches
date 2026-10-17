@@ -60,6 +60,27 @@ class ExitInfoRecord:
     raw_text: str
 
 
+@dataclass(frozen=True)
+class ResolvedFrame:
+    raw_frame: str
+    class_name: str
+    method_name: str
+    smali_path: Path | None = None
+    method_signature: str | None = None
+    code_snippet: list[str] | None = None
+
+
+@dataclass(frozen=True)
+class CrashReport:
+    process: str
+    pid: int | None
+    exception_type: str
+    message: str
+    stack_trace: list[str]
+    timestamp: str | None = None
+    resolved_frames: list[ResolvedFrame] | None = None
+
+
 def find_adb() -> Path:
     """Locates the adb binary from the Android SDK or PATH."""
     sdk_roots = [
@@ -134,6 +155,308 @@ class AdbClient:
                 except subprocess.TimeoutExpired:
                     proc.kill()
                     proc.wait()
+
+
+def run_adb(device: str | None, args: list[str]) -> str:
+    """Runs adb and returns its standard output."""
+    result = AdbClient().run(args, serial=device)
+    if result.returncode != 0:
+        detail = result.stderr.strip() or result.stdout.strip()
+        raise RuntimeError(f"ADB command failed: {detail}")
+    return result.stdout
+
+
+def get_installed_package_signature(
+    package: str, device: str | None = None
+) -> str | None:
+    """Inspects the installed package's signing certificate on device using dumpsys.
+
+    Returns the normalized (lowercase, colons removed) SHA-256 hex string, or None if
+    not installed or signature cannot be found.
+    """
+    try:
+        output = run_adb(device, ["shell", "dumpsys", "package", package])
+    except RuntimeError:
+        return None
+
+    # Locate signatures section: e.g. "signatures=PackageSignatures{...}", "signatures:", or "PackageSignatures"
+    sig_section_match = re.search(
+        r"(?:signatures\s*=|signatures:|PackageSignatures).*?(?=\n\s*[A-Za-z0-9_-]+[:=]|\Z)",
+        output,
+        re.DOTALL | re.IGNORECASE,
+    )
+    search_target = sig_section_match.group(0) if sig_section_match else output
+
+    match = re.search(r"\b([0-9a-fA-F:]{40,95})\b", search_target)
+    if match:
+        normalized = match.group(1).replace(":", "").lower()
+        if len(normalized) == 64:
+            return normalized
+
+    # Fallback to search anywhere in the full dumpsys output
+    match_full = re.search(r"\b([0-9a-fA-F:]{40,95})\b", output)
+    if match_full:
+        normalized = match_full.group(1).replace(":", "").lower()
+        if len(normalized) == 64:
+            return normalized
+
+    return None
+
+
+def harvest_recent_crashes(
+    package: str, device: str | None = None, lines: int = 5000
+) -> list[CrashReport]:
+    """Returns recent Java crashes for *package* from the device log buffers."""
+    output = run_adb(
+        device,
+        [
+            "logcat",
+            "-d",
+            "-b",
+            "main",
+            "-b",
+            "crash",
+            "-b",
+            "system",
+            "-t",
+            str(lines),
+        ],
+    )
+    entries = [
+        entry
+        for line in output.splitlines()
+        if (entry := _parse_logcat_entry(line)) is not None
+    ]
+    reports: list[CrashReport] = []
+
+    for index, entry in enumerate(entries):
+        timestamp, line_pid, text = entry
+        process_match = re.search(r"\bProcess:\s*([^,\s]+)(?:,\s*PID:\s*(\d+))?", text)
+        if not process_match or process_match.group(1) != package:
+            continue
+
+        previous_process = max(
+            (
+                prior
+                for prior in range(index)
+                if re.search(r"\bProcess:\s*", entries[prior][2])
+            ),
+            default=-1,
+        )
+        fatal_start = max(
+            (
+                prior
+                for prior in range(previous_process + 1, index + 1)
+                if "FATAL EXCEPTION:" in entries[prior][2]
+            ),
+            default=index,
+        )
+        end = next(
+            (
+                following
+                for following in range(index + 1, len(entries))
+                if (
+                    "FATAL EXCEPTION:" in entries[following][2]
+                    or re.search(r"\bProcess:\s*", entries[following][2])
+                )
+            ),
+            len(entries),
+        )
+        block = entries[fatal_start:end]
+        report = _parse_crash_block(
+            package, block, timestamp=entries[fatal_start][0] or timestamp, pid=line_pid
+        )
+        if report:
+            reports.append(report)
+
+    deduplicated: list[CrashReport] = []
+    previous_key: tuple[str, str, str] | None = None
+    for report in reports:
+        key = (
+            report.exception_type,
+            report.message,
+            report.stack_trace[0] if report.stack_trace else "",
+        )
+        if key != previous_key:
+            deduplicated.append(report)
+        previous_key = key
+    return deduplicated
+
+
+def _parse_logcat_entry(line: str) -> tuple[str | None, int | None, str] | None:
+    """Extracts timestamp, PID, and AndroidRuntime payload from one logcat line."""
+    tag_match = re.search(r"\bAndroidRuntime:\s*(.*)$", line)
+    if not tag_match:
+        return None
+    timestamp_match = re.match(r"(\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}\.\d+)", line)
+    return (
+        timestamp_match.group(1) if timestamp_match else None,
+        extract_logcat_pid(line),
+        tag_match.group(1),
+    )
+
+
+def _parse_crash_block(
+    package: str,
+    block: list[tuple[str | None, int | None, str]],
+    timestamp: str | None,
+    pid: int | None,
+) -> CrashReport | None:
+    """Converts one AndroidRuntime block into a crash report when it has an exception."""
+    exception_match: re.Match[str] | None = None
+    exception_index = 0
+    for index, (_, _, text) in enumerate(block):
+        exception_match = re.search(
+            r"(?:Caused by:\s*)?([\w.$]+(?:Exception|Error|Throwable))(?::\s*(.*))?$",
+            text.strip(),
+        )
+        if exception_match:
+            exception_index = index
+            break
+    if not exception_match:
+        return None
+
+    process_match = next(
+        (
+            re.search(r"\bProcess:\s*([^,\s]+)(?:,\s*PID:\s*(\d+))?", text)
+            for _, _, text in block
+            if re.search(r"\bProcess:\s*", text)
+        ),
+        None,
+    )
+    if not process_match or process_match.group(1) != package:
+        return None
+    report_pid = (
+        int(process_match.group(2)) if process_match.group(2) is not None else pid
+    )
+    stack_trace = [
+        text.strip()
+        for _, _, text in block[exception_index + 1 :]
+        if text.strip().startswith("at ")
+    ]
+    return CrashReport(
+        process=package,
+        pid=report_pid,
+        exception_type=exception_match.group(1),
+        message=exception_match.group(2) or "",
+        stack_trace=stack_trace,
+        timestamp=timestamp,
+    )
+
+
+def _find_smali_file(smali_root: Path, class_rel_path: Path) -> Path | None:
+    """Searches for a smali file in smali_root or nested dex directories."""
+    direct = smali_root / class_rel_path
+    if direct.is_file():
+        return direct
+
+    if smali_root.is_dir():
+        # Check immediate subdirectories matching smali/ or smali_classes*/
+        for child in sorted(smali_root.iterdir()):
+            if child.is_dir() and (
+                child.name == "smali" or child.name.startswith("smali_classes")
+            ):
+                candidate = child / class_rel_path
+                if candidate.is_file():
+                    return candidate
+        # Fallback recursive search if directory structure has additional nesting
+        matches = list(smali_root.rglob(class_rel_path.name))
+        for match in matches:
+            if match.is_file() and str(match).endswith(str(class_rel_path)):
+                return match
+    return None
+
+
+def resolve_frame_in_smali(frame_str: str, smali_root: Path) -> ResolvedFrame:
+    """Resolves a raw stack frame string against decompiled Smali files."""
+    frame_pattern = re.compile(r"at\s+([\w$.]+)\.([\w$<>]+)\(([^:]+):?(\d+)?\)")
+    match = frame_pattern.search(frame_str)
+    if not match:
+        return ResolvedFrame(raw_frame=frame_str, class_name="", method_name="")
+
+    class_name, method_name, _, _ = match.groups()
+    # Outer class handling for inner classes (e.g. Foo$Bar -> Foo$Bar.smali)
+    rel_path = Path(*class_name.split(".")).with_suffix(".smali")
+
+    found_path = _find_smali_file(smali_root, rel_path)
+    if not found_path:
+        return ResolvedFrame(
+            raw_frame=frame_str,
+            class_name=class_name,
+            method_name=method_name,
+            smali_path=None,
+            method_signature=None,
+            code_snippet=None,
+        )
+
+    try:
+        content = found_path.read_text(encoding="utf-8")
+    except OSError:
+        return ResolvedFrame(
+            raw_frame=frame_str,
+            class_name=class_name,
+            method_name=method_name,
+            smali_path=found_path,
+            method_signature=None,
+            code_snippet=None,
+        )
+
+    method_re = re.compile(
+        r"^(\.method\b[^\n]*?\b" + re.escape(method_name) + r"\([^\n]*\)[^\n]*)",
+        re.MULTILINE,
+    )
+    m_match = method_re.search(content)
+    if not m_match:
+        return ResolvedFrame(
+            raw_frame=frame_str,
+            class_name=class_name,
+            method_name=method_name,
+            smali_path=found_path,
+            method_signature=None,
+            code_snippet=None,
+        )
+
+    method_sig = m_match.group(1).strip()
+    rest_of_text = content[m_match.end() :]
+    snippet_lines: list[str] = []
+    for line in rest_of_text.splitlines():
+        stripped = line.strip()
+        if stripped == ".end method":
+            break
+        if stripped:
+            snippet_lines.append(stripped)
+        if len(snippet_lines) >= 15:
+            break
+
+    return ResolvedFrame(
+        raw_frame=frame_str,
+        class_name=class_name,
+        method_name=method_name,
+        smali_path=found_path,
+        method_signature=method_sig,
+        code_snippet=snippet_lines if snippet_lines else None,
+    )
+
+
+def resolve_crash_report(report: CrashReport, smali_root: Path) -> CrashReport:
+    """Resolves all stack frames in a CrashReport against smali_root."""
+    resolved = [
+        resolve_frame_in_smali(frame, smali_root) for frame in report.stack_trace
+    ]
+    return CrashReport(
+        process=report.process,
+        pid=report.pid,
+        exception_type=report.exception_type,
+        message=report.message,
+        stack_trace=report.stack_trace,
+        timestamp=report.timestamp,
+        resolved_frames=resolved,
+    )
+
+
+def resolve_crash_frames(crash: CrashReport, smali_dir: Path) -> list[ResolvedFrame]:
+    """Resolves stack frames from crash against smali_dir."""
+    return [resolve_frame_in_smali(frame, smali_dir) for frame in crash.stack_trace]
 
 
 def parse_adb_devices(output: str) -> list[AdbDevice]:

@@ -16,8 +16,8 @@ Agents must use the built-in `apk-lab` utilities rather than writing temporary b
 1. **Split-Container Awareness**: Real Android apps ship as split bundles (`.apkm`, `.xapk`, `.apks`) with multi-DEX files (`classes*.dex`) scattered across splits. Ad-hoc `unzip` commands miss splits, confuse base manifests, and risk zip-slip vulnerabilities.
 2. **Dalvik Architecture Invariants**: Dalvik opcodes have strict register bit-widths (e.g., format `22c` `instance-of` is restricted to 4-bit registers `v0..v15`). `apk-lab validate-smali` statically catches register overflows, invalid literal ranges, and broken CFGs before patch compilation.
 3. **ARM64 Branch Calculations**: Calculating 26-bit PC-relative branches (`bl`, `b`) and formatting signed bytes for Kotlin `byteArrayOf(...)` by hand is error-prone. `apk-lab asm` computes branch relocations and outputs Kotlin syntax directly.
-4. **Isolated & Safe Workspaces**: `apk-lab analyze` and `apk-lab check` run inside deterministic, marked workspaces (`.apk-lab/`) with schema-1 `.marker.json` files and atomic replacement. Safe cleanup (`apk-lab clean`) strictly prevents deleting symlinks or unmanaged paths.
-5. **Real Morphe Verification**: Compatibility cannot be deduced from metadata alone. `apk-lab check` executes Morphe Desktop across all boolean option permutations and validates the output with Android SDK `dexdump -c`.
+4. **Isolated & Safe Workspaces**: `apk-lab analyze` and `apk-lab check` run inside deterministic, marked workspaces (`.apk-lab/`) with schema-1 `.marker.json` files (ephemeral check runs removed unless `--keep-workspace`). Safe cleanup (`apk-lab clean`) strictly prevents deleting symlinks or unmanaged paths.
+5. **Real Morphe Verification**: Compatibility cannot be deduced from metadata alone. `apk-lab check` executes Morphe Desktop across the baseline configuration plus independent inversions for each declared boolean option and validates the output with Android SDK `dexdump -c`.
 
 ---
 
@@ -79,9 +79,10 @@ To conserve context tokens, read only the specific reference file needed for you
 
 ### Workflow D: Deploying & Smoke Testing on Device
 1. Read `skill://apk-lab/references/device-testing.md`.
-2. Deploy patched build: `apk-lab deploy <artifact> --mpp <bundle> --package <pkg> --all --launch`.
-3. Watch health: `apk-lab monitor --package <pkg> --timeout 10.0 --dump-threads`.
-
+2. Rapid iteration shortcut: `apk-lab dev <app>` (auto-builds patches, locates artifact, signs with negotiated keystore, deploys, and launches).
+3. Or manual deploy: `apk-lab deploy <artifact> --mpp <bundle> --package <pkg> --all --launch` (or with `--build` to compile automatically).
+4. Watch health: `apk-lab monitor --package <pkg> --timeout 10.0 --dump-threads`.
+5. Inspect crashes with Smali resolution: `apk-lab crash-trace --package <pkg>`.
 ---
 
 ## 5. Command Reference Quick Index
@@ -95,13 +96,16 @@ To conserve context tokens, read only the specific reference file needed for you
 | `compare` | Compare two APK versions | `--class CLASS`, `--json [PATH\|-]` | [inspection-comparison.md](references/inspection-comparison.md) |
 | `analyze` | Managed extraction & disassembly | `--jadx`, `--apktool`, `--smali`, `--class` | [decompilation-code.md](references/decompilation-code.md) |
 | `inspect-code` | Surgical class/method diffing | `--class`, `--method`, `--format`, `--compare` | [decompilation-code.md](references/decompilation-code.md) |
-| `validate-smali` | Pre-injection register/CFG check | `--snippet`, `--locals`, `--params`, `--is-static` | [decompilation-code.md](references/decompilation-code.md) |
-| `res` | Cross-split resource inspector | `--query`, `--extract DIR` | [resources-assets.md](references/resources-assets.md) |
+| `validate-smali` | Pre-injection register/CFG check | `--snippet`, `--locals`, `--params`, `--descriptor`, `--is-static` | [decompilation-code.md](references/decompilation-code.md) |
+| `res` | Cross-split resource inspector | `--query`, `--text` / `--value`, `--extract DIR` | [resources-assets.md](references/resources-assets.md) |
 | `unity` | Unity GameObject offset locator | `--gameobject NAME`, `--json` | [resources-assets.md](references/resources-assets.md) |
 | `asm` | ARM64 branch assembler | `--pc`, `--target`, `--format {hex,kotlin,...}` | [resources-assets.md](references/resources-assets.md) |
 | `il2cpp` | Unity C# symbol query | `--query QUERY`, `--json` | [resources-assets.md](references/resources-assets.md) |
-| `check` | Morphe patch compatibility | `--mpp`, `--package`, `--all`, `--patch`, `--force` | [patch-verification.md](references/patch-verification.md) |
-| `deploy` | Patch, sign, install & launch | `--mpp`, `--package`, `--all`, `--device`, `--launch` | [device-testing.md](references/device-testing.md) |
+| `check` | Morphe patch compatibility | `--mpp`, `--package`, `--all`, `--patch`, `--force`, `--keep-workspace`, `--json` | [patch-verification.md](references/patch-verification.md) |
+| `deploy` | Patch, sign, install & launch | `--mpp`, `--build`, `--package`, `--all`, `-e`, `-O`, `--device`, `--launch`, `--clean-install`, `--reinstall`, `--keystore`, `--ks-alias`, `--ks-pass`, `--key-pass`, `--out` | [device-testing.md](references/device-testing.md) |
+| `dev` | Build, locate, deploy & launch loop | `app`, `--device`, `--launch`, `--all`, `--reinstall`, `--clean-install` | [device-testing.md](references/device-testing.md) |
 | `monitor` | CPU spin, ANR & crash watcher | `--package`, `--device`, `--timeout`, `--dump-threads` | [device-testing.md](references/device-testing.md) |
+| `crash-trace` | Smali-aware crash harvester | `--package`, `--device`, `--lines`, `--json` | [device-testing.md](references/device-testing.md) |
 | `acquire` | Download from Google Play | `--version`, `--version-code`, `--out-dir` | [fixtures-acquisition.md](references/fixtures-acquisition.md) |
 | `fixtures` | Manage R2 fixture slots | `seed`, `info`, `download`, `--package`, `--role` | [fixtures-acquisition.md](references/fixtures-acquisition.md) |
+| `play-accounts` | Manage Google Play accounts | | [fixtures-acquisition.md](references/fixtures-acquisition.md) |

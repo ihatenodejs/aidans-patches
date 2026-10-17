@@ -91,21 +91,6 @@ public class OsmMapView extends FrameLayout {
         webView.loadDataWithBaseURL("https://tile.openstreetmap.org", html, "text/html", "UTF-8", null);
     }
 
-    /**
-     * Replaces the displayed route, or retains only the latest pending update until
-     * page loading finishes. An empty coordinate list clears route markers and lines.
-     * Exceptions while preparing or submitting the update are suppressed.
-     *
-     * @param coordinates latitude/longitude pairs in degrees, newest checkpoint first
-     * @param colorInt route color; only the low 24 RGB bits are used
-     * @param topOffsetCssPx top clearance in CSS pixels, clamped to at least 110
-     * @param bottomOffsetPx bottom clearance, passed as CSS pixels without density
-     *     conversion and clamped to at least 100
-     * @param showZoom whether to show zoom buttons; also stored for later page loads
-     */
-    public void renderRoute(List<double[]> coordinates, int colorInt, int topOffsetCssPx, int bottomOffsetPx, boolean showZoom) {
-        renderRoute(coordinates, colorInt, topOffsetCssPx, 16, bottomOffsetPx, showZoom);
-    }
 
     /**
      * Replaces the displayed route, with custom top and left clearances for control alignment.

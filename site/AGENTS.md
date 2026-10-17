@@ -8,7 +8,7 @@ Scope: the static Astro site under `site/`.
 - `src/layouts/`, `src/components/`, `src/styles/`: presentation and shared UI.
 - `src/data/repo.ts`: assembles root patch metadata, bundle/changelog data, icons, and compatibility models for pages.
 - `src/data/changelog.ts`, `status.ts`, `commit-apps.ts`, `source-links.ts`: focused parsing/mapping helpers.
-- `src/data/*.test.ts`: deterministic data-layer tests.
+- `test/*.test.ts`: deterministic data-layer tests.
 - `functions/api/`: Pages function surface, separate from Astro build-time code.
 - `public/`: committed static assets and generated app icon outputs.
 
@@ -43,7 +43,7 @@ bun run --cwd site preview
 
 - Edit `src/` and intentional assets in `public/`.
 - Never edit `dist/`, `.astro/`, or `node_modules/`; they are generated/ignored.
-- `src/data/icons.ts` and `public/icons/<package>.png` are synchronized by `../.github/scripts/sync_app_icons.py`. Use `bun run --cwd site check:icons` for validation; use the sync script's mutating modes only when intentionally refreshing icons.
+- `public/icons/<package>.png` is synchronized by `../.github/scripts/sync_app_icons.py`. Use `bun run --cwd site check:icons` for validation; use the sync script's mutating modes only when intentionally refreshing icons.
 - Do not copy package versions or patch lists into site code when they can be derived from root metadata.
 - `deploy-site.yml` owns CI build/deployment. Do not invoke a production Pages deployment for routine verification.
 
@@ -56,4 +56,4 @@ bun run --cwd site check:icons
 bun run --cwd site build
 ```
 
-For UI changes, run `bun run --cwd site dev` or `preview` and inspect the actual affected desktop/mobile surface, links, loading/error/empty states, and theme contrast. Data changes need focused tests in `src/data/*.test.ts`; avoid source-text assertions and duplicate tests of framework wiring. Finish cross-stack code changes with root `bun run audit`.
+For UI changes, run `bun run --cwd site dev` or `preview` and inspect the actual affected desktop/mobile surface, links, loading/error/empty states, and theme contrast. Data changes need focused tests in `test/*.test.ts`; avoid source-text assertions and duplicate tests of framework wiring. Finish cross-stack code changes with root `bun run audit`.

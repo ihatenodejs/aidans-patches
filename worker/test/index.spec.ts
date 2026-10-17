@@ -1,12 +1,15 @@
 import { env } from 'cloudflare:test';
 import { describe, expect, it, vi } from 'vitest';
-import { deriveMonitoredApps } from '../src/apps';
+import { parseMonitoredApps, compareUtf16 } from '../src/apps';
 import { compareAppVersions } from '../src/comparator';
 import { renderBadgeSvg } from '../src/badges';
+import fixtureHtml from './fixtures/google-play-details.html?raw';
+import { parseGooglePlayHtml } from '../src/scraper';
 import worker, {
   computeAggregateCompatibilityStatus,
   timingSafeEqual,
   performVersionCheck,
+  saveAppRecord,
 } from '../src/index';
 import type {
   AppVersionRecord,
@@ -14,113 +17,223 @@ import type {
   WorkerEnv,
 } from '../src/types';
 
-describe('Apps metadata derivation', () => {
-  it('derives unique package metadata and latest target correctly', () => {
+describe('Apps metadata parsing', () => {
+  it('parses valid apps catalog correctly', () => {
     const mockData = {
       version: '1.0.0',
-      patches: [
+      apps: [
         {
-          name: 'Patch 1',
-          compatiblePackages: [
-            {
-              packageName: 'com.test.one',
-              name: 'App One',
-              apkFileType: 'APKM',
-              signatures: ['sig1'],
-              targets: [{ version: '1.0.0' }, { version: '1.2.0' }],
-            },
-          ],
-        },
-        {
-          name: 'Patch 2',
-          compatiblePackages: [
-            {
-              packageName: 'com.test.one',
-              name: 'App One',
-              apkFileType: 'APKM',
-              signatures: ['sig1'],
-              targets: [{ version: '1.1.0' }],
-            },
-          ],
+          packageName: 'com.test.one',
+          name: 'App One',
+          description: null,
+          apkFileType: 'APKM',
+          appIconColor: '#123456',
+          signatures: ['sig1', 'sig2'],
+          targets: [{ version: '1.0.0' }, { version: '1.2.0' }],
+          patchNames: ['Patch 1', 'Patch 2'],
+          supportedVersions: ['1.0.0', '1.2.0'],
+          latestSupportedVersion: '1.2.0',
         },
       ],
     };
 
-    const apps = deriveMonitoredApps(mockData);
+    const apps = parseMonitoredApps(mockData);
     expect(apps).toHaveLength(1);
     expect(apps[0].packageName).toBe('com.test.one');
     expect(apps[0].name).toBe('App One');
     expect(apps[0].apkFileType).toBe('APKM');
-    expect(apps[0].latestSupportedVersion).toBe('1.2.0');
-    expect(apps[0].supportedVersions).toEqual(['1.0.0', '1.1.0', '1.2.0']);
+    expect(apps[0].signatures).toEqual(['sig1', 'sig2']);
     expect(apps[0].patchNames).toEqual(['Patch 1', 'Patch 2']);
+    expect(apps[0].supportedVersions).toEqual(['1.0.0', '1.2.0']);
+    expect(apps[0].latestSupportedVersion).toBe('1.2.0');
   });
 
-  it('rejects conflicting app names for the same package', () => {
-    const conflictingData = {
-      version: '1.0.0',
-      patches: [
-        {
-          name: 'Patch 1',
-          compatiblePackages: [
-            {
-              packageName: 'com.test.conflict',
-              name: 'App Original',
-              apkFileType: 'APK',
-              targets: [{ version: '1.0.0' }],
-            },
-          ],
-        },
-        {
-          name: 'Patch 2',
-          compatiblePackages: [
-            {
-              packageName: 'com.test.conflict',
-              name: 'App Conflict Name',
-              apkFileType: 'APK',
-              targets: [{ version: '1.0.0' }],
-            },
-          ],
-        },
-      ],
-    };
-
-    expect(() => deriveMonitoredApps(conflictingData)).toThrow(
-      /Conflicting app name/,
+  it('rejects missing or non-array apps property', () => {
+    expect(() => parseMonitoredApps({})).toThrow(/missing "apps" array/);
+    expect(() => parseMonitoredApps({ apps: 'not-an-array' })).toThrow(
+      /missing "apps" array/,
     );
   });
 
-  it('rejects conflicting file types for the same package', () => {
-    const conflictingData = {
-      version: '1.0.0',
-      patches: [
+  it('rejects duplicate package names', () => {
+    const duplicateData = {
+      apps: [
         {
-          name: 'Patch 1',
-          compatiblePackages: [
-            {
-              packageName: 'com.test.filetype',
-              name: 'App Filetype',
-              apkFileType: 'APK',
-              targets: [{ version: '1.0.0' }],
-            },
-          ],
+          packageName: 'com.test.dup',
+          name: 'App Dup',
+          apkFileType: 'APK',
+          signatures: [],
+          patchNames: ['Patch 1'],
+          supportedVersions: ['1.0.0'],
+          latestSupportedVersion: '1.0.0',
         },
         {
-          name: 'Patch 2',
-          compatiblePackages: [
-            {
-              packageName: 'com.test.filetype',
-              name: 'App Filetype',
-              apkFileType: 'XAPK',
-              targets: [{ version: '1.0.0' }],
-            },
-          ],
+          packageName: 'com.test.dup',
+          name: 'App Dup 2',
+          apkFileType: 'APK',
+          signatures: [],
+          patchNames: ['Patch 2'],
+          supportedVersions: ['1.0.0'],
+          latestSupportedVersion: '1.0.0',
         },
       ],
     };
 
-    expect(() => deriveMonitoredApps(conflictingData)).toThrow(
-      /Conflicting apkFileType/,
+    expect(() => parseMonitoredApps(duplicateData)).toThrow(
+      /Duplicate package name/,
+    );
+  });
+
+  it('rejects empty supported versions', () => {
+    const emptyVersionsData = {
+      apps: [
+        {
+          packageName: 'com.test.empty',
+          name: 'App Empty',
+          apkFileType: 'APK',
+          signatures: [],
+          patchNames: ['Patch 1'],
+          supportedVersions: [],
+          latestSupportedVersion: '1.0.0',
+        },
+      ],
+    };
+
+    expect(() => parseMonitoredApps(emptyVersionsData)).toThrow(
+      /Invalid supportedVersions/,
+    );
+  });
+
+  it('rejects incorrect latestSupportedVersion', () => {
+    const incorrectLatestData = {
+      apps: [
+        {
+          packageName: 'com.test.mismatch',
+          name: 'App Mismatch',
+          apkFileType: 'APK',
+          signatures: [],
+          patchNames: ['Patch 1'],
+          supportedVersions: ['1.0.0', '1.2.0'],
+          latestSupportedVersion: '1.0.0',
+        },
+      ],
+    };
+
+    expect(() => parseMonitoredApps(incorrectLatestData)).toThrow(
+      /latestSupportedVersion.*does not match last supportedVersion/,
+    );
+  });
+
+  it('rejects invalid or missing required field', () => {
+    const missingNameData = {
+      apps: [
+        {
+          packageName: 'com.test.missing',
+          name: '',
+          apkFileType: 'APK',
+          signatures: [],
+          patchNames: ['Patch 1'],
+          supportedVersions: ['1.0.0'],
+          latestSupportedVersion: '1.0.0',
+        },
+      ],
+    };
+
+    expect(() => parseMonitoredApps(missingNameData)).toThrow(/missing name/);
+  });
+
+  it('accepts UTF-16 code-unit order for packages, signatures, and patch names', () => {
+    // Uppercase precedes lowercase in UTF-16 code units ('B' < 'a')
+    expect(compareUtf16('com.test.B', 'com.test.a')).toBe(-1);
+    expect(compareUtf16('SIG_B', 'sig_a')).toBe(-1);
+    expect(compareUtf16('B Patch', 'a Patch')).toBe(-1);
+
+    const validUtf16Data = {
+      apps: [
+        {
+          packageName: 'com.test.B',
+          name: 'App B',
+          apkFileType: 'APK',
+          signatures: ['SIG_B', 'sig_a'],
+          patchNames: ['B Patch', 'a Patch'],
+          supportedVersions: ['1.0.0'],
+          latestSupportedVersion: '1.0.0',
+        },
+        {
+          packageName: 'com.test.a',
+          name: 'App a',
+          apkFileType: 'APK',
+          signatures: ['sig'],
+          patchNames: ['patch'],
+          supportedVersions: ['1.0.0'],
+          latestSupportedVersion: '1.0.0',
+        },
+      ],
+    };
+
+    const parsed = parseMonitoredApps(validUtf16Data);
+    expect(parsed).toHaveLength(2);
+  });
+
+  it('rejects out-of-order packages, signatures, and patch names under UTF-16', () => {
+    const unsortedPackages = {
+      apps: [
+        {
+          packageName: 'com.test.b',
+          name: 'App b',
+          apkFileType: 'APK',
+          signatures: ['sig'],
+          patchNames: ['patch'],
+          supportedVersions: ['1.0.0'],
+          latestSupportedVersion: '1.0.0',
+        },
+        {
+          packageName: 'com.test.a',
+          name: 'App a',
+          apkFileType: 'APK',
+          signatures: ['sig'],
+          patchNames: ['patch'],
+          supportedVersions: ['1.0.0'],
+          latestSupportedVersion: '1.0.0',
+        },
+      ],
+    };
+    expect(() => parseMonitoredApps(unsortedPackages)).toThrow(
+      /Apps catalog must be sorted by packageName/,
+    );
+
+    const unsortedSignatures = {
+      apps: [
+        {
+          packageName: 'com.test.a',
+          name: 'App a',
+          apkFileType: 'APK',
+          signatures: ['sig_b', 'sig_a'],
+          patchNames: ['patch'],
+          supportedVersions: ['1.0.0'],
+          latestSupportedVersion: '1.0.0',
+        },
+      ],
+    };
+    expect(() => parseMonitoredApps(unsortedSignatures)).toThrow(
+      /Signatures for package com.test.a must be uniquely sorted/,
+    );
+
+    const unsortedPatches = {
+      apps: [
+        {
+          packageName: 'com.test.a',
+          name: 'App a',
+          apkFileType: 'APK',
+          signatures: ['sig'],
+          patchNames: ['patch_b', 'patch_a'],
+          supportedVersions: ['1.0.0'],
+          latestSupportedVersion: '1.0.0',
+        },
+      ],
+    };
+    expect(() => parseMonitoredApps(unsortedPatches)).toThrow(
+      /Patch names for package com.test.a must be uniquely sorted/,
     );
   });
 });
@@ -197,7 +310,7 @@ describe('Badge rendering and aggregate calculation', () => {
 });
 describe('Worker fetch endpoints', () => {
   async function seedTestApps(kv: KVNamespace) {
-    for (const _app of deriveMonitoredApps({ patches: [] })) {
+    for (const _app of parseMonitoredApps({ apps: [] })) {
       // empty fallback
     }
     for (const app of [
@@ -281,6 +394,48 @@ describe('Worker fetch endpoints', () => {
     const body = await res.text();
     expect(body).toContain('<svg');
     expect(body).toContain('compatibility');
+  });
+
+  it('serves GET /badges/tests.svg with summed tests and thresholds', async () => {
+    const workerEnv: WorkerEnv = {
+      ...env,
+      PATCHES_KV: env.PATCHES_KV,
+    };
+
+    await seedTestApps(env.PATCHES_KV);
+    // 1. 100% tests passing -> 40/40 green #238636
+    const req100 = new Request('http://localhost/badges/tests.svg', {
+      method: 'GET',
+    });
+    const res100 = await worker.fetch(req100, workerEnv);
+    expect(res100.status).toBe(200);
+    const body100 = await res100.text();
+    expect(body100).toContain('tests passing');
+    expect(body100).toContain('40/40');
+    expect(body100).toContain('#238636');
+    expect(body100).toContain('font-weight="bold"');
+
+    // 2. 90-99% tests passing (40/44 = 90.9%) -> orange #bc4c00
+    const rawRecord = await env.PATCHES_KV.get(
+      'app_version:com.ashtoncofer.Buzz',
+    );
+    const recordBuzz = JSON.parse(rawRecord!);
+    recordBuzz.targetCompatibility.failedCount = 4;
+    await saveAppRecord(workerEnv, 'com.ashtoncofer.Buzz', recordBuzz);
+
+    const resOrange = await worker.fetch(req100, workerEnv);
+    const bodyOrange = await resOrange.text();
+    expect(bodyOrange).toContain('40/44');
+    expect(bodyOrange).toContain('#bc4c00');
+
+    // 3. < 90% tests passing (40/50 = 80%) -> red #cf222e
+    recordBuzz.targetCompatibility.failedCount = 10;
+    await saveAppRecord(workerEnv, 'com.ashtoncofer.Buzz', recordBuzz);
+
+    const resRed = await worker.fetch(req100, workerEnv);
+    const bodyRed = await resRed.text();
+    expect(bodyRed).toContain('40/50');
+    expect(bodyRed).toContain('#cf222e');
   });
 
   it('serves GET /badges/compatibility/com.ashtoncofer.Buzz.svg for specific package', async () => {
@@ -373,6 +528,142 @@ describe('Worker fetch endpoints', () => {
       expect(body).toContain('#EF4444');
     },
   );
+
+  it('serves GET /badges/tests/:packageName.svg with green badge when all tests pass', async () => {
+    const workerEnv: WorkerEnv = {
+      ...env,
+      PATCHES_KV: env.PATCHES_KV,
+    };
+
+    await seedTestApps(env.PATCHES_KV);
+    const appRecord = {
+      appName: 'SidelineSwap',
+      playVersion: '1.52.0',
+      checkedAt: new Date().toISOString(),
+      status: 'up-to-date' as const,
+      supportedVersions: ['1.52.0'],
+      latestSupportedVersion: '1.52.0',
+      targetCompatibility: {
+        requestId: 'req-test',
+        role: 'target' as const,
+        versionName: '1.52.0',
+        versionCode: 222,
+        patchBundleVersion: '1.7.0',
+        gitRevision: 'rev1',
+        testedAt: new Date().toISOString(),
+        passedCount: 4,
+        failedCount: 0,
+        status: 'compatible' as const,
+      },
+    };
+    await env.PATCHES_KV.put(
+      'app_version:com.sidelineswap.android',
+      JSON.stringify(appRecord),
+    );
+
+    const req = new Request(
+      'http://localhost/badges/tests/com.sidelineswap.android.svg',
+      { method: 'GET' },
+    );
+    const res = await worker.fetch(req, workerEnv);
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get('Content-Type')).toContain('image/svg+xml');
+    const body = await res.text();
+    expect(body).toContain('tests passing');
+    expect(body).toContain('4/4');
+    expect(body).toContain('font-weight="bold"');
+    expect(body).toContain('#238636');
+  });
+
+  it('serves GET /badges/tests/:packageName.svg with red badge when tests fail', async () => {
+    const workerEnv: WorkerEnv = {
+      ...env,
+      PATCHES_KV: env.PATCHES_KV,
+    };
+
+    const failingRecord = {
+      appName: 'Fizz',
+      playVersion: '1.54.0',
+      checkedAt: new Date().toISOString(),
+      status: 'up-to-date' as const,
+      supportedVersions: ['1.54.0'],
+      latestSupportedVersion: '1.54.0',
+      targetCompatibility: {
+        requestId: 'req-fail',
+        role: 'target' as const,
+        versionName: '1.54.0',
+        versionCode: 400032,
+        patchBundleVersion: '1.7.0',
+        gitRevision: 'rev1',
+        testedAt: new Date().toISOString(),
+        passedCount: 3,
+        failedCount: 1,
+        status: 'incompatible' as const,
+      },
+    };
+    await env.PATCHES_KV.put(
+      'app_version:com.ashtoncofer.Buzz',
+      JSON.stringify(failingRecord),
+    );
+
+    const reqFailing = new Request(
+      'http://localhost/badges/tests/com.ashtoncofer.Buzz.svg',
+      { method: 'GET' },
+    );
+    const resFailing = await worker.fetch(reqFailing, workerEnv);
+    expect(resFailing.status).toBe(200);
+    const bodyFailing = await resFailing.text();
+    expect(bodyFailing).toContain('tests passing');
+    expect(bodyFailing).toContain('3/4');
+    expect(bodyFailing).toContain('font-weight="bold"');
+    expect(bodyFailing).toContain('#cf222e');
+  });
+
+  it('serves GET /badges/tests/:packageName.svg empty SVG when untested or unknown', async () => {
+    const workerEnv: WorkerEnv = {
+      ...env,
+      PATCHES_KV: env.PATCHES_KV,
+    };
+
+    // 1. Unknown / unseeded package returns 0x0 empty SVG
+    const reqUnknown = new Request(
+      'http://localhost/badges/tests/com.completely.unknown.app.svg',
+      { method: 'GET' },
+    );
+    const resUnknown = await worker.fetch(reqUnknown, workerEnv);
+    expect(resUnknown.status).toBe(200);
+    const bodyUnknown = await resUnknown.text();
+    expect(bodyUnknown).toBe(
+      '<svg xmlns="http://www.w3.org/2000/svg" width="0" height="0"/>',
+    );
+
+    // 2. Seeded app with null targetCompatibility (like new app) returns 0x0 empty SVG
+    const untestedRecord = {
+      appName: '365 Pay',
+      playVersion: '10.2605.0',
+      checkedAt: new Date().toISOString(),
+      status: 'up-to-date' as const,
+      supportedVersions: ['10.2605.0'],
+      latestSupportedVersion: '10.2605.0',
+      targetCompatibility: null,
+    };
+    await env.PATCHES_KV.put(
+      'app_version:com.avinside',
+      JSON.stringify(untestedRecord),
+    );
+
+    const reqUntested = new Request(
+      'http://localhost/badges/tests/com.avinside.svg',
+      { method: 'GET' },
+    );
+    const resUntested = await worker.fetch(reqUntested, workerEnv);
+    expect(resUntested.status).toBe(200);
+    const bodyUntested = await resUntested.text();
+    expect(bodyUntested).toBe(
+      '<svg xmlns="http://www.w3.org/2000/svg" width="0" height="0"/>',
+    );
+  });
 
   it('rejects unauthenticated POST /api/compatibility-results', async () => {
     const workerEnv: WorkerEnv = {
@@ -1244,5 +1535,429 @@ describe('Version check and self-healing dispatches', () => {
     } finally {
       globalThis.fetch = originalFetch;
     }
+  });
+});
+describe('Google Play store metadata scraping and status aggregation', () => {
+  const SAMPLE_PLAY_HTML = `
+    <html>
+      <head>
+        <meta property="og:image" content="https://play-lh.googleusercontent.com/test-icon">
+        <meta property="og:description" content="Meta summary fallback">
+      </head>
+      <body>
+        [[["2.5.0"]],[[[1]],[[[1]]]
+        <div>Updated on</div><div>Oct 14, 2026</div>
+        <script>
+          AF_initDataCallback({key: 'ds:5', hash: '1', data: [
+            null,
+            [
+              null,
+              null,
+              [
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              ["Acme Developer Corp &amp; Co"],
+              null,
+              null,
+              null,
+              [[null, "Full description with &lt;b&gt;bold&lt;/b&gt; text<br>New line &amp; more."]],
+              [[null, "Structured summary for the app."]],
+              null,
+              null,
+              null,
+              null,
+              null,
+              [[["Business &amp; Productivity", null, "BUSINESS"]]],
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              [null, [null, "Bug fixes &amp; performance improvements!"]]
+            ]
+          ]
+        ], sideChannel: {}});
+        </script>
+      </body>
+    </html>
+  `;
+
+  it('parses structured ds:5 metadata and normalizes entities/HTML', () => {
+    const parsed = parseGooglePlayHtml(SAMPLE_PLAY_HTML);
+    expect(parsed.playVersion).toBe('2.5.0');
+    expect(parsed.iconUrl).toBe(
+      'https://play-lh.googleusercontent.com/test-icon',
+    );
+    expect(parsed.metadata.developer).toBe('Acme Developer Corp & Co');
+    expect(parsed.metadata.summary).toBe('Structured summary for the app.');
+    expect(parsed.metadata.category).toBe('Business & Productivity');
+    expect(parsed.metadata.categoryId).toBe('BUSINESS');
+    expect(parsed.metadata.description).toContain(
+      'Full description with bold text',
+    );
+    expect(parsed.metadata.description).toContain('New line & more.');
+    expect(parsed.metadata.releaseNotes).toBe(
+      'Bug fixes & performance improvements!',
+    );
+  });
+
+  it('persists playMetadata in KV and returns it in GET /api/status', async () => {
+    const originalFetch = globalThis.fetch;
+    const workerEnv: WorkerEnv = {
+      ...env,
+      PATCHES_KV: env.PATCHES_KV,
+    };
+
+    globalThis.fetch = vi.fn(async (input: RequestInfo | URL) => {
+      const url = typeof input === 'string' ? input : input.toString();
+      if (url.includes('play.google.com')) {
+        return new Response(SAMPLE_PLAY_HTML, { status: 200 });
+      }
+      return new Response('Not found', { status: 404 });
+    });
+
+    try {
+      await performVersionCheck(workerEnv);
+
+      const req = new Request('http://localhost/api/status', { method: 'GET' });
+      const res = await worker.fetch(req, workerEnv);
+      expect(res.status).toBe(200);
+
+      const payload = (await res.json()) as KVVersionPayload;
+      expect(payload.apps).toBeDefined();
+      const sampleApp = payload.apps['com.adobe.scan.android'];
+      expect(sampleApp).toBeDefined();
+      expect(sampleApp.playMetadata).toBeDefined();
+      expect(sampleApp.playMetadata?.developer).toBe(
+        'Acme Developer Corp & Co',
+      );
+      expect(sampleApp.playMetadata?.categoryId).toBe('BUSINESS');
+      expect(sampleApp.playMetadata?.summary).toBe(
+        'Structured summary for the app.',
+      );
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('parses extended metadata from google-play-details.html fixture', () => {
+    const parsed = parseGooglePlayHtml(fixtureHtml);
+    expect(parsed.iconUrl).toBe(
+      'https://play-lh.googleusercontent.com/test-icon=w240-h480',
+    );
+    expect(parsed.metadata.score).toBe(4.6);
+    expect(parsed.metadata.ratingsCount).toBe(12345);
+    expect(parsed.metadata.reviewsCount).toBe(6789);
+    expect(parsed.metadata.installs).toBe('10M+');
+    expect(parsed.metadata.contentRating).toBe('Everyone');
+    expect(parsed.metadata.contentRatingIcon?.sourceUrl).toBe(
+      'https://play-lh.googleusercontent.com/content-rating-icon',
+    );
+    expect(parsed.metadata.inAppPurchases).toBe('In-app purchases');
+    expect(parsed.metadata.minAndroid).toBe('Android 8.0 and up');
+    expect(parsed.metadata.releasedOn).toBe('Jan 15, 2020');
+    expect(parsed.metadata.permissionGroups).toEqual([
+      'Camera',
+      'Microphone',
+      'Storage',
+    ]);
+
+    // Screenshots (only valid host accepted, deceptive omitted)
+    expect(parsed.metadata.screenshots?.length).toBe(2);
+    expect(parsed.metadata.screenshots?.[0].sourceUrl).toBe(
+      'https://play-lh.googleusercontent.com/screenshot1',
+    );
+    expect(parsed.metadata.screenshots?.[1].sourceUrl).toBe(
+      'https://play-lh.googleusercontent.com/screenshot2',
+    );
+
+    // Reviews (capped at 3, deceptive host rejected for avatar)
+    expect(parsed.metadata.featuredReviews?.length).toBe(3);
+    expect(parsed.metadata.featuredReviews?.[0].author).toBe('Alice M.');
+    expect(parsed.metadata.featuredReviews?.[0].rating).toBe(5);
+    expect(parsed.metadata.featuredReviews?.[0].avatar?.sourceUrl).toBe(
+      'https://play-lh.googleusercontent.com/avatar1',
+    );
+    expect(parsed.metadata.featuredReviews?.[1].author).toBe('Bob K.');
+    expect(parsed.metadata.featuredReviews?.[1].avatar).toBeNull();
+    expect(parsed.metadata.featuredReviews?.[2].author).toBe('Charlie D.');
+  });
+
+  it('enforces POST /api/play-metadata bearer secret, validation, and freshness updates', async () => {
+    const workerEnv: WorkerEnv = {
+      ...env,
+      PATCHES_KV: env.PATCHES_KV,
+      COMPATIBILITY_STATUS_SECRET: 'test_metadata_secret_123',
+    };
+
+    const initialRecord: AppVersionRecord = {
+      appName: 'Adobe Scan',
+      playVersion: '24.01.00',
+      updatedAt: '2026-03-01T00:00:00.000Z',
+      checkedAt: '2026-03-01T01:00:00.000Z',
+      status: 'unknown',
+      supportedVersions: ['24.01.00'],
+      latestSupportedVersion: '24.01.00',
+      needsAuthenticatedVersion: true,
+    };
+    await env.PATCHES_KV.put(
+      'app_version:com.adobe.scan.android',
+      JSON.stringify(initialRecord),
+    );
+
+    // 1. Unauthorized
+    const unauthReq = new Request('http://localhost/api/play-metadata', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ results: [] }),
+    });
+    const unauthRes = await worker.fetch(unauthReq, workerEnv);
+    expect(unauthRes.status).toBe(401);
+
+    // 2. Stale listingUpdatedAt rejection (409)
+    const staleReq = new Request('http://localhost/api/play-metadata', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer test_metadata_secret_123',
+      },
+      body: JSON.stringify({
+        results: [
+          {
+            packageName: 'com.adobe.scan.android',
+            versionName: '24.02.00',
+            versionCode: 240200,
+            listingUpdatedAt: '2025-01-01T00:00:00.000Z',
+          },
+        ],
+      }),
+    });
+    const staleRes = await worker.fetch(staleReq, workerEnv);
+    expect(staleRes.status).toBe(409);
+
+    // 3. Valid submission applies atomically
+    const validReq = new Request('http://localhost/api/play-metadata', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer test_metadata_secret_123',
+      },
+      body: JSON.stringify({
+        results: [
+          {
+            packageName: 'com.adobe.scan.android',
+            versionName: '24.02.00',
+            versionCode: 240200,
+            listingUpdatedAt: '2026-03-01T00:00:00.000Z',
+          },
+        ],
+      }),
+    });
+    const validRes = await worker.fetch(validReq, workerEnv);
+    expect(validRes.status).toBe(200);
+
+    const savedRaw = await env.PATCHES_KV.get(
+      'app_version:com.adobe.scan.android',
+    );
+    expect(savedRaw).toBeDefined();
+    const saved = JSON.parse(savedRaw!) as AppVersionRecord;
+    expect(saved.playVersion).toBe('24.02.00');
+    expect(saved.playVersionCode).toBe(240200);
+    expect(saved.playVersionSource).toBe('authenticated');
+    expect(saved.playVersionVerifiedForUpdatedAt).toBe(
+      '2026-03-01T00:00:00.000Z',
+    );
+    expect(saved.needsAuthenticatedVersion).toBe(false);
+    expect(saved.status).toBe('newer-available');
+  });
+
+  it('serves public R2 media with immutable cache headers, HEAD, 304, and traversal rejection', async () => {
+    const workerEnv: WorkerEnv = {
+      ...env,
+      PATCHES_KV: env.PATCHES_KV,
+      PLAY_MEDIA: env.PLAY_MEDIA,
+    };
+
+    const testImageBytes = new Uint8Array([0x89, 0x50, 0x4e, 0x47]); // PNG header
+    const hash = 'a'.repeat(64);
+    const r2Key = `play-media/com.adobe.scan.android/${hash}.png`;
+
+    await env.PLAY_MEDIA.put(r2Key, testImageBytes, {
+      httpMetadata: {
+        contentType: 'image/png',
+        cacheControl: 'public, max-age=31536000, immutable',
+      },
+    });
+
+    // 1. GET returns image and headers
+    const getReq = new Request(
+      `http://localhost/media/play/com.adobe.scan.android/${hash}.png`,
+      {
+        method: 'GET',
+      },
+    );
+    const getRes = await worker.fetch(getReq, workerEnv);
+    expect(getRes.status).toBe(200);
+    expect(getRes.headers.get('content-type')).toBe('image/png');
+    expect(getRes.headers.get('cache-control')).toContain('immutable');
+    const etag = getRes.headers.get('etag');
+    expect(etag).toBeDefined();
+
+    // 2. If-None-Match returns 304
+    const ifNoneReq = new Request(
+      `http://localhost/media/play/com.adobe.scan.android/${hash}.png`,
+      {
+        method: 'GET',
+        headers: { 'If-None-Match': etag! },
+      },
+    );
+    const ifNoneRes = await worker.fetch(ifNoneReq, workerEnv);
+    expect(ifNoneRes.status).toBe(304);
+
+    // 3. HEAD method
+    const headReq = new Request(
+      `http://localhost/media/play/com.adobe.scan.android/${hash}.png`,
+      {
+        method: 'HEAD',
+      },
+    );
+    const headRes = await worker.fetch(headReq, workerEnv);
+    expect(headRes.status).toBe(200);
+    expect(await headRes.text()).toBe('');
+
+    // 4. Invalid media path rejection
+    const invalidPathReq = new Request(
+      `http://localhost/media/play/com.adobe.scan.android/invalid_file.png`,
+      {
+        method: 'GET',
+      },
+    );
+    const invalidPathRes = await worker.fetch(invalidPathReq, workerEnv);
+    expect(invalidPathRes.status).toBe(400);
   });
 });

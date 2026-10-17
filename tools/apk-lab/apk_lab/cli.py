@@ -8,6 +8,7 @@ import subprocess
 import sys
 import tempfile
 import zipfile
+from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
@@ -635,6 +636,72 @@ def handle_deploy(args: argparse.Namespace) -> int:
         return ExitCode.INFRASTRUCTURE_FAILURE
 
 
+def handle_dev(args: argparse.Namespace) -> int:
+    try:
+        from apk_lab.deployment import (
+            build_patch_bundle,
+            deploy_artifact,
+            find_app_artifact,
+            find_repo_root,
+        )
+        from apk_lab.inspection import inspect_artifact
+
+        repo_root = find_repo_root()
+        print(f"Repository root: {repo_root}")
+
+        # 1. Build patch bundle
+        print("Building patch bundle via Gradle...")
+        mpp_path = build_patch_bundle(repo_root)
+        print(f"Built bundle: {mpp_path}")
+
+        # 2. Locate target artifact
+        artifact_path = find_app_artifact(args.app, repo_root)
+        if not artifact_path:
+            print(
+                f"Error: Could not find matching artifact for '{args.app}'",
+                file=sys.stderr,
+            )
+            return ExitCode.USAGE_OR_TOOL_ERROR
+        print(f"Found artifact: {artifact_path}")
+
+        # 3. Resolve package name
+        insp = inspect_artifact(artifact_path)
+        package_name = insp.package_name
+        print(f"Resolved package: {package_name}")
+
+        # 4. Deploy
+        clean_install = getattr(args, "clean_install", False)
+        device_serial = getattr(args, "device", None)
+        launch = getattr(args, "launch", True)
+        all_defaults = getattr(args, "all", True)
+
+        result = deploy_artifact(
+            artifact_path=artifact_path,
+            mpp_path=mpp_path,
+            package_name=package_name,
+            all_defaults=all_defaults,
+            enabled_patches=[],
+            raw_options=[],
+            device_serial=device_serial,
+            launch=launch,
+            clean_install=clean_install,
+        )
+        print(result.format_human())
+        return ExitCode.SUCCESS
+    except FileNotFoundError as e:
+        print(f"Dev iteration error: {e}", file=sys.stderr)
+        return ExitCode.USAGE_OR_TOOL_ERROR
+    except ValueError as e:
+        print(f"Dev iteration error: {e}", file=sys.stderr)
+        return ExitCode.USAGE_OR_TOOL_ERROR
+    except RuntimeError as e:
+        print(f"Dev iteration error: {e}", file=sys.stderr)
+        return ExitCode.INFRASTRUCTURE_FAILURE
+    except Exception as e:  # noqa: BLE001
+        print(f"Dev iteration error: {e}", file=sys.stderr)
+        return ExitCode.INFRASTRUCTURE_FAILURE
+
+
 def handle_monitor(args: argparse.Namespace) -> int:
     try:
         from apk_lab.device import run_monitor
@@ -646,6 +713,68 @@ def handle_monitor(args: argparse.Namespace) -> int:
     except Exception as e:  # noqa: BLE001
         print(f"Monitor error: {e}", file=sys.stderr)
         return ExitCode.INFRASTRUCTURE_FAILURE
+
+
+def _find_package_smali_dir(
+    workspace_root: str | Path, package_name: str
+) -> Path | None:
+    pkg_dir = Path(workspace_root) / package_name
+    if not pkg_dir.is_dir():
+        return None
+    # Find all directories named smali under pkg_dir
+    smali_dirs = [d for d in pkg_dir.rglob("smali") if d.is_dir()]
+    if not smali_dirs:
+        return None
+    # Pick the most recently modified smali directory
+    return max(smali_dirs, key=lambda p: p.stat().st_mtime)
+
+
+def handle_crash_trace(args: argparse.Namespace) -> int:
+    try:
+        from apk_lab.device import harvest_recent_crashes, resolve_crash_report
+
+        reports = harvest_recent_crashes(args.package, args.device, args.lines)
+        smali_dir = _find_package_smali_dir(
+            getattr(args, "workspace_root", ".apk-lab"), args.package
+        )
+        if smali_dir:
+            reports = [resolve_crash_report(report, smali_dir) for report in reports]
+    except Exception as e:  # noqa: BLE001
+        print(f"Crash trace error: {e}", file=sys.stderr)
+        return ExitCode.INFRASTRUCTURE_FAILURE
+
+    if args.json:
+        print(json.dumps([asdict(report) for report in reports], indent=2, default=str))
+        return ExitCode.SUCCESS
+    if not reports:
+        print(f"No recent crashes detected for package {args.package}")
+        return ExitCode.SUCCESS
+
+    for index, report in enumerate(reports):
+        if index:
+            print()
+        print(f"Process: {report.process}")
+        if report.pid is not None:
+            print(f"PID: {report.pid}")
+        if report.timestamp:
+            print(f"Timestamp: {report.timestamp}")
+        print(f"Exception: {report.exception_type}")
+        print(f"Message: {report.message}")
+        if report.stack_trace:
+            print("Stack trace:")
+            if report.resolved_frames:
+                for frame in report.resolved_frames:
+                    print(frame.raw_frame)
+                    if frame.smali_path:
+                        print(f"  -> Smali: {frame.smali_path}")
+                    if frame.method_signature:
+                        print(f"  -> Method: {frame.method_signature}")
+                    if frame.code_snippet:
+                        for line in frame.code_snippet:
+                            print(f"       {line}")
+            else:
+                print("\n".join(report.stack_trace))
+    return ExitCode.SUCCESS
 
 
 def handle_inspect_code(args: argparse.Namespace) -> int:
@@ -689,6 +818,15 @@ def handle_validate_smali(args: argparse.Namespace) -> int:
 def handle_res(args: argparse.Namespace) -> int:
     try:
         from apk_lab.resources import run_res
+
+        if getattr(args, "text", None) and not getattr(args, "query", None):
+            args.query = f"text:{args.text}"
+        elif not getattr(args, "query", None) and not getattr(args, "text", None):
+            print(
+                "Resource inspection error: either --query or --text/--value is required",
+                file=sys.stderr,
+            )
+            return ExitCode.USAGE_OR_TOOL_ERROR
 
         return run_res(args)
     except FileNotFoundError as e:
@@ -939,7 +1077,12 @@ def build_parser() -> argparse.ArgumentParser:
         "deploy", help="Apply patches, sign with debug key, and install to device"
     )
     p_deploy.add_argument("artifact", help="Path to APK/APKM/XAPK/APKS artifact")
-    p_deploy.add_argument("--mpp", required=True, help="Path to patches .mpp file")
+    p_deploy.add_argument("--mpp", default=None, help="Path to patches .mpp file")
+    p_deploy.add_argument(
+        "--build",
+        action="store_true",
+        help="Automatically compile newest .mpp patch bundle via Gradle",
+    )
     p_deploy.add_argument("--package", required=True, help="Expected package name")
     g_patch = p_deploy.add_mutually_exclusive_group(required=True)
     g_patch.add_argument(
@@ -977,7 +1120,53 @@ def build_parser() -> argparse.ArgumentParser:
         help="Clean install by uninstalling first",
     )
     p_deploy.add_argument("--out", help="Path to write signed output APK")
+    p_deploy.add_argument("--keystore", help="Path to custom keystore for signing")
+    p_deploy.add_argument(
+        "--ks-alias",
+        default=None,
+        help="Keystore key alias (defaults to androiddebugkey or auto-detected)",
+    )
+    p_deploy.add_argument(
+        "--ks-pass",
+        default=None,
+        help="Keystore password (defaults to android or auto-detected)",
+    )
+    p_deploy.add_argument(
+        "--key-pass",
+        default=None,
+        help="Key password (defaults to android or auto-detected)",
+    )
     p_deploy.set_defaults(handler=handle_deploy)
+    # dev
+    p_dev = subparsers.add_parser(
+        "dev", help="Build patches, locate artifact, deploy to device, and launch"
+    )
+    p_dev.add_argument("app", help="Application name or package (e.g. 'geocaching')")
+    p_dev.add_argument("--device", help="Target ADB device serial")
+    p_dev.add_argument(
+        "--launch",
+        action="store_true",
+        default=True,
+        help="Launch main activity after installation",
+    )
+    p_dev.add_argument(
+        "--all",
+        action="store_true",
+        default=True,
+        help="Apply all compatible patches",
+    )
+    g_dev_install = p_dev.add_mutually_exclusive_group()
+    g_dev_install.add_argument(
+        "--reinstall",
+        action="store_true",
+        help="Reinstall preserving data (-r, default)",
+    )
+    g_dev_install.add_argument(
+        "--clean-install",
+        action="store_true",
+        help="Clean install by uninstalling first",
+    )
+    p_dev.set_defaults(handler=handle_dev)
 
     # monitor
     p_monitor = subparsers.add_parser(
@@ -997,6 +1186,25 @@ def build_parser() -> argparse.ArgumentParser:
         help="Capture thread dump on ANR or spin",
     )
     p_monitor.set_defaults(handler=handle_monitor)
+
+    # crash-trace
+    p_crash_trace = subparsers.add_parser(
+        "crash-trace", help="Harvest recent Java crash reports from logcat"
+    )
+    p_crash_trace.add_argument(
+        "--package", required=True, help="Package name to inspect"
+    )
+    p_crash_trace.add_argument("--device", help="Target ADB device serial")
+    p_crash_trace.add_argument(
+        "--lines",
+        type=non_negative_int,
+        default=5000,
+        help="Number of recent logcat lines to inspect (default: 5000)",
+    )
+    p_crash_trace.add_argument(
+        "--json", action="store_true", help="Output crash reports as JSON"
+    )
+    p_crash_trace.set_defaults(handler=handle_crash_trace)
 
     # inspect-code
     p_inspect_code = subparsers.add_parser(
@@ -1059,10 +1267,31 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_res.add_argument("artifact", help="Path to APK/APKM/XAPK/APKS artifact")
     p_res.add_argument(
-        "--query", required=True, help="Resource name, ID, or path query"
+        "--query",
+        "-q",
+        default=None,
+        help="Resource name, ID, path, or text: query (or use --text/--value)",
+    )
+    p_res.add_argument(
+        "--text",
+        "--value",
+        dest="text",
+        default=None,
+        help="Search resource string/text values (shorthand for --query text:<str>)",
     )
     p_res.add_argument("--extract", help="Directory to extract matched file resources")
     p_res.set_defaults(handler=handle_res)
+
+    # play-accounts
+    p_play_accounts = subparsers.add_parser(
+        "play-accounts",
+        help="Manage Google Play accounts for authenticated acquisition and metadata",
+    )
+    p_play_accounts.set_defaults(
+        handler=lambda _args: __import__(
+            "apk_lab.play_accounts_tui", fromlist=["run_play_accounts_tui"]
+        ).run_play_accounts_tui()
+    )
 
     return parser
 

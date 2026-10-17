@@ -27,7 +27,7 @@ class CompositePatchBuilder(
     private val compatibilities = mutableListOf<Compatibility>()
     private val dependencies = mutableListOf<Patch<*>>()
     private val extensionPaths = mutableListOf<String>()
-    private val options = mutableListOf<Option<*>>()
+    private val options = mutableListOf<Option<Any?>>()
 
     private var resourceBlock: (ResourcePatchContext.() -> Unit)? = null
     private var rawResourceBlock: (ResourcePatchContext.() -> Unit)? = null
@@ -49,9 +49,31 @@ class CompositePatchBuilder(
         extensionPaths.add(path)
     }
 
-    operator fun <T> invoke(option: Option<T>): Option<T> {
-        options.add(option)
+    @Suppress("UNCHECKED_CAST")
+    fun <T> registerOption(option: Option<T>): Option<T> {
+        options.add(option as Option<Any?>)
         return option
+    }
+
+    operator fun <T> invoke(option: Option<T>): Option<T> = registerOption(option)
+    fun booleanOption(
+        key: String,
+        default: Boolean = false,
+        values: Map<String, Boolean>? = null,
+        title: String,
+        description: String? = null,
+        required: Boolean = false,
+    ): Option<Boolean> {
+        val opt = app.morphe.patcher.patch.booleanOption(
+            key = key,
+            default = default,
+            values = values,
+            title = title,
+            description = description,
+            required = required,
+        )
+        registerOption(opt)
+        return opt
     }
 
     fun resources(block: ResourcePatchContext.() -> Unit) {
@@ -116,7 +138,7 @@ class CompositePatchBuilder(
                 extendWith(ext)
             }
             for (opt in options) {
-                invoke(opt)
+                opt.invoke()
             }
             bytecodeBlock?.let { execute(it) }
         }

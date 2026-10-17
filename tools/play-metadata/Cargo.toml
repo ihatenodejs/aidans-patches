@@ -1,0 +1,11 @@
+[package]
+name = "play-metadata"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+async-trait = "0.1.86"
+gpapi = "=6.1.0"
+serde = { version = "1.0.218", features = ["derive"] }
+serde_json = "1.0.139"
+tokio = { version = "1.43.0", features = ["full"] }

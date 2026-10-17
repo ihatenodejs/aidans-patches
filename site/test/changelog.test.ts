@@ -7,8 +7,8 @@ import {
   resolveLatestReleaseSync,
   resolveLatestRelease,
   fetchLatestGitHubRelease,
-} from './changelog';
-import type { RawBundle } from './types';
+} from '../src/data/changelog';
+import type { RawBundle } from '../src/data/types';
 
 describe('isPreRelease', () => {
   it('identifies pre-release versions with dev/alpha/beta/rc tags', () => {

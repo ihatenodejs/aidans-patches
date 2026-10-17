@@ -1,0 +1,61 @@
+---
+import CarouselControls from './CarouselControls.astro';
+import type { PlayMediaAsset } from '../data/status-client';
+
+interface Props {
+  screenshots?: PlayMediaAsset[];
+  appName: string;
+}
+
+const { appName } = Astro.props;
+const railId = 'app-screenshots-rail';
+---
+
+<section
+  id="screenshots-section"
+  data-screenshots-section
+  aria-label={`${appName} images`}
+  class="hidden border-b border-white/[0.08] bg-[#070707] px-5 py-5 sm:px-8 sm:py-8"
+>
+  <div class="mb-4 flex items-center justify-between">
+    <div class="flex items-center gap-2">
+      <h2 class="font-sans text-sm font-semibold tracking-tight text-white sm:text-base leading-none">
+        Images
+      </h2>
+      <span
+        data-screenshots-count
+        class="font-mono text-[10px] text-zinc-500 leading-none"
+      >
+        0 items
+      </span>
+    </div>
+    <CarouselControls
+      targetRailId={railId}
+      ariaLabelPrefix={`${appName} images`}
+    />
+  </div>
+
+  <div
+    id={railId}
+    data-carousel-rail={railId}
+    tabindex="0"
+    role="region"
+    aria-label={`${appName} images gallery`}
+    class="flex gap-4 overflow-x-auto p-2 scroll-smooth snap-x snap-mandatory focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-white/20 custom-scrollbar items-start"
+  >
+    <!-- Template item cloned dynamically during hydration, or rendered if SSG has screenshots -->
+    <template data-screenshot-template>
+      <div class="relative shrink-0 snap-start overflow-hidden rounded-md border border-white/[0.08] bg-zinc-950/60 shadow-lg transition-transform duration-150 hover:scale-[1.02] self-start flex items-center justify-center">
+        <img
+          src=""
+          alt=""
+          loading="lazy"
+          decoding="async"
+          class="h-[300px] w-auto max-w-[260px] object-contain sm:h-[360px] sm:max-w-[320px] block"
+        />
+      </div>
+    </template>
+
+    <div data-screenshots-container class="flex gap-4 items-start"></div>
+  </div>
+</section>

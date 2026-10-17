@@ -1,0 +1,875 @@
+---
+import AppDetailHero from '../../components/AppDetailHero.astro';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import PatchRow from '../../components/PatchRow.astro';
+import VersionBadgeTooltip from '../../components/VersionBadgeTooltip.astro';
+import ScreenshotRail from '../../components/ScreenshotRail.astro';
+import AboutAppDialog from '../../components/AboutAppDialog.astro';
+import FeaturedReviews from '../../components/FeaturedReviews.astro';
+import {
+  getApps,
+  getPatchesForApp,
+  getLatestRelease,
+  getChangelogContent,
+} from '../../data/repo';
+import { findLatestReleaseForApp } from '../../data/app-changelog';
+import type { App, Patch } from '../../data/types';
+import { getFallbackCategory, getFallbackSummary } from '../../data/app-store';
+import { formatAndroidVersion } from '../../data/android-version';
+
+export function getStaticPaths() {
+  return getApps().map((app) => ({
+    params: { app: app.id },
+    props: { app, patches: getPatchesForApp(app.id) },
+  }));
+}
+
+interface Props {
+  app: App;
+  patches: Patch[];
+}
+
+const { app, patches } = Astro.props;
+const fallbackCategory = getFallbackCategory(app.id);
+const fallbackSummary = getFallbackSummary(app.id);
+
+const latestRelease = getLatestRelease();
+const appReleaseHistory = findLatestReleaseForApp(getChangelogContent(), app);
+const morpheVersion = appReleaseHistory?.version || latestRelease.version;
+const morpheReleaseDate =
+  appReleaseHistory?.releaseDate || latestRelease.releaseDate;
+const appMorpheChanges = appReleaseHistory?.changes || [];
+
+const categoryCounts = patches.reduce<Map<string, number>>((counts, patch) => {
+  const category = patch.category || 'General';
+  counts.set(category, (counts.get(category) || 0) + 1);
+  return counts;
+}, new Map());
+const patchCategories = [...categoryCounts.entries()];
+const description = `${app.name} (${fallbackCategory.name}): ${fallbackSummary} Explore ${patches.length} curated Morphe patches.`;
+---
+
+<BaseLayout
+  title={`${app.name} — Apps — Aidan's Morphe Patches`}
+  description={description}
+  currentPath={`/apps/${app.id}`}
+>
+  <nav
+    aria-label="Breadcrumb"
+    class="flex items-center gap-2 px-4 py-4 font-mono text-[10px] text-zinc-600 sm:px-6"
+  >
+    <a href="/apps" class="transition-colors hover:text-white">
+      Apps
+    </a>
+    <span aria-hidden="true">/</span>
+    <span class="text-zinc-400">{app.name}</span>
+  </nav>
+
+  <AppDetailHero app={app} patches={patches} />
+
+  <!-- Screenshots Rail Component -->
+  <ScreenshotRail appName={app.name} />
+
+  <!-- App Store Information Panels (About this app & What's new) -->
+  <section
+    data-store-panels
+    data-package={app.packageName}
+    aria-label="App store details"
+    class="border-b border-white/[0.08] bg-[#060606] px-5 py-5 sm:px-8 sm:py-8"
+  >
+    <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
+      <!-- Panel 1: About this app -->
+      <div class="border border-white/[0.08] bg-[#090909] p-5 sm:p-6 flex flex-col justify-between">
+        <div>
+          <div class="flex items-center justify-between gap-3">
+            <h2 class="font-sans text-base font-bold text-white tracking-tight">
+              About this app
+            </h2>
+          </div>
+
+          <div
+            data-panel-description
+            class="mt-3.5 text-xs leading-relaxed text-zinc-300 font-sans space-y-2 max-h-48 overflow-hidden relative"
+          >
+            <p
+              data-panel-description-text
+              class="whitespace-pre-line line-clamp-4"
+            >
+              {fallbackSummary}
+            </p>
+          </div>
+
+          <button
+            type="button"
+            data-trigger-about-dialog
+            class="hidden mt-2 font-mono text-[11px] text-zinc-400 hover:text-white transition-colors focus-visible:outline-none focus-visible:underline"
+          >
+            Show more &rarr;
+          </button>
+        </div>
+
+        <div class="mt-4 flex items-center justify-between text-[11px] font-mono text-zinc-500">
+          <span>Developer</span>
+          <span
+            data-panel-developer
+            class="text-zinc-300 font-semibold truncate max-w-[200px]"
+          >
+            Google Play Verified
+          </span>
+        </div>
+      </div>
+
+      <!-- Panel 2: What's new in latest release -->
+      <div
+        id="whats-new-panel"
+        data-whats-new-panel
+        class="border border-white/[0.08] bg-[#090909] p-5 sm:p-6 flex flex-col justify-between"
+      >
+        <div class="space-y-4">
+          <div class="flex items-center justify-between gap-3">
+            <h2 class="font-sans text-base font-bold text-white tracking-tight">
+              What's new
+            </h2>
+          </div>
+          <!-- Subsection A: Google Play Release Notes -->
+          <div data-play-notes-section class="hidden">
+            <div class="flex items-center justify-between gap-2 mb-1.5">
+              <span class="font-sans text-xs font-semibold text-zinc-300">
+                Google Play release
+              </span>
+              <span
+                data-play-notes-date
+                class="font-mono text-[10px] text-zinc-500"
+              ></span>
+            </div>
+            <div
+              data-play-notes-body
+              class="text-xs leading-relaxed text-zinc-400 font-sans max-h-44 overflow-y-auto custom-scrollbar pr-2 whitespace-pre-line"
+            ></div>
+          </div>
+
+          <!-- Subsection B: Morphe Patches Release Notes -->
+          {appMorpheChanges.length > 0 && (
+            <div data-morphe-notes-section class="mt-4">
+              <div class="flex items-center justify-between gap-2 mb-1.5">
+                <span class="font-sans text-xs font-semibold text-zinc-300">
+                  Morphe patches (v{morpheVersion})
+                </span>
+                <span class="font-mono text-[10px] text-zinc-500">
+                  {morpheReleaseDate}
+                </span>
+              </div>
+              <ul class="text-xs leading-relaxed text-zinc-400 font-sans space-y-1.5 list-disc list-inside">
+                {appMorpheChanges.map((change) => (
+                  <li>
+                    <span class="font-mono text-[10px] uppercase text-zinc-500 mr-1">
+                      [{change.type}]
+                    </span>
+                    {change.description}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Featured Reviews Component -->
+  <FeaturedReviews appName={app.name} />
+
+  <!-- Accessible Dialog for About / Full Description & Facts -->
+  <AboutAppDialog appName={app.name} />
+
+  <!-- Patch Catalog & Implementation Sidebar -->
+  <div class="grid grid-cols-1 gap-8 px-5 py-5 sm:px-8 sm:py-8 lg:grid-cols-[minmax(0,1fr)_260px] lg:items-start">
+    <section aria-labelledby="improvements-heading" class="min-w-0">
+      <div class="mb-5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2
+            id="improvements-heading"
+            class="font-sans text-xl font-semibold leading-none tracking-tight text-white"
+          >
+            Compatible Patches
+          </h2>
+        </div>
+      </div>
+      <div class="mb-4 flex flex-wrap gap-2">
+        {patchCategories.map(([category, count]) => (
+          <span class="rounded-full border border-white/[0.08] bg-white/[0.025] px-2.5 py-1 font-mono text-[9px] uppercase tracking-wide text-zinc-500">
+            {category} <span class="ml-1 text-zinc-700">{count}</span>
+          </span>
+        ))}
+      </div>
+
+      <div class="divide-y divide-white/[0.07] border border-white/[0.08] bg-[#080808]">
+        {patches.map((patch) => (
+          <PatchRow patch={patch} />
+        ))}
+      </div>
+    </section>
+
+    <aside class="space-y-3 lg:sticky lg:top-20">
+      <section class="border border-white/[0.08] bg-[#080808] p-5">
+        <h2 class="font-sans text-sm font-semibold text-white">
+          Compatibility
+        </h2>
+        <dl class="mt-4 space-y-3 font-mono text-[10px]">
+          <div class="flex items-start justify-between gap-3">
+            <dt class="text-zinc-500">Target version</dt>
+            <dd class="text-right">
+              <VersionBadgeTooltip text={`v${app.latestSupportedVersion}`} />
+            </dd>
+          </div>
+          <div class="flex items-start justify-between gap-3">
+            <dt class="text-zinc-500">Package format</dt>
+            <dd class="text-right text-zinc-300">{app.apkFileType}</dd>
+          </div>
+          <div class="flex items-start justify-between gap-3">
+            <dt class="text-zinc-500">Minimum Android</dt>
+            <dd class="text-right text-zinc-300">
+              {formatAndroidVersion(app.minSdk, '+')}
+            </dd>
+          </div>
+          <div class="border-t border-white/[0.06] pt-3">
+            <dt class="text-zinc-500">Package</dt>
+            <dd class="mt-1 break-all leading-relaxed text-zinc-400">
+              {app.packageName}
+            </dd>
+          </div>
+        </dl>
+      </section>
+
+      {app.supportedVersions.length > 1 && (
+        <section class="border border-white/[0.08] bg-[#080808] p-5">
+          <h2 class="font-sans text-sm font-semibold text-white">
+            Supported versions
+          </h2>
+          <div class="mt-3 flex flex-wrap gap-1.5">
+            {app.supportedVersions.map((version) => (
+              <span class="border border-white/[0.08] bg-black/20 px-2 py-1 font-mono text-[9px] text-zinc-500">
+                {version}
+              </span>
+            ))}
+          </div>
+        </section>
+      )}
+
+      <section class="border border-white/[0.08] bg-[#080808] p-5">
+        <div class="font-mono text-[9px] uppercase tracking-wider text-zinc-600">
+          Want the technical details?
+        </div>
+        <p class="mt-2 text-xs leading-relaxed text-zinc-500">
+          Read the implementation notes and app-specific architecture on GitHub.
+        </p>
+        <a
+          href={app.docsUrl}
+          target="_blank"
+          rel="noreferrer"
+          class="mt-4 inline-flex items-center gap-1.5 font-mono text-[10px] text-zinc-300 transition-colors hover:text-white"
+        >
+          <span>Open documentation</span>
+          <span aria-hidden="true">&nearr;</span>
+        </a>
+      </section>
+    </aside>
+  </div>
+
+  <script>
+    import {
+      loadStatusPayload,
+      resolveFallbackMediaUrl,
+      type PlayMediaAsset,
+      type PlayReview,
+      type PublicAppStatus,
+      type PublicStatusPayload,
+    } from '../../data/status-client';
+
+    function attachImageFallback(
+      imgEl: HTMLImageElement,
+      asset: PlayMediaAsset | null | undefined,
+    ): void {
+      if (!asset || !asset.sourceUrl) return;
+      imgEl.src = asset.sourceUrl;
+      imgEl.addEventListener(
+        'error',
+        () => {
+          if (asset.fallbackPath) {
+            const resolved = resolveFallbackMediaUrl(asset.fallbackPath);
+            if (resolved && imgEl.src !== resolved) {
+              imgEl.src = resolved;
+              return;
+            }
+          }
+          imgEl.classList.add('hidden');
+        },
+        { once: true },
+      );
+    }
+
+    function hydrateHeroMetrics(appStatus: PublicAppStatus): void {
+      const meta = appStatus.playMetadata;
+      if (!meta) return;
+
+      const metricsRow = document.querySelector<HTMLElement>(
+        '[data-store-metrics]',
+      );
+      if (!metricsRow) return;
+
+      let hasAnyMetric = false;
+
+      // Rating
+      if (typeof meta.score === 'number' && meta.score > 0) {
+        const ratingBox = metricsRow.querySelector<HTMLElement>(
+          '[data-metric-rating]',
+        );
+        const scoreVal = metricsRow.querySelector<HTMLElement>(
+          '[data-metric-score]',
+        );
+        const reviewsVal = metricsRow.querySelector<HTMLElement>(
+          '[data-metric-reviews]',
+        );
+        if (ratingBox && scoreVal) {
+          scoreVal.textContent = meta.score.toFixed(1);
+          if (
+            reviewsVal &&
+            typeof meta.ratingsCount === 'number' &&
+            meta.ratingsCount > 0
+          ) {
+            reviewsVal.textContent = `(${meta.ratingsCount.toLocaleString()})`;
+          }
+          ratingBox.classList.remove('hidden');
+          ratingBox.classList.add('flex');
+          hasAnyMetric = true;
+        }
+      }
+
+      // Downloads
+      if (meta.installs && meta.installs.trim()) {
+        const dlBox = metricsRow.querySelector<HTMLElement>(
+          '[data-metric-downloads]',
+        );
+        const dlVal = metricsRow.querySelector<HTMLElement>(
+          '[data-metric-downloads-val]',
+        );
+        const dlDiv = metricsRow.querySelector<HTMLElement>(
+          '[data-metric-downloads-divider]',
+        );
+        if (dlBox && dlVal) {
+          dlVal.textContent = meta.installs.trim();
+          dlBox.classList.remove('hidden');
+          dlBox.classList.add('flex');
+          if (hasAnyMetric && dlDiv) dlDiv.classList.remove('hidden');
+          hasAnyMetric = true;
+        }
+      }
+
+      // Content rating
+      if (meta.contentRating && meta.contentRating.trim()) {
+        const crBox = metricsRow.querySelector<HTMLElement>(
+          '[data-metric-content-rating]',
+        );
+        const crVal = metricsRow.querySelector<HTMLElement>(
+          '[data-metric-content-val]',
+        );
+        const crIcon = metricsRow.querySelector<HTMLImageElement>(
+          '[data-metric-content-icon]',
+        );
+        const crDiv = metricsRow.querySelector<HTMLElement>(
+          '[data-metric-content-divider]',
+        );
+        if (crBox && crVal) {
+          crVal.textContent = meta.contentRating.trim();
+          if (crIcon && meta.contentRatingIcon) {
+            crIcon.classList.remove('hidden');
+            attachImageFallback(crIcon, meta.contentRatingIcon);
+          }
+          crBox.classList.remove('hidden');
+          crBox.classList.add('flex');
+          if (hasAnyMetric && crDiv) crDiv.classList.remove('hidden');
+          hasAnyMetric = true;
+        }
+      }
+
+      if (hasAnyMetric) {
+        metricsRow.classList.remove('hidden');
+        metricsRow.classList.add('flex');
+      }
+    }
+
+    function hydrateScreenshots(meta: any): void {
+      const screenshots: PlayMediaAsset[] = meta?.screenshots || [];
+      if (!Array.isArray(screenshots) || screenshots.length === 0) return;
+
+      const section = document.querySelector<HTMLElement>(
+        '[data-screenshots-section]',
+      );
+      const container = document.querySelector<HTMLElement>(
+        '[data-screenshots-container]',
+      );
+      const template = document.querySelector<HTMLTemplateElement>(
+        '[data-screenshot-template]',
+      );
+      const countEl = document.querySelector<HTMLElement>(
+        '[data-screenshots-count]',
+      );
+
+      if (!section || !container || !template) return;
+
+      container.innerHTML = '';
+      let visibleCount = 0;
+
+      for (const s of screenshots) {
+        const clone = template.content.cloneNode(true) as DocumentFragment;
+        const img = clone.querySelector<HTMLImageElement>('img');
+        if (img) {
+          img.alt = s.alt || 'Screenshot';
+          if (s.width) img.width = s.width;
+          if (s.height) img.height = s.height;
+          attachImageFallback(img, s);
+          container.appendChild(clone);
+          visibleCount++;
+        }
+      }
+
+      if (visibleCount > 0) {
+        if (countEl) countEl.textContent = `${visibleCount} items`;
+        section.classList.remove('hidden');
+      }
+    }
+
+    function hydrateAboutAndDialog(
+      meta: any,
+      appStatus: PublicAppStatus,
+    ): void {
+      const desc = meta?.description || '';
+      const summary = meta?.summary || '';
+
+      const descText = document.querySelector<HTMLElement>(
+        '[data-panel-description-text]',
+      );
+      if (descText && (desc || summary)) {
+        descText.textContent = desc || summary;
+      }
+
+      const showMoreBtn = document.querySelector<HTMLButtonElement>(
+        '[data-trigger-about-dialog]',
+      );
+      const dialog = document.getElementById(
+        'about-app-dialog',
+      ) as HTMLDialogElement | null;
+      const dialogFullDesc = document.querySelector<HTMLElement>(
+        '[data-dialog-full-description]',
+      );
+
+      if (showMoreBtn && dialog && dialogFullDesc) {
+        // Show button if full description is longer than preview
+        if (desc.length > 250) {
+          showMoreBtn.classList.remove('hidden');
+          dialogFullDesc.textContent = desc;
+
+          showMoreBtn.addEventListener('click', () => {
+            dialog.showModal();
+          });
+
+          const closeBtn = dialog.querySelector<HTMLButtonElement>(
+            '[data-close-dialog]',
+          );
+          closeBtn?.addEventListener('click', () => {
+            dialog.close();
+            showMoreBtn.focus();
+          });
+
+          dialog.addEventListener('click', (e) => {
+            if (e.target === dialog) {
+              dialog.close();
+              showMoreBtn.focus();
+            }
+          });
+
+          dialog.addEventListener('cancel', () => {
+            showMoreBtn.focus();
+          });
+        }
+      }
+
+      // Populate Dialog Facts Grid
+      const facts: Record<string, string | null | undefined> = {
+        developer: meta?.developer,
+        updated: appStatus.updatedOn,
+        downloads: meta?.installs,
+        'content-rating': meta?.contentRating,
+        released: meta?.releasedOn,
+        'min-android': meta?.minAndroid,
+        iap: meta?.inAppPurchases,
+        permissions: meta?.permissionGroups?.length
+          ? meta.permissionGroups.join(' · ')
+          : null,
+      };
+
+      for (const [key, val] of Object.entries(facts)) {
+        if (val && val.trim()) {
+          const factRow = document.querySelector<HTMLElement>(
+            `[data-fact="${key}"]`,
+          );
+          const valEl = factRow?.querySelector<HTMLElement>('[data-fact-val]');
+          if (factRow && valEl) {
+            valEl.textContent = val.trim();
+            factRow.classList.remove('hidden');
+            factRow.classList.add('flex');
+          }
+        }
+      }
+
+      const panelDev = document.querySelector<HTMLElement>(
+        '[data-panel-developer]',
+      );
+      if (panelDev && meta?.developer && meta.developer.trim()) {
+        panelDev.textContent = meta.developer.trim();
+      }
+    }
+
+    function hydrateWhatsNew(meta: any, appStatus: PublicAppStatus): void {
+      const playSection = document.querySelector<HTMLElement>(
+        '[data-play-notes-section]',
+      );
+      const playDate = document.querySelector<HTMLElement>(
+        '[data-play-notes-date]',
+      );
+      const playBody = document.querySelector<HTMLElement>(
+        '[data-play-notes-body]',
+      );
+      const morpheSection = document.querySelector<HTMLElement>(
+        '[data-morphe-notes-section]',
+      );
+      const whatsNewPanel = document.querySelector<HTMLElement>(
+        '[data-whats-new-panel]',
+      );
+
+      let hasPlayNotes = false;
+      if (meta?.releaseNotes && meta.releaseNotes.trim()) {
+        hasPlayNotes = true;
+        if (playSection && playBody) {
+          playBody.textContent = meta.releaseNotes.trim();
+          if (playDate && appStatus.updatedOn) {
+            playDate.textContent = appStatus.updatedOn;
+          }
+          playSection.classList.remove('hidden');
+          if (morpheSection) {
+            morpheSection.classList.add('mt-4');
+          }
+        }
+      }
+      const hasMorpheNotes = Boolean(morpheSection);
+
+      if (!hasPlayNotes && !hasMorpheNotes && whatsNewPanel) {
+        whatsNewPanel.classList.add('hidden');
+      }
+    }
+
+    function hydrateReviews(meta: any): void {
+      const reviews: PlayReview[] = meta?.featuredReviews || [];
+      if (!Array.isArray(reviews) || reviews.length === 0) return;
+
+      const section = document.querySelector<HTMLElement>(
+        '[data-reviews-section]',
+      );
+      const container = document.querySelector<HTMLElement>(
+        '[data-reviews-container]',
+      );
+      const template = document.querySelector<HTMLTemplateElement>(
+        '[data-review-template]',
+      );
+
+      if (!section || !container || !template) return;
+
+      container.innerHTML = '';
+      let rendered = 0;
+
+      for (const r of reviews.slice(0, 3)) {
+        const clone = template.content.cloneNode(true) as DocumentFragment;
+        const authorEl = clone.querySelector<HTMLElement>(
+          '[data-review-author]',
+        );
+        const textEl = clone.querySelector<HTMLElement>('[data-review-text]');
+        const starsEl = clone.querySelector<HTMLElement>('[data-review-stars]');
+        const dateEl = clone.querySelector<HTMLElement>('[data-review-date]');
+        const helpfulRow = clone.querySelector<HTMLElement>(
+          '[data-review-helpful-row]',
+        );
+        const helpfulEl = clone.querySelector<HTMLElement>(
+          '[data-review-helpful]',
+        );
+        const avatarImg = clone.querySelector<HTMLImageElement>(
+          '[data-review-avatar]',
+        );
+        const initialEl = clone.querySelector<HTMLElement>(
+          '[data-review-initial]',
+        );
+
+        if (authorEl) authorEl.textContent = r.author || 'Google Play User';
+        if (textEl) textEl.textContent = r.text || '';
+        if (starsEl) starsEl.textContent = '★'.repeat(r.rating || 5);
+        if (dateEl) dateEl.textContent = r.date || '';
+
+        if (helpfulRow && helpfulEl) {
+          if (r.helpfulCount && r.helpfulCount > 0) {
+            helpfulEl.textContent = `${r.helpfulCount} people found this helpful`;
+          } else {
+            helpfulRow.classList.add('hidden');
+          }
+        }
+
+        if (r.avatar && avatarImg) {
+          avatarImg.classList.remove('hidden');
+          attachImageFallback(avatarImg, r.avatar);
+          if (initialEl) initialEl.classList.add('hidden');
+        } else if (initialEl) {
+          initialEl.textContent = (r.author || 'G').charAt(0).toUpperCase();
+        }
+
+        container.appendChild(clone);
+        rendered++;
+      }
+
+      if (rendered > 0) {
+        section.classList.remove('hidden');
+      }
+    }
+
+    function hydrateSidebarBadges(appStatus: PublicAppStatus): void {
+      const sideBadge = document.querySelector<HTMLElement>(
+        'aside [data-app-version-badge]',
+      );
+      if (!sideBadge) return;
+
+      const status = appStatus.status;
+      const targetCompat = appStatus.targetCompatibility;
+
+      sideBadge.classList.remove(
+        'bg-zinc-900',
+        'text-zinc-400',
+        'border-white/10',
+        'bg-emerald-950/60',
+        'text-emerald-400',
+        'border-emerald-800/40',
+        'bg-amber-950/60',
+        'text-amber-400',
+        'border-amber-800/40',
+        'bg-rose-950/60',
+        'text-rose-400',
+        'border-rose-800/40',
+      );
+
+      if (targetCompat?.status === 'compatible') {
+        sideBadge.classList.add(
+          'bg-emerald-950/60',
+          'text-emerald-400',
+          'border-emerald-800/40',
+        );
+      } else if (
+        targetCompat?.status === 'incompatible' ||
+        targetCompat?.status === 'error'
+      ) {
+        sideBadge.classList.add(
+          'bg-rose-950/60',
+          'text-rose-400',
+          'border-rose-800/40',
+        );
+      } else if (status === 'up-to-date') {
+        sideBadge.classList.add(
+          'bg-emerald-950/60',
+          'text-emerald-400',
+          'border-emerald-800/40',
+        );
+      } else if (status === 'newer-available') {
+        sideBadge.classList.add(
+          'bg-amber-950/60',
+          'text-amber-400',
+          'border-amber-800/40',
+        );
+      } else {
+        sideBadge.classList.add(
+          'bg-zinc-900',
+          'text-zinc-400',
+          'border-white/10',
+        );
+      }
+
+      // Tooltip Row 1: Test status badge
+      const testBadge = document.querySelector<HTMLElement>(
+        'aside [data-tooltip-test-badge]',
+      );
+      const testLabel = document.querySelector<HTMLElement>(
+        'aside [data-tooltip-test-label]',
+      );
+      if (testBadge && testLabel) {
+        testBadge.classList.remove(
+          'bg-zinc-900',
+          'text-zinc-400',
+          'border-white/10',
+          'bg-emerald-950/60',
+          'text-emerald-400',
+          'border-emerald-800/40',
+          'bg-rose-950/60',
+          'text-rose-400',
+          'border-rose-800/40',
+          'bg-amber-950/60',
+          'text-amber-400',
+          'border-amber-800/40',
+        );
+
+        const dotEl = testBadge.querySelector('span:first-child');
+        if (dotEl) dotEl.className = 'w-1.5 h-1.5 rounded-full';
+
+        if (targetCompat?.status === 'compatible') {
+          testBadge.classList.add(
+            'bg-emerald-950/60',
+            'text-emerald-400',
+            'border-emerald-800/40',
+          );
+          dotEl?.classList.add('bg-emerald-400');
+          const passed = targetCompat.passedCount || 0;
+          const total = passed + (targetCompat.failedCount || 0);
+          testLabel.textContent =
+            total > 0 ? `${passed}/${total} passed` : 'Compatible';
+        } else if (targetCompat?.status === 'incompatible') {
+          testBadge.classList.add(
+            'bg-rose-950/60',
+            'text-rose-400',
+            'border-rose-800/40',
+          );
+          dotEl?.classList.add('bg-rose-400');
+          const passed = targetCompat.passedCount || 0;
+          const total = passed + (targetCompat.failedCount || 0);
+          testLabel.textContent = `${passed}/${total} passed`;
+        } else if (targetCompat?.status === 'error') {
+          testBadge.classList.add(
+            'bg-rose-950/60',
+            'text-rose-400',
+            'border-rose-800/40',
+          );
+          dotEl?.classList.add('bg-rose-400');
+          testLabel.textContent = 'Test error';
+        } else if (
+          appStatus.outstandingRequest?.expectedRoles?.includes('target')
+        ) {
+          testBadge.classList.add(
+            'bg-amber-950/60',
+            'text-amber-400',
+            'border-amber-800/40',
+          );
+          dotEl?.classList.add('bg-amber-400');
+          testLabel.textContent = 'Queued';
+        } else {
+          testBadge.classList.add(
+            'bg-zinc-900',
+            'text-zinc-400',
+            'border-white/10',
+          );
+          dotEl?.classList.add('bg-zinc-500');
+          testLabel.textContent = 'Not tested';
+        }
+      }
+
+      // Tooltip Row 2: Play Store version badge
+      const playBadge = document.querySelector<HTMLElement>(
+        'aside [data-tooltip-play-badge]',
+      );
+      const playLabel = document.querySelector<HTMLElement>(
+        'aside [data-tooltip-play-label]',
+      );
+      if (playBadge && playLabel) {
+        playBadge.classList.remove(
+          'bg-zinc-900',
+          'text-zinc-400',
+          'border-white/10',
+          'bg-emerald-950/60',
+          'text-emerald-400',
+          'border-emerald-800/40',
+          'bg-amber-950/60',
+          'text-amber-400',
+          'border-amber-800/40',
+          'bg-rose-950/60',
+          'text-rose-400',
+          'border-rose-800/40',
+        );
+
+        const dotEl = playBadge.querySelector('span:first-child');
+        if (dotEl) dotEl.className = 'w-1.5 h-1.5 rounded-full';
+
+        if (status === 'up-to-date') {
+          playBadge.classList.add(
+            'bg-emerald-950/60',
+            'text-emerald-400',
+            'border-emerald-800/40',
+          );
+          dotEl?.classList.add('bg-emerald-400');
+          playLabel.textContent = appStatus.playVersion
+            ? `v${appStatus.playVersion}`
+            : 'Latest';
+        } else if (status === 'newer-available') {
+          playBadge.classList.add(
+            'bg-amber-950/60',
+            'text-amber-400',
+            'border-amber-800/40',
+          );
+          dotEl?.classList.add('bg-amber-400');
+          playLabel.textContent = appStatus.playVersion
+            ? `v${appStatus.playVersion}`
+            : 'Newer available';
+        } else if (status === 'not-on-play-store') {
+          playBadge.classList.add(
+            'bg-zinc-900',
+            'text-zinc-500',
+            'border-white/10',
+          );
+          dotEl?.classList.add('bg-zinc-600');
+          playLabel.textContent = 'Not on Play';
+        } else if (status === 'check-failed') {
+          playBadge.classList.add(
+            'bg-rose-950/60',
+            'text-rose-400',
+            'border-rose-800/40',
+          );
+          dotEl?.classList.add('bg-rose-400');
+          playLabel.textContent = 'Check failed';
+        } else {
+          playBadge.classList.add(
+            'bg-zinc-900',
+            'text-zinc-400',
+            'border-white/10',
+          );
+          dotEl?.classList.add('bg-zinc-500');
+          playLabel.textContent = appStatus.playVersion
+            ? `v${appStatus.playVersion}`
+            : 'Unknown';
+        }
+      }
+    }
+
+    (() => {
+      const heroContainer = document.querySelector<HTMLElement>(
+        '[data-hero-package]',
+      );
+      const pkg = heroContainer?.dataset.heroPackage;
+      if (!pkg) return;
+
+      loadStatusPayload().then((payload: PublicStatusPayload | null) => {
+        if (!payload || !payload.apps) return;
+        const appStatus = payload.apps[pkg];
+        if (!appStatus) return;
+
+        const meta = appStatus.playMetadata;
+
+        hydrateHeroMetrics(appStatus);
+        hydrateScreenshots(meta);
+        hydrateAboutAndDialog(meta, appStatus);
+        hydrateWhatsNew(meta, appStatus);
+        hydrateReviews(meta);
+        hydrateSidebarBadges(appStatus);
+      });
+    })();
+  </script>
+</BaseLayout>

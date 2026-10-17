@@ -112,10 +112,9 @@ Patches for Blackjack introduce two native Java extension dialogs packaged into 
 
 ## 4. Patch Targets Summary
 
-1. **`Custom Chip Store Binary Hook` (`rawResourcePatch`):** Replaces `OpenShop` with a call to `MNAndroidNative.showDialog` and repurposes `CheckUpdateToVersion` in `libil2cpp.so` into a dual-purpose input bridge (numeric balance setting + level skip execution).
-2. **`Add Custom Chip Store` (`bytecodePatch`):** Hooks `NativePopupsManager.ShowDialog` to present `ChipBalanceDialog`.
-3. **`Skip to Next Level` (`bytecodePatch`):** Hooks `UnityPlayerActivity.onCreate` to install the `SkipLevelDialog` touch proxy.
-4. **`Remove Ads` (`rawResourcePatch`):** Neutralizes ad flags, interstitial triggers, AdManager entry points, and level-up ad containers in `libil2cpp.so`.
-5. **`Remove Tracking and Analytics` (`rawResourcePatch`):** Injects ARM64 `ret` into entry points for Tripledot Analytics, Firebase Analytics, Crashlytics, Adjust, AppsFlyer, and Unity Analytics in `libil2cpp.so`.
-6. **`Remove Internet Permissions` (`resourcePatch`):** Removes `android.permission.INTERNET` from `AndroidManifest.xml`; its **Remove Broken Screens** option disables both Settings and Daily Challenge Help Center buttons whose Zendesk content cannot load offline.
-7. **`Remove Notifications` (`resourcePatch`):** Removes `android.permission.POST_NOTIFICATIONS` from `AndroidManifest.xml` to eliminate push notification delivery.
+1. **`Add Custom Chip Store` (`compositeFeaturePatch`):** Combines an internal ARM64 native hook in `libil2cpp.so` (redirecting `OpenShop` to `MNAndroidNative.showDialog` and repurposing `CheckUpdateToVersion` into a balance-setting and level-skip bridge) with a Dalvik hook intercepting `NativePopupsManager.ShowDialog` to present `ChipBalanceDialog`.
+2. **`Skip to Next Level` (`bytecodePatch`):** Hooks `UnityPlayerActivity.onCreate` to install the `SkipLevelDialog` touch proxy.
+3. **`Remove Ads` (`rawResourcePatch`):** Neutralizes ad flags, interstitial triggers, AdManager entry points, and level-up ad containers in `libil2cpp.so`.
+4. **`Remove Tracking and Analytics` (`rawResourcePatch`):** Injects ARM64 `ret` into entry points for Tripledot Analytics, Firebase Analytics, Crashlytics, Adjust, AppsFlyer, and Unity Analytics in `libil2cpp.so`.
+5. **`Remove Internet Permissions` (`resourcePatch`):** Removes `android.permission.INTERNET` from `AndroidManifest.xml`; its **Remove Broken Screens** option disables both Settings and Daily Challenge Help Center buttons whose Zendesk content cannot load offline.
+6. **`Remove Notifications` (`resourcePatch`):** Removes `android.permission.POST_NOTIFICATIONS` from `AndroidManifest.xml` to eliminate push notification delivery.

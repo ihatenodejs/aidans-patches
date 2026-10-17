@@ -13,7 +13,7 @@ Unpacks an APK or split container (APKM, XAPK, APKS) into an isolated, reproduci
 - **Bytecode Disassembly**: Uses pinned baksmali to disassemble all `classes*.dex` into Smali.
 - **Java Decompilation**: Optional JADX decompilation with class filtering.
 - **Apktool Resource Decoding**: Optional resource decoding with Apktool.
-- **Reproducibility**: Writes `.marker.json` with tool versions, input hashes, and command parameters.
+- **Reproducibility**: Writes `.marker.json` with tool versions, input hashes, and command configuration digest.
 
 ### CLI Invocation
 
@@ -40,9 +40,9 @@ uv run --project tools/apk-lab apk-lab analyze path/to/app.apkm --apktool
 
 ### Exit Codes
 - `0`: Analysis succeeded. Prints workspace path and matching cleanup command.
-- `2`: Artifact not found or tool failure.
+- `2`: Usage error or invalid arguments.
 - `3`: Invalid artifact or security error.
-
+- `4`: Tool or infrastructure failure.
 ---
 
 ## 2. `inspect-code` — Surgical Class & Method Inspection
@@ -50,7 +50,7 @@ uv run --project tools/apk-lab apk-lab analyze path/to/app.apkm --apktool
 Extracts or decompiles **only a single class or method** directly from an APK without decompiling the entire multi-gigabyte application, and provides side-by-side unified diffs between unpatched and patched APKs.
 
 ### Localization & Extraction Mechanism
-1. **Multi-DEX Search**: Scans `classes*.dex` across all splits using `dexdump -c` to find the exact split and DEX file containing the class.
+1. **Multi-DEX Search**: Scans `classes*.dex` across all splits using `dexdump` on each extracted DEX to find the exact split and DEX file containing the class.
 2. **Smali Disassembly**: Invokes pinned baksmali with `--classes <descriptor> --code-offsets` on the containing DEX.
 3. **Java Decompilation**: Invokes pinned JADX with `--single-class <fqcn> --show-bad-code --no-res` directly on the containing APK.
 4. **Method Slicing**:
@@ -140,9 +140,9 @@ uv run --project tools/apk-lab apk-lab validate-smali \
 ### CLI Arguments
 - `--snippet TEXT` (required): Raw Smali instructions (newline-separated).
 - `--locals N` (required): `.locals` count of target method.
-- `--params N` (required): Number of method parameters (excluding `this`).
+- `--params N`: Number of declared single-width parameters (assumes 1 register per param; use `--descriptor` for wide types; defaults to 0 if omitted).
+- `--descriptor DESC`: Method descriptor (e.g. `'(IJLjava/lang/String;)V'`) defining exact parameter types and 64-bit wide register widths.
 - `--is-static`: Set if target method is static (does not have implicit `p0 = this`).
-
 ### Exit Codes
 - `0`: Snippet passed all checks without errors.
 - `2`: Validation error found (register overflow, invalid literal, malformed branch, or assembler failure).

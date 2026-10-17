@@ -6,8 +6,7 @@ This document details the binary bytecode, asset, and resource patches available
 
 | Patch Name | Source File | Type | Default | Dependencies / Extensions | Options | Description |
 |---|---|---|---|---|---|---|
-| [Remove Ads and Tracking](#patch-remove-ads-and-tracking) | `ads/HideBannerAdsPatch.kt` | `bytecodePatch` | `true` | `Remove Ads and Tracking from JS Bundle` | None | Neutralizes AppLovin, AdMob, Rokt, Playtime, InBrain, and tracking SDKs at the Dalvik layer. |
-| [Remove Ads and Tracking from JS Bundle](#patch-remove-ads-and-tracking-from-js-bundle) | `ads/HideBannerAdsPatch.kt` | `rawResourcePatch` | `true` | None | None | Neutralizes post-payment reward and offer modals (Thanks network and Rokt placements) in Hermes bytecode. |
+| [Remove Ads and Tracking](#patch-remove-ads-and-tracking) | `ads/HideBannerAdsPatch.kt` | `compositeFeaturePatch` | `true` | None | None | Removes all ads (AppLovin MAX, Google Mobile Ads, Rokt, Thanks network, Playtime, InBrain Surveys) and disables analytics and tracking SDKs at both Dalvik and Hermes layers. |
 | [Clean Authentication](#patch-clean-authentication) | `auth/CleanAuthenticationPatch.kt` | `rawResourcePatch` | `true` | None | `injectPatchWarning` (default: `true`) | Enforces Google sign-in only, removes phone sign-in controls and explanatory text. |
 | [Unlock Custom App Icons](#patch-unlock-custom-app-icons) | `customization/UnlockCustomAppIconsPatch.kt` | `rawResourcePatch` | `true` | None | None | Unlocks Arctic, Peach, Glass, Rainbow, Sand, and Classic launcher icons without Sezzle Premium. |
 | [Enable App Debugging](#patch-enable-app-debugging) | `dev/EnableAppDebuggingPatch.kt` | `resourcePatch` | `false` | None | None | Injects `android:debuggable="true"` into `AndroidManifest.xml` for ADB debugging. |
@@ -34,11 +33,12 @@ This document details the binary bytecode, asset, and resource patches available
 - **Target Package:** `com.sezzle.sezzlemobile`
 - **Supported Versions:** `5.3.9`
 - **Default State:** `true` (Enabled by default)
-- **Type:** Dalvik Bytecode Patch (`bytecodePatch`)
-- **Dependencies:** `Remove Ads and Tracking from JS Bundle`
+- **Type:** Composite Feature Patch (`compositeFeaturePatch`)
+- **Dependencies:** None
 
 #### 1. Motivation & Purpose
-Neutralizes all advertising and tracking SDKs compiled into the native Android shell before they initialize or render ad banners, preserving the React Native native module interfaces so JavaScript code never encounters missing properties or null references.
+Neutralizes all advertising and tracking SDKs compiled into the native Android shell before they initialize or render ad banners, and strips third-party promotional reward offers (Thanks network and Rokt placements) in Hermes bytecode following purchase or installment payments.
+
 #### 2. Technical Implementation & Injection Points
 
 ##### Dalvik Bytecode Layer
@@ -51,22 +51,8 @@ Stubs out entrypoint methods across all advertising and tracking SDKs:
 - **Tracking SDKs:** AppsFlyer (`AppsFlyerLib`), FullStory (`FS`), Braze (`Braze`, `BrazeBannerManager`), mParticle (`MParticle`), Firebase Analytics & Perf (`FirebaseAnalytics`, `FirebasePerformance`), Facebook SDK (`FacebookInitProvider`, `FBAppEventsLoggerModule`), and AppCenter Analytics.
 - **AAID:** Zeros Google Play Advertising ID via `AdvertisingIdClient.Info` (`getId` -> `"00000000-0000-0000-0000-000000000000"`, `isLimitAdTrackingEnabled` -> `true`).
 
----
-
-### Patch: Remove Ads and Tracking from JS Bundle
-
-- **Name:** Remove Ads and Tracking from JS Bundle
-- **Target Package:** `com.sezzle.sezzlemobile`
-- **Supported Versions:** `5.3.9`
-- **Default State:** `true` (Enabled by default)
-- **Type:** Raw Binary / Asset Patch (`rawResourcePatch`)
-- **Dependencies:** None
-
-#### 1. Motivation & Purpose
-Following purchase or installment payments, Sezzle renders third-party promotional reward offers (such as "Your payment earned you 5 rewards!" or "Your payment comes with 5 rewards") powered by the Thanks ad network (`https://thanks.is`) and Rokt fallback placements. This companion asset patch neutralizes the Thanks/Rokt post-payment modal, decision selectors, and inline widgets directly in Hermes bytecode.
-
-#### 2. Technical Implementation & Injection Points
-Modifies `assets/index.android.bundle` in-place:
+##### Hermes Raw Resource Layer (`assets/index.android.bundle`)
+Applies nine Hermes bytecode substitutions followed by recalculating the trailing bundle SHA-1 footer hash:
 1. **`canShowAd` Selector:** Forces `canShowAd` selector to return `false` (`LoadConstFalse r1; Ret r1`).
 2. **`shouldShowRokt` Selector:** Forces `shouldShowRokt` selector to return `false` (`LoadConstFalse r1; Ret r1`).
 3. **`shouldShowThanks` Selector:** Forces `shouldShowThanks` selector to return `false` (`LoadConstFalse r1; Ret r1`).
@@ -76,8 +62,7 @@ Modifies `assets/index.android.bundle` in-place:
 7. **`enableThanks` Getter:** Forces `enableThanks` getter to return `false` (`LoadConstFalse r0; Ret r0`).
 8. **`getThanksBaseUrl` Function:** Stubs `getThanksBaseUrl` to return `null` (`LoadConstNull r0; Ret r0`), blocking WebView requests to `https://thanks.is/`.
 9. **`ThanksModal.render()` Method:** Neutralizes `ThanksModal` component's `render()` method to return `null` (`LoadConstNull r0; Ret r0`), preventing the `<ReactNativeModal>` from ever mounting.
-10. **Mandatory Rehash:** Recalculates trailing Hermes bundle SHA-1 digest.
-
+- **Mandatory Rehash:** Recalculates trailing Hermes bundle SHA-1 digest via `editor.updateFooterHash()`.
 ---
 
 ### Patch: Clean Authentication

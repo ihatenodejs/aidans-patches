@@ -51,11 +51,55 @@ export interface CompatibilityRunStart {
   supportedVersions: string[];
   gitRevision: string;
 }
+export interface PlayMediaAsset {
+  sourceUrl: string;
+  fallbackPath: string | null;
+  width: number | null;
+  height: number | null;
+  alt: string | null;
+}
+
+export interface PlayReview {
+  author: string;
+  rating: number;
+  date: string | null;
+  text: string;
+  helpfulCount: number;
+  avatar: PlayMediaAsset | null;
+}
+
+export interface PlayStoreMetadata {
+  summary: string | null;
+  description: string | null;
+  developer: string | null;
+  category: string | null;
+  categoryId: string | null;
+  releaseNotes: string | null;
+  installs: string | null;
+  score: number | null;
+  ratingsCount: number | null;
+  reviewsCount: number | null;
+  contentRating: string | null;
+  contentRatingIcon: PlayMediaAsset | null;
+  releasedOn: string | null;
+  minAndroid: string | null;
+  inAppPurchases: string | null;
+  permissionGroups: string[];
+  screenshots: PlayMediaAsset[];
+  featuredReviews: PlayReview[];
+}
+
+export type PlayVersionSource = 'web' | 'authenticated' | null;
 
 export interface AppVersionRecord {
   appName?: string;
   playVersion: string | null;
+  playVersionCode?: number | null;
+  playVersionSource?: PlayVersionSource;
+  playVersionVerifiedForUpdatedAt?: string | null;
+  needsAuthenticatedVersion?: boolean;
   iconUrl?: string | null;
+  iconAsset?: PlayMediaAsset | null;
   updatedAt?: string | null;
   updatedOn?: string | null;
   checkedAt: string;
@@ -66,6 +110,7 @@ export interface AppVersionRecord {
   targetCompatibility?: CompatibilityRecord | null;
   outstandingRequest?: OutstandingCompatibilityRequest | null;
   outstandingRequestId?: string | null;
+  playMetadata?: PlayStoreMetadata | null;
 }
 
 export interface LatestReleaseSummary {
@@ -111,12 +156,25 @@ export interface CompatibilityResultSubmission {
   requestId: string;
   packageName: string;
   acquiredPlayVersion?: string | null;
+  acquiredPlayVersionCode?: number | null;
   results: CompatibilityResultInput[];
+}
+
+export interface PlayMetadataResultItem {
+  packageName: string;
+  versionName: string;
+  versionCode: number;
+  listingUpdatedAt: string | null;
+}
+
+export interface PlayMetadataSubmission {
+  results: PlayMetadataResultItem[];
 }
 
 export interface WorkerEnv extends Env {
   REFRESH_SECRET?: string;
   COMPATIBILITY_STATUS_SECRET?: string;
+  GITHUB_TOKEN?: string;
 }
 
 export interface DownloadAssetRecord {

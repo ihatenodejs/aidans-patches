@@ -1,0 +1,37 @@
+---
+interface Props {
+  checked: boolean;
+  disabled?: boolean;
+  ariaLabel?: string;
+  className?: string;
+}
+
+const {
+  checked,
+  disabled = true,
+  ariaLabel = 'Toggle switch',
+  className = '',
+} = Astro.props;
+---
+
+<span
+  role="switch"
+  aria-checked={checked ? 'true' : 'false'}
+  aria-label={ariaLabel}
+  aria-disabled={disabled ? 'true' : undefined}
+  tabindex={disabled ? '-1' : '0'}
+  class={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-sm border p-0.5 transition-colors select-none ${
+    checked
+      ? 'border-emerald-500/50 bg-emerald-950/40 text-emerald-400'
+      : 'border-white/10 bg-zinc-900 text-zinc-600'
+  } ${disabled ? 'cursor-default pointer-events-none' : 'cursor-pointer'} ${className}`}
+>
+  <span
+    aria-hidden="true"
+    class={`block h-3.5 w-3.5 rounded-[1px] transition-transform duration-150 ${
+      checked
+        ? 'translate-x-4 bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.4)]'
+        : 'translate-x-0 bg-zinc-600'
+    }`}
+  ></span>
+</span>

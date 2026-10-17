@@ -131,6 +131,71 @@ INVOKE_3RC_OPCODES = {
     "invoke-static/range",
     "invoke-interface/range",
 }
+INVOKE_CUSTOM_OPCODES = {
+    "invoke-custom",
+    "invoke-custom/range",
+}
+
+INVOKE_POLYMORPHIC_OPCODES = {
+    "invoke-polymorphic",
+    "invoke-polymorphic/range",
+}
+
+
+ALL_MOVE_RESULT_OPCODES = {
+    "move-result",
+    "move-result-object",
+    "move-result-wide",
+}
+
+FILLED_NEW_ARRAY_OPCODES = {"filled-new-array", "filled-new-array/range"}
+
+
+def extract_method_reference_return_type(operand: str) -> str | None:
+    """Extracts the return type descriptor from a Smali method reference."""
+    match = re.search(
+        r"->[^( \t\r\n]+\(.*\)(\[+(?:[ZBSCIJFD]|L[^;\s]+;)|[VZBSCIJFD]|L[^;\s]+;)$",
+        operand.strip(),
+    )
+    return match.group(1) if match else None
+
+
+def extract_invoke_return_type(opcode: str, tokens: list[str]) -> str | None:
+    """Extracts the return type descriptor from an invoke instruction's operands."""
+    if not tokens:
+        return None
+    candidates: list[str] = []
+    if opcode in INVOKE_POLYMORPHIC_OPCODES:
+        candidates.extend([tokens[-1], tokens[1] if len(tokens) > 1 else ""])
+    elif opcode in INVOKE_CUSTOM_OPCODES:
+        candidates.extend([tokens[1] if len(tokens) > 1 else "", tokens[-1]])
+    else:
+        candidates.append(tokens[-1])
+
+    proto_pattern = re.compile(
+        r"(?:->[^( \t\r\n]+|[a-zA-Z0-9_$<>]+)?\([^)]*\)(\[+(?:[ZBSCIJFD]|L[^;\s]+;)|[VZBSCIJFD]|L[^;\s]+;)$"
+    )
+    for cand in candidates:
+        cand_str = cand.strip()
+        m = proto_pattern.search(cand_str)
+        if m:
+            return m.group(1)
+        res = extract_method_reference_return_type(cand_str)
+        if res:
+            return res
+    return None
+
+
+def expected_move_result_for_return_type(return_type: str) -> str | None:
+    """Returns the expected move-result opcode for a given return type descriptor, or None if void."""
+    if return_type == "V":
+        return None
+    if return_type in ("J", "D"):
+        return "move-result-wide"
+    if return_type.startswith(("[", "L")):
+        return "move-result-object"
+    return "move-result"
+
 
 BRANCH_22T_OPCODES = {
     "if-eq",
@@ -190,6 +255,23 @@ def parse_smali_register(
                 severity="error",
                 code="REGISTER_OUT_OF_RANGE",
                 message=f"Register '{tok}' out of range for total {total_registers} registers (v0..v{total_registers - 1})",
+            )
+        if num >= locals_count:
+            if is_static:
+                param_name = f"p{num - locals_count}"
+            elif num == locals_count:
+                param_name = "p0 (this)"
+            else:
+                param_name = f"p{num - locals_count}"
+            return None, SmaliDiagnostic(
+                line=line_no,
+                severity="error",
+                code="REGISTER_ALIASES_PARAMETER",
+                message=(
+                    f"Register '{tok}' (index {num}) exceeds locals count ({locals_count}) "
+                    f"and aliases parameter register '{param_name}'. Use '{param_name}' "
+                    "or increase method locals."
+                ),
             )
         return Register(name=tok, index=num, is_param=False), None
 
@@ -637,7 +719,108 @@ def validate_smali_snippet(
                     )
                 )
 
-    # Pass 2: Control Flow Graph (CFG) analysis
+    # Pass 2: Invoke return and move-result sequencing.
+    invoke_opcodes = (
+        INVOKE_35C_OPCODES
+        | INVOKE_3RC_OPCODES
+        | INVOKE_CUSTOM_OPCODES
+        | INVOKE_POLYMORPHIC_OPCODES
+    )
+    for index, (line_idx, opcode, tokens) in enumerate(instructions):
+        previous_inst = instructions[index - 1] if index else None
+        previous_opcode = previous_inst[1] if previous_inst else None
+        if opcode in ALL_MOVE_RESULT_OPCODES:
+            if previous_opcode not in invoke_opcodes | FILLED_NEW_ARRAY_OPCODES:
+                report.diagnostics.append(
+                    SmaliDiagnostic(
+                        line=line_idx,
+                        severity="error",
+                        code="ORPHAN_MOVE_RESULT",
+                        message=(
+                            f"'{opcode}' must immediately follow an invoke or filled-new-array "
+                            "instruction."
+                        ),
+                    )
+                )
+            elif previous_opcode in FILLED_NEW_ARRAY_OPCODES:
+                if opcode != "move-result-object":
+                    report.diagnostics.append(
+                        SmaliDiagnostic(
+                            line=line_idx,
+                            severity="error",
+                            code="INVALID_MOVE_RESULT",
+                            message=(
+                                f"'{opcode}' cannot follow '{previous_opcode}'. "
+                                "Expected 'move-result-object'."
+                            ),
+                        )
+                    )
+            elif previous_opcode in invoke_opcodes and previous_inst is not None:
+                prev_return_type = extract_invoke_return_type(
+                    previous_opcode, previous_inst[2]
+                )
+                if prev_return_type == "V":
+                    report.diagnostics.append(
+                        SmaliDiagnostic(
+                            line=line_idx,
+                            severity="error",
+                            code="INVALID_MOVE_RESULT",
+                            message=(
+                                f"'{opcode}' cannot follow method returning 'void'."
+                            ),
+                        )
+                    )
+                elif prev_return_type is not None:
+                    expected_opcode = expected_move_result_for_return_type(
+                        prev_return_type
+                    )
+                    if expected_opcode and opcode != expected_opcode:
+                        report.diagnostics.append(
+                            SmaliDiagnostic(
+                                line=line_idx,
+                                severity="error",
+                                code="INVALID_MOVE_RESULT",
+                                message=(
+                                    f"'{opcode}' does not match return type "
+                                    f"'{prev_return_type}'. Expected '{expected_opcode}'."
+                                ),
+                            )
+                        )
+
+        if opcode not in invoke_opcodes:
+            continue
+
+        return_type = extract_invoke_return_type(opcode, tokens)
+        if return_type is None or return_type == "V":
+            continue
+
+        if index + 1 == len(instructions):
+            report.diagnostics.append(
+                SmaliDiagnostic(
+                    line=line_idx,
+                    severity="warning",
+                    code="UNCONSUMED_INVOKE_RETURN",
+                    message=(
+                        f"Method returns '{return_type}' but return value is not captured "
+                        "by move-result."
+                    ),
+                )
+            )
+        elif instructions[index + 1][1] not in ALL_MOVE_RESULT_OPCODES:
+            next_opcode = instructions[index + 1][1]
+            report.diagnostics.append(
+                SmaliDiagnostic(
+                    line=line_idx,
+                    severity="warning",
+                    code="MISSING_MOVE_RESULT",
+                    message=(
+                        f"Method returns '{return_type}' but next instruction is "
+                        f"'{next_opcode}', not a move-result instruction."
+                    ),
+                )
+            )
+
+    # Pass 3: Control Flow Graph (CFG) analysis
     # Map instruction indices to lines
     cfg_nodes: list[int] = [i[0] for i in instructions]
     if cfg_nodes:
@@ -781,7 +964,7 @@ def validate_smali_snippet(
                     )
                 )
 
-    # Pass 3: Assembler Oracle (invoke pinned smali assemble)
+    # Pass 4: Assembler Oracle (invoke pinned smali assemble)
     # Only if report has no errors so far
     tm = tool_manager or ToolManager()
     if report.is_valid and tm.is_tool_installed("smali"):

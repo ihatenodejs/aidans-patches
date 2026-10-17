@@ -36,15 +36,15 @@ The patch preserves course access, login, synchronization, document viewing, sub
 
 #### Layer 4: ScreenView & Pandata Pageview Surveillance
 - **`Lcom/instructure/pandautils/analytics/ScreenViewAnnotationProcessor;`:** Stubs `processScreenView` to `return-void`.
-- **`Lcom/instructure/pandautils/analytics/PageViewAnnotationProcessor;`:** Stubs `processPageView` to `return-void`.
-- **`Lcom/instructure/pandautils/features/pageview/PageViewUtils;`:** Stubs `saveSingleEvent` and `stopEvent` to `return-void`.
-- **`Lcom/instructure/pandautils/features/pageview/PandataManager;`:** Stubs `postEvent` to `return-void`.
-- **`Lcom/instructure/pandautils/features/pageview/PageViewUploadWorker;`:** Injects `new-instance v0, Landroidx/work/u$a$c; \n invoke-direct {v0}, Landroidx/work/u$a$c;-><init>()V \n return-object v0` into `doWork()`, returning `Result.success()` immediately without querying the local database or uploading queued records.
+- **`Lcom/instructure/canvasapi2/utils/pageview/PandataManager;`:** Stubs `uploadPageViewEvents` to `return-void`.
+- **`Lcom/instructure/pandautils/analytics/pageview/PageViewUtils;`:** Stubs `saveSingleEvent` and `stopEvent` to `return-void`.
+- **`Lcom/instructure/pandautils/analytics/pageview/PageViewAnnotationProcessor;`:** Stubs `startEvent` and `stopEvent` to `return-void`.
+- **`Lcom/instructure/pandautils/analytics/pageview/PageViewUploadWorker;`:** Injects `new-instance v0, Landroidx/work/u$a$c; \n invoke-direct {v0}, Landroidx/work/u$a$c;-><init>()V \n return-object v0` into `doWork()`, returning `Result.success()` immediately without querying the local database or uploading queued records.
 
 #### Layer 5: Offline Analytics, Crashlytics, Rating & Logging
-- **`Lcom/instructure/pandautils/features/offline/offlineanalytics/OfflineAnalyticsManager;`:** Stubs `openCourse` and `recordOfflineTime` to `return-void`.
-- **`Lcom/google/firebase/crashlytics/FirebaseCrashlytics;`:** Stubs `log`, `recordException`, `setCrashlyticsCollectionEnabled`, `setCustomKey`, `setUserId`, `sendUnsentReports`, and `deleteUnsentReports` to `return-void`.
-- **`Lcom/instructure/student/fragment/StudentHelpDialogFragmentBehavior;`:** Stubs `rateTheApp` to `return-void`.
+- **`Lcom/instructure/pandautils/analytics/OfflineAnalyticsManager;`:** Stubs `offlineModeStarted`, `reportCourseOpenedInOfflineMode`, and `offlineModeEnded` to `return-void`.
+- **`Lcom/google/firebase/crashlytics/FirebaseCrashlytics;`:** Stubs `log`, `recordException`, `setCrashlyticsCollectionEnabled`, `setCustomKey`, `setCustomKeys`, `setUserId`, `sendUnsentReports`, and `deleteUnsentReports` to `return-void`.
+- **`Lcom/instructure/student/mobius/settings/help/StudentHelpDialogFragmentBehavior;`:** Stubs `rateTheApp` to `return-void`.
 - **`Lcom/instructure/canvasapi2/utils/Logger;`:** Stubs `canLogUserDetails` to return `false`.
 
 ### 3. Preconditions & Verification

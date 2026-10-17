@@ -53,6 +53,45 @@ def test_register_mapping_instance_vs_static():
     assert err_stat_p2.code == "PARAMETER_OUT_OF_RANGE"
 
 
+def test_register_aliases_parameter_instance_method():
+    report = validate_smali_snippet(
+        "const/4 v1, 0x0",
+        locals_count=1,
+        parameter_count=1,
+        is_static=False,
+    )
+
+    assert not report.is_valid
+    error = report.diagnostics[0]
+    assert error.code == "REGISTER_ALIASES_PARAMETER"
+    assert "p0 (this)" in error.message
+
+
+def test_register_aliases_parameter_static_method():
+    report = validate_smali_snippet(
+        "const/4 v1, 0x0",
+        locals_count=1,
+        parameter_count=2,
+        is_static=True,
+    )
+
+    assert not report.is_valid
+    error = report.diagnostics[0]
+    assert error.code == "REGISTER_ALIASES_PARAMETER"
+    assert "p0" in error.message
+
+
+def test_valid_local_registers_no_aliasing():
+    report = validate_smali_snippet(
+        "const/4 v0, 0x0",
+        locals_count=1,
+        parameter_count=2,
+        is_static=False,
+    )
+
+    assert report.is_valid
+
+
 def test_validate_smali_format_22c_overflow_with_remediation():
     snippet = "instance-of v0, p1, Lcom/example/Target;"
     report = validate_smali_snippet(
@@ -115,6 +154,108 @@ def test_validate_smali_invoke_35c_overflow():
     err = report.diagnostics[0]
     assert err.code == "INVOKE_35C_REGISTER_OVERFLOW"
     assert "invoke-virtual/range" in err.message
+
+
+def test_missing_move_result_warning():
+    snippet = """invoke-static {}, Lcom/example/Factory;->create()Ljava/lang/String;
+const/4 v0, 0x0
+"""
+    report = validate_smali_snippet(
+        snippet, locals_count=1, parameter_count=0, is_static=True
+    )
+
+    assert any(d.code == "MISSING_MOVE_RESULT" for d in report.diagnostics)
+
+
+def test_valid_move_result_object():
+    snippet = """invoke-static {}, Lcom/example/Factory;->create()Ljava/lang/String;
+move-result-object v0
+"""
+    report = validate_smali_snippet(
+        snippet, locals_count=1, parameter_count=0, is_static=True
+    )
+
+    assert not any(d.code == "MISSING_MOVE_RESULT" for d in report.diagnostics)
+
+
+def test_orphan_move_result_error():
+    snippet = """const/4 v0, 0x0
+move-result-object v0
+"""
+    report = validate_smali_snippet(
+        snippet, locals_count=1, parameter_count=0, is_static=True
+    )
+
+    assert not report.is_valid
+    assert any(d.code == "ORPHAN_MOVE_RESULT" for d in report.diagnostics)
+
+
+def test_invoke_custom_and_polymorphic_move_result():
+    snippet = """invoke-custom {v0}, myCallSite()I, Lbsm;->metafactory()Ljava/lang/invoke/CallSite;
+move-result v0
+invoke-polymorphic {v0}, Ljava/lang/invoke/MethodHandle;->invoke([Ljava/lang/Object;)Ljava/lang/Object;, (I)Ljava/lang/String;
+move-result-object v0
+invoke-custom/range {v0 .. v0}, makeConcat()J, Lbsm;->bsm()Ljava/lang/invoke/CallSite;
+move-result-wide v0
+"""
+    report = validate_smali_snippet(
+        snippet, locals_count=2, parameter_count=0, is_static=True
+    )
+    assert not any(d.code == "ORPHAN_MOVE_RESULT" for d in report.diagnostics)
+    assert not any(d.code == "INVALID_MOVE_RESULT" for d in report.diagnostics)
+
+
+def test_move_result_after_void_invoke_error():
+    snippet = """invoke-static {}, Lcom/example/Target;->foo()V
+move-result v0
+"""
+    report = validate_smali_snippet(
+        snippet, locals_count=1, parameter_count=0, is_static=True
+    )
+    assert not report.is_valid
+    assert any(
+        d.code == "INVALID_MOVE_RESULT" and "void" in d.message
+        for d in report.diagnostics
+    )
+
+
+def test_move_result_variant_mismatch_error():
+    # Returning primitive int but captured with move-result-object
+    snippet = """invoke-static {}, Lcom/example/Target;->getCount()I
+move-result-object v0
+"""
+    report = validate_smali_snippet(
+        snippet, locals_count=1, parameter_count=0, is_static=True
+    )
+    assert not report.is_valid
+    assert any(
+        d.code == "INVALID_MOVE_RESULT" and "move-result" in d.message
+        for d in report.diagnostics
+    )
+
+
+def test_filled_new_array_move_result_validation():
+    # Valid move-result-object after filled-new-array
+    snippet_ok = """filled-new-array {v0}, [I
+move-result-object v0
+"""
+    rep_ok = validate_smali_snippet(
+        snippet_ok, locals_count=1, parameter_count=0, is_static=True
+    )
+    assert not any(d.code == "INVALID_MOVE_RESULT" for d in rep_ok.diagnostics)
+
+    # Invalid move-result after filled-new-array
+    snippet_err = """filled-new-array {v0}, [I
+move-result v0
+"""
+    rep_err = validate_smali_snippet(
+        snippet_err, locals_count=1, parameter_count=0, is_static=True
+    )
+    assert not rep_err.is_valid
+    assert any(
+        d.code == "INVALID_MOVE_RESULT" and "move-result-object" in d.message
+        for d in rep_err.diagnostics
+    )
 
 
 def test_validate_smali_missing_and_duplicate_labels():
