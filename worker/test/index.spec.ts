@@ -9,6 +9,7 @@ import worker, {
   computeAggregateCompatibilityStatus,
   timingSafeEqual,
   performVersionCheck,
+  saveAppRecord,
 } from '../src/index';
 import type {
   AppVersionRecord,
@@ -395,6 +396,48 @@ describe('Worker fetch endpoints', () => {
     expect(body).toContain('compatibility');
   });
 
+  it('serves GET /badges/tests.svg with summed tests and thresholds', async () => {
+    const workerEnv: WorkerEnv = {
+      ...env,
+      PATCHES_KV: env.PATCHES_KV,
+    };
+
+    await seedTestApps(env.PATCHES_KV);
+    // 1. 100% tests passing -> 40/40 green #238636
+    const req100 = new Request('http://localhost/badges/tests.svg', {
+      method: 'GET',
+    });
+    const res100 = await worker.fetch(req100, workerEnv);
+    expect(res100.status).toBe(200);
+    const body100 = await res100.text();
+    expect(body100).toContain('tests passing');
+    expect(body100).toContain('40/40');
+    expect(body100).toContain('#238636');
+    expect(body100).toContain('font-weight="bold"');
+
+    // 2. 90-99% tests passing (40/44 = 90.9%) -> orange #bc4c00
+    const rawRecord = await env.PATCHES_KV.get(
+      'app_version:com.ashtoncofer.Buzz',
+    );
+    const recordBuzz = JSON.parse(rawRecord!);
+    recordBuzz.targetCompatibility.failedCount = 4;
+    await saveAppRecord(workerEnv, 'com.ashtoncofer.Buzz', recordBuzz);
+
+    const resOrange = await worker.fetch(req100, workerEnv);
+    const bodyOrange = await resOrange.text();
+    expect(bodyOrange).toContain('40/44');
+    expect(bodyOrange).toContain('#bc4c00');
+
+    // 3. < 90% tests passing (40/50 = 80%) -> red #cf222e
+    recordBuzz.targetCompatibility.failedCount = 10;
+    await saveAppRecord(workerEnv, 'com.ashtoncofer.Buzz', recordBuzz);
+
+    const resRed = await worker.fetch(req100, workerEnv);
+    const bodyRed = await resRed.text();
+    expect(bodyRed).toContain('40/50');
+    expect(bodyRed).toContain('#cf222e');
+  });
+
   it('serves GET /badges/compatibility/com.ashtoncofer.Buzz.svg for specific package', async () => {
     const workerEnv: WorkerEnv = {
       ...env,
@@ -485,6 +528,142 @@ describe('Worker fetch endpoints', () => {
       expect(body).toContain('#EF4444');
     },
   );
+
+  it('serves GET /badges/tests/:packageName.svg with green badge when all tests pass', async () => {
+    const workerEnv: WorkerEnv = {
+      ...env,
+      PATCHES_KV: env.PATCHES_KV,
+    };
+
+    await seedTestApps(env.PATCHES_KV);
+    const appRecord = {
+      appName: 'SidelineSwap',
+      playVersion: '1.52.0',
+      checkedAt: new Date().toISOString(),
+      status: 'up-to-date' as const,
+      supportedVersions: ['1.52.0'],
+      latestSupportedVersion: '1.52.0',
+      targetCompatibility: {
+        requestId: 'req-test',
+        role: 'target' as const,
+        versionName: '1.52.0',
+        versionCode: 222,
+        patchBundleVersion: '1.7.0',
+        gitRevision: 'rev1',
+        testedAt: new Date().toISOString(),
+        passedCount: 4,
+        failedCount: 0,
+        status: 'compatible' as const,
+      },
+    };
+    await env.PATCHES_KV.put(
+      'app_version:com.sidelineswap.android',
+      JSON.stringify(appRecord),
+    );
+
+    const req = new Request(
+      'http://localhost/badges/tests/com.sidelineswap.android.svg',
+      { method: 'GET' },
+    );
+    const res = await worker.fetch(req, workerEnv);
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get('Content-Type')).toContain('image/svg+xml');
+    const body = await res.text();
+    expect(body).toContain('tests passing');
+    expect(body).toContain('4/4');
+    expect(body).toContain('font-weight="bold"');
+    expect(body).toContain('#238636');
+  });
+
+  it('serves GET /badges/tests/:packageName.svg with red badge when tests fail', async () => {
+    const workerEnv: WorkerEnv = {
+      ...env,
+      PATCHES_KV: env.PATCHES_KV,
+    };
+
+    const failingRecord = {
+      appName: 'Fizz',
+      playVersion: '1.54.0',
+      checkedAt: new Date().toISOString(),
+      status: 'up-to-date' as const,
+      supportedVersions: ['1.54.0'],
+      latestSupportedVersion: '1.54.0',
+      targetCompatibility: {
+        requestId: 'req-fail',
+        role: 'target' as const,
+        versionName: '1.54.0',
+        versionCode: 400032,
+        patchBundleVersion: '1.7.0',
+        gitRevision: 'rev1',
+        testedAt: new Date().toISOString(),
+        passedCount: 3,
+        failedCount: 1,
+        status: 'incompatible' as const,
+      },
+    };
+    await env.PATCHES_KV.put(
+      'app_version:com.ashtoncofer.Buzz',
+      JSON.stringify(failingRecord),
+    );
+
+    const reqFailing = new Request(
+      'http://localhost/badges/tests/com.ashtoncofer.Buzz.svg',
+      { method: 'GET' },
+    );
+    const resFailing = await worker.fetch(reqFailing, workerEnv);
+    expect(resFailing.status).toBe(200);
+    const bodyFailing = await resFailing.text();
+    expect(bodyFailing).toContain('tests passing');
+    expect(bodyFailing).toContain('3/4');
+    expect(bodyFailing).toContain('font-weight="bold"');
+    expect(bodyFailing).toContain('#cf222e');
+  });
+
+  it('serves GET /badges/tests/:packageName.svg empty SVG when untested or unknown', async () => {
+    const workerEnv: WorkerEnv = {
+      ...env,
+      PATCHES_KV: env.PATCHES_KV,
+    };
+
+    // 1. Unknown / unseeded package returns 0x0 empty SVG
+    const reqUnknown = new Request(
+      'http://localhost/badges/tests/com.completely.unknown.app.svg',
+      { method: 'GET' },
+    );
+    const resUnknown = await worker.fetch(reqUnknown, workerEnv);
+    expect(resUnknown.status).toBe(200);
+    const bodyUnknown = await resUnknown.text();
+    expect(bodyUnknown).toBe(
+      '<svg xmlns="http://www.w3.org/2000/svg" width="0" height="0"/>',
+    );
+
+    // 2. Seeded app with null targetCompatibility (like new app) returns 0x0 empty SVG
+    const untestedRecord = {
+      appName: '365 Pay',
+      playVersion: '10.2605.0',
+      checkedAt: new Date().toISOString(),
+      status: 'up-to-date' as const,
+      supportedVersions: ['10.2605.0'],
+      latestSupportedVersion: '10.2605.0',
+      targetCompatibility: null,
+    };
+    await env.PATCHES_KV.put(
+      'app_version:com.avinside',
+      JSON.stringify(untestedRecord),
+    );
+
+    const reqUntested = new Request(
+      'http://localhost/badges/tests/com.avinside.svg',
+      { method: 'GET' },
+    );
+    const resUntested = await worker.fetch(reqUntested, workerEnv);
+    expect(resUntested.status).toBe(200);
+    const bodyUntested = await resUntested.text();
+    expect(bodyUntested).toBe(
+      '<svg xmlns="http://www.w3.org/2000/svg" width="0" height="0"/>',
+    );
+  });
 
   it('rejects unauthenticated POST /api/compatibility-results', async () => {
     const workerEnv: WorkerEnv = {

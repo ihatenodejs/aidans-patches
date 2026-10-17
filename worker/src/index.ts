@@ -1185,7 +1185,49 @@ export default {
       });
     }
 
-    // 4. Per-package compatibility badge: /badges/compatibility/:packageName.svg
+    // 4. Aggregate tests badge: /badges/tests.svg
+    if (
+      url.pathname === '/badges/tests.svg' ||
+      url.pathname === '/badges/tests'
+    ) {
+      const payload = await loadStatusPayload(env);
+      let totalPassed = 0;
+      let totalFailed = 0;
+
+      for (const appRecord of Object.values(payload.apps)) {
+        const compat = appRecord.targetCompatibility;
+        if (compat) {
+          totalPassed += compat.passedCount ?? 0;
+          totalFailed += compat.failedCount ?? 0;
+        }
+      }
+
+      const totalTests = totalPassed + totalFailed;
+      const amountStr = `${totalPassed}/${totalTests}`;
+
+      let color = '#cf222e'; // red (<90% or 0 tests)
+      if (totalTests > 0) {
+        const pct = (totalPassed / totalTests) * 100;
+        if (totalPassed === totalTests) {
+          color = '#238636'; // green (100%)
+        } else if (pct >= 90) {
+          color = '#bc4c00'; // orange (90-99%)
+        } else {
+          color = '#cf222e'; // red (<90%)
+        }
+      }
+
+      const svg = renderBadgeSvg('tests passing', amountStr, color, true);
+      return new Response(svg, {
+        status: 200,
+        headers: {
+          'Content-Type': 'image/svg+xml; charset=utf-8',
+          'Cache-Control': 'public, max-age=300',
+        },
+      });
+    }
+
+    // 5. Per-package compatibility badge: /badges/compatibility/:packageName.svg
     if (url.pathname.startsWith('/badges/compatibility/')) {
       const rawPkg = url.pathname
         .replace('/badges/compatibility/', '')
@@ -1242,7 +1284,50 @@ export default {
       });
     }
 
-    // 5. Download Statistics Charts
+    // 6. Per-package tests passing badge: /badges/tests/:packageName.svg
+    if (url.pathname.startsWith('/badges/tests/')) {
+      const rawPkg = url.pathname
+        .replace('/badges/tests/', '')
+        .replace(/\.svg$/, '');
+      const packageName = decodeURIComponent(rawPkg);
+
+      const record = await loadAppRecord(env, packageName);
+      const targetCompat = record?.targetCompatibility;
+      const passedCount = targetCompat?.passedCount ?? 0;
+      const failedCount = targetCompat?.failedCount ?? 0;
+      const totalTests = passedCount + failedCount;
+
+      // For apps with no tests (including untested or 0/0), return an empty SVG so
+      // the image link can always be present without displaying an empty badge.
+      if (!targetCompat || totalTests === 0) {
+        return new Response(
+          '<svg xmlns="http://www.w3.org/2000/svg" width="0" height="0"/>',
+          {
+            status: 200,
+            headers: {
+              'Content-Type': 'image/svg+xml; charset=utf-8',
+              'Cache-Control': 'public, max-age=300',
+            },
+          },
+        );
+      }
+
+      const status = targetCompat.status;
+      const allPassing = status === 'compatible' && failedCount === 0;
+      const color = allPassing ? '#238636' : '#cf222e';
+      const amountStr = `${passedCount}/${totalTests}`;
+
+      const svg = renderBadgeSvg('tests passing', amountStr, color, true);
+      return new Response(svg, {
+        status: 200,
+        headers: {
+          'Content-Type': 'image/svg+xml; charset=utf-8',
+          'Cache-Control': 'public, max-age=300',
+        },
+      });
+    }
+
+    // 7. Download Statistics Charts
     if (
       url.pathname === '/charts/total-downloads.svg' &&
       request.method === 'GET'
