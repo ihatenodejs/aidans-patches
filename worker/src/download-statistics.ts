@@ -121,6 +121,7 @@ export async function loadDownloadStatistics(
 
 export async function fetchAllGitHubReleases(
   repo: string,
+  token?: string,
 ): Promise<GitHubReleaseResponse[]> {
   const allReleases: GitHubReleaseResponse[] = [];
   let page = 1;
@@ -133,15 +134,17 @@ export async function fetchAllGitHubReleases(
     }
 
     const url = `https://api.github.com/repos/${repo}/releases?per_page=100&page=${page}`;
-    const res = await fetch(url, {
-      headers: {
-        Accept: 'application/vnd.github+json',
-        'X-GitHub-Api-Version': '2022-11-28',
-        'User-Agent':
-          'aidans-patches-worker/1.0 (+https://github.com/ihatenodejs/aidans-patches)',
-      },
-    });
+    const headers: Record<string, string> = {
+      Accept: 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28',
+      'User-Agent':
+        'aidans-patches-worker/1.0 (+https://github.com/ihatenodejs/aidans-patches)',
+    };
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
 
+    const res = await fetch(url, { headers });
     if (!res.ok) {
       throw new Error(
         `GitHub API releases fetch failed: HTTP ${res.status} ${res.statusText} for ${url}`,
@@ -293,7 +296,7 @@ export async function refreshDownloadStatistics(
   const previousHistory = existingStats?.history ?? [];
 
   // Fetch all releases with full structural validation
-  const releases = await fetchAllGitHubReleases(repo);
+  const releases = await fetchAllGitHubReleases(repo, env.GITHUB_TOKEN);
 
   // Merge assets
   const mergedAssets = mergeReleaseAssets(previousAssets, releases);

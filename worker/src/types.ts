@@ -174,6 +174,7 @@ export interface PlayMetadataSubmission {
 export interface WorkerEnv extends Env {
   REFRESH_SECRET?: string;
   COMPATIBILITY_STATUS_SECRET?: string;
+  GITHUB_TOKEN?: string;
 }
 
 export interface DownloadAssetRecord {
