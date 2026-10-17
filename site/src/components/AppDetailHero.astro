@@ -3,6 +3,8 @@ import AppIcon from './AppIcon.astro';
 import type { App, Patch } from '../data/types';
 import { getFallbackSummary } from '../data/app-store';
 import { formatAndroidVersion } from '../data/android-version';
+import GlowButton from './GlowButton.astro';
+import MorpheIcon from './icons/MorpheIcon.astro';
 import GooglePlayIcon from './icons/GooglePlayIcon.astro';
 
 interface Props {
@@ -22,7 +24,7 @@ const androidVersion = formatAndroidVersion(app.minSdk, '+');
 
 <section
   data-hero-package={app.packageName}
-  class="relative overflow-hidden border-y border-white/[0.08] bg-[#080808] p-5 sm:p-8"
+  class="relative overflow-hidden border-y border-white/[0.08] bg-[#080808] px-5 py-5 sm:px-8 sm:py-8"
 >
   <div
     class="pointer-events-none absolute inset-0 opacity-80"
@@ -104,28 +106,22 @@ const androidVersion = formatAndroidVersion(app.minSdk, '+');
       </div>
 
       <div class="mt-5 flex flex-wrap items-center gap-2.5 font-mono text-xs">
-        <a
+        <GlowButton
+          variant="morphe"
           href="https://morphe.software/add-source?github=ihatenodejs/aidans-patches"
-          target="_blank"
-          rel="noreferrer"
-          class="inline-flex items-center gap-2 rounded-sm bg-white px-4 py-2.5 font-semibold text-black transition-colors hover:bg-zinc-200"
         >
+          <MorpheIcon class="h-3.5 w-4 shrink-0 transition-transform duration-300 group-hover:scale-110" />
           <span>Add to Morphe</span>
-          <span aria-hidden="true">&rarr;</span>
-        </a>
+        </GlowButton>
 
         <!-- View patches button removed per feedback -->
-        <a
-          href={app.playStoreUrl}
-          target="_blank"
-          rel="noreferrer"
-          class="inline-flex items-center gap-2 rounded-sm border border-white/[0.12] bg-zinc-900 px-4 py-2.5 text-zinc-300 transition-colors hover:border-white/25 hover:text-white"
-        >
-          <span class="h-3.5 w-3.5 text-zinc-400 shrink-0">
-            <GooglePlayIcon />
-          </span>
+        <GlowButton variant="google-play" href={app.playStoreUrl}>
+          <GooglePlayIcon
+            colored={true}
+            class="h-3.5 w-3.5 shrink-0 transition-transform duration-300 group-hover:scale-110"
+          />
           <span>Google Play</span>
-        </a>
+        </GlowButton>
       </div>
     </div>
   </div>

@@ -48,7 +48,7 @@ for (const key of allCategoryKeys) {
   currentPath="/apps"
 >
   <!-- 1. Header & Live Search Bar -->
-  <section class="relative overflow-hidden border-b border-white/[0.08] p-5 sm:p-8">
+  <section class="relative overflow-hidden border-b border-white/[0.08] px-5 py-5 sm:px-8 sm:py-8">
     <div class="pointer-events-none absolute inset-0 bg-technical-grid opacity-20"></div>
 
     <div class="relative flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
@@ -89,10 +89,10 @@ for (const key of allCategoryKeys) {
 
   <!-- 2. Categories Carousel Rail -->
   <section
-    class="border-b border-white/[0.08] p-5 sm:p-8"
+    class="border-b border-white/[0.08] px-5 py-5 sm:px-8 sm:py-8"
     aria-labelledby="categories-heading"
   >
-    <div class="flex items-center justify-between gap-4">
+    <div class="flex min-h-11 items-center justify-between gap-4">
       <div>
         <h2
           id="categories-heading"
@@ -100,9 +100,6 @@ for (const key of allCategoryKeys) {
         >
           Categories
         </h2>
-        <p class="font-mono text-[10px] text-zinc-500 mt-0.5">
-          Filter applications by store collection
-        </p>
       </div>
       <CarouselControls
         targetRailId="categories-rail"
@@ -131,7 +128,7 @@ for (const key of allCategoryKeys) {
     {discoverySections.map((section) => (
       <section
         data-discovery-section={section.id}
-        class="p-5 sm:p-8"
+        class="px-5 py-5 sm:px-8 sm:py-8"
         aria-labelledby={`section-heading-${section.id}`}
       >
         <div class="flex items-end justify-between gap-4">
@@ -170,7 +167,7 @@ for (const key of allCategoryKeys) {
   <!-- 4. Category-specific Flat App Grid (shown when a specific category is selected) -->
   <section
     id="category-grid-section"
-    class="hidden p-5 sm:p-8"
+    class="hidden px-5 py-5 sm:px-8 sm:py-8"
     aria-labelledby="category-grid-heading"
   >
     <div class="mb-6 flex items-end justify-between gap-4">
@@ -179,7 +176,11 @@ for (const key of allCategoryKeys) {
           id="category-grid-heading"
           class="font-sans text-lg font-bold tracking-tight text-white sm:text-xl"
         >
-          Applications
+          <span id="category-grid-heading-name">Applications</span>
+          <span
+            id="category-grid-heading-count"
+            class="ml-1 font-mono text-base font-bold tracking-normal text-zinc-300 sm:text-lg"
+          ></span>
         </h2>
         <p id="category-grid-desc" class="mt-1 text-xs text-zinc-400">
           Showing matching apps
@@ -202,7 +203,7 @@ for (const key of allCategoryKeys) {
   </section>
   <div
     id="apps-empty"
-    class="hidden border-b border-white/[0.08] bg-[#080808] p-5 sm:p-8 text-center"
+    class="hidden border-b border-white/[0.08] bg-[#080808] px-5 py-5 sm:px-8 sm:py-8 text-center"
   >
     <div class="mx-auto flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/[0.03] text-zinc-400">
       <svg
@@ -304,9 +305,6 @@ for (const key of allCategoryKeys) {
       const categoryGridSection = document.getElementById(
         'category-grid-section',
       );
-      const categoryGridHeading = document.getElementById(
-        'category-grid-heading',
-      );
       const categoryGridDesc = document.getElementById('category-grid-desc');
       const categoryGridCards = document.querySelectorAll<HTMLElement>(
         '#category-grid [data-app-card]',
@@ -322,7 +320,6 @@ for (const key of allCategoryKeys) {
       function applyFilters() {
         const query = (searchInput?.value || '').toLowerCase().trim();
         let totalVisibleCards = 0;
-
         if (activeCategory === 'all') {
           // Show discovery carousel sections
           if (discoveryContainer) discoveryContainer.classList.remove('hidden');
@@ -359,12 +356,22 @@ for (const key of allCategoryKeys) {
           const activeBtn = document.querySelector<HTMLButtonElement>(
             `[data-category-card="${activeCategory}"]`,
           );
-          const catName =
-            activeBtn?.querySelector('.font-sans')?.textContent || 'Category';
-          const catDesc =
-            activeBtn?.querySelector('.font-mono')?.textContent || '';
+          const catName = activeBtn?.dataset.categoryName || 'Category';
+          const catDesc = activeBtn?.dataset.categoryDescription || '';
+          const catCount = activeBtn?.dataset.categoryCount || '';
+          const categoryGridHeadingName = document.getElementById(
+            'category-grid-heading-name',
+          );
+          const categoryGridHeadingCount = document.getElementById(
+            'category-grid-heading-count',
+          );
 
-          if (categoryGridHeading) categoryGridHeading.textContent = catName;
+          if (categoryGridHeadingName)
+            categoryGridHeadingName.textContent = catName;
+          if (categoryGridHeadingCount)
+            categoryGridHeadingCount.textContent = catCount
+              ? `(${catCount})`
+              : '';
           if (categoryGridDesc) categoryGridDesc.textContent = catDesc;
 
           categoryGridCards.forEach((card) => {
@@ -395,19 +402,14 @@ for (const key of allCategoryKeys) {
 
           categoryButtons.forEach((b) => {
             const isMatch = b === btn;
-            const isAll = b.dataset.categoryCard === 'all';
 
             b.setAttribute('aria-pressed', isMatch ? 'true' : 'false');
-
-            // Explicitly remove all conditional active and inactive classes
             b.classList.remove(
               'border-white',
               'bg-[#101010]',
               'shadow-[0_0_24px_rgba(255,255,255,0.08)]',
               'ring-1',
               'ring-white/30',
-              'border-white/[0.18]',
-              'bg-[#0c0c0c]',
               'border-white/[0.08]',
               'bg-[#080808]',
             );
@@ -420,8 +422,6 @@ for (const key of allCategoryKeys) {
                 'ring-1',
                 'ring-white/30',
               );
-            } else if (isAll) {
-              b.classList.add('border-white/[0.18]', 'bg-[#0c0c0c]');
             } else {
               b.classList.add('border-white/[0.08]', 'bg-[#080808]');
             }

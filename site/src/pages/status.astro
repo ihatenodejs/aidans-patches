@@ -66,7 +66,7 @@ function formatRelativeTime(dateStr: string): string {
   description="Check real-time compatibility for all supported Android apps. See tested versions compared with the latest Google Play releases."
   currentPath="/status"
 >
-  <div class="px-4 sm:px-6 pt-10 pb-6 space-y-8" id="status-container">
+  <div class="space-y-8 px-4 py-4 sm:px-6 sm:py-6" id="status-container">
     <!-- Header Section -->
     <div class="space-y-3">
       <h1 class="font-sans text-3xl font-extrabold tracking-tight text-white">
@@ -206,7 +206,7 @@ function formatRelativeTime(dateStr: string): string {
           <tbody class="divide-y divide-white/[0.06]" id="status-tbody">
             {initialStatuses.map((item) => (
               <tr
-                class="hover:bg-white/[0.02] transition-colors group/row"
+                class="hover:bg-white/[0.02] group/row"
                 data-package={item.packageName}
                 data-app-name={item.appName.toLowerCase()}
               >

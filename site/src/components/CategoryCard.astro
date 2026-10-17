@@ -14,12 +14,13 @@ const [color1, color2] = category.gradientPair;
 <button
   type="button"
   data-category-card={category.id}
+  data-category-name={category.name}
+  data-category-description={category.shortDescription}
+  data-category-count={count}
   class={`group relative flex h-28 w-44 shrink-0 snap-start flex-col justify-between overflow-hidden border p-3.5 text-left transition-all duration-200 select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40 ${
     isSelected
       ? 'border-white bg-[#101010] shadow-[0_0_24px_rgba(255,255,255,0.08)] ring-1 ring-white/30'
-      : category.id === 'all'
-        ? 'border-white/[0.18] bg-[#0c0c0c] hover:border-white/30 hover:bg-[#121212]'
-        : 'border-white/[0.08] bg-[#080808] hover:border-white/20 hover:bg-[#0c0c0c]'
+      : 'border-white/[0.08] bg-[#080808] hover:border-white/20 hover:bg-[#0c0c0c]'
   }`}
   aria-pressed={isSelected ? 'true' : 'false'}
 >
@@ -55,7 +56,7 @@ const [color1, color2] = category.gradientPair;
     aria-hidden="true"
   ></div>
 
-  <!-- Top bar: Category icon and count badge -->
+  <!-- Top bar: Category icon -->
   <div class="relative z-10 flex items-center justify-between gap-2">
     <div class="flex h-7 w-7 items-center justify-center rounded-sm border border-white/10 bg-white/[0.04] text-zinc-300 transition-colors group-hover:border-white/25 group-hover:text-white">
       {category.icon === 'grid' && (
@@ -203,15 +204,6 @@ const [color1, color2] = category.gradientPair;
         </svg>
       )}
     </div>
-
-    {typeof count === 'number' && (
-      <span
-        data-category-count
-        class="font-mono text-[10px] text-zinc-400 font-semibold px-1.5 py-0.5 rounded-sm bg-black/40 border border-white/[0.08]"
-      >
-        {count}
-      </span>
-    )}
   </div>
 
   <!-- Bottom: Category name and short description -->

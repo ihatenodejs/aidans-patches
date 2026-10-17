@@ -1,0 +1,160 @@
+---
+interface Props {
+  variant?: 'morphe' | 'github' | 'google-play' | 'download' | 'neutral';
+  size?: 'default' | 'sm';
+  class?: string;
+  href?: string;
+  target?: string;
+  rel?: string;
+}
+
+const {
+  variant = 'morphe',
+  size = 'default',
+  class: className = '',
+  href,
+  target = href?.startsWith('http') ? '_blank' : undefined,
+  rel = target === '_blank' ? 'noreferrer' : undefined,
+} = Astro.props;
+
+const sizeClasses =
+  size === 'sm' ? 'px-4 py-2 text-xs gap-2' : 'px-5 py-2.5 text-xs gap-2.5';
+
+interface VariantConfig {
+  glowClasses: string;
+  baseBgClasses: string;
+  innerGlowStyle: string;
+  rimGradientStyle: string;
+  glintClasses: string;
+  focusRingClass: string;
+  textClasses: string;
+}
+
+const variantConfigs: Record<
+  'morphe' | 'github' | 'google-play' | 'download' | 'neutral',
+  VariantConfig
+> = {
+  morphe: {
+    glowClasses:
+      'bg-gradient-to-r from-[#1E5AA8] via-[#0284c7] to-[#00AFAE] opacity-50 blur-md group-hover:opacity-85 group-hover:blur-lg',
+    baseBgClasses: 'bg-[#070b16] group-hover:bg-[#0a0f20]',
+    innerGlowStyle:
+      'radial-gradient(85% 95% at 20% 0%, rgba(30, 90, 168, 0.45) 0%, transparent 75%), radial-gradient(85% 95% at 80% 0%, rgba(0, 175, 174, 0.35) 0%, transparent 75%)',
+    rimGradientStyle:
+      'linear-gradient(90deg, #3b82f6 0%, #1E5AA8 20%, #00AFAE 70%, #38bdf8 100%)',
+    glintClasses:
+      'bg-gradient-to-r from-transparent via-cyan-100/70 to-transparent',
+    focusRingClass: 'focus-visible:ring-[#00AFAE]',
+    textClasses: 'text-white',
+  },
+  github: {
+    glowClasses:
+      'bg-gradient-to-r from-zinc-500 via-white to-zinc-400 opacity-25 blur-md group-hover:opacity-50 group-hover:blur-lg',
+    baseBgClasses: 'bg-[#0a0a0c] group-hover:bg-[#121216]',
+    innerGlowStyle:
+      'radial-gradient(100% 85% at 50% 0%, rgba(255, 255, 255, 0.18) 0%, rgba(255, 255, 255, 0.05) 35%, transparent 75%)',
+    rimGradientStyle:
+      'linear-gradient(90deg, rgba(255, 255, 255, 0.3) 0%, rgba(255, 255, 255, 0.95) 50%, rgba(255, 255, 255, 0.3) 100%)',
+    glintClasses:
+      'bg-gradient-to-r from-transparent via-white/80 to-transparent',
+    focusRingClass: 'focus-visible:ring-white/80',
+    textClasses: 'text-zinc-200 group-hover:text-white',
+  },
+  'google-play': {
+    glowClasses:
+      'bg-gradient-to-r from-[#4285F4] via-[#34A853] via-[#FBBC04] to-[#EA4335] opacity-40 blur-md group-hover:opacity-75 group-hover:blur-lg',
+    baseBgClasses: 'bg-[#080b12] group-hover:bg-[#0c101a]',
+    innerGlowStyle:
+      'radial-gradient(70% 85% at 15% 0%, rgba(66, 133, 244, 0.35) 0%, transparent 70%), radial-gradient(70% 85% at 50% 0%, rgba(52, 168, 83, 0.25) 0%, transparent 70%), radial-gradient(70% 85% at 85% 0%, rgba(234, 67, 53, 0.3) 0%, transparent 70%)',
+    rimGradientStyle:
+      'linear-gradient(90deg, #4285F4 0%, #34A853 35%, #FBBC04 70%, #EA4335 100%)',
+    glintClasses:
+      'bg-gradient-to-r from-transparent via-white/70 to-transparent',
+    focusRingClass: 'focus-visible:ring-[#34A853]',
+    textClasses: 'text-zinc-200 group-hover:text-white',
+  },
+  download: {
+    glowClasses:
+      'bg-gradient-to-r from-[#d946ef] via-[#a855f7] to-[#6366f1] opacity-45 blur-md group-hover:opacity-80 group-hover:blur-lg',
+    baseBgClasses: 'bg-[#0c0814] group-hover:bg-[#140e22]',
+    innerGlowStyle:
+      'radial-gradient(85% 95% at 20% 0%, rgba(217, 70, 239, 0.4) 0%, transparent 75%), radial-gradient(85% 95% at 80% 0%, rgba(99, 102, 241, 0.35) 0%, transparent 75%)',
+    rimGradientStyle:
+      'linear-gradient(90deg, #f472b6 0%, #d946ef 25%, #a855f7 65%, #6366f1 100%)',
+    glintClasses:
+      'bg-gradient-to-r from-transparent via-pink-100/70 to-transparent',
+    focusRingClass: 'focus-visible:ring-[#a855f7]',
+    textClasses: 'text-zinc-100 group-hover:text-white',
+  },
+  neutral: {
+    glowClasses:
+      'bg-gradient-to-r from-zinc-600 via-zinc-400 to-zinc-600 opacity-20 blur-md group-hover:opacity-40 group-hover:blur-lg',
+    baseBgClasses: 'bg-[#0a0a0c] group-hover:bg-[#121216]',
+    innerGlowStyle:
+      'radial-gradient(100% 85% at 50% 0%, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.03) 35%, transparent 75%)',
+    rimGradientStyle:
+      'linear-gradient(90deg, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0.7) 50%, rgba(255, 255, 255, 0.2) 100%)',
+    glintClasses:
+      'bg-gradient-to-r from-transparent via-white/60 to-transparent',
+    focusRingClass: 'focus-visible:ring-zinc-400',
+    textClasses: 'text-zinc-300 group-hover:text-white',
+  },
+};
+
+const current = variantConfigs[variant];
+---
+
+<a
+  href={href}
+  target={target}
+  rel={rel}
+  class={`group relative inline-flex items-center justify-center rounded-xl font-mono font-semibold select-none transition-all duration-300 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-black ${current.focusRingClass} ${current.textClasses} ${sizeClasses} ${className}`}
+>
+  <!-- Ambient outer glow along the top rim -->
+  <span
+    class={`pointer-events-none absolute -top-1.5 inset-x-3 h-5 rounded-t-xl transition-all duration-300 ${current.glowClasses}`}
+    aria-hidden="true"
+  ></span>
+
+  <!-- Deep dark glass base surface -->
+  <span
+    class={`pointer-events-none absolute inset-0 rounded-xl transition-colors duration-300 ${current.baseBgClasses}`}
+    aria-hidden="true"
+  ></span>
+
+  <!-- Downward inner illumination from top rim -->
+  <span
+    class="pointer-events-none absolute inset-0 rounded-xl transition-opacity duration-300 opacity-90 group-hover:opacity-100"
+    style={`background-image: ${current.innerGlowStyle};`}
+    aria-hidden="true"
+  ></span>
+
+  <!-- Subtle perimeter base border (defines sides & bottom against black background) -->
+  <span
+    class="pointer-events-none absolute inset-0 rounded-xl border border-white/[0.08] transition-colors duration-300 group-hover:border-white/[0.16]"
+    aria-hidden="true"
+  ></span>
+
+  <!-- Glowing Top Rim (specular edge highlight curved around top corners, fading down sides) -->
+  <span
+    class="pointer-events-none absolute inset-0 rounded-xl overflow-hidden"
+    style="-webkit-mask-image: linear-gradient(180deg, rgba(0,0,0,1) 0%, rgba(0,0,0,0.9) 25%, rgba(0,0,0,0) 65%); mask-image: linear-gradient(180deg, rgba(0,0,0,1) 0%, rgba(0,0,0,0.9) 25%, rgba(0,0,0,0) 65%);"
+    aria-hidden="true"
+  >
+    <span
+      class="absolute inset-0 rounded-xl p-[1px] transition-all duration-300"
+      style={`-webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0); -webkit-mask-composite: xor; mask-composite: exclude; background: ${current.rimGradientStyle};`}
+    ></span>
+  </span>
+
+  <!-- Top-edge specular glint line -->
+  <span
+    class={`pointer-events-none absolute inset-x-3 top-0 h-[1px] opacity-80 transition-opacity duration-300 group-hover:opacity-100 ${current.glintClasses}`}
+    aria-hidden="true"
+  ></span>
+
+  <!-- Button Content -->
+  <span class="relative z-10 flex items-center gap-[inherit]">
+    <slot />
+  </span>
+</a>

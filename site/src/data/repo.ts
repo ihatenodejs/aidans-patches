@@ -271,6 +271,7 @@ function assembleRepositoryData(
   for (const item of release.recentChanges) {
     const matchedApp = resolveAppForScope(item.scope, apps);
     if (matchedApp) {
+      item.appId = matchedApp.id;
       item.appName = matchedApp.name;
       item.appPackageName = matchedApp.packageName;
     }

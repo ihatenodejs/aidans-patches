@@ -75,7 +75,7 @@ const description = `${app.name} (${fallbackCategory.name}): ${fallbackSummary} 
     data-store-panels
     data-package={app.packageName}
     aria-label="App store details"
-    class="border-b border-white/[0.08] p-5 sm:p-8 bg-[#060606]"
+    class="border-b border-white/[0.08] bg-[#060606] px-5 py-5 sm:px-8 sm:py-8"
   >
     <div class="grid grid-cols-1 gap-6 md:grid-cols-2">
       <!-- Panel 1: About this app -->
@@ -183,7 +183,7 @@ const description = `${app.name} (${fallbackCategory.name}): ${fallbackSummary} 
   <AboutAppDialog appName={app.name} />
 
   <!-- Patch Catalog & Implementation Sidebar -->
-  <div class="grid grid-cols-1 gap-8 p-5 sm:p-8 lg:grid-cols-[minmax(0,1fr)_260px] lg:items-start">
+  <div class="grid grid-cols-1 gap-8 px-5 py-5 sm:px-8 sm:py-8 lg:grid-cols-[minmax(0,1fr)_260px] lg:items-start">
     <section aria-labelledby="improvements-heading" class="min-w-0">
       <div class="mb-5 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>

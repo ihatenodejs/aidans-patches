@@ -21,6 +21,7 @@ export interface StoreCategory {
   id: StoreCategoryId;
   name: string;
   description: string;
+  shortDescription: string;
   gradientPair: [string, string]; // [primary, secondary] CSS color classes or hexes
   icon: string; // Identifier for the SVG icon
 }
@@ -29,77 +30,103 @@ export const STORE_CATEGORIES: Record<StoreCategoryId, StoreCategory> = {
   all: {
     id: 'all',
     name: 'All apps',
-    description: 'Browse the complete library of supported apps.',
+    description:
+      'Browse the complete library of apps and the patches available for each one.',
+    shortDescription: 'Explore every supported app and its available patches.',
     gradientPair: ['#3b82f6', '#60a5fa'], // blue / bright blue
     icon: 'grid',
   },
   productivity: {
     id: 'productivity',
     name: 'Productivity',
-    description: 'Work smarter with faster tools and clean workflows.',
+    description:
+      'Work smarter with faster tools and cleaner everyday workflows.',
+    shortDescription: 'Tools that help you get more done with less friction.',
     gradientPair: ['#06b6d4', '#8b5cf6'], // cyan / violet
     icon: 'briefcase',
   },
   shopping: {
     id: 'shopping',
     name: 'Shopping',
-    description: 'Smarter checkout, deliveries, and marketplace deals.',
+    description:
+      'Make checkout, delivery tracking, and marketplace shopping work better.',
+    shortDescription:
+      'Smarter checkout, delivery tracking, and marketplace tools.',
     gradientPair: ['#d946ef', '#f59e0b'], // fuchsia / amber
     icon: 'shopping-bag',
   },
   social: {
     id: 'social',
     name: 'Social',
-    description: 'Connect with communities and real conversations.',
+    description:
+      'Connect with communities and keep the conversations that matter to you moving.',
+    shortDescription:
+      'Better ways to connect with the communities you care about.',
     gradientPair: ['#8b5cf6', '#3b82f6'], // violet / blue
     icon: 'users',
   },
   education: {
     id: 'education',
     name: 'Education',
-    description: 'Stay ahead in classes, campus life, and deadlines.',
+    description:
+      'Stay on top of classes, campus life, and the deadlines in between.',
+    shortDescription: 'Support for classes, campus life, and busy deadlines.',
     gradientPair: ['#3b82f6', '#10b981'], // blue / emerald
     icon: 'book',
   },
   'health-and-fitness': {
     id: 'health-and-fitness',
     name: 'Health & Fitness',
-    description: 'Outdoor trails, real-world exploration, and activity.',
+    description:
+      'Get more from outdoor exploration, real-world activity, and daily routines.',
+    shortDescription:
+      'Tools for outdoor exploration, activity, and daily routines.',
     gradientPair: ['#10b981', '#06b6d4'], // emerald / cyan
     icon: 'heart-pulse',
   },
   sports: {
     id: 'sports',
     name: 'Sports',
-    description: 'Live scores, real-time stats, and game day action.',
+    description:
+      'Follow live scores, real-time stats, and every game-day moment.',
+    shortDescription: 'Live scores, real-time stats, and game-day updates.',
     gradientPair: ['#f97316', '#ef4444'], // orange / red
     icon: 'trophy',
   },
   games: {
     id: 'games',
     name: 'Games',
-    description: 'Classic table games, card action, and instant play.',
+    description:
+      'Enjoy classic table games, card action, and more ways to play.',
+    shortDescription: 'Classic games, card action, and more ways to play.',
     gradientPair: ['#8b5cf6', '#ec4899'], // violet / pink
     icon: 'gamepad',
   },
   'travel-and-local': {
     id: 'travel-and-local',
     name: 'Travel & Local',
-    description: 'Navigate your city and discover new places.',
+    description:
+      'Find your way around town and discover the places worth visiting.',
+    shortDescription: 'Navigate your city and discover places worth visiting.',
     gradientPair: ['#06b6d4', '#3b82f6'], // cyan / blue
     icon: 'map-pin',
   },
   entertainment: {
     id: 'entertainment',
     name: 'Entertainment',
-    description: 'Streaming, video, audio, and your favorite media.',
+    description:
+      'Tune in to streaming, video, audio, and the media you enjoy most.',
+    shortDescription: 'Streaming, video, audio, and the media you enjoy most.',
     gradientPair: ['#f43f5e', '#a855f7'], // rose / purple
     icon: 'play',
   },
   other: {
     id: 'other',
     name: 'Other',
-    description: 'Handy mobile utilities and everyday essentials.',
+    description:
+      'Useful mobile utilities for the practical things you do every day.',
+    shortDescription:
+      'Useful mobile tools for the practical things you do every day.',
     gradientPair: ['#71717a', '#8b5cf6'], // zinc / violet
     icon: 'shapes',
   },
