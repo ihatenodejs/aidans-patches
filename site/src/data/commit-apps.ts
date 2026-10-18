@@ -20,6 +20,9 @@ export const CUSTOM_SCOPE_ALIASES: Record<string, string> = {
   pay365: '365-pay',
   sideline: 'sidelineswap',
   navigate: 'navigate360-student',
+  prometronome: 'pro-metronome',
+  creditkarma: 'credit-karma',
+  adobereader: 'adobe-reader',
 };
 
 function normalizeToken(token: string): string {
