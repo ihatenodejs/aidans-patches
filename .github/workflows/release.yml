@@ -50,6 +50,17 @@ jobs:
           restore-keys: |
             emoji-font-
 
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@1.97.1
+        with:
+          targets: aarch64-linux-android
+
+      - name: Setup Android NDK
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r28b
+          add-to-path: false
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
