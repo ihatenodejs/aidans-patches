@@ -60,15 +60,23 @@ jobs:
         run: uv sync --locked --project tools/apk-lab
 
       - name: Setup Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@1.97.1
         with:
+          targets: aarch64-linux-android
           components: rustfmt, clippy
+
+      - name: Setup Android NDK
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r28b
+          add-to-path: false
 
       - name: Rust cache
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: tools/play-metadata -> tools/play-metadata/target
-
+          workspaces: |
+            tools/play-metadata -> tools/play-metadata/target
+            extensions/nhl-adblock-native -> extensions/nhl-adblock-native/target
       - name: Audit formatting
         run: bun run format:check
 

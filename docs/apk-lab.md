@@ -88,13 +88,14 @@ Applies patch bundles (`.mpp`) to an artifact using Morphe Desktop in isolated r
 - At least one patchable member (DEX, manifest/resources, assets/lib) is modified in the output.
 - Injected extension classes (`app/aidan/extension/...`) are inventoried when present.
 ```bash
+# Quick check: auto-resolves latest .mpp bundle and infers package name
+uv run --project tools/apk-lab apk-lab check path/to/app.apkm --all
+
 # Test specific patch with all option permutations
 uv run --project tools/apk-lab apk-lab check path/to/app.apkm \
-  --mpp patches/build/libs/patches-X.X.X.mpp \
-  --package com.example.app \
   --patch "Patch Name"
 
-# Test ALL compatible patches declared for the package
+# Explicit overrides for bundle and package name
 uv run --project tools/apk-lab apk-lab check path/to/app.apkm \
   --mpp patches/build/libs/patches-X.X.X.mpp \
   --package com.example.app \
@@ -102,11 +103,14 @@ uv run --project tools/apk-lab apk-lab check path/to/app.apkm \
 
 # Retain workspace scratch files for inspection (ephemeral by default)
 uv run --project tools/apk-lab apk-lab check path/to/app.apkm \
-  --mpp patches/build/libs/patches-X.X.X.mpp \
-  --package com.example.app \
   --all \
   --keep-workspace
 ```
+
+**Ergonomics & Invariants:**
+- `--mpp` is optional: when omitted, `apk-lab` automatically locates and uses the newest compiled `.mpp` bundle in `patches/build/libs/`.
+- `--package` is optional: when omitted, `apk-lab` automatically inspects the artifact and infers its package name.
+- **Pipe Safety**: CLI runners catch `BrokenPipeError` gracefully; piping output to `head`, `tail`, or `less` terminates with exit code 0 rather than raising unhandled broken pipe exceptions.
 
 ### `clean` — Managed Workspace Cleanup
 Safely removes managed run directories. With `--run <path>`, strictly verifies the schema-1 `.marker.json`, workspace root containment, and rejects symlinks or missing markers. With `--package <pkg>` or `--stale <days>`, skips malformed or unmarked runs while successfully cleaning valid target runs.
@@ -369,6 +373,41 @@ uv run --project tools/apk-lab apk-lab res path/to/app.apkm \
 - **Duplicate Status**: Grouped across splits as `unique` (single entry), `equivalent` (identical SHA-256 or scalar value), or `conflict` (differing hashes/values).
 - **Extraction Preflight**: `--extract` preflights and writes file-backed matches only into safe `<extract_dir>/<slug>-<hash8>/...` subdirectories; scalar ARSC values are skipped with a warning. Rejects non-directory or symlinked extract roots, ensures resolved paths remain within the destination root, and rejects pre-existing files or destination collisions.
 - **Exit Codes**: Missing artifact or invalid query returns `2` (`USAGE_OR_TOOL_ERROR`), extraction safety/archive security violations return `3` (`INVALID_ARTIFACT`), and uncaught infrastructure failures return `4` (`INFRASTRUCTURE_FAILURE`).
+### `strings` — High-Speed DEX String Pool Search
+Parses the string identifier table (`string_ids_off`) directly from raw Dalvik DEX headers across all splits and multi-DEX files in under 100ms without decompilation.
+
+```bash
+# Search strings matching regex query across all DEX files
+uv run --project tools/apk-lab apk-lab strings path/to/app.apkm -q "isNewUser"
+
+# Filter by specific DEX file
+uv run --project tools/apk-lab apk-lab strings path/to/app.apkm -q "cc-api-data" --dex classes2.dex
+
+# Case-sensitive search
+uv run --project tools/apk-lab apk-lab strings path/to/app.apkm -q "AdobeID" --case-sensitive
+
+# Output structured JSON
+uv run --project tools/apk-lab apk-lab strings path/to/app.apkm -q "api.endpoint" --json -
+```
+
+### `manifest` — AndroidManifest Component and Intent Filter Inspector
+Extracts structured component declarations (`activity`, `service`, `receiver`, `provider`) and intent filters from the base APK split manifest via `aapt2 dump xmltree` without full decompilation.
+
+```bash
+# Inspect all declared components
+uv run --project tools/apk-lab apk-lab manifest path/to/app.apkm
+
+# Filter by component type
+uv run --project tools/apk-lab apk-lab manifest path/to/app.apkm --type provider
+uv run --project tools/apk-lab apk-lab manifest path/to/app.apkm --type receiver
+
+# Filter component names with regex
+uv run --project tools/apk-lab apk-lab manifest path/to/app.apkm --filter "InitProvider"
+
+# Output structured JSON
+uv run --project tools/apk-lab apk-lab manifest path/to/app.apkm --type provider --json -
+```
+
 ### `fixtures` — Private R2 Cloud Fixtures
 Manages the two-slot private R2 storage architecture (`fixtures/<package>/latest` and `fixtures/<package>/target`). `fixtures info` displays role, version name/code, first 16 SHA-256 characters, and acquisition source. In CI compatibility runs, `target` is the active verified fixture slot, while `latest` acts as a storage and acquisition fallback.
 

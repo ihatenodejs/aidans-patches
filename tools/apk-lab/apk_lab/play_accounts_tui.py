@@ -144,14 +144,16 @@ def add_account(accounts_file: GooglePlayAccountsFile | None) -> GooglePlayAccou
             print("Canceled: AAS token required.")
             return accounts_file or GooglePlayAccountsFile(version=1, accounts=())
 
-    new_acc = GooglePlayAccount(
-        label=label.strip(),
-        email=email.strip().lower(),
-        aas_token=aas_token.strip(),
-        device=device.strip(),
-        locale=locale.strip(),
-        timezone=timezone.strip(),
-        enabled=True,
+    new_acc = GooglePlayAccount.from_dict(
+        {
+            "label": label.strip(),
+            "email": email.strip().lower(),
+            "aasToken": aas_token.strip(),
+            "device": device.strip(),
+            "locale": locale.strip(),
+            "timezone": timezone.strip(),
+            "enabled": True,
+        }
     )
 
     current_list = list(accounts_file.accounts) if accounts_file else []
@@ -176,15 +178,37 @@ def delete_account(
         print("\nNo accounts to delete.\n")
         return accounts_file or GooglePlayAccountsFile(version=1, accounts=())
 
-    choices = [f"{acc.label} ({acc.redacted_email})" for acc in accounts_file.accounts]
-    choices.append("Cancel")
+    choices: list[questionary.Choice | str] = [
+        questionary.Choice(
+            title=f"{acc.label} ({acc.redacted_email})",
+            value=acc.email,
+        )
+        for acc in accounts_file.accounts
+    ]
+    choices.append(questionary.Choice(title="Cancel", value=None))
     selected = questionary.select("Select account to delete:", choices=choices).ask()
-    if selected == "Cancel" or not selected:
+    if not selected or selected == "Cancel":
         return accounts_file
 
-    selected_label = selected.split(" (")[0]
+    target_acc = next(
+        (acc for acc in accounts_file.accounts if acc.email == selected),
+        None,
+    )
+    if target_acc is None:
+        target_acc = next(
+            (
+                acc
+                for acc in accounts_file.accounts
+                if f"{acc.label} ({acc.redacted_email})" == selected
+                or acc.label == selected
+            ),
+            None,
+        )
+    if target_acc is None:
+        return accounts_file
+
     confirm = questionary.confirm(
-        f"Are you sure you want to permanently delete account [{selected_label}]?",
+        f"Are you sure you want to permanently delete account [{target_acc.label}]?",
         default=False,
     ).ask()
 
@@ -192,10 +216,10 @@ def delete_account(
         print("Deletion canceled.")
         return accounts_file
 
-    remaining = [acc for acc in accounts_file.accounts if acc.label != selected_label]
+    remaining = [acc for acc in accounts_file.accounts if acc.email != target_acc.email]
     updated = GooglePlayAccountsFile(version=1, accounts=tuple(remaining))
     save_google_play_accounts(updated)
-    print(f"Account [{selected_label}] deleted.\n")
+    print(f"Account [{target_acc.label}] deleted.\n")
     return updated
 
 

@@ -3,12 +3,16 @@ from __future__ import annotations
 import subprocess
 from unittest.mock import patch
 
+import pytest
 from apk_lab.google_play_accounts import (
     GooglePlayAccount,
+    GooglePlayAccountError,
     GooglePlayAccountsFile,
+    load_google_play_accounts,
     save_google_play_accounts,
 )
 from apk_lab.play_accounts_tui import (
+    add_account,
     delete_account,
     exchange_oauth_for_aas,
     sync_github_secret,
@@ -35,11 +39,11 @@ def test_view_accounts_redaction(capsys):
 
 def test_delete_account_confirmation(monkeypatch, tmp_path):
     target = tmp_path / "accounts.json"
+    monkeypatch.setenv("APKEEP_ACCOUNTS_FILE", str(target))
     acc1 = GooglePlayAccount(label="acc1", email="acc1@test.com", aas_token="t1")
     acc2 = GooglePlayAccount(label="acc2", email="acc2@test.com", aas_token="t2")
     accs = GooglePlayAccountsFile(version=1, accounts=(acc1, acc2))
     save_google_play_accounts(accs, target_path=target)
-
     # 1. Cancel deletion
     with (
         patch("questionary.select") as mock_sel,
@@ -55,11 +59,65 @@ def test_delete_account_confirmation(monkeypatch, tmp_path):
         patch("questionary.select") as mock_sel,
         patch("questionary.confirm") as mock_conf,
     ):
-        mock_sel.return_value.ask.return_value = "acc1 (ac***@test.com)"
+        mock_sel.return_value.ask.return_value = "acc1@test.com"
         mock_conf.return_value.ask.return_value = True
         remaining = delete_account(accs)
         assert len(remaining.accounts) == 1
         assert remaining.accounts[0].label == "acc2"
+
+    saved_after = load_google_play_accounts(target, require_enabled=False)
+    assert saved_after is not None
+    assert len(saved_after.accounts) == 1
+    assert saved_after.accounts[0].label == "acc2"
+
+
+def test_delete_account_identical_labels(monkeypatch, tmp_path):
+    target = tmp_path / "accounts.json"
+    monkeypatch.setenv("APKEEP_ACCOUNTS_FILE", str(target))
+    acc1 = GooglePlayAccount(label="work", email="acc1@test.com", aas_token="t1")
+    acc2 = GooglePlayAccount(label="work", email="acc2@test.com", aas_token="t2")
+    accs = GooglePlayAccountsFile(version=1, accounts=(acc1, acc2))
+    save_google_play_accounts(accs, target_path=target)
+
+    with (
+        patch("questionary.select") as mock_sel,
+        patch("questionary.confirm") as mock_conf,
+    ):
+        mock_sel.return_value.ask.return_value = "acc1@test.com"
+        mock_conf.return_value.ask.return_value = True
+        remaining = delete_account(accs)
+        assert len(remaining.accounts) == 1
+        assert remaining.accounts[0].email == "acc2@test.com"
+        assert remaining.accounts[0].label == "work"
+
+    saved = load_google_play_accounts(target, require_enabled=False)
+    assert saved is not None
+    assert len(saved.accounts) == 1
+    assert saved.accounts[0].email == "acc2@test.com"
+
+
+def test_add_account_validates_fields(monkeypatch, tmp_path):
+    target = tmp_path / "accounts.json"
+    monkeypatch.setenv("APKEEP_ACCOUNTS_FILE", str(target))
+    with (
+        patch("questionary.text") as mock_text,
+        patch("questionary.select") as mock_sel,
+        patch("questionary.password") as mock_pass,
+    ):
+        mock_text.return_value.ask.side_effect = [
+            "valid-label",
+            "not-an-email",
+            "px_9a",
+            "en_US",
+            "UTC",
+        ]
+        mock_sel.return_value.ask.return_value = (
+            "Enter pre-generated AAS token directly"
+        )
+        mock_pass.return_value.ask.return_value = "some_token"
+
+        with pytest.raises(GooglePlayAccountError, match="malformed"):
+            add_account(None)
 
 
 def test_sync_github_secret_stdin(monkeypatch, capsys):

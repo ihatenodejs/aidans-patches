@@ -294,7 +294,6 @@ uv run --project tools/apk-lab apk-lab check path/to/app.apkm --mpp patches/buil
 
 See [`docs/apk-lab.md`](docs/apk-lab.md) for complete CLI documentation and workflows.
 
-
 ## 📲 Applying Patches
 
 Using [Morphe Desktop](https://github.com/MorpheApp/morphe-desktop):
