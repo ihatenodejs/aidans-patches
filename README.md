@@ -42,7 +42,7 @@ My [Morphe](https://morphe.software) patches
 ## 📱 Supported Applications & Patches
 
 <!-- PATCHES_START EXPANDED -->
-> **[v1.8.0](https://github.com/ihatenodejs/aidans-patches/releases/tag/v1.8.0)**&nbsp;&nbsp;•&nbsp;&nbsp;`main`&nbsp;&nbsp;•&nbsp;&nbsp;66 patches total
+> **[v1.9.0-dev.1](https://github.com/ihatenodejs/aidans-patches/releases/tag/v1.9.0-dev.1)**&nbsp;&nbsp;•&nbsp;&nbsp;`dev`&nbsp;&nbsp;•&nbsp;&nbsp;71 patches total
 <details open>
 <summary>📦 SidelineSwap&nbsp;&nbsp;•&nbsp;&nbsp;4 patches&nbsp;&nbsp;<a href="https://patch.p0ntus.com/status"><img src="https://worker.patch.p0ntus.com/badges/tests/com.sidelineswap.android.svg" alt="Tests Passing" align="absmiddle"></a></summary>
 <br>
@@ -55,7 +55,7 @@ My [Morphe](https://morphe.software) patches
 | 💊&nbsp;Patch | 📜&nbsp;Description | ⚙️&nbsp;Options |
 |----------|----------------|-----------|
 | [AMOLED Theme](#amoled-theme) | Forces SidelineSwap into a pure-black AMOLED theme with dark system bars, black app surfaces, readable light text and icons, and force dark mode on embedded WebViews. |  |
-| [Block Tracking and Telemetry](#block-tracking-and-telemetry) | Neutralizes first-party analytics (SidelineSwap backend), behavioral tracking (Amplitude, Firebase Analytics, Facebook App Events, Iterable), diagnostic telemetry (Firebase Crashlytics, Timber logging tree), payment gateway telemetry (Braintree FPTI), and zeros the Google Play Advertising ID (AAID). |  |
+| [Block Tracking and Telemetry](#block-tracking-and-telemetry) | Neutralizes first-party analytics (SidelineSwap backend), behavioral tracking (Amplitude, Firebase Analytics, Facebook App Events, Iterable), diagnostic telemetry (Firebase Crashlytics, Timber logging tree), payment gateway telemetry (Braintree FPTI), Google Play Install Referrer, and zeros the Google Play Advertising ID (AAID). | • Disable First-Party Analytics<br>• Disable Amplitude Analytics<br>• Disable Firebase & GMS Analytics<br>• Disable Crashlytics & Diagnostic Logging<br>• Disable Facebook SDK & App Events<br>• Disable Iterable Telemetry<br>• Disable Braintree Gateway Telemetry<br>• Zero Google Play Advertising ID<br>• Disable Install Referrer Tracking |
 | [Change Brand Color](#change-brand-color) | Customizes the primary accent brand color across SidelineSwap buttons, navigation highlights, badges, and accents. | • Primary Brand Color<br>• Primary Dark Color |
 | [Remove Invite Friends](#remove-invite-friends) | Removes the Invite Friends option from the Account screen and eliminates the non-functional orange dot notification badge from the Account navigation icon. |  |
 
@@ -196,7 +196,7 @@ My [Morphe](https://morphe.software) patches
 </details>
 
 <details open>
-<summary>📦 NHL&nbsp;&nbsp;•&nbsp;&nbsp;3 patches&nbsp;&nbsp;<a href="https://patch.p0ntus.com/status"><img src="https://worker.patch.p0ntus.com/badges/tests/com.nhl.gc1112.free.svg" alt="Tests Passing" align="absmiddle"></a></summary>
+<summary>📦 NHL&nbsp;&nbsp;•&nbsp;&nbsp;4 patches&nbsp;&nbsp;<a href="https://patch.p0ntus.com/status"><img src="https://worker.patch.p0ntus.com/badges/tests/com.nhl.gc1112.free.svg" alt="Tests Passing" align="absmiddle"></a></summary>
 <br>
 
 **🎯 Supported versions:**
@@ -207,8 +207,24 @@ My [Morphe](https://morphe.software) patches
 | 💊&nbsp;Patch | 📜&nbsp;Description | ⚙️&nbsp;Options |
 |----------|----------------|-----------|
 | [Remove Ads](#remove-ads) | Removes Google Ad Manager banner and native advertisements, disables Blaze story/moment sponsored placements, blocks Google Interactive Media Ads (IMA) video ad requests, and neutralizes Brightcove IMA mid-roll and pre-roll ad playback. | • Remove Promotions Carousel |
-| [Remove Tracking](#remove-tracking) | Removes the OneTrust CMP tracking consent popup, zeros Google Play Advertising ID (AAID), blocks host application analytics, disables Firebase Analytics, AppMeasurement, Firebase Performance Monitoring, Crashlytics, and Sessions telemetry, neutralizes UrbanAirship and Blaze tracking and logging, suppresses Brightcove video metrics reporting, and blocks Ticketmaster telemetry. | • Remove Broken Privacy Settings |
+| [Remove Tracking](#remove-tracking) | Removes the OneTrust CMP tracking consent popup, zeros Google Play Advertising ID (AAID), blocks host application analytics, disables Firebase Analytics, AppMeasurement, Firebase Performance Monitoring, Crashlytics, and Sessions telemetry, neutralizes UrbanAirship and Blaze tracking, user activity, and logging, suppresses Brightcove video metrics reporting and backlog processing, and blocks Ticketmaster telemetry. | • Disable OneTrust CMP<br>• Remove Broken Privacy Settings<br>• Zero Advertising ID<br>• Disable Host App Analytics<br>• Disable Firebase Analytics<br>• Disable Firebase Performance Monitoring<br>• Disable UrbanAirship Telemetry<br>• Disable Blaze Tracking & Logging<br>• Disable Brightcove Video Analytics<br>• Disable Ticketmaster Telemetry<br>• Disable Crashlytics & Sessions |
 | [Unlock Hidden Features](#unlock-hidden-features) | Unlocks the internal Developer Settings menu, Draft Mini Tracker, and NHL GameZone on the Home surface, with independent options for each feature. | • Enable Developer Tools & Settings<br>• Enable Draft Mini Tracker<br>• Show GameZone on Home |
+| [Web Ad Blocker](#web-ad-blocker) | Blocks advertisements, sponsored banners, and analytics tracking in NHL article views and embedded web content using bundled NHL rules and optional downloadable filter list subscriptions (EasyList, EasyPrivacy). |  |
+
+</details>
+
+<details open>
+<summary>📦 Adobe Reader&nbsp;&nbsp;•&nbsp;&nbsp;1 patch&nbsp;&nbsp;<a href="https://patch.p0ntus.com/status"><img src="https://worker.patch.p0ntus.com/badges/tests/com.adobe.reader.svg" alt="Tests Passing" align="absmiddle"></a></summary>
+<br>
+
+**🎯 Supported versions:**
+
+| 26.9.2.50367 |
+| :---: |
+
+| 💊&nbsp;Patch | 📜&nbsp;Description | ⚙️&nbsp;Options |
+|----------|----------------|-----------|
+| [Remove Ads and Tracking](#remove-ads-and-tracking) | Disables Adobe MobileCore, EventHub, Document Cloud Analytics (DCMAnalytics and ARDCMAnalytics), Adobe Growth Platform (DGP/MAU), Adobe Journey Optimizer (AJO), Branch deep-link attribution, Creative SDK, Next Best Action (NBA) tools profiling, Facebook App Events, Firebase Performance, Firebase Sessions, and Crashlytics telemetry; suppresses Google Mobile Ads (AdMob), interstitials, rewarded ads, banner pools, paywalls, and in-app reviews; removes telemetry preferences; and zeroes the Google Play Advertising ID. | • Disable Telemetry & Tracking<br>• Disable In-App Ads & Paywalls<br>• Remove Settings |
 
 </details>
 
@@ -223,12 +239,43 @@ My [Morphe](https://morphe.software) patches
 
 | 💊&nbsp;Patch | 📜&nbsp;Description | ⚙️&nbsp;Options |
 |----------|----------------|-----------|
-| [Remove Ads and Tracking](#remove-ads-and-tracking) | Disables Adobe, Branch, Facebook, Creative SDK, and Crashlytics telemetry; removes in-app ads and review prompts; blocks install-referrer collection; and zeroes the Google Play Advertising ID. | • Remove Settings |
+| [Remove Ads and Tracking](#remove-ads-and-tracking) | Disables Adobe Experience Platform MobileCore, EventHub, Adobe Growth SDK (DGP/MAU and Dunamis), Adobe Journey Optimizer (AJO), Creative SDK, Branch attribution, Facebook App Events and Audience Network, Firebase Performance, Firebase Sessions, and Crashlytics telemetry; suppresses Google Mobile Ads (AdMob), interstitials, banner preloaders, and in-app reviews; removes telemetry preferences; zeroes the Google Play Advertising ID; and blocks hardware android_id collection. | • Disable In-App Ads<br>• Disable Adobe Telemetry & Growth<br>• Disable Firebase Telemetry<br>• Disable Facebook Tracking<br>• Zero Device Identifiers<br>• Disable Review Prompts<br>• Remove Settings |
 | [Remove Attribution](#remove-attribution) | Names new scans 'Scan on [date]' instead of 'Adobe Scan [date]' and removes the attribution text from shared files. | • Remove Scan Name Attribution<br>• Remove Share Attribution Text |
 | [Remove Login](#remove-login) | Starts Adobe Scan in its existing account-free local workspace and removes account sign-in gates; Adobe cloud features are unavailable. | • Clean Up Auth Components<br>• Remove Link Sharing<br>• Remove Edit Text<br>• Remove Move<br>• Remove Save as Word Doc<br>• Remove Compress PDF |
 | [Remove Useless/Promotional Items](#remove-useless-promotional-items) | Removes promotional, feedback, and support items from Settings and file menus. | • About Adobe Scan<br>• Help<br>• Rate App<br>• Online Support Forum<br>• Share This App<br>• Fill & Sign<br>• Open in Adobe Acrobat |
 | [Unlock Premium](#unlock-premium) | Enables locally executable premium OCR, editing, compression, and page-organization tools without cloud or GenAI access. | • Remove Broken Features<br>• Enable Cloud Tools (Experimental) |
 | [Use System Font](#use-system-font) | Overrides Adobe Clean fonts across XML layouts, dialogs, and Jetpack Compose screens with the device's system font. |  |
+
+</details>
+
+<details open>
+<summary>📦 Credit Karma&nbsp;&nbsp;•&nbsp;&nbsp;1 patch&nbsp;&nbsp;<a href="https://patch.p0ntus.com/status"><img src="https://worker.patch.p0ntus.com/badges/tests/com.creditkarma.mobile.svg" alt="Tests Passing" align="absmiddle"></a></summary>
+<br>
+
+**🎯 Supported versions:**
+
+| 26.40 |
+| :---: |
+
+| 💊&nbsp;Patch | 📜&nbsp;Description | ⚙️&nbsp;Options |
+|----------|----------------|-----------|
+| [Remove Tracking](#remove-tracking) | Neutralizes Google Play Advertising ID tracking, Firebase Analytics, Datadog telemetry, Kochava attribution, New Relic, Luciq, root/emulator checks, and integrity attestation. | • Zero Advertising ID<br>• Disable Firebase Analytics<br>• Disable Crashlytics<br>• Disable Datadog Telemetry<br>• Disable Kochava Tracker<br>• Disable Scribe & Diagnostic Uploads<br>• Disable New Relic Telemetry<br>• Disable Luciq Telemetry & Session Recording<br>• Neutralize Root & Emulator Detection<br>• Neutralize Integrity & Attestation Checks |
+
+</details>
+
+<details open>
+<summary>📦 Pro Metronome&nbsp;&nbsp;•&nbsp;&nbsp;2 patches&nbsp;&nbsp;<a href="https://patch.p0ntus.com/status"><img src="https://worker.patch.p0ntus.com/badges/tests/com.eumlab.android.prometronome.svg" alt="Tests Passing" align="absmiddle"></a></summary>
+<br>
+
+**🎯 Supported versions:**
+
+| 1.0.12 |
+| :---: |
+
+| 💊&nbsp;Patch | 📜&nbsp;Description | ⚙️&nbsp;Options |
+|----------|----------------|-----------|
+| [Remove Tracking](#remove-tracking) | Neutralizes Umeng Analytics, Facebook App Events, Advertising ID harvesting, device fingerprinting, Bolts measurement events, and Google DataTransport telemetry. | • Disable Facebook App Events<br>• Zero Advertising ID<br>• Disable Background Telemetry<br>• Disable Umeng Analytics<br>• Neutralize Device Fingerprinting |
+| [Unlock Pro](#unlock-pro) | Unlocks all Pro features including polyrhythms, advanced subdivisions, visual beat modes, practice modes, and unlimited presets. |  |
 
 </details>
 

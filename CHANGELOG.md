@@ -1,3 +1,17 @@
+## [1.9.0-dev.1](https://github.com/ihatenodejs/aidans-patches/compare/v1.8.0...v1.9.0-dev.1) (2026-10-18)
+
+### ✨ New Features
+
+* **adobe-reader:** added ad and tracking removal patches ([93dbab9](https://github.com/ihatenodejs/aidans-patches/commit/93dbab9b3ebd6e10a478cdc6742ed17c97e708d2))
+* **apk-lab:** added string analysis and manifest inspection tools ([4241876](https://github.com/ihatenodejs/aidans-patches/commit/4241876deefd9a37a23b84835df2136463fec5b2))
+* **credit-karma:** added tracking removal patch and documentation ([96c916e](https://github.com/ihatenodejs/aidans-patches/commit/96c916e88ce15dc4eb996c3250c7b07543d9dcc3))
+* **deps:** added dependency inventory and policy management tooling ([62a13e6](https://github.com/ihatenodejs/aidans-patches/commit/62a13e689199a8841f699a7a162ca11f3ee476e8))
+* **nhl:** added native ad blocker and tracking neutralizers ([f0735bb](https://github.com/ihatenodejs/aidans-patches/commit/f0735bbc47213320355a86dfd318469c700e7300))
+* **patches:** updated telemetry options and regenerated catalog ([87d9ad5](https://github.com/ihatenodejs/aidans-patches/commit/87d9ad53fb69f96bd5f4d38d8d164535c1bde81b))
+* **pro-metronome:** added pro unlock and tracking removal patches ([7261380](https://github.com/ihatenodejs/aidans-patches/commit/7261380e844ccd30946135e7d24364eb6e7d3a1c))
+* **site:** added app store listings and screenshot rail component ([df9e621](https://github.com/ihatenodejs/aidans-patches/commit/df9e621f53388ef37059c349416964de3915dc7f))
+* **worker:** added media asset and review reconciliation logic ([d5f4cd6](https://github.com/ihatenodejs/aidans-patches/commit/d5f4cd64c27ebc00f12601ba6387324385d32ea4))
+
 ## [1.8.0](https://github.com/ihatenodejs/aidans-patches/compare/v1.7.0...v1.8.0) (2026-10-17)
 
 ### 🐛 Bug Fixes
