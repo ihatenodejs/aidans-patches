@@ -85,10 +85,12 @@ bun run typecheck
 bun run test
 bun run format        # mutates supported files
 bun run lint:fix      # mutates supported files
+bun run deps:check    # read-only check across all monorepo dependencies
+bun run deps:update   # interactive update prompt (or --plan / --approve for agents)
+bun run audit --deps  # format + lint + typecheck + test + dependency freshness
 ```
 
 Use targeted checks while iterating, then run `bun run audit` after code changes. `scripts/audit.ts` is the source of truth for the exact command matrix.
-
 ### Run Development Surfaces
 
 ```bash
@@ -125,7 +127,7 @@ npx semantic-release --dry-run
 - Site data modules should remain deterministic build-time transformations over root metadata and fetched release/status inputs. Keep rendering concerns in Astro components/pages.
 - Android extension bridges are static entry points called from injected Smali. Public Java descriptors are an ABI: change the Java method and its Kotlin/Smali caller together.
 - Python APK tooling passes paths/configuration explicitly and uses managed workspaces. Preserve deterministic output and archive/path-safety checks.
-
+- Monorepo dependency management uses `scripts/deps.ts` (`bun run deps:check`, `bun run deps:update`). Intentional holds require a mandatory reason in `dependency-policy.json`. Normal audit is offline and deterministic; dependency freshness is opt-in via `bun run audit --deps` or `bun scripts/audit.ts deps`. Updates require explicit confirmation (interactive TTY prompt for humans, or `--plan <report> --approve <digest>` for automated agents).
 ### Generated Metadata
 
 - Patch names, descriptions, options, categories, and compatibility declarations in Kotlin generate `patches-list.json`.
@@ -180,6 +182,9 @@ All patch definitions and Java extension changes must use the canonical app scop
 | Geocaching | `geocaching` | Alias `groundspeak` is legacy. |
 | 365 Pay | `365pay` | Alias `pay365` is legacy. |
 | NHL | `nhl` | — |
+| Adobe Reader | `adobe-reader` | Alias `adobereader` is legacy. |
+| Credit Karma | `credit-karma` | Alias `creditkarma` is legacy. |
+| Pro Metronome | `pro-metronome` | Alias `prometronome` is legacy. |
 
 ##### Non-Application Scopes
 

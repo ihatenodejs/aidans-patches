@@ -14,8 +14,11 @@ Root `package.json` delegates to `scripts/audit.ts`:
 | `bun run lint:fix` | Mutating supported lint fixes (Oxlint, Ruff, ktlint, clippy --fix). |
 | `bun run typecheck` | Worker `tsc`, Astro check, APK Lab mypy, Kotlin/Java compile, Rust cargo check. |
 | `bun run test` | APK Lab pytest, Worker Vitest, site tests, cargo test, icon consistency check. |
-| `bun run audit` | Format check → lint → typecheck → test. |
-
+| `bun run audit` | Format check → lint → typecheck → test (offline and deterministic). |
+| `bun run audit --deps` | Format check → lint → typecheck → test → dependency freshness. |
+| `bun run deps:check` | Non-mutating read-only check across all monorepo dependencies and pinned tooling. |
+| `bun run deps:update` | Transactional update application with mandatory approval (TTY prompt or agent plan). |
+| `bun scripts/audit.ts deps` | Single-phase dependency freshness audit check. |
 This script is the source of truth. Root/nested guides should describe its public commands rather than duplicate every internal argument.
 
 ## Implementation Rules
@@ -26,8 +29,8 @@ This script is the source of truth. Root/nested guides should describe its publi
 - Tool acquisition must be pinned and checksum-verified. The ktlint fallback downloads only the pinned version into ignored `.tools/`; do not add unverified download execution.
 - Prefer existing repository package scripts and `uv`/Gradle wrappers over duplicating tool setup.
 - Keep output concise but retain enough raw diagnostics to reproduce failures. Never suppress a failed subcommand to make the aggregate green.
-- When adding a language/module, update format, lint, typecheck, and test phases deliberately; do not claim coverage in docs before the orchestrator actually runs it.
-
+- When adding a language/module, update format, lint, typecheck, test, and dependency checker phases deliberately; do not claim coverage in docs before the orchestrator actually runs it.
+- Dependency management (`scripts/deps.ts`) isolates updates in temporary staging before publication, verifies inputs with SHA-256 digests, and enforces mandatory reasons in `dependency-policy.json` for held dependencies.
 ## Verification
 
 Run the directly changed phase first, then the aggregate:

@@ -28,6 +28,7 @@ Use pinned actions and least-privilege `permissions`. Preserve path filters and 
 - `npm`: root and workspace dependencies; intentionally ignores `conventional-changelog-conventionalcommits` to preserve custom changelog release rules.
 - `gradle`: Gradle wrapper and plugin dependencies.
 
+Repository-wide dependency checks via `scripts/deps.ts` enforce the same hold in `dependency-policy.json`. When modifying dependency holds, keep Dependabot ignores and `dependency-policy.json` aligned so external automation does not open PRs for held packages.
 Python scripts follow Ruff formatting/lint rules, validate paths/input shape, fail with actionable errors, and must not print secret values.
 
 ## Release and Generated Assets
