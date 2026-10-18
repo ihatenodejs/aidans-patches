@@ -21,7 +21,6 @@ private const val FILE_OPTIONS_MENU_HELPER = "Lqt/u;"
 private const val FILE_LIST_TOOLS = "Lut/p0;"
 private const val FILE_LIST_TOOLS_ACTIONS = "Lut/r0;"
 private const val FILE_LIST_TOOLS_ACTIONS_B = "Lut/r0${'$'}b;"
-private const val FILE_LIST_TOOLS_ACTIONS_C = "Lut/r0${'$'}c;"
 private const val PREVIEW_BOTTOM_TOOLBAR = "Lvt/b2;"
 private const val PREVIEW_TOOLBAR_ITEMS = "Lvt/r4;"
 
@@ -265,13 +264,25 @@ private fun BytecodePatchContext.removeFillAndSign() {
             it.implementation != null
     } ?: throw PatchException("FileListTools actions subclass B <clinit> not found")
 
-    clinitMethod.addInstructions(
-        0,
-        """
-        sget-object v0, $FILE_LIST_TOOLS_ACTIONS_C->h:$FILE_LIST_TOOLS_ACTIONS_C
-        sput-object v0, $FILE_LIST_TOOLS_ACTIONS_B->h:$FILE_LIST_TOOLS_ACTIONS_B
-        return-void
-        """.trimIndent()
+    val clinitInstructions = clinitMethod.implementation?.instructions
+        ?: throw PatchException("FileListTools actions subclass B <clinit> has no implementation")
+
+    val fillSignSgetIndex = clinitInstructions.indexOfFirst { inst ->
+        val ref = (inst as? ReferenceInstruction)?.reference as? FieldReference
+        inst.opcode == Opcode.SGET_OBJECT &&
+            ref?.definingClass == FILE_LIST_TOOLS &&
+            ref.name == "f"
+    }
+    if (fillSignSgetIndex < 0) {
+        throw PatchException("Could not find FileListTools.f reference in FileListTools actions subclass B <clinit>")
+    }
+
+    val sgetInst = clinitInstructions[fillSignSgetIndex] as? OneRegisterInstruction
+        ?: throw PatchException("Expected OneRegisterInstruction for FileListTools.f sget-object")
+
+    clinitMethod.replaceInstruction(
+        fillSignSgetIndex,
+        "sget-object v${sgetInst.registerA}, $FILE_LIST_TOOLS->h:Lod/ll;"
     )
 }
 

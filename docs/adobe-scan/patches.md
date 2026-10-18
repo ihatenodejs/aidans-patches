@@ -233,31 +233,39 @@ The **Remove Login** patch unlocks Adobe Scan as a standalone, offline, privacy-
 - **Type:** Dalvik Bytecode Patch (`bytecodePatch`)
 - **Dependencies:** None
 - **Compatibility:** `COMPATIBILITY_ADOBE_SCAN` (`ApkFileType.APKM`, target `26.09.25`, `minSdk` 32)
-- **Option:** `Remove Settings` (`removeSettings`, default `true`)
+- **Options:**
+  - `Disable In-App Ads` (`removeAds`, default `true`): Disables banner and interstitial ads, banner preloading, ad analytics, and InMobi SDK initialization.
+  - `Disable Adobe Telemetry & Growth` (`removeAdobeTracking`, default `true`): Disables Adobe Experience Platform MobileCore, EventHub dispatch, Adobe Growth SDK (DGP/MAU pings and Dunamis logging), Adobe Journey Optimizer (AJO), Creative SDK, and AEP NetworkService.
+  - `Disable Firebase Telemetry` (`removeFirebaseTracking`, default `true`): Disables Firebase Performance Monitoring (AppStartTrace and network timing), Firebase Sessions, Firebase Installations, and Crashlytics collection.
+  - `Disable Facebook Tracking` (`removeFacebookTracking`, default `true`): Disables Facebook SDK auto-initialization (FacebookInitProvider), Audience Network ContentProvider, App Events logging, and remote settings fetch.
+  - `Zero Device Identifiers` (`removeDeviceIdentifiers`, default `true`): Zeroes the Google Play Advertising ID, blocks Install Referrer, and neutralizes hardware `android_id` collection in AccountManager and Creative SDK.
+  - `Disable Review Prompts` (`removeReviewPrompts`, default `true`): Suppresses in-app rating and review dialogs.
+  - `Remove Settings` (`removeSettings`, default `true`): Removes the Send usage info and Send crash info preferences and suppresses the crash reports dialog, whose telemetry backends are disabled by this patch.
 
 ### 1. Motivation & Purpose
 
-Adobe Scan transmits first-party Adobe Experience Platform, Document Cloud, Creative SDK, Adobe Target, and Firebase Crashlytics telemetry. It also includes Branch referral attribution, Facebook App Events, AAID and install-referrer collection, Google AdMob mediation, InMobi, banner and interstitial controllers, and Google Play review prompts.
+Adobe Scan transmits first-party Adobe Experience Platform (AEP), Document Cloud, Creative SDK, Adobe Target, Adobe Growth Platform (DGP/MAU), and Firebase (Crashlytics, Performance Monitoring, Sessions, Installations) telemetry. It also bundles Branch referral attribution, Facebook App Events and Audience Network initialization, AAID, hardware `android_id`, and install-referrer collection, Google AdMob mediation, InMobi, banner and interstitial controllers, and Google Play review prompts.
 
-The **Remove Ads and Tracking** patch prevents these SDKs from initializing, dispatching events, loading ads, fetching Target content, sending Branch requests, reading a usable AAID, submitting Crashlytics reports, or presenting rating prompts. It forces the crash-reporting preference to `Never`, including upgrades that retain an earlier `Always` selection. Local scanning, OCR, image processing, PDF creation, and document storage remain untouched.
+The **Remove Ads and Tracking** patch prevents these SDKs from initializing, dispatching events, loading ads, fetching Target content, sending Branch requests, reading usable device or advertising identifiers, submitting Crashlytics or Performance reports, or presenting rating prompts. It forces the crash-reporting preference to `Never`, including upgrades that retain an earlier `Always` selection. Local scanning, OCR, image processing, PDF creation, and document storage remain untouched.
 
 ### 2. Technical Implementation & Injection Points
 
 | Layer | Target descriptors | Patched behavior |
 |---|---|---|
-| Adobe telemetry | `MobileCore`, `Target`, `br.j`, `uc.f`, `br.d`, `br.j$g`, `br.j$h` | Stops MobileCore actions, privacy updates, and states; Target mbox requests; Document Cloud analytics; analytics-monitoring broadcasts; and Edge consent traffic. |
-| Creative SDK telemetry | `com.adobe.creativesdk.foundation.internal.analytics.n`, `g` | Stops Creative SDK event reporting and ETS upload scheduling. |
-| Crash reporting | `util.l.r1`, `util.l.q0`, `FirebaseCrashlytics` | Forces the crash preference to `Never` (both setter and getter), neutralizes previous-execution crash detection, and prevents report submission, exception recording, logging, user identification, and custom-key collection. |
-| Ads | `ar.k`, `ar.u`, `ar.x`, `ar.c`, `ar.s`, `InMobiSdk` | Forces ad eligibility checks to `false`; prevents banner and interstitial loads, ad-event reporting, and InMobi initialization. |
-| Attribution | `g90.e`, `g90.e0`, `g90.o0` | Disables Branch lifecycle tracking, blocks its request queue, and permanently enables its tracking-disabled state. |
-| Facebook | `AppEventsLoggerImpl`, `AppEventsLoggerImpl$Companion` | Stops App Events dispatch at both public logger and companion queue entry points. |
-| Advertising identity | `AdvertisingIdClient`, `AdvertisingIdClient$Info`, `yv.a` | Returns `00000000-0000-0000-0000-000000000000` with limit-ad-tracking enabled and prevents Play Install Referrer connection. |
-| Review prompts | `util.l`, `zq.ha` | Makes the rating predicate `false` and dismisses a dialog if a direct path creates one. |
+| Adobe Experience Platform | `MobileCoreInitializer`, `MobileCore`, `Target`, `dp.u` (`NetworkService`) | Neutralizes MobileCore initialization, ActivityLifecycle callbacks, event dispatch (`a` and `b`), actions/states, Target requests, and AEP network execution. |
+| Adobe Growth Platform (DGP/MAU/AJO) | `GrowthSDKInitializer`, `DGPMau`, `DGPAEPBridge`, `DGPLog$Companion`, `NetworkInterface$Companion`, `AJOHelper` | Neutralizes App Startup initialization, cancels MAU dispatch, forces `readyForEvent` to `false`, blocks Dunamis logging, and intercepts native Growth SDK network calls. |
+| Document Cloud & Creative SDK | `br.j`, `uc.f`, `br.d`, `br.j$g`, `br.j$h`, Creative SDK analytics `n`, `g`, and `c` | Stops Scan analytics, Edge consent requests, ETS upload scheduling, and event synthesis. |
+| Firebase Crashlytics & Diagnostics | `util.l.r1`, `util.l.q0`, `FirebaseCrashlytics` | Forces crash preference to `Never` (setter and getter), neutralizes previous-execution crash detection, and stubs collection toggle, report submission, exception recording, logging, user ID, and custom keys. |
+| Firebase Performance & Sessions | `AppStartTrace`, `v50.j` (`TransportManager`), `d60.x0` (`SessionFirelogPublisher`), `d60.l`, `installations.a` | Neutralizes cold-start lifecycle listeners, drops performance trace/network payloads, silences session event logging, and disables FID registration. |
+| In-App Ads & Mediation | `ar.k`, `ar.u`, `ar.x`, `ar.c`, `ar.s`, `InMobiSdk` | Forces ad eligibility checks to `false`; prevents banner and interstitial loads, ad-event reporting, and InMobi initialization. |
+| Facebook & Audience Network | `FacebookInitProvider`, `AudienceNetworkContentProvider`, `DynamicLoaderFactory`, `FetchedAppSettingsManager`, `AppEventsLoggerImpl`, `AppEventsLoggerImpl$Companion` | Returns `false` from content provider `onCreate` methods, stubs dynamic loader init and settings fetch, and stops App Events dispatch. |
+| Device Identity & Attribution | `AdvertisingIdClient`, `AdvertisingIdClient$Info`, `yv.a`, `cr.d` (`AScanAccountManager`), `cb.d` | Returns zeroed AAID with limit-ad-tracking enabled, blocks Install Referrer connection, forces hardware `android_id` resolution to `null` in AccountManager, and neutralizes Creative SDK CommonID generation. |
+| Attribution (Branch) | `g90.e`, `g90.e0`, `g90.o0` | Disables Branch lifecycle tracking, blocks its request queue, and permanently enables its tracking-disabled state. |
+| Review Prompts | `util.l.z1`, `zq.ha` | Makes rating predicate `false` and dismisses review dialog on construction. |
 
 Every required target lookup validates its class, exact parameter types, return type, and implementation before modifying the method. A missing or mismatched target throws `PatchException`; the optional `br.j.a0(h90.d)` variant is skipped when absent.
 
-When **Remove Settings** is enabled, the patch hides the `USAGE INFO` category after `PreferencesFragment` loads it (containing **Send usage info**, its explanatory link, and **Send crash info**) and suppresses the cold-start crash reports prompt dialog (`com.adobe.scan.android.b` and its factory `b$a.a`). Its telemetry backends are disabled independently of this UI option.
-
+When **Remove Settings** is enabled, the patch hides the `USAGE INFO` category after `PreferencesFragment` loads it (containing **Send usage info**, its explanatory link, and **Send crash info**) and suppresses the cold-start crash reports prompt dialog (`com.adobe.scan.android.b` and its factory `b$a.a`). Telemetry backends are disabled independently of this UI option.
 
 ### 3. Preconditions & Verification
 

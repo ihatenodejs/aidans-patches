@@ -7,7 +7,7 @@ This document details the binary bytecode and resource patches available for **S
 | Patch Name | Type | Default | Description |
 |---|---|---|---|
 | [AMOLED Theme](#amoled-theme) | `compositeFeaturePatch` | `false` | Forces SidelineSwap into a pure-black AMOLED theme with dark system bars, black app surfaces, readable light text and icons, and force dark mode on embedded WebViews. |
-| [Block Tracking and Telemetry](#block-tracking-and-telemetry) | `bytecodePatch` | `true` | Neutralizes first-party analytics, third-party behavioral trackers, diagnostic logging, payment telemetry, and AAID. |
+| [Block Tracking and Telemetry](#block-tracking-and-telemetry) | `compositeFeaturePatch` | `true` | Neutralizes first-party analytics, third-party behavioral trackers, diagnostic logging, payment telemetry, install referrer, and AAID. |
 | [Change Brand Color](#change-brand-color) | `resourcePatch` | `false` | Customizes primary brand accent colors across buttons, navigation highlights, badges, and status bars. |
 | [Remove Invite Friends](#remove-invite-friends) | `compositeFeaturePatch` | `true` | Removes the Invite Friends option from the Account screen and eliminates the phantom orange dot badge on the Account navbar icon. |
 ---
@@ -15,7 +15,21 @@ This document details the binary bytecode and resource patches available for **S
 ## Block Tracking and Telemetry
 
 ### Motivation
-SidelineSwap tracks comprehensive user behavior—from items viewed, search terms entered, and checkout steps initiated to device identifiers, crash logs, and payment telemetry. This patch neutralizes all 9 layers of analytics and telemetry at the Dalvik bytecode level while preserving all core marketplace features (searching, buying, selling, messaging, and payments).
+SidelineSwap tracks comprehensive user behavior—from items viewed, search terms entered, and checkout steps initiated to device identifiers, crash logs, install referrers, and payment telemetry. This patch neutralizes all 9 layers of analytics, telemetry, and background collectors across Dalvik bytecode and AndroidManifest components while preserving all core marketplace features (searching, buying, selling, messaging, and payments). All layers are enabled by default and individually configurable.
+
+### Options
+
+| Option Key | Title | Type | Default | Description |
+|---|---|---|---|---|
+| `disableFirstParty` | Disable First-Party Analytics | `Boolean` | `true` | Neutralizes SidelineSwap's central event dispatcher (`AnalyticsLogger`), first-party client, and `LogRepo` HTTP event uploads. |
+| `disableAmplitude` | Disable Amplitude Analytics | `Boolean` | `true` | Neutralizes the Amplitude client wrapper and core Amplitude SDK event tracking, identification, and initialization across all repositories. |
+| `disableFirebase` | Disable Firebase & GMS Analytics | `Boolean` | `true` | Neutralizes `FirebaseClient`, Google Play Services Measurement event queue, and removes background `AppMeasurement` services and sessions from the manifest. |
+| `disableCrashlytics` | Disable Crashlytics & Diagnostic Logging | `Boolean` | `true` | Neutralizes the Timber `CrashlyticsTree` logging tree and Firebase Crashlytics exception, log, and custom key reporting. |
+| `disableFacebook` | Disable Facebook SDK & App Events | `Boolean` | `true` | Neutralizes Facebook SDK initialization, auto-event collection, activity lifecycle tracking, and removes `FacebookInitProvider` from the manifest. |
+| `disableIterable` | Disable Iterable Telemetry | `Boolean` | `true` | Neutralizes Iterable client calls, In-App message tracking, session event uploads, and lifecycle callback registration. |
+| `disableBraintreeTelemetry` | Disable Braintree Gateway Telemetry | `Boolean` | `true` | Stubs Braintree FPTI background upload and database workers with immediate success, and neutralizes `BraintreeClient` analytics dispatchers. |
+| `zeroAdvertisingId` | Zero Google Play Advertising ID | `Boolean` | `true` | Spoofs minified and standard Google Play `AdvertisingIdClient` calls to return an all-zero UUID and forces limit-ad-tracking to `true`. |
+| `disableInstallReferrer` | Disable Install Referrer Tracking | `Boolean` | `true` | Neutralizes Google Play Install Referrer querying and client connections across attribution listeners. |
 
 ### Technical Strategy
 
@@ -30,25 +44,32 @@ SidelineSwap tracks comprehensive user behavior—from items viewed, search term
 
 #### 3. Amplitude Analytics
 - In `com.sidelineswap.android.analytics.AmplitudeClient`: injects `return-void` into `logEvent` and `access$logEvent`.
-- In minified Amplitude SDK `Lp073j1/d;`: injects `return-void` into event logging method `d`.
+- In Amplitude core SDK `Lj1/d;`: injects `return-void` into event dispatchers and initializers (`d`, `e`, `f`, `j`, `k`, `l`, `n`, `o`, `p`, `t`, `u`, `v`, `w`), neutralizing direct repository invocations (`AccountRepo`, `AuthRepo`).
 
-#### 4. Firebase Analytics & Performance
-- In `com.sidelineswap.android.analytics.FirebaseClient`: injects `return-void` into `logEvent` and `access$logEvent`.
-- In `com.google.firebase.analytics.FirebaseAnalytics`: injects `return-void` into `logEvent`, `setAnalyticsCollectionEnabled`, `setUserProperty`, and `setDefaultEventParameters`.
-- In `com.google.firebase.perf.FirebasePerformance`: injects `return-void` into `setPerformanceCollectionEnabled`.
+#### 4. Firebase Analytics & Measurement
+- In `com.sidelineswap.android.analytics.FirebaseClient`: injects `return-void` across `logEvent`, `access$logEvent`, `completedCheckout`, `initiatedCheckout`, `joined`, `newMadeOffer`, `newMadePurchase`, `visitedItem`, and `visitedResults`.
+- In GMS internal measurement client `Lcom/google/android/gms/internal/measurement/r0;`: injects `return-void` into `b`, halting all queued background measurement tasks at the executor entry point.
+- In `AndroidManifest.xml`: removes `AppMeasurementReceiver`, `AppMeasurementService`, `AppMeasurementJobService`, `SessionLifecycleService`, and `android.adservices.AD_SERVICES_CONFIG`.
 
 #### 5. Firebase Crashlytics & Timber Logging Tree
 - In `com.sidelineswap.android.log.CrashlyticsTree`: injects `return-void` into `log`, preventing Timber from forwarding exceptions to Crashlytics.
-- In `com.google.firebase.crashlytics.FirebaseCrashlytics`: injects `return-void` into `log`, `recordException`, and `setCrashlyticsCollectionEnabled`.
+- In `com.google.firebase.crashlytics.FirebaseCrashlytics`: injects `return-void` into `log`, `recordException`, `setCrashlyticsCollectionEnabled`, `setCustomKey`, and `setCustomKeys`.
 
 #### 6. Facebook Core SDK & App Events
-- In `Lp173v2/y;`: injects `return-void` into validation and event logging methods `e`, `f`, `g`, `h`, `i`, `j`, `k`, and `l`.
-- In `com.sidelineswap.android.analytics.FacebookClient`: injects `return-void` into all seven checkout and interaction methods: `completedCheckout`, `initiatedCheckout`, `joined`, `newMadeOffer`, `newMadePurchase`, `visitedItem`, and `visitedResults`.
-- In `Lp057h2/h;`: injects `return-void` into `a`.
+- In `Lg2/n;`: injects `return-void` into `i` (`FacebookSdk.sdkInitialize`), halting Facebook SDK startup.
+- In `Lv2/y;`: injects `return-void` into validation helper methods `a`, `b`, `c`, `d`, and `e`.
+- In `com.sidelineswap.android.analytics.FacebookClient`: injects `return-void` into all seven checkout and interaction methods.
+- In `Lh2/h;`: injects `return-void` into `a` (`AppEventsLogger.logEvent`).
+- In `Lh2/i;`: injects `return-void` into `d`, `e`, `f`, `g`, and `h` (`AppEventsLoggerImpl` event dispatchers).
+- In `Lp2/a;`: injects `return-void` into `c` (`ActivityLifecycleTracker.startTracking`).
+- In `AndroidManifest.xml`: removes `FacebookInitProvider`, token broadcast receivers, and SDK app ID/token metadata.
 
-#### 7. Iterable In-App Telemetry
+#### 7. Iterable In-App Telemetry & Lifecycle
 - In `com.sidelineswap.android.analytics.IterableClient`: injects `return-void` into `visitedLocker`.
-- In `p159t5/C1123h` (`IterableApi`): injects `return-void` into `d` (`trackInAppClick`), `e` (`trackInAppClose`), `f` (`trackInAppOpen`), and `g` (`trackInAppDelivery`).
+- In `Lt5/h;` (`IterableApi`): injects `return-void` into `d`, `g`, `h`, `j`, `k`, `l`, and `m`.
+- In `Lt5/i;` (`IterableApiClient`): injects `return-void` into network dispatcher `d`.
+- In `Lt5/e;` (`IterableActivityLifecycleCallbacks`): injects `return-void` into `a`.
+- In `AndroidManifest.xml`: removes `IterableFirebaseMessagingService` and `IterablePushActionReceiver`.
 
 #### 8. Braintree / PayPal FPTI Telemetry
 - In `AnalyticsUploadWorker` and `AnalyticsWriteToDbWorker`: injects an early return of `new-instance v0, Landroidx/work/ListenableWorker$a$c; \n invoke-direct {v0}, Landroidx/work/ListenableWorker$a$c;-><init>()V \n return-object v0` into every implemented method named `g`. This constructs WorkManager `Result.success()` directly to halt background network transmissions to `b.stats.paypal.com` without causing retry loops.
@@ -57,6 +78,10 @@ SidelineSwap tracks comprehensive user behavior—from items viewed, search term
 #### 9. Google Play Advertising ID (AAID) Zeroing & Opt-Out
 - In minified `AdvertisingIdClient` (`LY2/a;`): patches method `a` to instantiate and return a dummy `LY2/a$a` with GUID `"00000000-0000-0000-0000-000000000000"` and limit ad tracking set to `true`.
 - In `com.google.android.gms.ads.identifier.AdvertisingIdClient$Info`: injects `const-string v0, "00000000-0000-0000-0000-000000000000" \n return-object v0` into `getId()`, and injects `const/4 v0, 0x1 \n return v0` into `isLimitAdTrackingEnabled()`.
+
+#### 10. Google Play Install Referrer
+- In `com.android.installreferrer.api.InstallReferrerClientImpl` (`Ll1/a;`): injects `return-void` into `b` (`startConnection`), preventing client connection to Play Store referral services.
+- In Facebook SDK `Lv2/b$a;`: injects `return-void` into `a`, neutralizing referral connection initiation.
 ---
 
 ## Change Brand Color
