@@ -1,3 +1,9 @@
+## [1.9.0-dev.2](https://github.com/ihatenodejs/aidans-patches/compare/v1.9.0-dev.1...v1.9.0-dev.2) (2026-10-21)
+
+### 🐛 Bug Fixes
+
+* **nhl:** neutralized ad insertion calls in pregame and boxscore ([830e8b3](https://github.com/ihatenodejs/aidans-patches/commit/830e8b3614e6754ed54d8c67b5c6966c3ef598c8))
+
 ## [1.9.0-dev.1](https://github.com/ihatenodejs/aidans-patches/compare/v1.8.0...v1.9.0-dev.1) (2026-10-18)
 
 ### ✨ New Features
