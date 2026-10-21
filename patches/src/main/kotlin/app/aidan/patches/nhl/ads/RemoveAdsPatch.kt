@@ -384,34 +384,50 @@ private fun BytecodePatchContext.collapsePregameAndBoxscoreAds() {
             invokeMethod.replaceInstruction(idx, "nop")
         }
     }
-    // 2. In Lqn7.invoke: skip adding Llef; ad item to Pregame list
+    // 2. In Lqn7.invoke: skip adding Llef; ad item to Pregame list by neutralizing kba.c
     val qn7Class = mutableClassDefByOrNull("Lqn7;")
     if (qn7Class != null) {
         for (method in qn7Class.methods) {
             if (method.name == "invoke" && method.implementation != null) {
                 val qn7Insts = method.implementation!!.instructions.toList()
-                for ((idx, inst) in qn7Insts.withIndex()) {
+                val lefIndex = qn7Insts.indexOfFirst { inst ->
                     val ref = (inst as? ReferenceInstruction)?.reference as? TypeReference
-                    if (inst.opcode == Opcode.INSTANCE_OF && ref?.type == "Llef;") {
-                        val reg = (inst as OneRegisterInstruction).registerA
-                        method.replaceInstruction(idx, "const/4 v$reg, 0x0")
+                    inst.opcode == Opcode.INSTANCE_OF && ref?.type == "Llef;"
+                }
+                if (lefIndex != -1) {
+                    val kbaCallIndex = qn7Insts.subList(lefIndex, qn7Insts.size).indexOfFirst { inst ->
+                        val ref = (inst as? ReferenceInstruction)?.reference as? MethodReference
+                        (inst.opcode == Opcode.INVOKE_STATIC || inst.opcode == Opcode.INVOKE_STATIC_RANGE) &&
+                            ref?.definingClass == "Lkba;" &&
+                            ref.name == "c"
+                    }
+                    if (kbaCallIndex != -1) {
+                        method.replaceInstruction(lefIndex + kbaCallIndex, "nop")
                     }
                 }
             }
         }
     }
 
-    // 3. In Liz1.invoke: skip adding Luy1; ad item to Boxscore list
+    // 3. In Liz1.invoke: skip adding Luy1; ad item to Boxscore list by neutralizing kba.c
     val iz1Class = mutableClassDefByOrNull("Liz1;")
     if (iz1Class != null) {
         for (method in iz1Class.methods) {
             if (method.name == "invoke" && method.implementation != null) {
                 val iz1Insts = method.implementation!!.instructions.toList()
-                for ((idx, inst) in iz1Insts.withIndex()) {
+                val uy1Index = iz1Insts.indexOfFirst { inst ->
                     val ref = (inst as? ReferenceInstruction)?.reference as? TypeReference
-                    if (inst.opcode == Opcode.INSTANCE_OF && ref?.type == "Luy1;") {
-                        val reg = (inst as OneRegisterInstruction).registerA
-                        method.replaceInstruction(idx, "const/4 v$reg, 0x0")
+                    inst.opcode == Opcode.INSTANCE_OF && ref?.type == "Luy1;"
+                }
+                if (uy1Index != -1) {
+                    val kbaCallIndex = iz1Insts.subList(uy1Index, iz1Insts.size).indexOfFirst { inst ->
+                        val ref = (inst as? ReferenceInstruction)?.reference as? MethodReference
+                        (inst.opcode == Opcode.INVOKE_STATIC || inst.opcode == Opcode.INVOKE_STATIC_RANGE) &&
+                            ref?.definingClass == "Lkba;" &&
+                            ref.name == "c"
+                    }
+                    if (kbaCallIndex != -1) {
+                        method.replaceInstruction(uy1Index + kbaCallIndex, "nop")
                     }
                 }
             }
