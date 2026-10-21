@@ -29,32 +29,33 @@ bun run audit --deps
 
 ## Exit Codes
 
-| Exit Code | Meaning |
-|---|---|
-| `0` | Success: all checked dependencies are up-to-date or held, or update was cleanly applied. |
-| `1` | Error: registry failure, network error, policy violation, stale/tampered plan, or tool execution failure. |
-| `2` | Outdated: actionable updates are available or upstream releases are blocked by interpreter compatibility. |
-| `3` | Declined: user cancelled the interactive update prompt. |
+| Exit Code | Meaning                                                                                                   |
+| --------- | --------------------------------------------------------------------------------------------------------- |
+| `0`       | Success: all checked dependencies are up-to-date or held, or update was cleanly applied.                  |
+| `1`       | Error: registry failure, network error, policy violation, stale/tampered plan, or tool execution failure. |
+| `2`       | Outdated: actionable updates are available or upstream releases are blocked by interpreter compatibility. |
+| `3`       | Declined: user cancelled the interactive update prompt.                                                   |
 
 ## Monorepo Coverage
 
 The updater covers all direct software dependencies and version-sensitive toolchain configurations in the repository:
 
-| Ecosystem | Manifest / Source | Tracked Lockfiles |
-|---|---|---|
-| JavaScript / Web | `package.json`, `worker/package.json`, `site/package.json` | `bun.lock`, `worker/bun.lock`, `site/bun.lock`, `package-lock.json` |
-| Python / Tooling | `tools/apk-lab/pyproject.toml` | `tools/apk-lab/uv.lock` |
-| Rust / Crates | `tools/play-metadata/Cargo.toml`, `extensions/nhl-adblock-native/Cargo.toml` | `tools/play-metadata/Cargo.lock`, `extensions/nhl-adblock-native/Cargo.lock` |
-| Gradle Plugins | `settings.gradle.kts`, `gradle/libs.versions.toml` | Gradle metadata |
-| External APK Binaries | `tools/apk-lab/tools.lock.json` | Integrity hashes and version probes |
-| Code Quality Tooling | `scripts/audit.ts` (`KTLINT_VERSION`) | Pinned checksum verification |
-| GitHub Actions & Hooks | `.github/workflows/*.yml`, `.pre-commit-config.yaml` | Pinned versions and commit hashes |
-| Toolchain Runtimes | Workflow setup inputs, `rust-toolchain.toml`, `build.gradle.kts` (NDK) | Pinned versions across coordinated files |
-| Embedded In-Repo Assets | `OsmMapView.java` (Leaflet CDN) | Coupled asset URLs |
+| Ecosystem               | Manifest / Source                                                            | Tracked Lockfiles                                                            |
+| ----------------------- | ---------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| JavaScript / Web        | `package.json`, `worker/package.json`, `site/package.json`                   | `bun.lock`, `worker/bun.lock`, `site/bun.lock`, `package-lock.json`          |
+| Python / Tooling        | `tools/apk-lab/pyproject.toml`                                               | `tools/apk-lab/uv.lock`                                                      |
+| Rust / Crates           | `tools/play-metadata/Cargo.toml`, `extensions/nhl-adblock-native/Cargo.toml` | `tools/play-metadata/Cargo.lock`, `extensions/nhl-adblock-native/Cargo.lock` |
+| Gradle Plugins          | `settings.gradle.kts`, `gradle/libs.versions.toml`                           | Gradle metadata                                                              |
+| External APK Binaries   | `tools/apk-lab/tools.lock.json`                                              | Integrity hashes and version probes                                          |
+| Code Quality Tooling    | `scripts/audit.ts` (`KTLINT_VERSION`)                                        | Pinned checksum verification                                                 |
+| GitHub Actions & Hooks  | `.github/workflows/*.yml`, `.pre-commit-config.yaml`                         | Pinned versions and commit hashes                                            |
+| Toolchain Runtimes      | Workflow setup inputs, `rust-toolchain.toml`, `build.gradle.kts` (NDK)       | Pinned versions across coordinated files                                     |
+| Embedded In-Repo Assets | `OsmMapView.java` (Leaflet CDN)                                              | Coupled asset URLs                                                           |
 
 ### Non-Dependency Exclusions
 
 The dependency checker strictly inspects software dependency releases. It intentionally excludes:
+
 - Target application compatibility versions in patch `Constants.kt`. (App versions require device and reverse-engineering verification via APK Lab).
 - Fixture metadata and APK artifact hashes.
 - In-tree font resources and adblock filter list sources.

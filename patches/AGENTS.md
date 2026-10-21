@@ -14,13 +14,13 @@ Read `docs/<app>/architecture.md` and `docs/<app>/patches.md` before changing an
 
 ## Patch Types and Layer Boundaries
 
-| DSL | Context | Use |
-| --- | --- | --- |
-| `compositeFeaturePatch` | composite context | Unified 1-to-1 feature combining Dalvik bytecode with an internal companion resource or raw resource patch. Filters internal companion from `patches-list.json`. |
-| `bytecodePatch` | `BytecodePatchContext` | Dexlib2 class/method discovery and Smali instruction edits. |
-| `resourcePatch` | resource context | Decoded Android XML resources and manifest DOM edits. |
-| `rawResourcePatch` | resource context | Raw assets, Hermes bundles, fonts, ELF/native libraries, and web assets. |
-| `extendWith("extensions/extension.mpe")` | packaging | Merge Java runtime bridge classes into target DEX. |
+| DSL                                      | Context                | Use                                                                                                                                                              |
+| ---------------------------------------- | ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `compositeFeaturePatch`                  | composite context      | Unified 1-to-1 feature combining Dalvik bytecode with an internal companion resource or raw resource patch. Filters internal companion from `patches-list.json`. |
+| `bytecodePatch`                          | `BytecodePatchContext` | Dexlib2 class/method discovery and Smali instruction edits.                                                                                                      |
+| `resourcePatch`                          | resource context       | Decoded Android XML resources and manifest DOM edits.                                                                                                            |
+| `rawResourcePatch`                       | resource context       | Raw assets, Hermes bundles, fonts, ELF/native libraries, and web assets.                                                                                         |
+| `extendWith("extensions/extension.mpe")` | packaging              | Merge Java runtime bridge classes into target DEX.                                                                                                               |
 
 A `bytecodePatch` cannot reliably stage raw APK asset changes. If a feature spans DEX plus XML/assets/native libraries:
 
@@ -28,6 +28,7 @@ A `bytecodePatch` cannot reliably stage raw APK asset changes. If a feature span
 2. **Shared multi-feature prerequisites**: Define a standalone `resourcePatch` or `rawResourcePatch` and link each dependent patch via `dependsOn(...)`. See `aftership/auth/RemoveLoginPatch.kt` (`bypassSignatureCheckResourcePatch`).
 3. **Multi-companion DAGs**: Define standalone companion patches linked via `dependsOn(...)` when a feature requires multiple resource contexts (e.g. both XML resources and raw assets).
 4. Use `extendWith(...)` separately when injected Java extension classes are called.
+
 ## Declaration Pattern
 
 Export patches as lower-camel top-level values ending in `Patch`:

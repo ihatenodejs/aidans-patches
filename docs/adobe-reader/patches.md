@@ -24,6 +24,7 @@ This document specifies patches for **Adobe Acrobat Reader** (`com.adobe.reader`
 ### 1. Motivation & Purpose
 
 Adobe Acrobat Reader incorporates extensive telemetry tracking, promotional campaigns, ad networks, and rating popups:
+
 1. Master telemetry gate `com.adobe.reader.F.a0()Z` controls document and user action dispatch.
 2. Adobe MobileCore and EventHub dispatch telemetry events to Adobe Experience Platform.
 3. DCMAnalytics and ARDCMAnalytics collect document lifecycle events and user actions.
@@ -45,6 +46,7 @@ The **Remove Ads and Tracking** patch disables these ad, tracking, and telemetry
 ### 2. Technical Implementation
 
 #### Layer 1: Master Telemetry Switch & MobileCore / EventHub Neutralization
+
 - **Target Class:** `Lcom/adobe/reader/F;`
   - Method `a0()Z` returns `false` to disable root telemetry action dispatch.
 - **Target Class:** `Lcom/adobe/marketing/mobile/internal/eventhub/EventHub;`
@@ -55,6 +57,7 @@ The **Remove Ads and Tracking** patch disables these ad, tracking, and telemetry
   - Neutralizes extension registration (`c`) and application init (`d`).
 
 #### Layer 2: DCMAnalytics, ARDCMAnalytics & In-App Analytics Neutralization
+
 - **Target Class:** `Lcom/adobe/reader/analytics/ARDCMAnalytics;`
   - Neutralizes `trackAction` (all overloads), `K2`, `i3`.
 - **Target Class:** `Lcom/adobe/dcmanalytics/DCMAnalytics;`
@@ -66,6 +69,7 @@ The **Remove Ads and Tracking** patch disables these ad, tracking, and telemetry
   - Neutralizes launch analytics dispatcher `e`.
 
 #### Layer 3: Adobe Growth Platform (DGP / MAU) & AJO Neutralization
+
 - **Target Class:** `Lcom/adobe/dgp/e;`
   - Neutralizes `b`, `onStart`, `onStop`, `onDestroy` to prevent lifecycle registration.
 - **Target Class:** `Lcom/adobe/dgp/DGPMau;`
@@ -78,10 +82,12 @@ The **Remove Ads and Tracking** patch disables these ad, tracking, and telemetry
   - Neutralizes `b`, `onRegistered`; method `readyForEvent` returns `false`.
 
 #### Layer 4: Next Best Action (NBA) Profiling Neutralization
+
 - **Target Class:** `Lcom/adobe/libs/nba/repos/ARNbaRepo;`
   - Method `b(ARAangTools, String, ToolEventType, Continuation)` injects `sget-object v0, Lkotlin/Unit;->INSTANCE:Lkotlin/Unit; return-object v0` to suppress logging tool usage to SQLite.
 
 #### Layer 5: Branch Deep-Link Attribution Neutralization
+
 - **Target Class:** `Lcom/adobe/reader/utils/ARBranchEventTracker;`
   - Neutralizes user identity binding `c` (`Branch.N().x0(member_guid)`), and tracking methods `d`, `e`, `g`, `h`, `i`.
   - Methods `b()Z` and `f()Z` return `false`.
@@ -89,6 +95,7 @@ The **Remove Ads and Tracking** patch disables these ad, tracking, and telemetry
   - Method `C0(Z)V` forces `p0 = true` (tracking disabled).
 
 #### Layer 6: Creative SDK & Facebook App Events Neutralization
+
 - **Target Class:** `Lcom/adobe/creativesdk/foundation/internal/analytics/b;`, `c;`, `n;`, `g;`
   - Void tracking methods neutralized.
 - **Target Class:** `Lcom/adobe/creativesdk/foundation/internal/analytics/AdobeAnalyticsETSJob;`
@@ -103,6 +110,7 @@ The **Remove Ads and Tracking** patch disables these ad, tracking, and telemetry
   - Neutralizes Privacy Sandbox attribution trigger and topics harvesting.
 
 #### Layer 7: Firebase Performance, Sessions & Diagnostics Neutralization
+
 - **Target Class:** `Lcom/google/firebase/perf/provider/FirebasePerfProvider;`
   - Method `onCreate` returns `false`.
 - **Target Class:** `Lcom/google/firebase/perf/metrics/AppStartTrace;`
@@ -117,6 +125,7 @@ The **Remove Ads and Tracking** patch disables these ad, tracking, and telemetry
   - Neutralizes frame metric callbacks `onActivityStarted`, `onActivityStopped`, `onActivityResumed`, `onActivityPaused`.
 
 #### Layer 8: AAID Client Spoofing & Referrer Neutralization
+
 - **Target Class:** `Lcom/google/android/gms/ads/identifier/AdvertisingIdClient;`
   - Returns synthetic `Info("00000000-0000-0000-0000-000000000000", true)`.
 - **Target Class:** `Lcom/google/android/gms/ads/identifier/AdvertisingIdClient$Info;`
@@ -128,6 +137,7 @@ The **Remove Ads and Tracking** patch disables these ad, tracking, and telemetry
   - Neutralizes Intune MAM broadcast handler `onMAMReceive(Context, Intent)`.
 
 #### Layer 9: In-App Ads Engine & Paywalls Suppression (`removeAds`)
+
 - **Target Class:** `Lcom/adobe/reader/ads/utils/ARAdUtils;`
   - Methods `r0()Z` (areAdsEnabled), `l0()Z`, `O()Z`, `W()Z`, `N()Z`, `C0()Z` return `false`.
 - **Target Class:** `Lcom/adobe/reader/ads/g;` (ARAdConfig)
@@ -146,6 +156,7 @@ The **Remove Ads and Tracking** patch disables these ad, tracking, and telemetry
   - Methods `P()Z`, `S()Z`, `T()Z` return `false`.
 
 #### Layer 10: Preferences & Settings Removal (`removeSettings`)
+
 - **Target Class:** `Lcom/adobe/reader/settings/D0;`
   - Preference change handlers `M7(SharedPreferences)` ("Send usage info") and `b5(SharedPreferences)` ("Send crash reports") neutralized to return immediately without applying state.
   - In `onViewCreated(View, Bundle)`, injects `SettingsBridge.hideTelemetryPreferences(p0)` (`invoke-static/range`), resolving the "Usage info" preference category containing "Send usage info" (`0x7f1524a6`), its summary link (`0x7f1524a7`), and "Send crash reports" (`0x7f152433`), invoking `setVisible(false)` on the parent category and individual items to hide them safely from the Preferences screen without corrupting Dalvik branch offsets.

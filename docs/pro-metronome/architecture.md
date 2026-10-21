@@ -2,17 +2,17 @@
 
 ## Overview
 
-| Attribute | Specification |
-|---|---|
-| **Application Name** | Pro Metronome |
-| **Package Name** | `com.eumlab.android.prometronome` |
-| **Supported Version** | `1.0.12` (Morphe Compatibility: `1.0.12`, `minSdk` 23) |
-| **Analyzed Version Code** | `112` |
-| **Target SDK** | `35` (Android 15) |
-| **Minimum SDK** | `23` (Android 6.0) |
-| **APK Format** | APKM (`base.apk`, `config.en.apk`, `config.es.apk`, `config.xhdpi.apk`) |
-| **Package Signing SHA-256** | `67ba64147a05aedb766363801f77a59e04f37ab8785062a12c5678dadf8b7c35` |
-| **Architecture** | Native Android/Java; AndroidX, Umeng Analytics & Common SDK, Facebook SDK AppEvents, Google Play Services Ads Identifier, Bolts Measurement, Google DataTransport, RevenueCat |
+| Attribute                   | Specification                                                                                                                                                                 |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Application Name**        | Pro Metronome                                                                                                                                                                 |
+| **Package Name**            | `com.eumlab.android.prometronome`                                                                                                                                             |
+| **Supported Version**       | `1.0.12` (Morphe Compatibility: `1.0.12`, `minSdk` 23)                                                                                                                        |
+| **Analyzed Version Code**   | `112`                                                                                                                                                                         |
+| **Target SDK**              | `35` (Android 15)                                                                                                                                                             |
+| **Minimum SDK**             | `23` (Android 6.0)                                                                                                                                                            |
+| **APK Format**              | APKM (`base.apk`, `config.en.apk`, `config.es.apk`, `config.xhdpi.apk`)                                                                                                       |
+| **Package Signing SHA-256** | `67ba64147a05aedb766363801f77a59e04f37ab8785062a12c5678dadf8b7c35`                                                                                                            |
+| **Architecture**            | Native Android/Java; AndroidX, Umeng Analytics & Common SDK, Facebook SDK AppEvents, Google Play Services Ads Identifier, Bolts Measurement, Google DataTransport, RevenueCat |
 
 Pro Metronome is a real-time metronome application engineered by EUMLab. While the app does not contain third-party banner or interstitial display ad networks, it bundles telemetry and device identifier harvesting libraries, including Umeng Analytics SDK, Facebook App Events, Google Play Advertising ID client queries, Bolts measurement broadcast events, Google DataTransport runtime schedulers, and hardware-derived UUID synthesis in preset exports.
 
