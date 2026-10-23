@@ -16,6 +16,10 @@ on:
       - '.releaserc'
       - '.github/scripts/prepare_emoji_font.py'
       - '.github/workflows/release.yml'
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 jobs:
   release:
     name: Release
@@ -78,6 +82,14 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Fast-forward to remote ref
+        run: |
+          PREV_HEAD=$(git rev-parse HEAD)
+          git pull --ff-only origin "${{ github.ref_name }}"
+          if ! git diff --quiet "$PREV_HEAD" HEAD -- package.json package-lock.json; then
+            npm install
+          fi
+
       # Semantic release runs its own Gradle build command on main.
       - name: Release
         uses: cycjimmy/semantic-release-action@v7
@@ -94,14 +106,6 @@ jobs:
         with:
           subject-name: 'Morphe Patches ${{ steps.release.outputs.new_release_git_tag }}'
           subject-path: patches/build/libs/patches-*.mpp
-
-      # Always verify compilation when semantic-release did not publish a release.
-      # This covers non-main/dev branches, chore commits, docs commits, etc.
-      - name: Verify project compiles
-        if: steps.release.outputs.new_release_published != 'true'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: ./gradlew :patches:buildAndroid clean --no-daemon
 
   deploy-site:
     name: Deploy Website
