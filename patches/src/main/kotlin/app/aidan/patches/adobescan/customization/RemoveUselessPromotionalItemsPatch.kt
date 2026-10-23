@@ -124,13 +124,8 @@ val removeUselessPromotionalItemsPatch = bytecodePatch(
             if (removeShareApp.value != false) add(RES_SHARE_APP)
         }
 
-        val hideCategory = removeHelp.value != false &&
-            removeRateApp.value != false &&
-            removeSupportForum.value != false &&
-            removeShareApp.value != false
-
-        if (selectedResourceIds.isNotEmpty() || hideCategory) {
-            hideSettingsPreferences(selectedResourceIds, hideCategory)
+        if (selectedResourceIds.isNotEmpty()) {
+            hideSettingsPreferences(selectedResourceIds)
         }
 
         if (removeRateApp.value != false) {
@@ -161,10 +156,10 @@ val removeUselessPromotionalItemsPatch = bytecodePatch(
 }
 
 /**
- * Hides selected preferences and optionally the bottom PreferenceCategory (gray bar)
- * right after XML resource inflation in SettingsFragment.E.
+ * Hides selected preferences right after XML resource inflation in SettingsFragment.E.
+ * Uses straight-line bytecode without labels to avoid Dexlib2 branch offset miscalculations.
  */
-private fun BytecodePatchContext.hideSettingsPreferences(resourceIds: List<Int>, hideCategory: Boolean) {
+private fun BytecodePatchContext.hideSettingsPreferences(resourceIds: List<Int>) {
     val settingsFragment = mutableClassDefByOrNull(SETTINGS_FRAGMENT)
         ?: throw PatchException("SettingsFragment not found")
     val preferenceLoader = settingsFragment.methods.singleOrNull {
@@ -192,34 +187,14 @@ private fun BytecodePatchContext.hideSettingsPreferences(resourceIds: List<Int>,
         const v0, $resourceId
         invoke-virtual {p0, v0}, Landroidx/fragment/app/Fragment;->getString(I)Ljava/lang/String;
         move-result-object v0
-        invoke-virtual {p0, v0}, Landroidx/preference/b;->u(Ljava/lang/CharSequence;)Landroidx/preference/Preference;
+        invoke-virtual {p0, v0}, Landroidx/preference/b;->o(Ljava/lang/String;)Landroidx/preference/Preference;
         move-result-object v0
-        if-eqz v0, :cond_skip_$resourceId
-        const/4 v1, 0x0
-        invoke-virtual {v0, v1}, Landroidx/preference/Preference;->C(Z)V
-        :cond_skip_$resourceId
+        const/4 p1, 0x0
+        invoke-virtual {v0, p1}, Landroidx/preference/Preference;->C(Z)V
         """.trimIndent()
     }
 
-    val hideCategorySmali = if (hideCategory) {
-        """
-        const-string v0, "category_about"
-        invoke-virtual {p0, v0}, Landroidx/preference/b;->u(Ljava/lang/CharSequence;)Landroidx/preference/Preference;
-        move-result-object v0
-        if-eqz v0, :cond_skip_category
-        const/4 v1, 0x0
-        invoke-virtual {v0, v1}, Landroidx/preference/Preference;->C(Z)V
-        :cond_skip_category
-        """.trimIndent()
-    } else {
-        ""
-    }
-
-    val combinedSmali = listOf(hidePreferencesSmali, hideCategorySmali)
-        .filter { it.isNotEmpty() }
-        .joinToString("\n")
-
-    preferenceLoader.addInstructions(loadIndex + 1, combinedSmali)
+    preferenceLoader.addInstructions(loadIndex + 1, hidePreferencesSmali)
 }
 
 /**
