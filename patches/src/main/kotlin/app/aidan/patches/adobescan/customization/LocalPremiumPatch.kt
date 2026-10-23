@@ -18,7 +18,6 @@ import app.morphe.patcher.patch.BytecodePatchContext
 import app.morphe.patcher.patch.Option
 import app.morphe.patcher.patch.PatchException
 import app.morphe.patcher.patch.ResourcePatchContext
-import app.morphe.patcher.patch.resourcePatch
 import app.morphe.patcher.util.smali.ExternalLabel
 import com.android.tools.smali.dexlib2.Opcode
 import java.io.File
@@ -33,7 +32,6 @@ private const val REMOVE_PASSWORD_HOST = "Lcom/adobe/scan/android/m;"
 private const val SCAN_APPLICATION = "Lcom/adobe/scan/android/ScanApplication;"
 private const val SPLIT_COMPAT_APPLICATION = "Ln20/b;"
 private const val RECENT_CARD_TOOL_ACTION = "Lzq/o3;"
-private const val SCAN_DOC_CLOUD_MONITOR = "Lqr/k;"
 private const val SCAN_FILE = "Lcom/adobe/scan/android/file/m0;"
 
 private val ALL_ENTITLEMENT_METHODS = listOf(
@@ -43,14 +41,47 @@ internal var localPdfCompressionOption: Option<Boolean>? = null
 internal var localPdfExportOption: Option<Boolean>? = null
 private class AdobeScanPdfResourceHolder
 
-val adobeScanPdfManifestPatch = resourcePatch(
-    name = "Adobe Scan PDF Engine Manifest",
-    default = true,
+@Suppress("unused")
+val localPremiumPatch = compositeFeaturePatch(
+    name = "Local Premium",
+    description = "Enables locally executable premium OCR, editing, compression, and password protection tools without cloud or GenAI access.",
+    default = true
 ) {
-    category("Internal")
+    category("Features")
     compatibleWith(COMPATIBILITY_ADOBE_SCAN)
+    extendWith("extensions/extension.mpe")
 
-    execute {
+    val enableLocalPdfCompression = booleanOption(
+        key = "enableLocalPdfCompression",
+        default = true,
+        title = "Local PDF Compression",
+        description = "Replaces Adobe Document Cloud post-save compression with on-device JPEG stream re-compression. Overrides Compress PDF removal when enabled."
+    )
+    localPdfCompressionOption = enableLocalPdfCompression
+
+    val enableLocalPdfProtection = booleanOption(
+        key = "enableLocalPdfProtection",
+        default = true,
+        title = "Local PDF Password Protection",
+        description = "Replaces Adobe Document Cloud password encryption with AES-256 on-device PDF protection and offline removal."
+    )
+
+    val enableLocalPdfExport = booleanOption(
+        key = "enableLocalPdfExport",
+        default = true,
+        title = "Local PDF Export",
+        description = "Replaces Adobe Document Cloud export with on-device editable Word, Excel, and PowerPoint conversion. Layout reconstruction is best-effort."
+    )
+    localPdfExportOption = enableLocalPdfExport
+
+    val enableLocalPdfCombine = booleanOption(
+        key = "enableLocalPdfCombine",
+        default = true,
+        title = "Local PDF Combine",
+        description = "Combines local Adobe Scan documents into a new PDF on device without changing the originals."
+    )
+
+    resources {
         document("AndroidManifest.xml").use { doc ->
             val appElement = doc.getElementsByTagName("application").item(0) as? org.w3c.dom.Element
                 ?: throw PatchException("Application element not found in AndroidManifest.xml")
@@ -113,49 +144,6 @@ val adobeScanPdfManifestPatch = resourcePatch(
             }
         }
     }
-}
-
-@Suppress("unused")
-val localPremiumPatch = compositeFeaturePatch(
-    name = "Local Premium",
-    description = "Enables locally executable premium OCR, editing, compression, and password protection tools without cloud or GenAI access.",
-    default = true
-) {
-    category("Features")
-    compatibleWith(COMPATIBILITY_ADOBE_SCAN)
-    dependsOn(adobeScanPdfManifestPatch)
-    extendWith("extensions/extension.mpe")
-
-    val enableLocalPdfCompression = booleanOption(
-        key = "enableLocalPdfCompression",
-        default = true,
-        title = "Local PDF Compression",
-        description = "Replaces Adobe Document Cloud post-save compression with on-device JPEG stream re-compression. Overrides Compress PDF removal when enabled."
-    )
-    localPdfCompressionOption = enableLocalPdfCompression
-
-    val enableLocalPdfProtection = booleanOption(
-        key = "enableLocalPdfProtection",
-        default = true,
-        title = "Local PDF Password Protection",
-        description = "Replaces Adobe Document Cloud password encryption with AES-256 on-device PDF protection and offline removal."
-    )
-
-    val enableLocalPdfExport = booleanOption(
-        key = "enableLocalPdfExport",
-        default = true,
-        title = "Local PDF Export",
-        description = "Replaces Adobe Document Cloud export with on-device editable Word, Excel, and PowerPoint conversion. Layout reconstruction is best-effort."
-    )
-    localPdfExportOption = enableLocalPdfExport
-
-    val enableLocalPdfCombine = booleanOption(
-        key = "enableLocalPdfCombine",
-        default = true,
-        title = "Local PDF Combine",
-        description = "Combines local Adobe Scan documents into a new PDF on device without changing the originals."
-    )
-
     rawResources {
         val libDir = get("lib")
         if (libDir.exists()) {
@@ -189,7 +177,6 @@ val localPremiumPatch = compositeFeaturePatch(
 
         allowAllCompressionLevels()
         neutralizeCompressUpsell()
-        neutralizeDocCloudMonitor()
         removeFileOptionStarBadges()
         neutralizeFileOptionsUpsell()
 
@@ -969,22 +956,4 @@ private fun BytecodePatchContext.neutralizeFileOptionsUpsell() {
         return-void
         """.trimIndent()
     )
-}
-
-/**
- * Neutralizes ScanDocCloudMonitor.d() to always return false so that the app treats local
- * sessions as unblocked and never dispatches upsell prompts across file browser, preview,
- * combine, or compression flows.
- */
-private fun BytecodePatchContext.neutralizeDocCloudMonitor() {
-    val monitorClass = mutableClassDefByOrNull(SCAN_DOC_CLOUD_MONITOR)
-        ?: throw PatchException("ScanDocCloudMonitor class $SCAN_DOC_CLOUD_MONITOR not found")
-    val dMethod = monitorClass.methods.singleOrNull {
-        it.name == "d" &&
-            it.parameterTypes.isEmpty() &&
-            it.returnType == "Z" &&
-            it.implementation != null
-    } ?: throw PatchException("ScanDocCloudMonitor method d()Z not found in $SCAN_DOC_CLOUD_MONITOR")
-
-    dMethod.addInstructions(0, "const/4 v0, 0x0\nreturn v0")
 }

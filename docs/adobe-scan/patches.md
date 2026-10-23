@@ -367,7 +367,7 @@ Adobe Scan packages Adobe Clean `.otf` resources for legacy XML layouts, Spectru
 - **Target Package:** `com.adobe.scan.android`
 - **Supported Versions:** `26.09.25`
 - **Default State:** `true` (Enabled by default)
-- **Type:** Composite Feature Patch (`compositeFeaturePatch` with companion manifest `resourcePatch` and `rawResources`)
+- **Type:** Composite Feature Patch (`compositeFeaturePatch` with companion `resources` and `rawResources`)
 - **Dependencies:** None
 - **Compatibility:** `COMPATIBILITY_ADOBE_SCAN` (`ApkFileType.APKM`, target `26.09.25`, `minSdk` 32)
   - `Local PDF Compression` (`enableLocalPdfCompression`, default `false`): Replaces Adobe Document Cloud post-save compression with on-device JPEG stream re-compression. Overrides Compress PDF removal when enabled.
