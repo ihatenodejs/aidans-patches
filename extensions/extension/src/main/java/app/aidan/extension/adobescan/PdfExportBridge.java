@@ -184,15 +184,18 @@ public final class PdfExportBridge {
                 .setPositiveButton("Export", new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface dialog, int which) {
-                        final String password = passwordInput.getText().toString().trim();
-                        if (password.isEmpty()) {
+                        final String rawPassword = passwordInput.getText().toString();
+                        if (rawPassword.trim().isEmpty()) {
                             PdfOperationUi.showSnackbar(activity, "Password cannot be empty.");
                             return;
                         }
                         final PdfOperationCoordinator coordinator = PdfOperationCoordinator.getInstance();
-                        if (coordinator != null) {
-                            coordinator.startExport(activity, scanFile, format, password);
+                        if (coordinator == null) {
+                            Log.e(TAG, "PdfOperationCoordinator is unavailable");
+                            PdfOperationUi.showSnackbar(activity, "PDF service unavailable");
+                            return;
                         }
+                        coordinator.startExport(activity, scanFile, format, rawPassword);
                     }
                 })
                 .setNegativeButton("Cancel", null)

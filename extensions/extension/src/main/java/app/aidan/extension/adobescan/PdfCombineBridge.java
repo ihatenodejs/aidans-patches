@@ -35,7 +35,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.WeakHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 public final class PdfCombineBridge {
@@ -49,7 +49,8 @@ public final class PdfCombineBridge {
         }
     };
 
-    private static final Map<Object, Boolean> sProtectionCache = new ConcurrentHashMap<>();
+    private static final Map<Object, Boolean> sProtectionCache =
+            Collections.synchronizedMap(new java.util.WeakHashMap<Object, Boolean>());
     private static final ExecutorService sThumbnailExecutor = Executors.newFixedThreadPool(2);
 
     private PdfCombineBridge() {}
@@ -437,8 +438,8 @@ public final class PdfCombineBridge {
                             final File file = adapter.getFile(item);
                             final String itemKey = (file != null) ? file.getAbsolutePath() : adapter.getDisplayName(item);
                             final EditText et = passwordInputs.get(itemKey);
-                            final String pw = (et != null) ? et.getText().toString().trim() : "";
-                            if (pw.isEmpty()) {
+                            final String pw = (et != null) ? et.getText().toString() : "";
+                            if (pw.trim().isEmpty()) {
                                 PdfOperationUi.showSnackbar(
                                         activity, "Please enter the password for \"" + adapter.getDisplayName(item) + "\".");
                                 return;
@@ -451,7 +452,7 @@ public final class PdfCombineBridge {
                             final String itemKey = (file != null) ? file.getAbsolutePath() : adapter.getDisplayName(item);
                             final EditText et = passwordInputs.get(itemKey);
                             if (et != null) {
-                                passwords.add(et.getText().toString().trim());
+                                passwords.add(et.getText().toString());
                             } else {
                                 passwords.add(null);
                             }
@@ -471,12 +472,12 @@ public final class PdfCombineBridge {
 
     private static boolean isScanProtected(final Object scanFile) {
         if (scanFile == null) return false;
-        final Boolean cached = sProtectionCache.get(scanFile);
-        if (cached != null) {
-            return cached;
-        }
         final ScanFileAdapter adapter = ScanFileAdapter.getInstance();
-        return adapter.isProtected(scanFile) || adapter.getProtectionStatus(scanFile) == 2;
+        if (adapter.isProtected(scanFile) || adapter.getProtectionStatus(scanFile) == 2) {
+            return true;
+        }
+        final Boolean cached = sProtectionCache.get(scanFile);
+        return cached != null && cached;
     }
 
     private static void precomputeProtection(final List<?> items, final Runnable onComplete) {
@@ -487,7 +488,7 @@ public final class PdfCombineBridge {
             public void run() {
                 final ScanFileAdapter adapter = ScanFileAdapter.getInstance();
                 for (final Object scanFile : copy) {
-                    if (scanFile == null || sProtectionCache.containsKey(scanFile)) continue;
+                    if (scanFile == null) continue;
                     boolean isProtected = adapter.isProtected(scanFile) || adapter.getProtectionStatus(scanFile) == 2;
                     if (!isProtected) {
                         final File f = adapter.getFile(scanFile);

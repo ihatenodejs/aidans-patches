@@ -7,6 +7,7 @@ import static org.junit.Assert.assertTrue;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -164,5 +165,34 @@ public class OfficeDocumentWriterTest {
         assertEquals("Should have reconstructed paragraphs from non-table lines", 2, page.paragraphs.size());
         assertEquals("Item Price", page.paragraphs.get(0).text());
         assertEquals("This is a paragraph", page.paragraphs.get(1).text());
+    }
+
+    @Test
+    public void testZipStreamsLeaveUnderlyingStreamOpen() throws Exception {
+        final java.util.concurrent.atomic.AtomicBoolean closed = new java.util.concurrent.atomic.AtomicBoolean(false);
+        final ByteArrayOutputStream baos = new ByteArrayOutputStream() {
+            @Override
+            public void close() throws IOException {
+                closed.set(true);
+                super.close();
+            }
+        };
+
+        final PdfPageLayout page = new PdfPageLayout(0, 612f, 792f, Collections.<PdfPageLayout.Word>emptyList());
+        OfficeDocumentWriter.writeDocx(Collections.singletonList(page), baos);
+        assertFalse("writeDocx must not close underlying OutputStream", closed.get());
+        assertTrue("Zip data must be flushed", baos.size() > 0);
+
+        baos.reset();
+        closed.set(false);
+        OfficeDocumentWriter.writeXlsx(Collections.singletonList(page), baos);
+        assertFalse("writeXlsx must not close underlying OutputStream", closed.get());
+        assertTrue("Zip data must be flushed", baos.size() > 0);
+
+        baos.reset();
+        closed.set(false);
+        OfficeDocumentWriter.writePptx(Collections.singletonList(page), baos);
+        assertFalse("writePptx must not close underlying OutputStream", closed.get());
+        assertTrue("Zip data must be flushed", baos.size() > 0);
     }
 }

@@ -48,7 +48,7 @@ public final class OfficeDocumentWriter {
     // =========================================================================
 
     public static void writeDocx(final List<PdfPageLayout> pages, final OutputStream out) throws IOException {
-        final ZipOutputStream zos = new ZipOutputStream(out);
+        try (final ZipOutputStream zos = new ZipOutputStream(new NonClosingOutputStream(out))) {
             putZipEntry(zos, "[Content_Types].xml",
                     "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n" +
                     "<Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\">\n" +
@@ -126,8 +126,9 @@ public final class OfficeDocumentWriter {
             doc.append("</w:document>");
 
             putZipEntry(zos, "word/document.xml", doc.toString());
-        zos.finish();
-        zos.flush();
+            zos.finish();
+            zos.flush();
+        }
     }
 
     // =========================================================================
@@ -135,7 +136,7 @@ public final class OfficeDocumentWriter {
     // =========================================================================
 
     public static void writeXlsx(final List<PdfPageLayout> pages, final OutputStream out) throws IOException {
-        final ZipOutputStream zos = new ZipOutputStream(out);
+        try (final ZipOutputStream zos = new ZipOutputStream(new NonClosingOutputStream(out))) {
         final int pageCount = Math.max(1, pages.size());
             // 1. [Content_Types].xml
             final StringBuilder types = new StringBuilder();
@@ -235,8 +236,9 @@ public final class OfficeDocumentWriter {
                 putZipEntry(zos, "xl/worksheets/sheet" + (pIdx + 1) + ".xml", sheet.toString());
             }
 
-        zos.finish();
-        zos.flush();
+            zos.finish();
+            zos.flush();
+        }
     }
 
     // =========================================================================
@@ -244,7 +246,7 @@ public final class OfficeDocumentWriter {
     // =========================================================================
 
     public static void writePptx(final List<PdfPageLayout> pages, final OutputStream out) throws IOException {
-        final ZipOutputStream zos = new ZipOutputStream(out);
+        try (final ZipOutputStream zos = new ZipOutputStream(new NonClosingOutputStream(out))) {
         final int pageCount = Math.max(1, pages.size());
             // 1. [Content_Types].xml
             final StringBuilder types = new StringBuilder();
@@ -386,8 +388,9 @@ public final class OfficeDocumentWriter {
                 putZipEntry(zos, "ppt/slides/slide" + (pIdx + 1) + ".xml", slide.toString());
             }
 
-        zos.finish();
-        zos.flush();
+            zos.finish();
+            zos.flush();
+        }
     }
 
     private static String getColumnName(int index) {
@@ -406,5 +409,16 @@ public final class OfficeDocumentWriter {
         final byte[] bytes = content.getBytes(StandardCharsets.UTF_8);
         zos.write(bytes);
         zos.closeEntry();
+    }
+
+    private static final class NonClosingOutputStream extends java.io.FilterOutputStream {
+        NonClosingOutputStream(final OutputStream out) {
+            super(out);
+        }
+
+        @Override
+        public void close() throws IOException {
+            flush();
+        }
     }
 }
