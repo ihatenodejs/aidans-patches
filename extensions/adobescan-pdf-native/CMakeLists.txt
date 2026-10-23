@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.24)
 
 if(ANDROID)
     set(CMAKE_DISABLE_FIND_PACKAGE_PkgConfig ON CACHE BOOL "" FORCE)
+    set(PKG_CONFIG_EXECUTABLE "PKG_CONFIG_EXECUTABLE-NOTFOUND" CACHE FILEPATH "" FORCE)
 endif()
 
 # Enforce CMP0135 if available (download timestamps)

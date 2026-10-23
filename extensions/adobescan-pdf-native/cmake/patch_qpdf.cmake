@@ -8,7 +8,13 @@ string(REPLACE "add_subdirectory(manual)" "# add_subdirectory(manual)" CONTENT "
 string(REPLACE "add_subdirectory(fuzz)" "# add_subdirectory(fuzz)" CONTENT "${CONTENT}")
 file(WRITE "${SRC_DIR}/CMakeLists.txt" "${CONTENT}")
 
-# Also patch libqpdf/CMakeLists.txt to ensure static PIC
+# Also patch libqpdf/CMakeLists.txt to ensure static PIC and avoid host library leakage
 file(READ "${SRC_DIR}/libqpdf/CMakeLists.txt" LIB_CONTENT)
 string(REPLACE "set(OBJECT_LIB_IS_PIC OFF)" "set(OBJECT_LIB_IS_PIC ON)" LIB_CONTENT "${LIB_CONTENT}")
+string(REPLACE "include(FindPkgConfig)" "# include(FindPkgConfig)" LIB_CONTENT "${LIB_CONTENT}")
+string(REPLACE "pkg_check_modules(pc_zlib zlib)" "set(pc_zlib_FOUND OFF)" LIB_CONTENT "${LIB_CONTENT}")
+string(REPLACE "pkg_check_modules(pc_libjpeg libjpeg)" "set(pc_libjpeg_FOUND OFF)" LIB_CONTENT "${LIB_CONTENT}")
+string(REPLACE "pkg_check_modules(pc_openssl openssl>=1.1.0)" "set(pc_openssl_FOUND OFF)" LIB_CONTENT "${LIB_CONTENT}")
+string(REPLACE "pkg_check_modules(pc_gnutls gnutls)" "set(pc_gnutls_FOUND OFF)" LIB_CONTENT "${LIB_CONTENT}")
+string(REPLACE "list(REMOVE_DUPLICATES dep_link_directories)" "set(dep_link_directories \"\")" LIB_CONTENT "${LIB_CONTENT}")
 file(WRITE "${SRC_DIR}/libqpdf/CMakeLists.txt" "${LIB_CONTENT}")

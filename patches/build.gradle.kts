@@ -238,7 +238,9 @@ val buildAdobeScanPdfNative = tasks.register<Exec>("buildAdobeScanPdfNative") {
             "-DCMAKE_TOOLCHAIN_FILE=${cmakeToolchain.absolutePath}",
             "-DANDROID_ABI=arm64-v8a",
             "-DANDROID_PLATFORM=android-32",
-            "-DCMAKE_BUILD_TYPE=Release"
+            "-DCMAKE_BUILD_TYPE=Release",
+            "-DCMAKE_DISABLE_FIND_PACKAGE_PkgConfig=ON",
+            "-DPKG_CONFIG_EXECUTABLE=PKG_CONFIG_EXECUTABLE-NOTFOUND"
         ).directory(nativeDir).inheritIO().start()
         val configExit = configProcess.waitFor()
         if (configExit != 0) {
