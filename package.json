@@ -24,6 +24,7 @@
     "apkmirror-downloader": "^2.0.11",
     "conventional-changelog-conventionalcommits": "^9.3.1",
     "gradle-semantic-release-plugin": "^1.10.3",
+    "markdownlint-cli2": "^0.24.0",
     "oxlint": "^1.87.0",
     "prettier": "^3.9.9",
     "prettier-plugin-astro": "^1.1.0",

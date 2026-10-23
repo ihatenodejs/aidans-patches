@@ -2,17 +2,17 @@
 
 ## Overview
 
-| Attribute | Specification |
-|---|---|
-| **Application Name** | Credit Karma |
-| **Package Name** | `com.creditkarma.mobile` |
-| **Supported Version** | `26.40` (Morphe Compatibility: `26.40`, `minSdk` 32) |
-| **Analyzed Version Code** | `17902817` |
-| **Target SDK** | `36` (Android 16) |
-| **Minimum SDK** | `32` (Android 12L) |
-| **APK Format** | APKM (`base.apk`, `split_config.arm64_v8a.apk`, `split_config.en.apk`) |
-| **Package Signing SHA-256** | `f5ae9364524d92be9eb436eb7436d7c9efa9e1b4e823b0db6bc3989a4d84d0bf` |
-| **Architecture** | Native Android/Kotlin; Jetpack Compose, Coroutines, WorkManager, Datadog RUM, Firebase Analytics, Crashlytics, Kochava Tracker, Intuit Scribe/UXFabric, New Relic Telemetry, Luciq APM, MiSnap IAD KYC, ThreatMetrix Profiling, NokNok FIDO |
+| Attribute                   | Specification                                                                                                                                                                                                                               |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Application Name**        | Credit Karma                                                                                                                                                                                                                                |
+| **Package Name**            | `com.creditkarma.mobile`                                                                                                                                                                                                                    |
+| **Supported Version**       | `26.40` (Morphe Compatibility: `26.40`, `minSdk` 32)                                                                                                                                                                                        |
+| **Analyzed Version Code**   | `17902817`                                                                                                                                                                                                                                  |
+| **Target SDK**              | `36` (Android 16)                                                                                                                                                                                                                           |
+| **Minimum SDK**             | `32` (Android 12L)                                                                                                                                                                                                                          |
+| **APK Format**              | APKM (`base.apk`, `split_config.arm64_v8a.apk`, `split_config.en.apk`)                                                                                                                                                                      |
+| **Package Signing SHA-256** | `f5ae9364524d92be9eb436eb7436d7c9efa9e1b4e823b0db6bc3989a4d84d0bf`                                                                                                                                                                          |
+| **Architecture**            | Native Android/Kotlin; Jetpack Compose, Coroutines, WorkManager, Datadog RUM, Firebase Analytics, Crashlytics, Kochava Tracker, Intuit Scribe/UXFabric, New Relic Telemetry, Luciq APM, MiSnap IAD KYC, ThreatMetrix Profiling, NokNok FIDO |
 
 Credit Karma is a personal finance, credit monitoring, and financial marketplace app. It does not employ third-party banner or display ad SDKs, but integrates extensive analytics, attribution, diagnostic reporting, performance tracking, device profiling, and integrity verification frameworks: Datadog RUM and logging, Firebase Analytics, Firebase Crashlytics, Kochava attribution tracker, Google Play Advertising ID harvesting, Intuit internal telemetry (Scribe / UXFabric), first-party New Relic event streaming, Luciq APM and session recording, MiSnap IAD KYC compromise checkers, ThreatMetrix fraud profiling, and NokNok FIDO Play Integrity attestation.
 

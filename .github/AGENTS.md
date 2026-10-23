@@ -24,6 +24,7 @@ Use pinned actions and least-privilege `permissions`. Preserve path filters and 
 ## Dependency Automation (Dependabot)
 
 `.github/dependabot.yml` configures monthly dependency update checks targeting the `dev` branch with empty labels across three ecosystems:
+
 - `github-actions`: workflow actions.
 - `npm`: root and workspace dependencies; intentionally ignores `conventional-changelog-conventionalcommits` to preserve custom changelog release rules.
 - `gradle`: Gradle wrapper and plugin dependencies.

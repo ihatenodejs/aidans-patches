@@ -2,17 +2,17 @@
 
 ## Overview
 
-| Attribute | Specification |
-|---|---|
-| **Application Name** | Fizz |
-| **Package Name** | `com.ashtoncofer.Buzz` |
-| **Supported Version** | `1.54.0` (Morphe Compatibility: `1.54.0`, `minSdk` 23) |
-| **Analyzed Version Code** | `400032` |
-| **Target SDK** | `36` (Android 16) |
-| **Minimum SDK** | `23` (Android 6.0) |
-| **APK Format** | APKM (`base.apk`, split configs) |
-| **Package Signing SHA-256** | `622850867847ccb7a1371bc42c865b1137fa51bd19987dc81b53815c9a9817bf` |
-| **Architecture** | Native Kotlin/Java; Jetpack Compose, Dagger/Hilt, Kotlinx Coroutines, Retrofit/OkHttp, Mixpanel, Airbridge, Adjust, Sentry, Google Play Integrity / PairIP |
+| Attribute                   | Specification                                                                                                                                              |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Application Name**        | Fizz                                                                                                                                                       |
+| **Package Name**            | `com.ashtoncofer.Buzz`                                                                                                                                     |
+| **Supported Version**       | `1.54.0` (Morphe Compatibility: `1.54.0`, `minSdk` 23)                                                                                                     |
+| **Analyzed Version Code**   | `400032`                                                                                                                                                   |
+| **Target SDK**              | `36` (Android 16)                                                                                                                                          |
+| **Minimum SDK**             | `23` (Android 6.0)                                                                                                                                         |
+| **APK Format**              | APKM (`base.apk`, split configs)                                                                                                                           |
+| **Package Signing SHA-256** | `622850867847ccb7a1371bc42c865b1137fa51bd19987dc81b53815c9a9817bf`                                                                                         |
+| **Architecture**            | Native Kotlin/Java; Jetpack Compose, Dagger/Hilt, Kotlinx Coroutines, Retrofit/OkHttp, Mixpanel, Airbridge, Adjust, Sentry, Google Play Integrity / PairIP |
 
 Fizz is a college-centric anonymous social feed and messaging platform. The application incorporates extensive telemetry across first-party analytics pipelines, attribution services, third-party analytics SDKs, session crash reporting, and Google Play Integrity Protection (PairIP).
 
@@ -73,9 +73,11 @@ Airbridge (`co.ab180.airbridge.Airbridge`, wrapped in `sa.l0`) collects install 
 ### 5. Adjust Mobile Attribution
 
 Adjust (`com.adjust.sdk.Adjust`, wrapped in `sa.b`) tracks deep-link referrals, app sessions, advertising campaigns, and subscription measurement. `sa.b.g` manages initialization from application context.
+
 ### 6. Google Advertising Identifier (AAID)
 
 The app queries Google Play Services `AdvertisingIdClient` to retrieve the device Advertising ID (AAID) and ad-tracking preferences. `sa.n0` registers this device identifier with backend services for cross-device user matching and targeted re-engagement campaigns.
+
 ### 7. Sentry Performance & Crash Reporting
 
 Sentry Android (`io.sentry.android.core.s1`, initialized via `ec.p1.b`) monitors unhandled exceptions, ANRs, HTTP breadcrumbs, and UI transaction performance traces. Telemetry captures breadcrumbs of navigation, network requests, and device state.
@@ -84,7 +86,7 @@ Sentry Android (`io.sentry.android.core.s1`, initialized via `ec.p1.b`) monitors
 
 In private direct messaging conversations, `ConversationViewModel` observes system screenshot events. When a screenshot is captured, `sd.a2` (a coroutine worker) triggers `jc.n2.q` to invoke `/chat/notify-screenshot`, alerting the chat counterpart that their private messages were captured.
 
-```mermaid
+````mermaid
 flowchart LR
     SC[Android Screenshot Event] --> VM[ConversationViewModel]
     VM --> WK[sd.a2 Coroutine Worker]
@@ -113,11 +115,12 @@ flowchart TD
     C -->|No / Patched| E[Raw Text -> Canvas.drawText with Custom Typeface]
     E --> F[Minikin Font Fallback Chain]
     F --> G[AppleColorEmoji.ttf iOS Emojis]
-```
+````
 
 ### 2. Custom Fallback Typeface Pipeline
 
 When `EmojiCompat` is neutralized:
+
 1. `EmojiCompatInitializer.b` immediately returns `Boolean.FALSE`, preventing `EmojiCompat` registration.
 2. Compose leaves emojis as untransformed characters.
 3. `hg.g.c` (`AndroidFontLoader.load`) intercepts `nunito_variable` resolution and delegates to `EmojiFontBridge.wrapTypeface(Context, Typeface)`.

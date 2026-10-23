@@ -368,6 +368,15 @@ async function runFormat(
       'dependency-policy.json',
       '.prettierrc.json',
       '.oxlintrc.json',
+      '*.md',
+      'docs/**/*.md',
+      'scripts/**/*.md',
+      'patches/**/*.md',
+      'extensions/**/*.md',
+      'tools/apk-lab/**/*.md',
+      'worker/**/*.md',
+      'site/**/*.md',
+      '.github/**/*.md',
     ];
     const prettierArgs = checkOnly
       ? ['prettier', '--check', ...prettierPatterns]
@@ -388,7 +397,7 @@ async function runFormat(
       );
     }
     results.push({
-      title: 'Web & Configs (Prettier)',
+      title: 'Web, Configs & Markdown (Prettier)',
       tool: 'prettier',
       domain: 'web',
       success: pPassed,
@@ -735,7 +744,52 @@ async function runLint(
     });
   }
 
-  // 4. Rust (play-metadata clippy)
+  // 4. Markdown Documentation (markdownlint-cli2)
+  if (shouldRunDomain(domain, 'web')) {
+    process.stdout.write(
+      `  ${sym.arrow} Linting Markdown documentation (markdownlint-cli2)... `,
+    );
+    const mdArgs = autoFix
+      ? ['markdownlint-cli2', '--fix']
+      : ['markdownlint-cli2'];
+    const mdRes = await execCommand('bunx', mdArgs);
+    const mdDiags: Diagnostic[] = [];
+    const mdOutput = `${mdRes.stderr}\n${mdRes.stdout}`;
+    const mdRegex =
+      /^(.+?):(\d+)(?::(\d+))?\s+(error|warning)\s+([A-Za-z0-9/_-]+)\s+(.*)$/;
+    for (const line of mdOutput.split('\n')) {
+      const trimmed = line.trim();
+      const match = mdRegex.exec(trimmed);
+      if (match) {
+        mdDiags.push({
+          tool: 'markdownlint',
+          file: match[1],
+          line: parseInt(match[2], 10),
+          col: match[3] ? parseInt(match[3], 10) : undefined,
+          severity: match[4] as 'error' | 'warning',
+          rule: match[5],
+          message: match[6],
+        });
+      }
+    }
+    const mdPassed =
+      mdRes.code === 0 &&
+      mdDiags.filter((d) => d.severity === 'error').length === 0;
+    allDiagnostics.push(...mdDiags);
+
+    console.log(mdPassed ? sym.ok : sym.err);
+    results.push({
+      title: 'Markdown Documentation (markdownlint-cli2)',
+      tool: 'markdownlint',
+      domain: 'web',
+      success: mdPassed,
+      durationMs: mdRes.durationMs,
+      summary: `${mdDiags.length === 0 ? 'No issues' : `${mdDiags.length} issues found`}`,
+      diagnostics: mdDiags,
+    });
+  }
+
+  // 5. Rust (play-metadata clippy)
   if (shouldRunDomain(domain, 'rust')) {
     process.stdout.write(
       `  ${sym.arrow} Linting Rust play-metadata sources (clippy)... `,
@@ -1440,6 +1494,32 @@ async function runTest(domain: AuditDomain = 'all'): Promise<PhaseResult> {
     });
   }
 
+  // 10. Documentation & Link Integrity (bun test)
+  if (shouldRunDomain(domain, 'web')) {
+    process.stdout.write(
+      `  ${sym.arrow} Running Documentation & Link Integrity tests (bun test)... `,
+    );
+    const docTestRes = await execCommand('bun', ['test', 'scripts/docs']);
+    const docTestPassed = docTestRes.code === 0;
+    const docTestSummaryMatch = docTestRes.stdout.match(/([0-9]+ pass[^\n]*)/);
+    const docTestSummary = docTestSummaryMatch
+      ? docTestSummaryMatch[1].trim()
+      : docTestPassed
+        ? 'All tests passed'
+        : 'Tests failed';
+    console.log(docTestPassed ? sym.ok : sym.err);
+    if (!docTestPassed) {
+      printRawCommandOutput(docTestRes.stdout, docTestRes.stderr);
+    }
+    results.push({
+      title: 'Documentation & Link Integrity (bun test)',
+      tool: 'bun test',
+      domain: 'web',
+      success: docTestPassed,
+      durationMs: docTestRes.durationMs,
+      summary: docTestSummary,
+    });
+  }
   return printResultsSummary('Test', results);
 }
 
