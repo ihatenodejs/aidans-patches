@@ -2103,15 +2103,6 @@
           "type": "kotlin.Boolean",
           "default": true,
           "values": null
-        },
-        {
-          "key": "removeCompressPdf",
-          "title": "Remove Compress PDF",
-          "description": "Removes the broken Compress PDF option from file option menus and the Share sheet. Automatically skipped if Local PDF Compression is enabled.",
-          "required": false,
-          "type": "kotlin.Boolean",
-          "default": true,
-          "values": null
         }
       ]
     },
@@ -3091,24 +3082,6 @@
           "key": "removeMove",
           "title": "Move",
           "description": "Removes Move file from file option menus across all surfaces.",
-          "required": false,
-          "type": "kotlin.Boolean",
-          "default": true,
-          "values": null
-        },
-        {
-          "key": "removeSaveAsWord",
-          "title": "Save as Word Doc",
-          "description": "Removes Save as Word doc from scan cards.",
-          "required": false,
-          "type": "kotlin.Boolean",
-          "default": true,
-          "values": null
-        },
-        {
-          "key": "removeLinkSharing",
-          "title": "Link Sharing",
-          "description": "Removes cloud link sharing from the Share sheet.",
           "required": false,
           "type": "kotlin.Boolean",
           "default": true,

@@ -108,20 +108,6 @@ val removeUselessPromotionalItemsPatch = bytecodePatch(
         description = "Removes Move file from file option menus across all surfaces."
     )
 
-    val removeSaveAsWord = booleanOption(
-        key = "removeSaveAsWord",
-        default = true,
-        title = "Save as Word Doc",
-        description = "Removes Save as Word doc from scan cards."
-    )
-
-    val removeLinkSharing = booleanOption(
-        key = "removeLinkSharing",
-        default = true,
-        title = "Link Sharing",
-        description = "Removes cloud link sharing from the Share sheet."
-    )
-
     val removeCompressPdf = booleanOption(
         key = "removeCompressPdf",
         default = true,
@@ -165,12 +151,9 @@ val removeUselessPromotionalItemsPatch = bytecodePatch(
         if (removeMove.value != false) {
             removeMove()
         }
-        if (removeSaveAsWord.value != false) {
-            removeSaveAsWord()
-        }
-        if (removeLinkSharing.value != false) {
-            removeLinkSharing()
-        }
+    }
+
+    finalize {
         if (removeCompressPdf.value != false) {
             removeCompressPdf()
         }

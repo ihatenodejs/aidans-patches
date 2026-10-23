@@ -27,16 +27,18 @@ private const val SERVICE_ENTITLEMENTS = "Lwm/s;"
 private const val COMPRESSION_LEVEL = "Loe/a;"
 private const val SET_PASSWORD_ACTION = "Lzq/qb;"
 private const val COMPRESS_ACTIVITY_ACTION = "Lcom/adobe/scan/android/services/CompressActivity\$e;"
-private const val COMPRESS_RESULT_CONSUMER = "Lzq/qa;"
+internal const val COMPRESS_RESULT_CONSUMER = "Lzq/qa;"
 private const val REMOVE_PASSWORD_HOST = "Lcom/adobe/scan/android/m;"
 private const val SCAN_APPLICATION = "Lcom/adobe/scan/android/ScanApplication;"
 private const val SPLIT_COMPAT_APPLICATION = "Ln20/b;"
-private const val RECENT_CARD_TOOL_ACTION = "Lzq/o3;"
+internal const val RECENT_CARD_TOOL_ACTION = "Lzq/o3;"
 private const val SCAN_FILE = "Lcom/adobe/scan/android/file/m0;"
 
 private val ALL_ENTITLEMENT_METHODS = listOf(
     "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n", "o", "r", "s", "t", "u"
 )
+internal var isLocalPdfCompressionActive: Boolean = false
+internal var isLocalPdfExportActive: Boolean = false
 internal var localPdfCompressionOption: Option<Boolean>? = null
 internal var localPdfExportOption: Option<Boolean>? = null
 private class AdobeScanPdfResourceHolder
@@ -162,7 +164,8 @@ val localPremiumPatch = compositeFeaturePatch(
         val unlockProtect = enableLocalPdfProtection.value != false
         val unlockExport = enableLocalPdfExport.value != false
         val unlockCombine = enableLocalPdfCombine.value != false
-
+        isLocalPdfCompressionActive = unlockCompress
+        isLocalPdfExportActive = unlockExport
         unlockEntitlements(UNAUTHENTICATED_USER_ENTITLEMENTS, ALL_ENTITLEMENT_METHODS)
         unlockEntitlements(AUTHENTICATED_USER_ENTITLEMENTS, ALL_ENTITLEMENT_METHODS)
         unlockTier(UNAUTHENTICATED_USER_ENTITLEMENTS)

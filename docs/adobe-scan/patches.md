@@ -21,7 +21,6 @@ This document specifies patches for **Adobe Scan** (`com.adobe.scan.android`).
   - `Remove Edit Text` (`removeEditText`, default `true`): Removes the non-functional Edit text option from file option menus and the preview screen.
   - `Remove Move` (`removeMove`, default `true`): Removes the non-functional Move file option from file option menus.
   - `Remove Save as Word Doc` (`removeSaveAsWord`, default `true`): Removes the cloud-dependent Save as Word doc option from scan cards.
-  - `Remove Compress PDF` (`removeCompressPdf`, default `true`): Removes the broken Compress PDF option from file option menus and the Share sheet.
 
 ### 1. Motivation & Purpose
 
@@ -298,9 +297,7 @@ When **Remove Settings** is enabled, the patch hides the `USAGE INFO` category a
   - `Generative Summary` (`removeGenerativeSummary`, default `true`): Removes Generative summary actions from the File Options bottom sheet.
   - `Edit Text` (`removeEditText`, default `true`): Removes Edit text from file option menus, the preview bottom toolbar, and scan cards.
   - `Move` (`removeMove`, default `true`): Removes Move file from file option menus across all surfaces.
-  - `Save as Word Doc` (`removeSaveAsWord`, default `true`): Removes Save as Word doc from scan cards.
-  - `Link Sharing` (`removeLinkSharing`, default `true`): Removes cloud link sharing from the Share sheet.
-  - `Compress PDF` (`removeCompressPdf`, default `true`): Removes Compress PDF from file option menus and Send compressed from the Share sheet.
+  - `Compress PDF` (`removeCompressPdf`, default `true`): Removes Compress PDF from file option menus and Send compressed from the Share sheet. Automatically skipped if Local PDF Compression is enabled.
 ### 1. Motivation & Purpose
 
 The Settings menu and file menus in Adobe Scan feature non-essential promotional, rating, external support, and Play Store redirection links that clutter the view. When combined with login removal, the menus cleanly focus on core scanner preferences and local tools. The **Remove Useless/Promotional Items** patch allows users to selectively remove About Adobe Scan, Help, Rate app, Online support forum, Share this app, and the promotional Fill & Sign option (which otherwise opens the Play Store if the external app is uninstalled), while automatically removing the empty bottom category header (gray bar) when all support items are hidden.
@@ -382,7 +379,7 @@ All transforms are protected by atomic journaled transactions (`PdfFileTransacti
 
 When signed in to a personal or trial Adobe ID (with `Remove Login` disabled), cloud features remain functional unless specifically stripped by other patches (e.g., when `Remove Useless/Promotional Items` is enabled with `removeGenerativeSummary=true`, Generative summary is removed even for signed-in accounts); when using `Remove Login`, all local operations run 100% offline without Adobe Document Cloud.
 
-When `Local PDF Compression` is enabled, the promotional neutralizer `removeCompressPdf` safely skips removing Compress PDF from file option menus and the Share sheet, preventing accidental feature stripping.
+When `Local PDF Compression` is enabled, the promotional neutralizer `removeCompressPdf` safely skips removing Compress PDF from file option menus and the Share sheet, preventing accidental feature stripping. Likewise, when `Local PDF Export` is enabled, the `removeSaveAsWord` option in `Remove Login` safely skips removing Save as Word doc from scan cards.
 
 ### 2. Technical Implementation & Injection Points
 

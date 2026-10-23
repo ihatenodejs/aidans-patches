@@ -152,7 +152,7 @@ internal fun BytecodePatchContext.removeMove() {
  * Idempotent.
  */
 internal fun BytecodePatchContext.removeSaveAsWord() {
-    if (localPdfExportOption?.value == true) {
+    if (isLocalPdfExportActive || isLocalPdfExportHooked()) {
         return
     }
     val q0Class = mutableClassDefByOrNull(FILE_LIST_TOOLS_HELPER)
@@ -261,7 +261,7 @@ internal fun BytecodePatchContext.removeLinkSharing() {
  * Idempotent.
  */
 internal fun BytecodePatchContext.removeCompressPdf() {
-    if (localPdfCompressionOption?.value == true) {
+    if (isLocalPdfCompressionActive || isLocalPdfCompressionHooked()) {
         return
     }
     val fileOptionsClass = mutableClassDefByOrNull(FILE_OPTIONS_MENU_HELPER)
@@ -337,5 +337,25 @@ internal fun BytecodePatchContext.removeCompressPdf() {
     }
     if (gCallIndex != null) {
         iMethod.replaceInstruction(gCallIndex, "nop")
+    }
+}
+
+internal fun BytecodePatchContext.isLocalPdfCompressionHooked(): Boolean {
+    val qaClass = mutableClassDefByOrNull(COMPRESS_RESULT_CONSUMER) ?: return false
+    return qaClass.methods.any { method ->
+        method.implementation?.instructions?.any { inst ->
+            val ref = (inst as? ReferenceInstruction)?.reference as? MethodReference
+            ref?.definingClass == "Lapp/aidan/extension/adobescan/PdfCompressionBridge;"
+        } == true
+    }
+}
+
+internal fun BytecodePatchContext.isLocalPdfExportHooked(): Boolean {
+    val actionClass = mutableClassDefByOrNull(RECENT_CARD_TOOL_ACTION) ?: return false
+    return actionClass.methods.any { method ->
+        method.implementation?.instructions?.any { inst ->
+            val ref = (inst as? ReferenceInstruction)?.reference as? MethodReference
+            ref?.definingClass == "Lapp/aidan/extension/adobescan/PdfExportBridge;"
+        } == true
     }
 }

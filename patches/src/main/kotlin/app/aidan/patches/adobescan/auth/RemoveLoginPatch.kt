@@ -1,6 +1,5 @@
 package app.aidan.patches.adobescan.auth
 
-import app.aidan.patches.adobescan.customization.removeCompressPdf
 import app.aidan.patches.adobescan.customization.removeEditText
 import app.aidan.patches.adobescan.customization.removeLinkSharing
 import app.aidan.patches.adobescan.customization.removeMove
@@ -79,12 +78,6 @@ val removeLoginPatch = bytecodePatch(
         title = "Remove Save as Word Doc",
         description = "Removes the cloud-dependent Save as Word doc option from scan cards."
     )
-    val removeCompressPdf = booleanOption(
-        key = "removeCompressPdf",
-        default = true,
-        title = "Remove Compress PDF",
-        description = "Removes the broken Compress PDF option from file option menus and the Share sheet. Automatically skipped if Local PDF Compression is enabled."
-    )
 
     execute {
         patchSplashActivity()
@@ -110,11 +103,11 @@ val removeLoginPatch = bytecodePatch(
         if (removeMove.value != false) {
             removeMove()
         }
+    }
+
+    finalize {
         if (removeSaveAsWord.value != false) {
             removeSaveAsWord()
-        }
-        if (removeCompressPdf.value != false) {
-            removeCompressPdf()
         }
     }
 }
