@@ -155,7 +155,7 @@ export async function applyApprovedProposal(
 
     // 5. Apply scalar updates to staged files
     for (const update of proposal.updates) {
-      const { id, to } = update;
+      const { id, from, to } = update;
 
       // --- NPM Packages ---
       if (id.startsWith('npm:')) {

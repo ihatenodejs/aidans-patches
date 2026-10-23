@@ -769,4 +769,60 @@ describe('Transactional Apply', () => {
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }
   });
+
+  test('applyApprovedProposal falls back to from-to replacement for non-named FetchContent package without assetIdentity', async () => {
+    const tmpDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'apply-cmake-fallback-'),
+    );
+    const origFetch = globalThis.fetch;
+    try {
+      const cmakeRel = 'extensions/adobescan-pdf-native/CMakeLists.txt';
+      const cmakePath = path.join(tmpDir, cmakeRel);
+      fs.mkdirSync(path.dirname(cmakePath), { recursive: true });
+      const initialContent = `FetchContent_Declare(
+    foo
+    URL https://example.com/packages/foo-1.0.0.tar.gz
+    URL_HASH SHA256=1111111111111111111111111111111111111111111111111111111111111111
+)`;
+      fs.writeFileSync(cmakePath, initialContent);
+      const sha256 = Bun.SHA256.hash(fs.readFileSync(cmakePath), 'hex');
+
+      const fakeArchiveContent = 'archive-payload-bytes';
+      const expectedSha256 = Bun.SHA256.hash(fakeArchiveContent, 'hex');
+      globalThis.fetch = (async () => {
+        return new Response(fakeArchiveContent, { status: 200 });
+      }) as typeof fetch;
+
+      const proposal: Proposal = {
+        schemaVersion: 1,
+        inputs: [{ path: cmakeRel, sha256 }],
+        updates: [
+          {
+            id: `cmake:${cmakeRel}#fetch/foo`,
+            from: '1.0.0',
+            to: '2.0.0',
+          },
+        ],
+        digest: '',
+      };
+      proposal.digest = computeProposalDigest(
+        proposal.inputs,
+        proposal.updates,
+      );
+
+      const policy: DependencyPolicy = { schemaVersion: 1, holds: [] };
+      const res = await applyApprovedProposal(tmpDir, proposal, policy);
+      expect(res.success).toBe(true);
+      expect(res.changedFiles).toContain(cmakeRel);
+
+      const updatedContent = fs.readFileSync(cmakePath, 'utf8');
+      expect(updatedContent).toContain(
+        'https://example.com/packages/foo-2.0.0.tar.gz',
+      );
+      expect(updatedContent).toContain(`URL_HASH SHA256=${expectedSha256}`);
+    } finally {
+      globalThis.fetch = origFetch;
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
 });
