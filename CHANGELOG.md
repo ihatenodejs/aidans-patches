@@ -1,3 +1,24 @@
+## [1.9.0-dev.3](https://github.com/ihatenodejs/aidans-patches/compare/v1.9.0-dev.2...v1.9.0-dev.3) (2026-10-23)
+
+### 🐛 Bug Fixes
+
+* **adobe-scan:** deferred promotional neutralizers and pruned options ([cf4c77f](https://github.com/ihatenodejs/aidans-patches/commit/cf4c77f285377e76a2ce8a1ef791b0e7f84bc4f2))
+* **adobe-scan:** disabled host pkg-config in native build ([8902907](https://github.com/ihatenodejs/aidans-patches/commit/89029070771cdb45fef49da9b636af18ef16d068))
+* **adobe-scan:** hardened pdf engine operations and build packaging ([00f23d9](https://github.com/ihatenodejs/aidans-patches/commit/00f23d99fc9177b19252ac5c521e874f8ae90b8a))
+* **adobe-scan:** preserve export password whitespace, refresh combine protection, and wrap zip streams ([528c6ac](https://github.com/ihatenodejs/aidans-patches/commit/528c6acebd942cb34a968638e68f634b01d4f751))
+* **adobe-scan:** removed branch labels from preference hiding ([0d930cf](https://github.com/ihatenodejs/aidans-patches/commit/0d930cfacdab0561ccb6870b35407a549054b8ce))
+* **audit:** tracked cmake configure duration and preserved failure status ([036953e](https://github.com/ihatenodejs/aidans-patches/commit/036953e1b9ffd75a53d56ffe841366e0b6e64c0c))
+* **deps:** extend timeout for cli update test ([700737f](https://github.com/ihatenodejs/aidans-patches/commit/700737f2991ad01aff93f2206ff4699057fb7332))
+* **deps:** fixed scalar version fallback in proposal application ([0853a45](https://github.com/ihatenodejs/aidans-patches/commit/0853a45f3e6a327ebe4017b32d2c01d91f263ce6))
+
+### ✨ New Features
+
+* **adobe-scan:** added local premium patch and native pdf engine ([86a7fa2](https://github.com/ihatenodejs/aidans-patches/commit/86a7fa2cf6b3eda104a61b7535b1c44bc7f46558))
+* **adobe-scan:** added password support for pdf export ([407b37e](https://github.com/ihatenodejs/aidans-patches/commit/407b37e16d502f90235d62a5ae6a8c9a1486cc95))
+* **audit:** add domain filtering to verification orchestrator ([e59c8b6](https://github.com/ihatenodejs/aidans-patches/commit/e59c8b673d939b67bf0e3bee477c5b07d5b030bb))
+* **audit:** add markdown formatting, linting, and link verification ([9e00213](https://github.com/ihatenodejs/aidans-patches/commit/9e0021385134bc5ba41e3b5a0a9c21b10df460ed))
+* **patches:** enabled dual companion resources in composite patches ([be89c4a](https://github.com/ihatenodejs/aidans-patches/commit/be89c4ae3f925ef4b4b5a38d12bce5ba63ead5ff))
+
 ## [1.9.0-dev.2](https://github.com/ihatenodejs/aidans-patches/compare/v1.9.0-dev.1...v1.9.0-dev.2) (2026-10-21)
 
 ### 🐛 Bug Fixes
