@@ -51,6 +51,7 @@ The updater covers all direct software dependencies and version-sensitive toolch
 | GitHub Actions & Hooks | `.github/workflows/*.yml`, `.pre-commit-config.yaml` | Pinned versions and commit hashes |
 | Toolchain Runtimes | Workflow setup inputs, `rust-toolchain.toml`, `build.gradle.kts` (NDK) | Pinned versions across coordinated files |
 | Embedded In-Repo Assets | `OsmMapView.java` (Leaflet CDN) | Coupled asset URLs |
+| C++ / Native | `extensions/adobescan-pdf-native/CMakeLists.txt` | CMake FetchContent archives and integrity hashes |
 
 ### Non-Dependency Exclusions
 

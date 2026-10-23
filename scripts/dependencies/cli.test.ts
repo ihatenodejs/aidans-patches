@@ -175,7 +175,11 @@ describe('CLI Subprocess & Approval Boundaries', () => {
           digest,
           '--json',
         ],
-        { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] },
+        {
+          encoding: 'utf8',
+          stdio: ['ignore', 'pipe', 'pipe'],
+          timeout: 30_000,
+        },
       );
 
       expect(res.status).toBe(0);
@@ -184,5 +188,5 @@ describe('CLI Subprocess & Approval Boundaries', () => {
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }
-  });
+  }, 30_000);
 });

@@ -42,7 +42,7 @@ flowchart TD
     UserAction([User Action]) --> Check{l3c.d - Is Premium?}
     Check -- Yes --> OpenFeature[Execute Feature Action]
     Check -- No --> Upsell[Launch PremiumUpsellActivity]
-    
+
     subgraph Feature Gates
         FG1[Map Filter Button]
         FG2[Lists Navbar Tab]

@@ -8,12 +8,12 @@ Root `package.json` delegates to `scripts/audit.ts`:
 
 | Command | Behavior |
 | --- | --- |
-| `bun run format` | Mutating Prettier, Ruff format, ktlint format, and cargo fmt on configured scopes. |
-| `bun run format:check` | Non-mutating formatter checks (Prettier, Ruff, ktlint, cargo fmt). |
-| `bun run lint` | Oxlint, Ruff, ktlint, and clippy checks. |
+| `bun run format` | Mutating Prettier, Ruff format, ktlint format, cargo fmt, and clang-format on configured scopes. |
+| `bun run format:check` | Non-mutating formatter checks (Prettier, Ruff, ktlint, cargo fmt, clang-format). |
+| `bun run lint` | Oxlint, Ruff, ktlint, clippy, and C++ native engine lint (-Wall -Wextra). |
 | `bun run lint:fix` | Mutating supported lint fixes (Oxlint, Ruff, ktlint, clippy --fix). |
-| `bun run typecheck` | Worker `tsc`, Astro check, APK Lab mypy, Kotlin/Java compile, Rust cargo check. |
-| `bun run test` | APK Lab pytest, Worker Vitest, site tests, cargo test, icon consistency check. |
+| `bun run typecheck` | Worker `tsc`, Astro check, APK Lab mypy, Kotlin/Java compile, Rust cargo check, and C++ native host compilation (CMake). |
+| `bun run test` | APK Lab pytest, Worker Vitest, site tests, cargo test, icon consistency check, CTest native engine tests, and `:extensions:extension:testReleaseUnitTest`. |
 | `bun run audit` | Format check → lint → typecheck → test (offline and deterministic). |
 | `bun run audit --deps` | Format check → lint → typecheck → test → dependency freshness. |
 | `bun run deps:check` | Non-mutating read-only check across all monorepo dependencies and pinned tooling. |
@@ -42,5 +42,7 @@ bun run typecheck
 bun run test
 bun run audit
 ```
+
+The audit orchestrator verifies format checks, linting, typechecking (including C++ CMake host target compilation), and full test suites (including native CTest execution and extension release unit tests via `./gradlew :extensions:extension:testReleaseUnitTest`).
 
 A change to command orchestration must be smoke-tested on both success and a controlled failing command when practical, verifying the reported diagnostic and process exit status. Do not use mutating format/fix modes as the only proof.

@@ -155,7 +155,7 @@ export async function applyApprovedProposal(
 
     // 5. Apply scalar updates to staged files
     for (const update of proposal.updates) {
-      const { id, to } = update;
+      const { id, from, to } = update;
 
       // --- NPM Packages ---
       if (id.startsWith('npm:')) {
@@ -419,7 +419,7 @@ export async function applyApprovedProposal(
             if (content.includes('ndk-version:')) {
               content = content.replace(
                 /(ndk-version:\s*)[^\s\n]+/,
-                `$1${update.assetIdentity || 'r28b'}`,
+                `$1${update.assetIdentity || 'r28c'}`,
               );
               fs.writeFileSync(wPath, content);
               touchedFiles.add(`.github/workflows/${file}`);
@@ -444,6 +444,85 @@ export async function applyApprovedProposal(
           touchedFiles.add(
             'extensions/extension/src/main/java/app/aidan/extension/aftership/OsmMapView.java',
           );
+        }
+      }
+
+      // --- CMake FetchContent ---
+      else if (
+        id.startsWith(
+          'cmake:extensions/adobescan-pdf-native/CMakeLists.txt#fetch/',
+        )
+      ) {
+        const pkgName = id.split('#fetch/')[1];
+        const manifestRel = 'extensions/adobescan-pdf-native/CMakeLists.txt';
+        const stagedCMake = path.join(stagingDir, manifestRel);
+        if (fs.existsSync(stagedCMake)) {
+          let content = fs.readFileSync(stagedCMake, 'utf8');
+          const fetchBlockRegex = new RegExp(
+            `FetchContent_Declare\\s*\\(\\s*${pkgName}[\\s\\S]*?\\)`,
+            'g',
+          );
+
+          let newSha256 = update.assetIdentity || '';
+          let newUrl = '';
+          if (pkgName === 'qpdf') {
+            newUrl = `https://github.com/qpdf/qpdf/releases/download/v${to}/qpdf-${to}.tar.gz`;
+          } else if (pkgName === 'libjpeg-turbo') {
+            newUrl = `https://github.com/libjpeg-turbo/libjpeg-turbo/releases/download/${to}/libjpeg-turbo-${to}.tar.gz`;
+          } else if (pkgName === 'leptonica') {
+            newUrl = `https://github.com/DanBloomberg/leptonica/releases/download/${to}/leptonica-${to}.tar.gz`;
+          } else if (pkgName === 'tesseract') {
+            newUrl = `https://github.com/tesseract-ocr/tesseract/archive/refs/tags/${to}.tar.gz`;
+          }
+
+          let matchedOldUrl = '';
+          const blockMatch = fetchBlockRegex.exec(content);
+          fetchBlockRegex.lastIndex = 0;
+          if (blockMatch) {
+            const urlMatch = blockMatch[0].match(/URL\s+([^\s)]+)/);
+            if (urlMatch) {
+              matchedOldUrl = urlMatch[1];
+              if (!newUrl) {
+                newUrl = matchedOldUrl.replaceAll(from, to);
+              }
+            }
+          }
+
+          if (!newSha256 && newUrl) {
+            const res = await fetch(newUrl);
+            if (!res.ok) {
+              throw new Error(
+                `Failed to download ${newUrl}: HTTP ${res.status}`,
+              );
+            }
+            const buf = await res.arrayBuffer();
+            newSha256 = crypto
+              .createHash('sha256')
+              .update(Buffer.from(buf))
+              .digest('hex');
+          }
+          if (!newSha256) {
+            throw new Error(
+              `Could not compute sha256 for ${pkgName} at ${newUrl}`,
+            );
+          }
+
+          content = content.replace(fetchBlockRegex, (block) => {
+            let updated = block;
+            if (matchedOldUrl && newUrl) {
+              updated = updated.replace(matchedOldUrl, newUrl);
+            }
+            if (newSha256) {
+              updated = updated.replace(
+                /URL_HASH\s+SHA256=[a-fA-F0-9]{64}/,
+                `URL_HASH SHA256=${newSha256}`,
+              );
+            }
+            return updated;
+          });
+
+          fs.writeFileSync(stagedCMake, content);
+          touchedFiles.add(manifestRel);
         }
       }
     }

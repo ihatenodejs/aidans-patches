@@ -503,9 +503,9 @@ export class SourceManager {
     revision: string;
     sourceUrl: string;
   }> {
-    // Current stable LTS NDK is r28b (28.2.13676358)
+    // Current stable LTS NDK is r28c (28.2.13676358)
     return {
-      label: 'r28b',
+      label: 'r28c',
       revision: '28.2.13676358',
       sourceUrl: 'https://developer.android.com/ndk/downloads',
     };
@@ -639,13 +639,14 @@ export async function resolveDependencyItem(
           item.status =
             compareSemver(res.latest, item.declared) > 0 ? 'update' : 'current';
         }
-      } else if (item.name.includes('gson')) {
-        const res = await sources.resolveMaven('com.google.code.gson', 'gson');
+      } else if (item.name.includes(':')) {
+        const [group, artifact] = item.name.split(':');
+        const res = await sources.resolveMaven(group, artifact);
         item.latest = res.latest;
         item.sourceUrl = res.sourceUrl;
         if (item.status !== 'held') {
-          item.status =
-            compareSemver(res.latest, item.declared) > 0 ? 'update' : 'current';
+          const ord = compareSemver(res.latest, item.declared);
+          item.status = ord > 0 ? 'update' : ord < 0 ? 'ahead' : 'current';
         }
       }
     }
@@ -770,6 +771,43 @@ export async function resolveDependencyItem(
       if (item.status !== 'held') {
         item.status =
           compareSemver(res.latest, item.declared) > 0 ? 'update' : 'current';
+      }
+    }
+
+    // 8. C++ CMake FetchContent
+    else if (item.ecosystem === 'cmake') {
+      let res: { latest: string; sourceUrl: string } | null = null;
+      if (item.name === 'libjpeg-turbo') {
+        res = await sources.resolveGitHubRelease(
+          'libjpeg-turbo',
+          'libjpeg-turbo',
+        );
+      } else if (item.name === 'qpdf') {
+        res = await sources.resolveGitHubRelease('qpdf', 'qpdf', 'v');
+      } else if (item.name === 'leptonica') {
+        res = await sources.resolveGitHubRelease('DanBloomberg', 'leptonica');
+      } else if (item.name === 'tesseract') {
+        res = await sources.resolveGitHubRelease('tesseract-ocr', 'tesseract');
+      } else if (item.sourceUrl) {
+        const ghMatch = item.sourceUrl.match(/github\.com\/([^/]+)\/([^/]+)/);
+        if (ghMatch) {
+          const owner = ghMatch[1];
+          const repo = ghMatch[2];
+          const hasVPrefix = /\/v[0-9]/.test(item.sourceUrl);
+          res = await sources.resolveGitHubRelease(
+            owner,
+            repo,
+            hasVPrefix ? 'v' : '',
+          );
+        }
+      }
+      if (res) {
+        item.latest = res.latest;
+        item.sourceUrl = res.sourceUrl;
+        if (item.status !== 'held') {
+          const ord = compareSemver(res.latest, item.declared);
+          item.status = ord > 0 ? 'update' : ord < 0 ? 'ahead' : 'current';
+        }
       }
     }
   } catch (err) {

@@ -7,7 +7,6 @@ import app.morphe.patcher.extensions.InstructionExtensions.replaceInstruction
 import app.morphe.patcher.patch.BytecodePatchContext
 import app.morphe.patcher.patch.PatchException
 import app.morphe.patcher.patch.ResourcePatchContext
-import app.morphe.patcher.patch.resourcePatch
 import app.morphe.patcher.util.proxy.mutableTypes.MutableMethod
 import com.android.tools.smali.dexlib2.AccessFlags
 import com.android.tools.smali.dexlib2.builder.MutableMethodImplementation
@@ -16,14 +15,16 @@ import com.android.tools.smali.dexlib2.immutable.ImmutableMethodParameter
 
 private class WebAdBlockerResourceHolder
 
-val webAdBlockerManifestPatch = resourcePatch(
-    name = "Web Ad Blocker Manifest",
+val webAdBlockerPatch = compositeFeaturePatch(
+    name = "Web Ad Blocker",
+    description = "Blocks advertisements, sponsored banners, and analytics tracking in NHL article views and embedded web content using bundled NHL rules and optional downloadable filter list subscriptions (EasyList, EasyPrivacy).",
     default = true,
 ) {
-    category("Internal")
+    category("Ads")
     compatibleWith(COMPATIBILITY_NHL)
+    extendWith("extensions/extension.mpe")
 
-    execute {
+    resources {
         document("AndroidManifest.xml").use { doc ->
             val appElement = doc.getElementsByTagName("application").item(0) as? org.w3c.dom.Element
                 ?: throw PatchException("Application element not found in AndroidManifest.xml")
@@ -111,18 +112,6 @@ val webAdBlockerManifestPatch = resourcePatch(
             throw PatchException("Required native chevron vector drawable/ic_chevron_right.xml not found in target resources")
         }
     }
-}
-
-val webAdBlockerPatch = compositeFeaturePatch(
-    name = "Web Ad Blocker",
-    description = "Blocks advertisements, sponsored banners, and analytics tracking in NHL article views and embedded web content using bundled NHL rules and optional downloadable filter list subscriptions (EasyList, EasyPrivacy).",
-    default = true,
-) {
-    category("Ads")
-    compatibleWith(COMPATIBILITY_NHL)
-    dependsOn(webAdBlockerManifestPatch)
-    extendWith("extensions/extension.mpe")
-
     rawResources {
         copyRawResource(this, "nhl/adblock/libnhladblock.so", "lib/arm64-v8a/libnhladblock.so")
         copyRawResource(this, "nhl/adblock/nhl-default.txt", "assets/aidan/nhl/adblock/nhl-default.txt")

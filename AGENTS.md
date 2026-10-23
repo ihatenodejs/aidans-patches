@@ -66,6 +66,11 @@ uv sync --locked --project tools/apk-lab
 
 Gradle requires GitHub Packages credentials through `GITHUB_TOKEN`/`GITHUB_ACTOR` or `gpr.key`/`gpr.user` in Gradle properties.
 
+SDK and NDK resolution for Android and native builds:
+- **Android SDK**: Resolved via `ANDROID_HOME`, `ANDROID_SDK_ROOT`, or `sdk.dir` in `local.properties`.
+- **Android NDK**: Resolved via `ANDROID_NDK_HOME`, `ndk.dir` in `local.properties`, or falling back to `$sdkDir/ndk/$REQUIRED_NDK_VERSION` (matching `REQUIRED_NDK_VERSION = "28.2.13676358"` [r28c] in `patches/build.gradle.kts`).
+- **CMake & Ninja**: CMake 3.24+ and Ninja are required for native host and cross-compilation builds (`extensions/adobescan-pdf-native` and Rust native targets).
+
 ### Build and Metadata
 
 ```bash
@@ -119,7 +124,7 @@ npx semantic-release --dry-run
 - Optional/version-variable behavior must be explicitly optional; never convert a required mismatch into a silent skip.
 - Keep generated outputs generated. Do not hand-edit `.mpp`, `.mpe`, build output, `site/.astro/`, `site/dist/`, or managed `.apk-lab/` workspaces.
 - Update the matching docs when commands, user-visible patch behavior, compatibility, or safety invariants change.
-- Kotlin/Java use 4-space indentation. Patch Kotlin uses IntelliJ ktlint style from `.editorconfig`; TypeScript/Astro and configured JSON use Prettier/Oxlint; Python uses Ruff. Rust uses 2021 edition with standard 4-space cargo fmt and clippy with warnings denied. Match neighboring style for files outside the configured formatter scopes.
+- Kotlin/Java use 4-space indentation. Patch Kotlin uses IntelliJ ktlint style from `.editorconfig`; TypeScript/Astro and configured JSON use Prettier/Oxlint; Python uses Ruff. Rust uses 2021 edition with standard 4-space cargo fmt and clippy with warnings denied. C++ uses C++20 with standard 4-space clang-format (LLVM style) and compiles with `-Wall -Wextra` (warnings treated as errors). Match neighboring style for files outside the configured formatter scopes.
 
 ### State, Async, and Dependency Boundaries
 
@@ -243,6 +248,8 @@ The summary text after `<type>(<scope>): ` must follow these rules:
 - **External APK tools**: install only through `apk-lab setup`; versions and SHA-256 values live in `tools/apk-lab/tools.lock.json`.
 - **Cloudflare**: Worker development/deployment uses Wrangler through the Worker package scripts. Never deploy, mutate bindings, or rotate secrets during routine verification.
 - **Rust**: Stable toolchain (`cargo`, `clippy`, `rustfmt`) for `tools/play-metadata`. Managed via `tools/play-metadata/Cargo.lock`.
+- **Android NDK**: Version matching `REQUIRED_NDK_VERSION` in `patches/build.gradle.kts` (`28.2.13676358` / r28c). Resolution uses `ANDROID_NDK_HOME`, `ndk.dir` in `local.properties`, or `$sdkDir/ndk/$REQUIRED_NDK_VERSION`.
+- **C++**: C++20 for native PDF engine (`extensions/adobescan-pdf-native`). Clang-format (LLVM style, 4-space indent), CMake 3.24+ with Ninja, compiled with `-Wall -Wextra -Werror`.
 
 ## Testing & QA
 
@@ -257,6 +264,7 @@ Tests are layered; unit tests do not prove that a proprietary target APK still p
 | CI/generator/release script | Targeted non-mutating/check-only mode, affected tests, and review generated boundaries. Do not perform a release/deploy as verification. |
 | Cross-stack code | `bun run audit` after targeted checks. |
 | Rust play-metadata | Targeted test: `cargo test --locked --manifest-path tools/play-metadata/Cargo.toml`; full validation: `bun run audit`. |
+| C++ native engine | CMake host build and CTest (`ctest --test-dir extensions/adobescan-pdf-native/build/host --output-on-failure`); device validation via `apk-lab check`. |
 
 Patch compatibility policy:
 
