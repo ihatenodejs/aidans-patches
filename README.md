@@ -317,6 +317,8 @@ My [Morphe](https://morphe.software) patches
 
 - JDK 21+ (Eclipse Temurin baseline)
 - Android SDK (set `sdk.dir` in `local.properties` or export `ANDROID_HOME`)
+- Android NDK (matching `REQUIRED_NDK_VERSION = "28.2.13676358"` [r28b] or `27.2.12479018` [r27c] in `patches/build.gradle.kts`; set `ndk.dir` in `local.properties`, export `ANDROID_NDK_HOME`, or install under `$ANDROID_HOME/ndk/`)
+- CMake 3.24+ and Ninja
 
 ### Build Command
 

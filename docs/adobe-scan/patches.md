@@ -294,7 +294,13 @@ When **Remove Settings** is enabled, the patch hides the `USAGE INFO` category a
   - `Online Support Forum` (`removeSupportForum`, default `true`): Removes the Online support forum item from the Settings menu.
   - `Share This App` (`removeShareApp`, default `true`): Removes the Share this app item from the Settings menu.
   - `Fill & Sign` (`removeFillAndSign`, default `true`): Removes the Fill & Sign item from file option menus and Recent scan cards.
-  - `Open in Adobe Acrobat` (`removeOpenInAcrobat`, default `false`): Removes the Open in Adobe Acrobat option from file option menus and the preview screen.
+  - `Open in Adobe Acrobat` (`removeOpenInAcrobat`, default `false`): Removes the Open in Adobe Acrobat option from file option menus, the preview screen, and Recent scan cards.
+  - `Generative Summary` (`removeGenerativeSummary`, default `true`): Removes Generative summary actions from file option menus and the preview screen.
+  - `Edit Text` (`removeEditText`, default `true`): Removes Edit text from file option menus, the preview bottom toolbar, and scan cards.
+  - `Move` (`removeMove`, default `true`): Removes Move file from file option menus across all surfaces.
+  - `Save as Word Doc` (`removeSaveAsWord`, default `true`): Removes Save as Word doc from scan cards.
+  - `Link Sharing` (`removeLinkSharing`, default `true`): Removes cloud link sharing from the Share sheet.
+  - `Compress PDF` (`removeCompressPdf`, default `true`): Removes Compress PDF from file option menus and Send compressed from the Share sheet.
 ### 1. Motivation & Purpose
 
 The Settings menu and file menus in Adobe Scan feature non-essential promotional, rating, external support, and Play Store redirection links that clutter the view. When combined with login removal, the menus cleanly focus on core scanner preferences and local tools. The **Remove Useless/Promotional Items** patch allows users to selectively remove About Adobe Scan, Help, Rate app, Online support forum, Share this app, and the promotional Fill & Sign option (which otherwise opens the Play Store if the external app is uninstalled), while automatically removing the empty bottom category header (gray bar) when all support items are hidden.
@@ -305,8 +311,14 @@ The Settings menu and file menus in Adobe Scan feature non-essential promotional
 |---|---|---|
 | **Preference Inflation** | `Ljt/v2;->E(Ljava/lang/String;)V` (after `b.F`) | Sets `C(false)` (`setVisible(false)`) on selected preferences (`0x7f141f71`, `0x7f141f73`, `0x7f141f78`, `0x7f141f72`, `0x7f141f79`). If all support items are removed, hides the parent `PreferenceCategory` (`v0.J.C(false)`), eliminating the 72px gray separator bar. |
 | **Rate App Visibility Override** | `Ljt/v2;->onCreate(Landroid/os/Bundle;)V` (after last `Preference.C(Z)V`) | Injects `const/4 p1, 0x0 \n invoke-virtual {v0, p1}, Landroidx/preference/Preference;->C(Z)V` to ensure Rate app remains hidden even if Google Play Services availability checks evaluate to `true`. |
-| **Fill & Sign Removal** | `Lqt/u;->a(...)Lm90/b;` (before `IF_EQZ` for `0x7f142619`) & `Lut/r0$b;-><clinit>()V` | Injects `const/4 v<reg>, 0x0` immediately before the conditional branch guarding Fill & Sign creation in File Options, and reassigns `Lut/r0$b->h` from `Lut/r0$c->h` in `<clinit>`, excluding Fill & Sign from Recent scan card tool lists. |
+| **Fill & Sign Removal** | `Lqt/u;->a(...)Lm90/b;` (before `IF_EQZ` for `0x7f142619`) & `Lut/r0$b;-><clinit>()V` | Replaces `add` call for Fill & Sign with `nop` in File Options, and replaces `Lut/p0;->f` with `Lut/p0;->h` in `<clinit>`, excluding Fill & Sign from Recent scan card tool lists. |
 | **Open in Acrobat** | `Lqt/u;->a(...)Lm90/b;`, `Lvt/b2;->a(...)V`, `Lut/r0;-><init>(...)V` | Neutralizes addition of `0x7f142617` in the File Options bottom sheet, nulls out `Lvt/r4;->e` in the preview bottom toolbar array for `Ll90/s;->u`, and trims `r0.d` to `{Share, SaveAsJpeg}`. |
+| **Generative Summary Removal** | `Lqt/u;->a(...)Lm90/b;` | Overrides GenAI entitlement move-result register with `const/4 v<reg>, 0x0` to hide Generative summary from the File Options bottom sheet. |
+| **Edit Text Removal** | `Lcom/adobe/scan/android/util/a;->j()Z` | Returns `false` at index 0, disabling Edit text across all surfaces. |
+| **Move Removal** | `Lqt/u;->a(...)Lm90/b;` | Replaces `Lm90/b;->add` calls for Move resource `0x7f142396` with `nop`. |
+| **Save as Word Removal** | `Lut/q0;->b(...)Z` & `Lut/r0;-><init>(...)V` | Returns `false` from `q0.b` and trims `Lut/r0;->g` array to exclude Word doc export. |
+| **Link Sharing Removal** | `Lqt/q2;->h(...)V` & `Lqt/q2;->e(...)V` | Stubs `q2.h` and replaces render calls in `q2.e` with `nop`. |
+| **Compress PDF Removal** | `Lqt/u;->a(...)Lm90/b;` & `Lqt/q2;->i(...)V` | Replaces `add` for `0x7f1421b3` in `qt.u` with `nop`, and replaces `Lqt/q2;->g` for `0x7f1427dd` with `nop`. |
 
 ### 3. Preconditions & Verification
 
@@ -349,45 +361,60 @@ Adobe Scan packages Adobe Clean `.otf` resources for legacy XML layouts, Spectru
 
 ---
 
-## Patch: Unlock Premium
+## Patch: Local Premium
 
-- **Name:** Unlock Premium
+- **Name:** Local Premium
 - **Target Package:** `com.adobe.scan.android`
 - **Supported Versions:** `26.09.25`
 - **Default State:** `true` (Enabled by default)
-- **Type:** Dalvik Bytecode Patch (`bytecodePatch`)
+- **Type:** Composite Feature Patch (`compositeFeaturePatch` with companion manifest `resourcePatch` and `rawResources`)
 - **Dependencies:** None
 - **Compatibility:** `COMPATIBILITY_ADOBE_SCAN` (`ApkFileType.APKM`, target `26.09.25`, `minSdk` 32)
-- **Options:**
-  - `Remove Broken Features` (`removeBrokenFeatures`, default `true`): Removes the cloud-only Generative summary action from File Options.
-  - `Enable Cloud Tools (Experimental)` (`unlockCloudTools`, default `false`): Enables Combine, Export, and Protect PDF only for signed-in accounts with compatible Adobe Document Cloud access.
-
+  - `Local PDF Compression` (`enableLocalPdfCompression`, default `false`): Replaces Adobe Document Cloud post-save compression with on-device JPEG stream re-compression. Overrides Compress PDF removal when enabled.
+  - `Local PDF Password Protection` (`enableLocalPdfProtection`, default `false`): Replaces Adobe Document Cloud password encryption with AES-256 on-device PDF protection and offline removal.
+  - `Local PDF Export` (`enableLocalPdfExport`, default `false`): Replaces Adobe Document Cloud export with on-device editable Word, Excel, and PowerPoint conversion. Layout reconstruction is best-effort.
+  - `Local PDF Combine` (`enableLocalPdfCombine`, default `false`): Combines local Adobe Scan documents into a new PDF on device without changing the originals.
 ### 1. Scope
 
-The **Unlock Premium** patch enables locally executable premium document actions in a signed-out, offline workspace: OCR beyond the free-page limit, document editing, PDF compression, and page organization. It neither creates an Adobe account nor alters billing, purchase persistence, restore-purchase flows, or subscription transport.
+The **Local Premium** patch enables locally executable premium document actions: OCR beyond the free-page limit, document editing, and in-save compression quality selection. Optional feature replacements allow users to enable on-device PDF password protection (Standard handler AES-256 V=5/R=6 encryption with offline removal) and post-save JPEG stream re-compression executed via a bundled native PDF engine (`libaidanscanpdf.so` powered by qpdf 12.4.2 and libjpeg-turbo 3.2.0) in an isolated worker process (`:aidan_pdf`).
 
-Cloud-dependent actions remain unavailable by default. Export PDF and Combine PDF require Document Cloud upload and server processing; Password Protect invokes Document Cloud's `DCPasswordEncrypt` action; and Generative summary requires Adobe's GenAI backend. Enabling these checks while offline produces pending-upload or network failures rather than a usable local tool.
+All transforms are protected by atomic journaled transactions (`PdfFileTransaction`) with immutable snapshotting, SHA-256 stability checks, and rollback guarantees. Model updates and Room database persistence (`ScanFilePersistentData`) are executed synchronously within database transactions via `ScanFileAdapter`.
+
+When signed in to a personal or trial Adobe ID (with `Remove Login` disabled), cloud features like Generative summary remain intact and functional; when using `Remove Login`, all local operations run 100% offline without Adobe Document Cloud.
+
+When `Local PDF Compression` is enabled, the promotional neutralizer `removeCompressPdf` safely skips removing Compress PDF from file option menus and the Share sheet, preventing accidental feature stripping.
 
 ### 2. Technical Implementation & Injection Points
 
 | Layer | Target descriptors | Patched behavior |
 |---|---|---|
-| Unauthenticated entitlements | `Lcr/d0$a$a;->d()Z`, `e()Z`, `j()Z`, `n()Z` | Returns `true` for Compression, Edit PDF, OCR page-limit, and Scan Premium core gates used with **Remove Login**. |
-| Authenticated entitlements | `Lcr/y0;->d()Z`, `e()Z`, `j()Z`, `n()Z` | Returns `true` for the same local tools when an active user session selects the authenticated entitlement implementation. |
-| Direct service checks | `Lwm/s;->y(Lln/e$g;)Z` | Returns `true` only for `COMPRESSPDF_SERVICE`, `EDITPDF_SERVICE`, and `SCAN_PREMIUM_SERVICE` before the IMS-session gate. All other service types retain stock behavior. |
-| Compression quality | `Loe/a;->isPremiumLocked()Z` | Returns `false`, making all locally implemented compression quality levels selectable. |
-| Experimental cloud tools | `Lcr/d0$a$a;` and `Lcr/y0;` methods `r()Z`, `s()Z`, `u()Z` | When **Enable Cloud Tools (Experimental)** is on, enables Protect, Combine, and Export entitlement UI. It does not bypass sign-in, upload, network, or Document Cloud server requirements. |
-| Generative summary | `Lqt/u;->a(...)Lm90/b;` | When **Remove Broken Features** is on, forces the GenAI gate false so the File Options bottom sheet omits the unusable Generative summary item. |
-
-The global entitlement cutover replaces caller-local synthetic-lambda hooks. Consequently, File Options and File Browser share the same compression and edit result, and Preview's OCR-page-limit check reads the unlocked `j()` predicate. Every target lookup validates the exact descriptor, method signature, return type, and implementation; missing or changed targets throw `PatchException`.
+| Base Local Entitlements | `Lcr/d0$a$a;` and `Lcr/y0;` (`c`, `d`, `e`, `f`, `g`, `j`, `l`, `m`, `n`) | Returns `true` for Scan Plus, Compression, Edit PDF, Scan Premium, GenAI access, high-volume OCR, High-Speed Scan, Ad-Free, and Scan Premium core across unauthenticated and authenticated sessions. |
+| Premium Membership Tier | `Lcr/d0$a$a;` and `Lcr/y0;` method `p()Lcr/d$h;` | Returns `SCAN_PREMIUM`, unlocking profile cards, account headers, and tier gates across the app. |
+| Subscription Status | `Lwm/s;->B(Lln/e$e;)Z` | Returns `true` for `SCAN_PREMIUM_SUBSCRIPTION`, `ADOBE_SCAN_PLUS`, and `ACROBAT_PREMIUM_SUBSCRIPTION`. |
+| Protect PDF Entitlement | `Lcr/d0$a$a;` and `Lcr/y0;` method `r()Z` | Unlocked locally when **Local PDF Password Protection** is enabled. |
+| Combine PDF Entitlement | `Lcr/d0$a$a;` and `Lcr/y0;` method `s()Z` | Unlocked locally when **Local PDF Combine** is enabled. |
+| Export PDF Entitlement | `Lcr/d0$a$a;` and `Lcr/y0;` method `u()Z` | Unlocked locally when **Local PDF Export** is enabled. |
+| Direct Service Checks | `Lwm/s;->y(Lln/e$g;)Z` | Returns `true` for `EDITPDF_SERVICE`, `SCAN_PREMIUM_SERVICE`, and `ADOBE_SCAN_PLUS` unconditionally; `COMPRESSPDF_SERVICE` when **Local PDF Compression** is enabled; `PROTECTPDF_SERVICE` when **Local PDF Password Protection** is enabled; `COMBINEPDF_SERVICE` when **Local PDF Combine** is enabled; and `EXPORTPDF_SERVICE` when **Local PDF Export** is enabled. |
+| Compression Quality | `Loe/a;->isPremiumLocked()Z` | Returns `false`, making all locally implemented compression quality levels selectable during save. |
+| Compression Upsell Gate | `Lcom/adobe/scan/android/util/a;->n()Z` | Returns `false` at index 0 when **Local PDF Compression** is enabled, removing the "Subscribe to compress files" banner in `CompressActivity`. |
+| Worker Process Startup Guards | `ScanApplication` (`<init>`, `onCreate`, `attachBaseContext`) & `n20/b.attachBaseContext` | Returns immediately in `:aidan_pdf` worker process before Hilt, Adobe SDKs, or SplitCompat initialize. |
+| Coordinator Initialization | `ScanApplication.onCreate()V` | Initializes `PdfOperationCoordinator` and performs crash recovery off-main thread on startup. |
+| Local Password Protection Bridge | `Lzq/qb;->invoke(Ljava/lang/Object;)Ljava/lang/Object;` | Intercepts password submission to invoke `PdfProtectionBridge.protectFile`, applying AES-256 encryption via isolated engine and updating Room DB state without Document Cloud uploads. |
+| Local Password Removal Bridge | `Lcom/adobe/scan/android/m;->q1(...)V` | Intercepts password removal to invoke `PdfProtectionBridge.unprotectFile`, stripping password offline and updating Room DB state. |
+| Compression Selection Bridge | `Lcom/adobe/scan/android/services/CompressActivity$e;->invoke()Ljava/lang/Object;` | Intercepts Compress button to invoke `PdfCompressionBridge.selectCompression`, returning `RESULT_OK` without launching cloud tasks. |
+| Compression Result Bridge | `Lzq/qa;->invoke(Ljava/lang/Object;)Ljava/lang/Object;` | Intercepts selection result to invoke `PdfCompressionBridge.onCompressionResult`, executing local JPEG re-compression via coordinator and preventing cloud dispatch. |
+| Local Combine Bridge | `Lqt/u;->c(...)V` | Intercepts Combine Files action (`0x7f142387`) to invoke `PdfCombineBridge.show`, presenting selection and reordering UI, combining pages via qpdf, and persisting to library via `ScanFileAdapter.createLocalDocument`. |
+| Local Export Bridge | `Lqt/u;->c(...)V` & `Lzq/o3;->invoke(...)` | Intercepts Export PDF action (`0x7f142395`) and Recent scan card Save as Word to invoke `PdfExportBridge.show` / `exportDocxDirect`, reconstructing text/tables into editable DOCX, XLSX, and PPTX via PDFBox and Tesseract OCR without cloud dispatch. |
+| Native Library Packaging | `lib/arm64-v8a/libaidanscanpdf.so` | Bundled via `rawResources` (qpdf 12.4.2, libjpeg-turbo 3.2.0, Leptonica 1.85.0, Tesseract 5.5.1) and marked uncompressed. |
+| OCR Model & PDFBox Assets | `assets/aidan-scan-pdf/ocr/eng.traineddata` & `assets/com/tom_roush/...` | Bundled offline via `rawResources` for on-device OCR and font rendering. |
+| Manifest Companion | `AndroidManifest.xml` & `res/xml/file_provider_paths.xml` | Declares isolated `:aidan_pdf` service and grants FileProvider cache path for Send Compressed and Office export sharing. |
 
 ### 3. Preconditions & Verification
 
 1. **Target Validation:** Gates on Adobe Scan `26.09.25` through `COMPATIBILITY_ADOBE_SCAN`.
 2. **Compilation Verification:** Build the patch bundle with `./gradlew :patches:buildAndroid clean --no-daemon`.
-3. **Metadata Verification:** Run `./gradlew generatePatchesList` and confirm that **Unlock Premium** exposes both options.
-4. **Bytecode Verification:** After applying to the target APKM, confirm that `Lcr/d0$a$a;` and `Lcr/y0;` methods `d`, `e`, `j`, and `n` begin with `const/4 v0, 0x1` and `return v0`; `Loe/a;->isPremiumLocked()Z` begins with `const/4 v0, 0x0`; and `Lqt/u;->a` omits Generative summary with its removal option enabled.
-
+3. **Metadata Verification:** Run `./gradlew generatePatchesList` and confirm that **Local Premium** exposes all four independent options.
+4. **Compatibility Verification:** Run `uv run --project tools/apk-lab apk-lab check apk/com.adobe.scan.android.apkm --mpp <bundle> --package com.adobe.scan.android --all`.
 ---
 
 ## Patch: Remove Attribution

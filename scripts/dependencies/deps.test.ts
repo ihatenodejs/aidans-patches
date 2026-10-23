@@ -296,6 +296,66 @@ describe('Inventory Collection', () => {
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }
   });
+  test('collectInventory extracts CMake FetchContent and Gradle catalog dependencies', () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'inv-cmake-test-'));
+    try {
+      const cmakeDir = path.join(tmpDir, 'extensions', 'adobescan-pdf-native');
+      fs.mkdirSync(cmakeDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(cmakeDir, 'CMakeLists.txt'),
+        `FetchContent_Declare(
+    libjpeg-turbo
+    URL https://github.com/libjpeg-turbo/libjpeg-turbo/releases/download/3.2.0/libjpeg-turbo-3.2.0.tar.gz
+    URL_HASH SHA256=6f30092cef9fb839779646608f4ee14ae3cbac989c47fa05e841b0841f09878e
+)
+FetchContent_Declare(
+    tesseract
+    URL https://github.com/tesseract-ocr/tesseract/archive/refs/tags/5.5.1.tar.gz
+    URL_HASH SHA256=a7a3f2a7420cb6a6a94d80c24163e183cf1d2f1bed2df3bbc397c81808a57237
+)`,
+      );
+
+      const gradleDir = path.join(tmpDir, 'gradle');
+      fs.mkdirSync(gradleDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(gradleDir, 'libs.versions.toml'),
+        `[versions]
+pdfbox-android = "2.0.27.0"
+
+[libraries]
+pdfbox-android = { module = "com.tom-roush:pdfbox-android", version.ref = "pdfbox-android" }
+`,
+      );
+
+      const policy: DependencyPolicy = { schemaVersion: 1, holds: [] };
+      const { items, inputs } = collectInventory(tmpDir, policy);
+
+      const jpegItem = items.find((i) => i.name === 'libjpeg-turbo');
+      expect(jpegItem?.declared).toBe('3.2.0');
+      expect(jpegItem?.ecosystem).toBe('cmake');
+
+      const tessItem = items.find((i) => i.name === 'tesseract');
+      expect(tessItem?.declared).toBe('5.5.1');
+      expect(tessItem?.ecosystem).toBe('cmake');
+
+      const pdfboxItem = items.find(
+        (i) => i.name === 'com.tom-roush:pdfbox-android',
+      );
+      expect(pdfboxItem?.declared).toBe('2.0.27.0');
+      expect(pdfboxItem?.ecosystem).toBe('gradle');
+
+      expect(
+        inputs.some(
+          (i) => i.path === 'extensions/adobescan-pdf-native/CMakeLists.txt',
+        ),
+      ).toBe(true);
+      expect(inputs.some((i) => i.path === 'gradle/libs.versions.toml')).toBe(
+        true,
+      );
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
 
   test('parseBunLock parses mock bun.lock with trailing commas', () => {
     const mockBunLock = `{
@@ -657,6 +717,54 @@ describe('Transactional Apply', () => {
       const updatedContent = fs.readFileSync(catalogPath, 'utf8');
       expect(updatedContent).toContain('agp = "8.3.0"');
       expect(updatedContent).toContain('kotlin = "1.9.20"');
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+  test('applyApprovedProposal correctly updates CMake FetchContent block', async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'apply-cmake-'));
+    try {
+      const cmakeRel = 'extensions/adobescan-pdf-native/CMakeLists.txt';
+      const cmakePath = path.join(tmpDir, cmakeRel);
+      fs.mkdirSync(path.dirname(cmakePath), { recursive: true });
+      const initialContent = `FetchContent_Declare(
+    tesseract
+    URL https://github.com/tesseract-ocr/tesseract/archive/refs/tags/5.5.1.tar.gz
+    URL_HASH SHA256=a7a3f2a7420cb6a6a94d80c24163e183cf1d2f1bed2df3bbc397c81808a57237
+)`;
+      fs.writeFileSync(cmakePath, initialContent);
+      const sha256 = Bun.SHA256.hash(fs.readFileSync(cmakePath), 'hex');
+
+      const newFakeSha =
+        '111122223333444455556666777788889999aaaabbbbccccddddeeeeffff0000';
+      const proposal: Proposal = {
+        schemaVersion: 1,
+        inputs: [{ path: cmakeRel, sha256 }],
+        updates: [
+          {
+            id: `cmake:${cmakeRel}#fetch/tesseract`,
+            from: '5.5.1',
+            to: '5.5.3',
+            assetIdentity: newFakeSha,
+          },
+        ],
+        digest: '',
+      };
+      proposal.digest = computeProposalDigest(
+        proposal.inputs,
+        proposal.updates,
+      );
+
+      const policy: DependencyPolicy = { schemaVersion: 1, holds: [] };
+      const res = await applyApprovedProposal(tmpDir, proposal, policy);
+      expect(res.success).toBe(true);
+      expect(res.changedFiles).toContain(cmakeRel);
+
+      const updatedContent = fs.readFileSync(cmakePath, 'utf8');
+      expect(updatedContent).toContain(
+        'https://github.com/tesseract-ocr/tesseract/archive/refs/tags/5.5.3.tar.gz',
+      );
+      expect(updatedContent).toContain(`URL_HASH SHA256=${newFakeSha}`);
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }

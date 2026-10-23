@@ -349,16 +349,29 @@ export function collectInventory(
     const libraries =
       (catalogToml.libraries as Record<
         string,
-        { module?: string; version?: string; 'version.ref'?: string }
+        {
+          module?: string;
+          version?: string | { ref?: string };
+          'version.ref'?: string;
+        }
       >) || {};
 
     const usedVersions = new Set<string>();
     for (const [libName, libVal] of Object.entries(libraries)) {
       if (typeof libVal === 'object' && libVal !== null) {
         const mod = libVal.module || '';
-        const vRef = libVal['version.ref'];
+        const vRef =
+          typeof libVal.version === 'object' && libVal.version !== null
+            ? libVal.version.ref
+            : typeof libVal['version.ref'] === 'string'
+              ? libVal['version.ref']
+              : undefined;
         const versionStr =
-          typeof vRef === 'string' ? versions[vRef] : libVal.version;
+          typeof vRef === 'string'
+            ? versions[vRef]
+            : typeof libVal.version === 'string'
+              ? libVal.version
+              : undefined;
         if (typeof versionStr === 'string') {
           if (typeof vRef === 'string') usedVersions.add(vRef);
           items.push({
@@ -829,6 +842,41 @@ export function collectInventory(
       status: 'moving',
       reason: 'Moving @latest plugin in semantic-release workflow',
     });
+  }
+
+  // 12. C++ Native CMake FetchContent
+  const cmakeListsRel = 'extensions/adobescan-pdf-native/CMakeLists.txt';
+  const cmakeListsAbs = path.resolve(repoRoot, cmakeListsRel);
+  if (fs.existsSync(cmakeListsAbs)) {
+    registerInput(cmakeListsRel);
+    const cmakeContent = fs.readFileSync(cmakeListsAbs, 'utf8');
+    const fetchBlockRegex =
+      /FetchContent_Declare\s*\(\s*([a-zA-Z0-9_-]+)[\s\S]*?\)/g;
+    let match: RegExpExecArray | null;
+    while ((match = fetchBlockRegex.exec(cmakeContent)) !== null) {
+      const block = match[0];
+      const name = match[1];
+      const urlMatch = block.match(/URL\s+([^\s)]+)/);
+      if (urlMatch) {
+        const url = urlMatch[1];
+        const versionMatch = url.match(
+          /(?:\/download\/|\/archive\/refs\/tags\/|\/tags\/)v?([0-9]+\.[0-9]+(?:\.[0-9]+)?(?:-[a-zA-Z0-9.]+)?)/,
+        );
+        const version = versionMatch ? versionMatch[1] : '';
+        const lineIndex = cmakeContent.slice(0, match.index).split('\n').length;
+        items.push({
+          id: `cmake:${cmakeListsRel}#fetch/${name}`,
+          ecosystem: 'cmake',
+          name,
+          locations: [`${cmakeListsRel}:${lineIndex}`],
+          declared: version,
+          resolved: version,
+          latest: null,
+          status: 'current',
+          sourceUrl: url,
+        });
+      }
+    }
   }
 
   // Policy hold application and validation

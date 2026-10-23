@@ -129,20 +129,227 @@ val buildNhlAdblockNative = tasks.register<Exec>("buildNhlAdblockNative") {
         builtSo.copyTo(dest, overwrite = true)
     }
 }
+val adobeScanPdfNativeDir = layout.buildDirectory.dir("generated/resources/adobeScanPdfNative")
+val outputAdobeScanPdfSo = adobeScanPdfNativeDir.map { it.file("adobescan/pdf/arm64-v8a/libaidanscanpdf.so") }
+
+val buildAdobeScanPdfNative = tasks.register<Exec>("buildAdobeScanPdfNative") {
+    description = "Compiles native qpdf/jpeg engine for Adobe Scan arm64-v8a"
+    val nativeDir = rootProject.file("extensions/adobescan-pdf-native")
+    inputs.dir(File(nativeDir, "src"))
+    inputs.dir(File(nativeDir, "cmake"))
+    inputs.file(File(nativeDir, "CMakeLists.txt"))
+    outputs.file(outputAdobeScanPdfSo)
+
+    workingDir = nativeDir
+
+    doFirst {
+        val sdkDir = run {
+            val envSdk = System.getenv("ANDROID_HOME") ?: System.getenv("ANDROID_SDK_ROOT")
+            if (!envSdk.isNullOrBlank()) {
+                File(envSdk)
+            } else {
+                val localProps = rootProject.file("local.properties")
+                if (localProps.exists()) {
+                    val props = Properties().apply { localProps.inputStream().use { load(it) } }
+                    val dir = props.getProperty("sdk.dir")
+                    if (!dir.isNullOrBlank()) File(dir) else null
+                } else null
+            }
+        }
+
+        val ndkDir = run {
+            val ndkHomeEnv = System.getenv("ANDROID_NDK_HOME")
+            if (!ndkHomeEnv.isNullOrBlank()) {
+                val f = File(ndkHomeEnv)
+                if (f.exists()) return@run f
+            }
+            val baseSdk = sdkDir ?: throw GradleException("Could not resolve Android SDK path for NDK compilation. Set ANDROID_HOME or local.properties.")
+            val d = File(baseSdk, "ndk/$REQUIRED_NDK_VERSION")
+            if (!d.exists()) {
+                throw GradleException("Required Android NDK $REQUIRED_NDK_VERSION not found at ${d.absolutePath}. Install NDK $REQUIRED_NDK_VERSION.")
+            }
+            d
+        }
+
+        fun findExecutable(name: String): String {
+            val pathEnv = System.getenv("PATH") ?: ""
+            for (p in pathEnv.split(File.pathSeparator)) {
+                val candidate = File(p, name)
+                if (candidate.canExecute()) {
+                    return candidate.absolutePath
+                }
+            }
+            if (sdkDir != null && sdkDir.exists()) {
+                val cmakeParent = File(sdkDir, "cmake")
+                if (cmakeParent.exists()) {
+                    val versions = cmakeParent.listFiles()?.filter { it.isDirectory }?.sortedDescending()
+                    if (versions != null) {
+                        for (vDir in versions) {
+                            val bin = File(vDir, "bin/$name")
+                            if (bin.canExecute()) {
+                                return bin.absolutePath
+                            }
+                        }
+                    }
+                }
+            }
+            throw GradleException(
+                "Required build tool '$name' not found in PATH or Android SDK cmake directory. " +
+                "Please install $name (e.g. via Android SDK Manager or your system package manager)."
+            )
+        }
+
+        val cmakeBin = findExecutable("cmake")
+        val ninjaBin = findExecutable("ninja")
+
+        val cmakeToolchain = File(ndkDir, "build/cmake/android.toolchain.cmake")
+        if (!cmakeToolchain.exists()) {
+            throw GradleException("Android CMake toolchain not found at ${cmakeToolchain.absolutePath}")
+        }
+
+        val buildDir = File(nativeDir, "build/android-arm64-v8a")
+        buildDir.mkdirs()
+
+        val configProcess = ProcessBuilder(
+            cmakeBin,
+            "-S", nativeDir.absolutePath,
+            "-B", buildDir.absolutePath,
+            "-G", "Ninja",
+            "-DCMAKE_MAKE_PROGRAM=${File(ninjaBin).absolutePath}",
+            "-DCMAKE_TOOLCHAIN_FILE=${cmakeToolchain.absolutePath}",
+            "-DANDROID_ABI=arm64-v8a",
+            "-DANDROID_PLATFORM=android-32",
+            "-DCMAKE_BUILD_TYPE=Release"
+        ).directory(nativeDir).inheritIO().start()
+        val configExit = configProcess.waitFor()
+        if (configExit != 0) {
+            throw GradleException("CMake configure failed with exit code $configExit")
+        }
+
+        setCommandLine(ninjaBin, "-C", buildDir.absolutePath, "aidanscanpdf")
+    }
+
+    commandLine("ninja", "-C", File(nativeDir, "build/android-arm64-v8a").absolutePath, "aidanscanpdf")
+
+    doLast {
+        val builtSo = File(nativeDir, "build/android-arm64-v8a/libaidanscanpdf.so")
+        if (!builtSo.exists()) {
+            throw GradleException("Ninja succeeded but output binary not found at ${builtSo.absolutePath}")
+        }
+        val dest = outputAdobeScanPdfSo.get().asFile
+        dest.parentFile.mkdirs()
+        builtSo.copyTo(dest, overwrite = true)
+
+        val ndkHomeEnv = System.getenv("ANDROID_NDK_HOME")
+        val ndkDir = if (!ndkHomeEnv.isNullOrBlank() && File(ndkHomeEnv).exists()) {
+            File(ndkHomeEnv)
+        } else {
+            val sdkDir = run {
+                val envSdk = System.getenv("ANDROID_HOME") ?: System.getenv("ANDROID_SDK_ROOT")
+                if (!envSdk.isNullOrBlank()) File(envSdk) else {
+                    val localProps = rootProject.file("local.properties")
+                    if (localProps.exists()) {
+                        val props = Properties().apply { localProps.inputStream().use { load(it) } }
+                        val dir = props.getProperty("sdk.dir")
+                        if (!dir.isNullOrBlank()) File(dir) else null
+                    } else null
+                }
+            }
+            sdkDir?.let { File(it, "ndk/$REQUIRED_NDK_VERSION") }
+        }
+        val osName = System.getProperty("os.name").lowercase()
+        val hostTag = when {
+            osName.contains("mac") || osName.contains("darwin") -> "darwin-x86_64"
+            osName.contains("linux") -> "linux-x86_64"
+            osName.contains("windows") -> "windows-x86_64"
+            else -> "darwin-x86_64"
+        }
+        val stripTool = ndkDir?.let { File(it, "toolchains/llvm/prebuilt/$hostTag/bin/llvm-strip") }
+        if (stripTool != null && stripTool.exists()) {
+            ProcessBuilder(stripTool.absolutePath, "--strip-unneeded", dest.absolutePath)
+                .inheritIO().start().waitFor()
+        }
+    }
+}
+val outputAdobeScanOcrModel = adobeScanPdfNativeDir.map { it.file("adobescan/pdf/ocr/eng.traineddata") }
+val prepareAdobeScanOcrModel = tasks.register<Exec>("prepareAdobeScanOcrModel") {
+    description = "Downloads and caches verified tessdata_fast eng.traineddata for Adobe Scan"
+    outputs.file(outputAdobeScanOcrModel)
+
+    val ocrCacheDir = File(gradle.gradleUserHomeDir, "caches/aidans-patches/ocr")
+    val scriptFile = rootProject.file(".github/scripts/prepare_ocr_model.py")
+
+    inputs.file(scriptFile)
+    inputs.property("modelVersion", "4.1.0-65727574")
+
+    workingDir = rootDir
+    doFirst {
+        ocrCacheDir.mkdirs()
+        outputAdobeScanOcrModel.get().asFile.parentFile.mkdirs()
+    }
+
+    commandLine(
+        "python3",
+        scriptFile.absolutePath,
+        "--output",
+        outputAdobeScanOcrModel.get().asFile.absolutePath,
+        "--cache-dir",
+        ocrCacheDir.absolutePath,
+    )
+}
+
+val outputPdfBoxAssetsZip = adobeScanPdfNativeDir.map { it.file("adobescan/pdf/assets/pdfbox-assets.zip") }
+val preparePdfBoxAssets = tasks.register<Exec>("preparePdfBoxAssets") {
+    description = "Extracts and packages PDFBox assets into a zip for Adobe Scan"
+    outputs.file(outputPdfBoxAssetsZip)
+
+    val scriptFile = rootProject.file(".github/scripts/prepare_pdfbox_assets.py")
+    inputs.file(scriptFile)
+    inputs.property("pdfBoxVersion", libs.versions.pdfbox.android.get())
+
+    workingDir = rootDir
+    doFirst {
+        outputPdfBoxAssetsZip.get().asFile.parentFile.mkdirs()
+    }
+
+    commandLine(
+        "python3",
+        scriptFile.absolutePath,
+        "--output",
+        outputPdfBoxAssetsZip.get().asFile.absolutePath,
+        "--gradle-home",
+        gradle.gradleUserHomeDir.absolutePath,
+        "--version",
+        libs.versions.pdfbox.android.get(),
+    )
+}
+
+
 
 sourceSets["main"].resources.srcDir(emojiFontDir)
 sourceSets["main"].resources.srcDir(nhlAdblockNativeDir)
+sourceSets["main"].resources.srcDir(adobeScanPdfNativeDir)
 
 tasks {
+    clean {
+        doLast {
+            rootProject.file("extensions/adobescan-pdf-native/build").deleteRecursively()
+        }
+    }
     named("processResources") {
         dependsOn(prepareEmojiFont)
         dependsOn(buildNhlAdblockNative)
+        dependsOn(buildAdobeScanPdfNative)
+        dependsOn(prepareAdobeScanOcrModel)
+        dependsOn(preparePdfBoxAssets)
     }
     named("sourcesJar") {
         dependsOn(prepareEmojiFont)
         dependsOn(buildNhlAdblockNative)
+        dependsOn(buildAdobeScanPdfNative)
+        dependsOn(prepareAdobeScanOcrModel)
+        dependsOn(preparePdfBoxAssets)
     }
-
 
     named("build") {
         finalizedBy("buildAndroid")

@@ -139,6 +139,23 @@ async function ensureKtlint(): Promise<string> {
   fs.writeFileSync(localBin, buf, { mode: 0o755 });
   return localBin;
 }
+
+function findFilesRecursive(dir: string, extensions: string[]): string[] {
+  if (!fs.existsSync(dir)) return [];
+  const results: string[] = [];
+  const entries = fs.readdirSync(dir, { withFileTypes: true });
+  for (const entry of entries) {
+    const fullPath = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      if (entry.name !== 'build' && entry.name !== '_deps') {
+        results.push(...findFilesRecursive(fullPath, extensions));
+      }
+    } else if (extensions.some((ext) => entry.name.endsWith(ext))) {
+      results.push(fullPath);
+    }
+  }
+  return results;
+}
 function resolveRuffCommand(): { cmd: string; baseArgs: string[] } {
   const systemRuff = Bun.which('ruff');
   if (systemRuff) {
@@ -332,8 +349,8 @@ async function runFormat(checkOnly = false): Promise<PhaseResult> {
   process.stdout.write(`  ${sym.arrow} Formatting Python sources (Ruff)... `);
   const ruff = resolveRuffCommand();
   const ruffArgs = checkOnly
-    ? ['format', '--check', 'tools/apk-lab', '.github/scripts']
-    : ['format', 'tools/apk-lab', '.github/scripts'];
+    ? ['format', '--check', 'tools/apk-lab', '.github/scripts', 'extensions']
+    : ['format', 'tools/apk-lab', '.github/scripts', 'extensions'];
   const rRes = await execCommand(ruff.cmd, [...ruff.baseArgs, ...ruffArgs]);
   const rPassed = rRes.code === 0;
   const rSummary = checkOnly
@@ -450,6 +467,54 @@ async function runFormat(checkOnly = false): Promise<PhaseResult> {
     durationMs: nhlFmtRes.durationMs,
     summary: nhlFmtSummary,
   });
+
+  // 6. C++ (clang-format)
+  process.stdout.write(
+    `  ${sym.arrow} Formatting C++ Adobe Scan Native sources (clang-format)... `,
+  );
+  const cppFiles = findFilesRecursive('extensions/adobescan-pdf-native', [
+    '.cpp',
+    '.hpp',
+  ]);
+  const clangFormatBin = Bun.which('clang-format');
+  let cfPassed = true;
+  let cfSummary = 'All C++ files formatted';
+  let cfDuration = 0;
+  if (!clangFormatBin) {
+    const isCI = Boolean(process.env.CI || process.env.GITHUB_ACTIONS);
+    if (isCI) {
+      cfPassed = false;
+      cfSummary = 'clang-format not found in PATH; required in CI';
+    } else {
+      cfPassed = true;
+      cfSummary =
+        'clang-format not found in PATH; skipped (install clang-format)';
+    }
+    console.log(cfPassed ? sym.warn : sym.err);
+  } else {
+    const cfArgs = checkOnly
+      ? ['--dry-run', '--Werror', ...cppFiles]
+      : ['-i', ...cppFiles];
+    const cfRes = await execCommand('clang-format', cfArgs);
+    cfDuration = cfRes.durationMs;
+    cfPassed = cfRes.code === 0;
+    cfSummary = checkOnly
+      ? cfPassed
+        ? 'All C++ files formatted'
+        : 'C++ files need formatting'
+      : 'Formatted C++ sources';
+    console.log(cfPassed ? sym.ok : sym.err);
+    if (!cfPassed) {
+      printRawCommandOutput(cfRes.stdout, cfRes.stderr);
+    }
+  }
+  results.push({
+    title: 'C++ Adobe Scan Native (clang-format)',
+    tool: 'clang-format',
+    success: cfPassed,
+    durationMs: cfDuration,
+    summary: cfSummary,
+  });
   return printResultsSummary('Format', results);
 }
 
@@ -513,7 +578,7 @@ async function runLint(autoFix = false): Promise<PhaseResult> {
   const ruff = resolveRuffCommand();
   const ruffArgs = ['check', '--output-format', 'json'];
   if (autoFix) ruffArgs.push('--fix');
-  ruffArgs.push('tools/apk-lab', '.github/scripts');
+  ruffArgs.push('tools/apk-lab', '.github/scripts', 'extensions');
 
   const rRes = await execCommand(ruff.cmd, [...ruff.baseArgs, ...ruffArgs]);
   const rDiags: Diagnostic[] = [];
@@ -658,6 +723,66 @@ async function runLint(autoFix = false): Promise<PhaseResult> {
         ? 'No issues'
         : 'Clippy warnings/errors detected',
   });
+
+  // 6. C++ (CMake host build with -Wall -Wextra -Werror)
+  process.stdout.write(
+    `  ${sym.arrow} Linting C++ Adobe Scan Native engine (-Wall -Wextra)... `,
+  );
+  const scanNativeDir = 'extensions/adobescan-pdf-native';
+  const scanHostBuildDir = `${scanNativeDir}/build/host`;
+  const cmakeBin = Bun.which('cmake');
+  const ninjaBin = Bun.which('ninja');
+  let cppLintPassed = true;
+  let cppLintDuration = 0;
+  let cppLintSummary = 'No warnings or errors';
+
+  if (!cmakeBin || !ninjaBin) {
+    cppLintPassed = false;
+    cppLintSummary =
+      'cmake or ninja not found in PATH; install cmake and ninja';
+    console.log(sym.err);
+  } else {
+    const cmakeLintConfig = await execCommand('cmake', [
+      '-S',
+      scanNativeDir,
+      '-B',
+      scanHostBuildDir,
+      '-G',
+      'Ninja',
+      '-DAIDAN_SCAN_PDF_HOST_TESTS=ON',
+    ]);
+    cppLintDuration += cmakeLintConfig.durationMs;
+    if (cmakeLintConfig.code !== 0) {
+      cppLintPassed = false;
+      cppLintSummary = 'CMake configuration failed';
+      console.log(sym.err);
+      printRawCommandOutput(cmakeLintConfig.stdout, cmakeLintConfig.stderr);
+    } else {
+      const cmakeLintBuild = await execCommand('cmake', [
+        '--build',
+        scanHostBuildDir,
+        '--target',
+        'aidanscanpdf_static',
+        'adobescan_pdf_test',
+      ]);
+      cppLintDuration += cmakeLintBuild.durationMs;
+      cppLintPassed = cmakeLintBuild.code === 0;
+      cppLintSummary = cppLintPassed
+        ? 'No warnings or errors'
+        : 'C++ compilation warnings/errors detected';
+      console.log(cppLintPassed ? sym.ok : sym.err);
+      if (!cppLintPassed) {
+        printRawCommandOutput(cmakeLintBuild.stdout, cmakeLintBuild.stderr);
+      }
+    }
+  }
+  results.push({
+    title: 'C++ Adobe Scan Native (clang/gcc lint)',
+    tool: 'cmake/ninja',
+    success: cppLintPassed,
+    durationMs: cppLintDuration,
+    summary: cppLintSummary,
+  });
   renderDiagnostics(allDiagnostics);
   return printResultsSummary('Lint', results);
 }
@@ -668,7 +793,7 @@ async function runLint(autoFix = false): Promise<PhaseResult> {
 async function runTypecheck(): Promise<PhaseResult> {
   printSectionHeader(
     'Typecheck',
-    'TypeScript, Astro, Python, Rust, and Kotlin/Java',
+    'TypeScript, Astro, Python, Rust, C++, and Kotlin/Java',
   );
   const results: StepResult[] = [];
 
@@ -825,6 +950,63 @@ async function runTypecheck(): Promise<PhaseResult> {
         : 'Cargo check errors detected',
   });
 
+  // 7. C++ (CMake host target compilation)
+  process.stdout.write(
+    `  ${sym.arrow} Compiling C++ Adobe Scan Native host targets (CMake)... `,
+  );
+  const scanNativeDir = 'extensions/adobescan-pdf-native';
+  const scanHostBuildDir = `${scanNativeDir}/build/host`;
+  const cmakeBin = Bun.which('cmake');
+  const ninjaBin = Bun.which('ninja');
+  let cppTypecheckPassed = true;
+  let cppTypecheckDuration = 0;
+  let cppTypecheckSummary = 'Host targets built clean';
+
+  if (!cmakeBin || !ninjaBin) {
+    cppTypecheckPassed = false;
+    cppTypecheckSummary =
+      'cmake or ninja not found in PATH; install cmake and ninja';
+    console.log(sym.err);
+  } else {
+    const cmakeConfig = await execCommand('cmake', [
+      '-S',
+      scanNativeDir,
+      '-B',
+      scanHostBuildDir,
+      '-G',
+      'Ninja',
+      '-DAIDAN_SCAN_PDF_HOST_TESTS=ON',
+    ]);
+    cppTypecheckDuration += cmakeConfig.durationMs;
+    if (cmakeConfig.code !== 0) {
+      cppTypecheckPassed = false;
+      cppTypecheckSummary = 'CMake configure failed';
+      console.log(sym.err);
+      printRawCommandOutput(cmakeConfig.stdout, cmakeConfig.stderr);
+    } else {
+      const cmakeBuild = await execCommand('cmake', [
+        '--build',
+        scanHostBuildDir,
+      ]);
+      cppTypecheckDuration += cmakeBuild.durationMs;
+      cppTypecheckPassed = cmakeBuild.code === 0;
+      cppTypecheckSummary = cppTypecheckPassed
+        ? 'Host targets built clean'
+        : 'C++ compilation failed';
+      console.log(cppTypecheckPassed ? sym.ok : sym.err);
+      if (!cppTypecheckPassed) {
+        printRawCommandOutput(cmakeBuild.stdout, cmakeBuild.stderr);
+      }
+    }
+  }
+  results.push({
+    title: 'C++ Adobe Scan Native (CMake)',
+    tool: 'cmake',
+    success: cppTypecheckPassed,
+    durationMs: cppTypecheckDuration,
+    summary: cppTypecheckSummary,
+  });
+
   return printResultsSummary('Typecheck', results);
 }
 
@@ -975,6 +1157,98 @@ async function runTest(): Promise<PhaseResult> {
     success: nhlTestPassed,
     durationMs: nhlTestRes.durationMs,
     summary: nhlSummary,
+  });
+
+  // 6. Adobe Scan Native PDF Engine test suite (ctest)
+  process.stdout.write(
+    `  ${sym.arrow} Running Adobe Scan Native PDF Engine tests (ctest)... `,
+  );
+  const scanNativeDir = 'extensions/adobescan-pdf-native';
+  const scanHostBuildDir = `${scanNativeDir}/build/host`;
+  const ctestBin = Bun.which('ctest');
+  const cmakeBin = Bun.which('cmake');
+  let scanPassed = true;
+  let scanSummary = 'All tests passed';
+  let scanDuration = 0;
+
+  if (!ctestBin || !cmakeBin) {
+    scanPassed = false;
+    scanSummary = 'ctest or cmake not found in PATH; install cmake and ninja';
+    console.log(sym.err);
+  } else {
+    const configureRes = await execCommand('cmake', [
+      '-S',
+      scanNativeDir,
+      '-B',
+      scanHostBuildDir,
+      '-G',
+      'Ninja',
+      '-DAIDAN_SCAN_PDF_HOST_TESTS=ON',
+    ]);
+    if (configureRes.code !== 0) {
+      scanPassed = false;
+      scanSummary = 'CMake configuration failed';
+      console.log(sym.err);
+      printRawCommandOutput(configureRes.stdout, configureRes.stderr);
+      return;
+    }
+    const cmakeBuild = await execCommand('cmake', [
+      '--build',
+      scanHostBuildDir,
+    ]);
+    scanDuration += cmakeBuild.durationMs;
+    if (cmakeBuild.code !== 0) {
+      scanPassed = false;
+      scanSummary = 'CMake build failed';
+      console.log(sym.err);
+      printRawCommandOutput(cmakeBuild.stdout, cmakeBuild.stderr);
+    } else {
+      const ctestRes = await execCommand('ctest', [
+        '--test-dir',
+        scanHostBuildDir,
+        '--output-on-failure',
+      ]);
+      scanDuration += ctestRes.durationMs;
+      scanPassed = ctestRes.code === 0;
+      const ctestMatch = ctestRes.stdout.match(/([0-9]+% tests passed[^\n]*)/);
+      scanSummary = ctestMatch
+        ? ctestMatch[1].trim()
+        : scanPassed
+          ? 'All tests passed'
+          : 'Tests failed';
+      console.log(scanPassed ? sym.ok : sym.err);
+      if (!scanPassed) {
+        printRawCommandOutput(ctestRes.stdout, ctestRes.stderr);
+      }
+    }
+  }
+  results.push({
+    title: 'Adobe Scan Native Engine (ctest)',
+    tool: 'ctest',
+    success: scanPassed,
+    durationMs: scanDuration,
+    summary: scanSummary,
+  });
+
+  // 7. Adobe Scan Extension Java Unit Tests (Gradle)
+  process.stdout.write(
+    `  ${sym.arrow} Running Extension unit tests (Gradle)... `,
+  );
+  const extTestRes = await execCommand('./gradlew', [
+    ':extensions:extension:testReleaseUnitTest',
+    '--console=plain',
+  ]);
+  const extTestPassed = extTestRes.code === 0;
+  console.log(extTestPassed ? sym.ok : sym.err);
+  if (!extTestPassed) {
+    printRawCommandOutput(extTestRes.stdout, extTestRes.stderr);
+  }
+  results.push({
+    title: 'Extension Unit Tests (Gradle)',
+    tool: 'gradle test',
+    success: extTestPassed,
+    durationMs: extTestRes.durationMs,
+    summary: extTestPassed ? 'All tests passed' : 'Tests failed',
   });
 
   // 4. Target Application Icons Check
