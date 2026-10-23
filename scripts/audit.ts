@@ -1185,40 +1185,43 @@ async function runTest(): Promise<PhaseResult> {
       'Ninja',
       '-DAIDAN_SCAN_PDF_HOST_TESTS=ON',
     ]);
+    scanDuration += configureRes.durationMs;
     if (configureRes.code !== 0) {
       scanPassed = false;
       scanSummary = 'CMake configuration failed';
       console.log(sym.err);
       printRawCommandOutput(configureRes.stdout, configureRes.stderr);
-      return;
-    }
-    const cmakeBuild = await execCommand('cmake', [
-      '--build',
-      scanHostBuildDir,
-    ]);
-    scanDuration += cmakeBuild.durationMs;
-    if (cmakeBuild.code !== 0) {
-      scanPassed = false;
-      scanSummary = 'CMake build failed';
-      console.log(sym.err);
-      printRawCommandOutput(cmakeBuild.stdout, cmakeBuild.stderr);
     } else {
-      const ctestRes = await execCommand('ctest', [
-        '--test-dir',
+      const cmakeBuild = await execCommand('cmake', [
+        '--build',
         scanHostBuildDir,
-        '--output-on-failure',
       ]);
-      scanDuration += ctestRes.durationMs;
-      scanPassed = ctestRes.code === 0;
-      const ctestMatch = ctestRes.stdout.match(/([0-9]+% tests passed[^\n]*)/);
-      scanSummary = ctestMatch
-        ? ctestMatch[1].trim()
-        : scanPassed
-          ? 'All tests passed'
-          : 'Tests failed';
-      console.log(scanPassed ? sym.ok : sym.err);
-      if (!scanPassed) {
-        printRawCommandOutput(ctestRes.stdout, ctestRes.stderr);
+      scanDuration += cmakeBuild.durationMs;
+      if (cmakeBuild.code !== 0) {
+        scanPassed = false;
+        scanSummary = 'CMake build failed';
+        console.log(sym.err);
+        printRawCommandOutput(cmakeBuild.stdout, cmakeBuild.stderr);
+      } else {
+        const ctestRes = await execCommand('ctest', [
+          '--test-dir',
+          scanHostBuildDir,
+          '--output-on-failure',
+        ]);
+        scanDuration += ctestRes.durationMs;
+        scanPassed = ctestRes.code === 0;
+        const ctestMatch = ctestRes.stdout.match(
+          /([0-9]+% tests passed[^\n]*)/,
+        );
+        scanSummary = ctestMatch
+          ? ctestMatch[1].trim()
+          : scanPassed
+            ? 'All tests passed'
+            : 'Tests failed';
+        console.log(scanPassed ? sym.ok : sym.err);
+        if (!scanPassed) {
+          printRawCommandOutput(ctestRes.stdout, ctestRes.stderr);
+        }
       }
     }
   }
