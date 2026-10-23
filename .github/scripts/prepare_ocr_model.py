@@ -54,7 +54,10 @@ def main() -> int:
         req = urllib.request.Request(
             DEFAULT_URL, headers={"User-Agent": "AidansPatches/1.0"}
         )
-        with urllib.request.urlopen(req) as resp, open(temp_file, "wb") as out:
+        with (
+            urllib.request.urlopen(req, timeout=60) as resp,
+            open(temp_file, "wb") as out,
+        ):
             shutil.copyfileobj(resp, out)
     except (urllib.error.URLError, OSError) as e:
         if os.path.exists(temp_file):

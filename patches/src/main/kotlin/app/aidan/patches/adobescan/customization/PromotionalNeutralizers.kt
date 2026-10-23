@@ -125,12 +125,21 @@ internal fun BytecodePatchContext.removeMove() {
     }
 
     moveIndices.forEach { moveIdx ->
-        val addIndex = (moveIdx + 1..minOf(instructions.size - 1, moveIdx + 10)).firstOrNull { idx ->
+        val range = moveIdx + 1..minOf(instructions.size - 1, moveIdx + 10)
+        var addIndex: Int? = null
+        for (idx in range) {
             val inst = instructions[idx]
+            if (inst.opcode == Opcode.NOP) {
+                break
+            }
             val ref = (inst as? ReferenceInstruction)?.reference as? MethodReference
-            inst.opcode == Opcode.INVOKE_VIRTUAL &&
+            if (inst.opcode == Opcode.INVOKE_VIRTUAL &&
                 ref?.definingClass == "Lm90/b;" &&
                 ref.name == "add"
+            ) {
+                addIndex = idx
+                break
+            }
         }
         if (addIndex != null) {
             optionsMethod.replaceInstruction(addIndex, "nop")
@@ -274,10 +283,18 @@ internal fun BytecodePatchContext.removeCompressPdf() {
         throw PatchException("Could not find Compress PDF resource id in FileOptionsMenuBottomSheet")
     }
 
-    val addIndex = (compressStringIndex + 1..minOf(instructions.size - 1, compressStringIndex + 15)).firstOrNull { idx ->
-        val ref = (instructions[idx] as? ReferenceInstruction)?.reference as? MethodReference
-        instructions[idx].opcode == Opcode.INVOKE_VIRTUAL &&
-            ref?.name == "add"
+    val addRange = compressStringIndex + 1..minOf(instructions.size - 1, compressStringIndex + 15)
+    var addIndex: Int? = null
+    for (idx in addRange) {
+        val inst = instructions[idx]
+        if (inst.opcode == Opcode.NOP) {
+            break
+        }
+        val ref = (inst as? ReferenceInstruction)?.reference as? MethodReference
+        if (inst.opcode == Opcode.INVOKE_VIRTUAL && ref?.name == "add") {
+            addIndex = idx
+            break
+        }
     }
     if (addIndex != null) {
         optionsMethod.replaceInstruction(addIndex, "nop")
@@ -302,11 +319,21 @@ internal fun BytecodePatchContext.removeCompressPdf() {
         throw PatchException("Could not find Send compressed resource id in Share bottom sheet")
     }
 
-    val gCallIndex = (sendCompressedIndex + 1..minOf(iInstructions.size - 1, sendCompressedIndex + 25)).firstOrNull { idx ->
-        val ref = (iInstructions[idx] as? ReferenceInstruction)?.reference as? MethodReference
-        iInstructions[idx].opcode == Opcode.INVOKE_STATIC &&
+    val gRange = sendCompressedIndex + 1..minOf(iInstructions.size - 1, sendCompressedIndex + 25)
+    var gCallIndex: Int? = null
+    for (idx in gRange) {
+        val inst = iInstructions[idx]
+        if (inst.opcode == Opcode.NOP) {
+            break
+        }
+        val ref = (inst as? ReferenceInstruction)?.reference as? MethodReference
+        if (inst.opcode == Opcode.INVOKE_STATIC &&
             ref?.definingClass == SHARE_BOTTOM_SHEET &&
             ref.name == "g"
+        ) {
+            gCallIndex = idx
+            break
+        }
     }
     if (gCallIndex != null) {
         iMethod.replaceInstruction(gCallIndex, "nop")

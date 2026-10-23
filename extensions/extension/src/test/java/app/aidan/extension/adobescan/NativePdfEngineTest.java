@@ -11,6 +11,10 @@ public class NativePdfEngineTest {
         assertEquals(1, NativePdfEngine.COMPRESS);
         assertEquals(2, NativePdfEngine.PROTECT);
         assertEquals(3, NativePdfEngine.UNPROTECT);
+        assertEquals(4, NativePdfEngine.COMBINE);
+        assertEquals(5, NativePdfEngine.EXPORT_DOCX);
+        assertEquals(6, NativePdfEngine.EXPORT_XLSX);
+        assertEquals(7, NativePdfEngine.EXPORT_PPTX);
     }
 
     @Test

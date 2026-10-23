@@ -36,7 +36,7 @@ public class PdfOperationCoordinator {
     private static PdfOperationCoordinator sInstance;
 
     private final Application application;
-    private final ExecutorService executor = Executors.newSingleThreadExecutor();
+    private final ExecutorService executor;
     private final Handler mainHandler = new Handler(Looper.getMainLooper());
     private final AtomicLong operationIdGenerator = new AtomicLong(System.currentTimeMillis());
 
@@ -128,11 +128,19 @@ public class PdfOperationCoordinator {
     };
 
     PdfOperationCoordinator(final Application application) {
-        this(application, true);
+        this(application, true, Executors.newSingleThreadExecutor());
     }
 
     PdfOperationCoordinator(final Application application, final boolean initAndroidServices) {
+        this(application, initAndroidServices, Executors.newSingleThreadExecutor());
+    }
+
+    PdfOperationCoordinator(
+            final Application application,
+            final boolean initAndroidServices,
+            final ExecutorService executor) {
         this.application = application;
+        this.executor = executor != null ? executor : Executors.newSingleThreadExecutor();
         if (initAndroidServices && application != null) {
             registerLifecycleCallbacks();
             bindTransformService();
@@ -753,8 +761,14 @@ public class PdfOperationCoordinator {
                 if (rawBaseName.toLowerCase().endsWith(".pdf")) {
                     rawBaseName = rawBaseName.substring(0, rawBaseName.length() - 4);
                 }
+                rawBaseName = rawBaseName.replaceAll("[/\\\\\\x00-\\x1F\\x7F]", "_").trim();
+                while (rawBaseName.startsWith(".") || rawBaseName.isEmpty()) {
+                    rawBaseName = rawBaseName.isEmpty() ? "Export" : rawBaseName.substring(1).trim();
+                }
+                if (rawBaseName.isEmpty()) {
+                    rawBaseName = "Export";
+                }
                 final String finalFileName = rawBaseName + ext;
-
                 final File exportDir = new File(application.getCacheDir(), "aidan-scan-pdf/export-" + op.operationId);
                 if (!exportDir.exists()) exportDir.mkdirs();
                 final File exportedFile = new File(exportDir, finalFileName);
@@ -980,6 +994,7 @@ public class PdfOperationCoordinator {
             public void run() {
                 final ScanFileAdapter adapter = ScanFileAdapter.getInstance();
                 final PdfFileTransaction tx = op.transaction;
+                boolean launcherHandedOff = false;
 
                 try {
                     switch (status) {
@@ -1010,6 +1025,7 @@ public class PdfOperationCoordinator {
                                         }
                                     }
                                 });
+                                launcherHandedOff = true;
                             } else {
                                 final String outSha256 = PdfFileTransaction.sha256(tx.getStageFile());
                                 final boolean isProtected = (op.operation == NativePdfEngine.PROTECT)
@@ -1057,6 +1073,7 @@ public class PdfOperationCoordinator {
                                         }
                                     }
                                 });
+                                launcherHandedOff = true;
                             } else {
                                 dismissProgressAndSnackbar(getErrorMessageForStatus(status));
                             }
@@ -1080,6 +1097,7 @@ public class PdfOperationCoordinator {
                                         }
                                     }
                                 });
+                                launcherHandedOff = true;
                             } else {
                                 dismissProgressAndSnackbar(getErrorMessageForStatus(status));
                             }
@@ -1107,7 +1125,7 @@ public class PdfOperationCoordinator {
                     tx.rollback(adapter);
                     dismissProgressAndSnackbar("PDF operation failed");
                 } finally {
-                    if (op.launcherId != null && !op.compressAndShare) {
+                    if (op.launcherId != null && !launcherHandedOff) {
                         PdfShareBridge.retireLauncher(op.launcherId);
                     }
                     clearActiveOperation(op.operationId);

@@ -1,10 +1,11 @@
 #ifndef AIDANSCANPDF_PDF_ENGINE_HPP
 #define AIDANSCANPDF_PDF_ENGINE_HPP
 
+#include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <string>
-
+#include <vector>
 namespace aidanscanpdf {
 
 enum Operation {

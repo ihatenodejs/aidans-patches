@@ -8,6 +8,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <fcntl.h>
+#include <filesystem>
 #include <iostream>
 #include <memory>
 #include <qpdf/QPDF.hh>
@@ -201,8 +202,8 @@ int main() {
         std::string dir;
         ~TempDirCleaner() {
             if (!dir.empty()) {
-                std::string rmCmd = "rm -rf " + dir;
-                (void)std::system(rmCmd.c_str());
+                std::error_code ec;
+                std::filesystem::remove_all(dir, ec);
             }
         }
     } cleaner{testDir};

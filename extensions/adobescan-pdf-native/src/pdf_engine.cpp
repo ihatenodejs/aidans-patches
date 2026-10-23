@@ -870,7 +870,6 @@ int combine(const int *inputFds, size_t inputCount, const std::vector<std::strin
         writer.setStreamDataMode(qpdf_s_preserve);
         writer.write();
 
-        fflush(outStream);
         fsync(outGuard.fd);
 
         if (progressCb)

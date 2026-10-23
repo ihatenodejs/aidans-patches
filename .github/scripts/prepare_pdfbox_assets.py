@@ -38,9 +38,16 @@ def main() -> int:
     parser.add_argument(
         "--version", required=False, default=None, help="pdfbox-android version"
     )
+    parser.add_argument(
+        "--aar", required=False, default=None, help="Direct path to pdfbox-android AAR"
+    )
     args = parser.parse_args()
 
-    aar_path = find_pdfbox_aar(args.gradle_home, args.version)
+    aar_path = (
+        args.aar
+        if args.aar and os.path.isfile(args.aar)
+        else find_pdfbox_aar(args.gradle_home, args.version)
+    )
     if not aar_path:
         ver_str = f" {args.version}" if args.version else ""
         print(f"pdfbox-android{ver_str}.aar not found in Gradle cache", file=sys.stderr)

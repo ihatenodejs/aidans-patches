@@ -71,7 +71,13 @@ public final class PdfExportBridge {
                     @Override
                     public void onClick(DialogInterface dialog, int which) {
                         final int format = formats[selected[0]];
-                        PdfOperationCoordinator.getInstance().startExport(activity, scanFile, format);
+                        final PdfOperationCoordinator coordinator = PdfOperationCoordinator.getInstance();
+                        if (coordinator == null) {
+                            Log.e(TAG, "PdfOperationCoordinator is unavailable");
+                            PdfOperationUi.showSnackbar(activity, "PDF service unavailable");
+                            return;
+                        }
+                        coordinator.startExport(activity, scanFile, format);
                     }
                 })
                 .setNegativeButton("Cancel", null)
@@ -109,7 +115,12 @@ public final class PdfExportBridge {
             PdfOperationUi.showSnackbar(activity, "Cannot export password-protected scan. Remove password first.");
             return;
         }
-
-        PdfOperationCoordinator.getInstance().startExport(activity, scanFile, NativePdfEngine.EXPORT_DOCX);
+        final PdfOperationCoordinator coordinator = PdfOperationCoordinator.getInstance();
+        if (coordinator == null) {
+            Log.e(TAG, "PdfOperationCoordinator is unavailable");
+            PdfOperationUi.showSnackbar(activity, "PDF service unavailable");
+            return;
+        }
+        coordinator.startExport(activity, scanFile, NativePdfEngine.EXPORT_DOCX);
     }
 }

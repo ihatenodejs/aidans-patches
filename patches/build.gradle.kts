@@ -17,9 +17,16 @@ patches {
 // generatePatchesList task but never bundled into the APK.
 val patchListGeneratorClasspath = configurations.create("patchListGeneratorClasspath")
 
+val pdfboxConfig = configurations.create("pdfboxConfig") {
+    isCanBeConsumed = false
+    isCanBeResolved = true
+    isTransitive = false
+}
+
 dependencies {
     compileOnly(libs.gson)
     patchListGeneratorClasspath(libs.gson)
+    pdfboxConfig(libs.pdfbox.android)
 }
 val emojiFontDir = layout.buildDirectory.dir("generated/resources/emojiFont")
 val outputFontFile = emojiFontDir.map { it.file("fonts/AppleColorEmoji.ttf") }
@@ -132,6 +139,43 @@ val buildNhlAdblockNative = tasks.register<Exec>("buildNhlAdblockNative") {
 val adobeScanPdfNativeDir = layout.buildDirectory.dir("generated/resources/adobeScanPdfNative")
 val outputAdobeScanPdfSo = adobeScanPdfNativeDir.map { it.file("adobescan/pdf/arm64-v8a/libaidanscanpdf.so") }
 
+fun resolveSdkDir(): File? {
+    val envSdk = System.getenv("ANDROID_HOME") ?: System.getenv("ANDROID_SDK_ROOT")
+    if (!envSdk.isNullOrBlank()) {
+        return File(envSdk)
+    }
+    val localProps = rootProject.file("local.properties")
+    if (localProps.exists()) {
+        val props = Properties().apply { localProps.inputStream().use { load(it) } }
+        val dir = props.getProperty("sdk.dir")
+        if (!dir.isNullOrBlank()) return File(dir)
+    }
+    return null
+}
+
+fun resolveNdkDir(sdkDir: File?): File {
+    val ndkHomeEnv = System.getenv("ANDROID_NDK_HOME")
+    if (!ndkHomeEnv.isNullOrBlank()) {
+        val f = File(ndkHomeEnv)
+        if (f.exists()) return f
+    }
+    val localProps = rootProject.file("local.properties")
+    if (localProps.exists()) {
+        val props = Properties().apply { localProps.inputStream().use { load(it) } }
+        val dir = props.getProperty("ndk.dir")
+        if (!dir.isNullOrBlank()) {
+            val f = File(dir)
+            if (f.exists()) return f
+        }
+    }
+    val baseSdk = sdkDir ?: throw GradleException("Could not resolve Android SDK path for NDK compilation. Set ANDROID_HOME or local.properties.")
+    val d = File(baseSdk, "ndk/$REQUIRED_NDK_VERSION")
+    if (!d.exists()) {
+        throw GradleException("Required Android NDK $REQUIRED_NDK_VERSION not found at ${d.absolutePath}. Install NDK $REQUIRED_NDK_VERSION.")
+    }
+    return d
+}
+
 val buildAdobeScanPdfNative = tasks.register<Exec>("buildAdobeScanPdfNative") {
     description = "Compiles native qpdf/jpeg engine for Adobe Scan arm64-v8a"
     val nativeDir = rootProject.file("extensions/adobescan-pdf-native")
@@ -143,33 +187,8 @@ val buildAdobeScanPdfNative = tasks.register<Exec>("buildAdobeScanPdfNative") {
     workingDir = nativeDir
 
     doFirst {
-        val sdkDir = run {
-            val envSdk = System.getenv("ANDROID_HOME") ?: System.getenv("ANDROID_SDK_ROOT")
-            if (!envSdk.isNullOrBlank()) {
-                File(envSdk)
-            } else {
-                val localProps = rootProject.file("local.properties")
-                if (localProps.exists()) {
-                    val props = Properties().apply { localProps.inputStream().use { load(it) } }
-                    val dir = props.getProperty("sdk.dir")
-                    if (!dir.isNullOrBlank()) File(dir) else null
-                } else null
-            }
-        }
-
-        val ndkDir = run {
-            val ndkHomeEnv = System.getenv("ANDROID_NDK_HOME")
-            if (!ndkHomeEnv.isNullOrBlank()) {
-                val f = File(ndkHomeEnv)
-                if (f.exists()) return@run f
-            }
-            val baseSdk = sdkDir ?: throw GradleException("Could not resolve Android SDK path for NDK compilation. Set ANDROID_HOME or local.properties.")
-            val d = File(baseSdk, "ndk/$REQUIRED_NDK_VERSION")
-            if (!d.exists()) {
-                throw GradleException("Required Android NDK $REQUIRED_NDK_VERSION not found at ${d.absolutePath}. Install NDK $REQUIRED_NDK_VERSION.")
-            }
-            d
-        }
+        val sdkDir = resolveSdkDir()
+        val ndkDir = resolveNdkDir(sdkDir)
 
         fun findExecutable(name: String): String {
             val pathEnv = System.getenv("PATH") ?: ""
@@ -240,34 +259,22 @@ val buildAdobeScanPdfNative = tasks.register<Exec>("buildAdobeScanPdfNative") {
         dest.parentFile.mkdirs()
         builtSo.copyTo(dest, overwrite = true)
 
-        val ndkHomeEnv = System.getenv("ANDROID_NDK_HOME")
-        val ndkDir = if (!ndkHomeEnv.isNullOrBlank() && File(ndkHomeEnv).exists()) {
-            File(ndkHomeEnv)
-        } else {
-            val sdkDir = run {
-                val envSdk = System.getenv("ANDROID_HOME") ?: System.getenv("ANDROID_SDK_ROOT")
-                if (!envSdk.isNullOrBlank()) File(envSdk) else {
-                    val localProps = rootProject.file("local.properties")
-                    if (localProps.exists()) {
-                        val props = Properties().apply { localProps.inputStream().use { load(it) } }
-                        val dir = props.getProperty("sdk.dir")
-                        if (!dir.isNullOrBlank()) File(dir) else null
-                    } else null
-                }
-            }
-            sdkDir?.let { File(it, "ndk/$REQUIRED_NDK_VERSION") }
-        }
+        val sdkDir = resolveSdkDir()
+        val ndkDir = resolveNdkDir(sdkDir)
         val osName = System.getProperty("os.name").lowercase()
         val hostTag = when {
             osName.contains("mac") || osName.contains("darwin") -> "darwin-x86_64"
             osName.contains("linux") -> "linux-x86_64"
             osName.contains("windows") -> "windows-x86_64"
-            else -> "darwin-x86_64"
+            else -> throw GradleException("Unsupported host operating system for llvm-strip: $osName")
         }
-        val stripTool = ndkDir?.let { File(it, "toolchains/llvm/prebuilt/$hostTag/bin/llvm-strip") }
-        if (stripTool != null && stripTool.exists()) {
-            ProcessBuilder(stripTool.absolutePath, "--strip-unneeded", dest.absolutePath)
+        val stripTool = File(ndkDir, "toolchains/llvm/prebuilt/$hostTag/bin/llvm-strip")
+        if (stripTool.exists()) {
+            val stripExit = ProcessBuilder(stripTool.absolutePath, "--strip-unneeded", dest.absolutePath)
                 .inheritIO().start().waitFor()
+            if (stripExit != 0) {
+                throw GradleException("llvm-strip failed with exit code $stripExit")
+            }
         }
     }
 }
@@ -306,10 +313,23 @@ val preparePdfBoxAssets = tasks.register<Exec>("preparePdfBoxAssets") {
     val scriptFile = rootProject.file(".github/scripts/prepare_pdfbox_assets.py")
     inputs.file(scriptFile)
     inputs.property("pdfBoxVersion", libs.versions.pdfbox.android.get())
+    inputs.files(pdfboxConfig)
 
     workingDir = rootDir
     doFirst {
         outputPdfBoxAssetsZip.get().asFile.parentFile.mkdirs()
+        commandLine(
+            "python3",
+            scriptFile.absolutePath,
+            "--output",
+            outputPdfBoxAssetsZip.get().asFile.absolutePath,
+            "--gradle-home",
+            gradle.gradleUserHomeDir.absolutePath,
+            "--version",
+            libs.versions.pdfbox.android.get(),
+            "--aar",
+            pdfboxConfig.files.first { it.name.endsWith(".aar") }.absolutePath,
+        )
     }
 
     commandLine(

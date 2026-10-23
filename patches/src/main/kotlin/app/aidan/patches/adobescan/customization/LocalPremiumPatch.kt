@@ -63,24 +63,28 @@ val adobeScanPdfManifestPatch = resourcePatch(
             appElement.appendChild(service)
         }
 
-        runCatching {
-            document("res/xml/file_provider_paths.xml").use { doc ->
-                val root = doc.documentElement
-                var exists = false
-                val children = root.childNodes
-                for (i in 0 until children.length) {
-                    val child = children.item(i) as? org.w3c.dom.Element ?: continue
-                    if (child.getAttribute("name") == "aidan_scan_pdf") {
-                        exists = true
-                        break
-                    }
+        val fileProviderDoc = try {
+            document("res/xml/file_provider_paths.xml")
+        } catch (e: Exception) {
+            throw PatchException("Could not open res/xml/file_provider_paths.xml", e)
+        }
+        fileProviderDoc.use { doc ->
+            val root = doc.documentElement
+                ?: throw PatchException("res/xml/file_provider_paths.xml has no root element")
+            var exists = false
+            val children = root.childNodes
+            for (i in 0 until children.length) {
+                val child = children.item(i) as? org.w3c.dom.Element ?: continue
+                if (child.getAttribute("name") == "aidan_scan_pdf") {
+                    exists = true
+                    break
                 }
-                if (!exists) {
-                    val cachePath = doc.createElement("cache-path")
-                    cachePath.setAttribute("name", "aidan_scan_pdf")
-                    cachePath.setAttribute("path", "aidan-scan-pdf/")
-                    root.appendChild(cachePath)
-                }
+            }
+            if (!exists) {
+                val cachePath = doc.createElement("cache-path")
+                cachePath.setAttribute("name", "aidan_scan_pdf")
+                cachePath.setAttribute("path", "aidan-scan-pdf/")
+                root.appendChild(cachePath)
             }
         }
 

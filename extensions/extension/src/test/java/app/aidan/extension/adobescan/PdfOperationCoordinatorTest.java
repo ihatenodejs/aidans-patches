@@ -7,7 +7,12 @@ import static org.junit.Assert.assertTrue;
 
 import android.app.Activity;
 import java.io.File;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.AbstractExecutorService;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
 import org.junit.Test;
 
 public class PdfOperationCoordinatorTest {
@@ -86,7 +91,17 @@ public class PdfOperationCoordinatorTest {
                 }
             });
 
-            final PdfOperationCoordinator coordinator = new PdfOperationCoordinator(null, false);
+            final List<Runnable> queuedTasks = new ArrayList<>();
+            final ExecutorService queueOnlyExecutor = new AbstractExecutorService() {
+                private boolean shutdown = false;
+                @Override public void shutdown() { shutdown = true; }
+                @Override public List<Runnable> shutdownNow() { shutdown = true; return new ArrayList<>(queuedTasks); }
+                @Override public boolean isShutdown() { return shutdown; }
+                @Override public boolean isTerminated() { return shutdown; }
+                @Override public boolean awaitTermination(long timeout, TimeUnit unit) { return true; }
+                @Override public void execute(Runnable command) { queuedTasks.add(command); }
+            };
+            final PdfOperationCoordinator coordinator = new PdfOperationCoordinator(null, false, queueOnlyExecutor);
             final Activity activity = new Activity();
             final Object scanFileObj = new Object();
             final UUID launcherId1 = UUID.randomUUID();

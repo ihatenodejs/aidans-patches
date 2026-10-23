@@ -432,8 +432,10 @@ public class ScanFileAdapter {
                 Log.w(TAG, "Failed to read loaded documents via v0.B()", t);
             }
 
+            if (!persisted) {
+                return null;
+            }
             return scanFile;
-
         } catch (final Throwable t) {
             Log.e(TAG, "Failed to create and persist local document", t);
             return null;

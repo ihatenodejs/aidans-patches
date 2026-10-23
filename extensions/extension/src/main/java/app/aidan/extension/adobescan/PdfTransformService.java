@@ -10,6 +10,7 @@ import android.os.Process;
 import android.os.RemoteException;
 import android.util.Log;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -231,9 +232,22 @@ public class PdfTransformService extends Service {
                                     capturedEncrypted[0] = encrypted;
                                 }
                             };
-
-                            NativePdfEngine.combine(fds, passwords, output.getFd(), nativeCallbacks);
-
+                            final byte[][] passwordsUtf8;
+                            if (passwords != null) {
+                                passwordsUtf8 = new byte[passwords.length][];
+                                for (int i = 0; i < passwords.length; i++) {
+                                    if (passwords[i] != null) {
+                                        passwordsUtf8[i] = passwords[i].getBytes(StandardCharsets.UTF_8);
+                                    }
+                                }
+                            } else {
+                                passwordsUtf8 = null;
+                            }
+                            try {
+                                NativePdfEngine.combine(fds, passwordsUtf8, output.getFd(), nativeCallbacks);
+                            } finally {
+                                wipePasswords(passwordsUtf8);
+                            }
                         } else if (operation == NativePdfEngine.EXPORT_DOCX ||
                                    operation == NativePdfEngine.EXPORT_XLSX ||
                                    operation == NativePdfEngine.EXPORT_PPTX) {
@@ -359,6 +373,16 @@ public class PdfTransformService extends Service {
     private static void wipePassword(final byte[] passwordUtf8) {
         if (passwordUtf8 != null) {
             Arrays.fill(passwordUtf8, (byte) 0);
+        }
+    }
+
+    private static void wipePasswords(final byte[][] passwordsUtf8) {
+        if (passwordsUtf8 == null) return;
+        for (int i = 0; i < passwordsUtf8.length; i++) {
+            if (passwordsUtf8[i] != null) {
+                Arrays.fill(passwordsUtf8[i], (byte) 0);
+                passwordsUtf8[i] = null;
+            }
         }
     }
 

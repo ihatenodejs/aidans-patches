@@ -128,31 +128,30 @@ public final class PdfOfficeExporter {
             }
 
             // Write output format
-            try (final FileOutputStream fos = new FileOutputStream(outputOffice.getFileDescriptor())) {
-                switch (format) {
-                    case NativePdfEngine.EXPORT_DOCX:
-                        OfficeDocumentWriter.writeDocx(layouts, fos);
-                        break;
-                    case NativePdfEngine.EXPORT_XLSX:
-                        OfficeDocumentWriter.writeXlsx(layouts, fos);
-                        break;
-                    case NativePdfEngine.EXPORT_PPTX:
-                        OfficeDocumentWriter.writePptx(layouts, fos);
-                        break;
-                    default:
-                        if (callback != null) callback.onComplete(NativePdfEngine.ENGINE_FAILURE, 0, 0);
-                        return;
-                }
-                fos.flush();
-                try {
-                    outputOffice.getFileDescriptor().sync();
-                } catch (final Throwable ignored) {}
+            final FileOutputStream fos = new FileOutputStream(outputOffice.getFileDescriptor());
+            switch (format) {
+                case NativePdfEngine.EXPORT_DOCX:
+                    OfficeDocumentWriter.writeDocx(layouts, fos);
+                    break;
+                case NativePdfEngine.EXPORT_XLSX:
+                    OfficeDocumentWriter.writeXlsx(layouts, fos);
+                    break;
+                case NativePdfEngine.EXPORT_PPTX:
+                    OfficeDocumentWriter.writePptx(layouts, fos);
+                    break;
+                default:
+                    if (callback != null) callback.onComplete(NativePdfEngine.ENGINE_FAILURE, 0, 0);
+                    return;
             }
+            fos.flush();
+            try {
+                outputOffice.getFileDescriptor().sync();
+            } catch (final Throwable ignored) {}
 
             final long outputBytes = outputOffice.getStatSize();
             if (callback != null) {
                 callback.onProgress(100);
-                callback.onComplete(NativePdfEngine.OK, pageCount, outputBytes > 0 ? outputBytes : 1024);
+                callback.onComplete(NativePdfEngine.OK, pageCount, outputBytes >= 0 ? outputBytes : 0);
             }
 
         } catch (final Throwable t) {

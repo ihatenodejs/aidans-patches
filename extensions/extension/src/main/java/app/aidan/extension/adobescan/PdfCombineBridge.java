@@ -35,20 +35,21 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-
 public final class PdfCombineBridge {
 
     private static final String TAG = "PdfCombineBridge";
 
-    private static final LruCache<String, Bitmap> sThumbnailCache = new LruCache<String, Bitmap>(50) {
+    private static final LruCache<String, Bitmap> sThumbnailCache = new LruCache<String, Bitmap>(8 * 1024) {
         @Override
         protected int sizeOf(final String key, final Bitmap bitmap) {
             return bitmap.getByteCount() / 1024;
         }
     };
 
+    private static final Map<Object, Boolean> sProtectionCache = new ConcurrentHashMap<>();
     private static final ExecutorService sThumbnailExecutor = Executors.newFixedThreadPool(2);
 
     private PdfCombineBridge() {}
@@ -194,6 +195,12 @@ public final class PdfCombineBridge {
         };
 
         listView.setAdapter(listAdapter);
+        precomputeProtection(eligibleScans, new Runnable() {
+            @Override
+            public void run() {
+                listAdapter.notifyDataSetChanged();
+            }
+        });
         listView.setOnItemClickListener(new android.widget.AdapterView.OnItemClickListener() {
             @Override
             public void onItemClick(android.widget.AdapterView<?> parent, View view, int position, long id) {
@@ -322,6 +329,7 @@ public final class PdfCombineBridge {
         };
 
         renderList.run();
+        precomputeProtection(orderedList, renderList);
 
         new AlertDialog.Builder(activity)
                 .setTitle("Combine Files")
@@ -352,8 +360,14 @@ public final class PdfCombineBridge {
                             }
                         }
 
+                        final PdfOperationCoordinator coordinator = PdfOperationCoordinator.getInstance();
+                        if (coordinator == null) {
+                            Log.e(TAG, "PdfOperationCoordinator is unavailable");
+                            PdfOperationUi.showSnackbar(activity, "PDF service unavailable");
+                            return;
+                        }
                         if (protectedItems.isEmpty()) {
-                            PdfOperationCoordinator.getInstance().startCombine(activity, orderedList, rawName, null);
+                            coordinator.startCombine(activity, orderedList, rawName, null);
                         } else {
                             showPasswordPromptDialog(activity, orderedList, rawName, protectedItems);
                         }
@@ -442,8 +456,13 @@ public final class PdfCombineBridge {
                                 passwords.add(null);
                             }
                         }
-
-                        PdfOperationCoordinator.getInstance().startCombine(activity, orderedList, rawName, passwords);
+                        final PdfOperationCoordinator coordinator = PdfOperationCoordinator.getInstance();
+                        if (coordinator == null) {
+                            Log.e(TAG, "PdfOperationCoordinator is unavailable");
+                            PdfOperationUi.showSnackbar(activity, "PDF service unavailable");
+                            return;
+                        }
+                        coordinator.startCombine(activity, orderedList, rawName, passwords);
                     }
                 })
                 .setNegativeButton("Cancel", null)
@@ -452,30 +471,51 @@ public final class PdfCombineBridge {
 
     private static boolean isScanProtected(final Object scanFile) {
         if (scanFile == null) return false;
-        final ScanFileAdapter adapter = ScanFileAdapter.getInstance();
-        if (adapter.isProtected(scanFile) || adapter.getProtectionStatus(scanFile) == 2) {
-            return true;
+        final Boolean cached = sProtectionCache.get(scanFile);
+        if (cached != null) {
+            return cached;
         }
-        final File f = adapter.getFile(scanFile);
-        if (f != null && f.exists() && f.isFile()) {
-            ParcelFileDescriptor pfd = null;
-            try {
-                pfd = ParcelFileDescriptor.open(f, ParcelFileDescriptor.MODE_READ_ONLY);
-                final PdfRenderer renderer = new PdfRenderer(pfd);
-                renderer.close();
-            } catch (final SecurityException se) {
-                return true;
-            } catch (final Throwable ignored) {
-            } finally {
-                if (pfd != null) {
-                    try {
-                        pfd.close();
-                    } catch (final Throwable ignored) {
+        final ScanFileAdapter adapter = ScanFileAdapter.getInstance();
+        return adapter.isProtected(scanFile) || adapter.getProtectionStatus(scanFile) == 2;
+    }
+
+    private static void precomputeProtection(final List<?> items, final Runnable onComplete) {
+        if (items == null || items.isEmpty()) return;
+        final List<Object> copy = new ArrayList<>(items);
+        sThumbnailExecutor.execute(new Runnable() {
+            @Override
+            public void run() {
+                final ScanFileAdapter adapter = ScanFileAdapter.getInstance();
+                for (final Object scanFile : copy) {
+                    if (scanFile == null || sProtectionCache.containsKey(scanFile)) continue;
+                    boolean isProtected = adapter.isProtected(scanFile) || adapter.getProtectionStatus(scanFile) == 2;
+                    if (!isProtected) {
+                        final File f = adapter.getFile(scanFile);
+                        if (f != null && f.exists() && f.isFile()) {
+                            ParcelFileDescriptor pfd = null;
+                            try {
+                                pfd = ParcelFileDescriptor.open(f, ParcelFileDescriptor.MODE_READ_ONLY);
+                                final PdfRenderer renderer = new PdfRenderer(pfd);
+                                renderer.close();
+                            } catch (final SecurityException se) {
+                                isProtected = true;
+                            } catch (final Throwable ignored) {
+                            } finally {
+                                if (pfd != null) {
+                                    try {
+                                        pfd.close();
+                                    } catch (final Throwable ignored) {}
+                                }
+                            }
+                        }
                     }
+                    sProtectionCache.put(scanFile, isProtected);
+                }
+                if (onComplete != null) {
+                    new Handler(Looper.getMainLooper()).post(onComplete);
                 }
             }
-        }
-        return false;
+        });
     }
 
     private static Bitmap getOrCreatePlaceholder(

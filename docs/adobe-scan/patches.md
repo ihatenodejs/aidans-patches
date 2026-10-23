@@ -295,7 +295,7 @@ When **Remove Settings** is enabled, the patch hides the `USAGE INFO` category a
   - `Share This App` (`removeShareApp`, default `true`): Removes the Share this app item from the Settings menu.
   - `Fill & Sign` (`removeFillAndSign`, default `true`): Removes the Fill & Sign item from file option menus and Recent scan cards.
   - `Open in Adobe Acrobat` (`removeOpenInAcrobat`, default `false`): Removes the Open in Adobe Acrobat option from file option menus, the preview screen, and Recent scan cards.
-  - `Generative Summary` (`removeGenerativeSummary`, default `true`): Removes Generative summary actions from file option menus and the preview screen.
+  - `Generative Summary` (`removeGenerativeSummary`, default `true`): Removes Generative summary actions from the File Options bottom sheet.
   - `Edit Text` (`removeEditText`, default `true`): Removes Edit text from file option menus, the preview bottom toolbar, and scan cards.
   - `Move` (`removeMove`, default `true`): Removes Move file from file option menus across all surfaces.
   - `Save as Word Doc` (`removeSaveAsWord`, default `true`): Removes Save as Word doc from scan cards.
@@ -380,7 +380,7 @@ The **Local Premium** patch enables locally executable premium document actions:
 
 All transforms are protected by atomic journaled transactions (`PdfFileTransaction`) with immutable snapshotting, SHA-256 stability checks, and rollback guarantees. Model updates and Room database persistence (`ScanFilePersistentData`) are executed synchronously within database transactions via `ScanFileAdapter`.
 
-When signed in to a personal or trial Adobe ID (with `Remove Login` disabled), cloud features like Generative summary remain intact and functional; when using `Remove Login`, all local operations run 100% offline without Adobe Document Cloud.
+When signed in to a personal or trial Adobe ID (with `Remove Login` disabled), cloud features remain functional unless specifically stripped by other patches (e.g., when `Remove Useless/Promotional Items` is enabled with `removeGenerativeSummary=true`, Generative summary is removed even for signed-in accounts); when using `Remove Login`, all local operations run 100% offline without Adobe Document Cloud.
 
 When `Local PDF Compression` is enabled, the promotional neutralizer `removeCompressPdf` safely skips removing Compress PDF from file option menus and the Share sheet, preventing accidental feature stripping.
 

@@ -91,7 +91,7 @@ val removeUselessPromotionalItemsPatch = bytecodePatch(
         key = "removeGenerativeSummary",
         default = true,
         title = "Generative Summary",
-        description = "Removes Generative summary actions from file option menus and the preview screen."
+        description = "Removes Generative summary actions from the File Options bottom sheet."
     )
 
     val removeEditText = booleanOption(

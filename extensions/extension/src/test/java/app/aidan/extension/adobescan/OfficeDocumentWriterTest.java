@@ -78,7 +78,8 @@ public class OfficeDocumentWriterTest {
         assertTrue(pNodes.getLength() > 0);
 
         final String textContent = docXml.getDocumentElement().getTextContent();
-        assertTrue(textContent.contains("Widget") || textContent.contains("special"));
+        assertTrue(textContent.contains("Widget"));
+        assertTrue(textContent.contains("XML <special> & 'quote' \"test\""));
     }
 
     @Test
@@ -139,6 +140,29 @@ public class OfficeDocumentWriterTest {
         assertTrue(spNodes.getLength() > 0);
 
         final String slideText = slideXml.getDocumentElement().getTextContent();
-        assertTrue(slideText.contains("Slide") || slideText.contains("Title"));
+        assertTrue(slideText.contains("Slide Title"));
+        assertTrue(slideText.contains("Body Text"));
+
+        final Document presXml = parseXml(entries.get("ppt/presentation.xml"));
+        final NodeList notesSz = presXml.getElementsByTagNameNS("http://schemas.openxmlformats.org/presentationml/2006/main", "notesSz");
+        assertEquals(1, notesSz.getLength());
+    }
+
+    @Test
+    public void testSingleMultiColumnLineFollowedByParagraph() {
+        final List<PdfPageLayout.Word> words = Arrays.asList(
+                new PdfPageLayout.Word("Item", 0.1f, 0.1f, 0.2f, 0.12f),
+                new PdfPageLayout.Word("Price", 0.6f, 0.1f, 0.7f, 0.12f),
+                new PdfPageLayout.Word("This", 0.1f, 0.2f, 0.2f, 0.22f),
+                new PdfPageLayout.Word("is", 0.22f, 0.2f, 0.26f, 0.22f),
+                new PdfPageLayout.Word("a", 0.28f, 0.2f, 0.30f, 0.22f),
+                new PdfPageLayout.Word("paragraph", 0.32f, 0.2f, 0.50f, 0.22f)
+        );
+
+        final PdfPageLayout page = new PdfPageLayout(0, 612f, 792f, words);
+        assertTrue("Single multi-column row should not form a table", page.tables.isEmpty());
+        assertEquals("Should have reconstructed paragraphs from non-table lines", 2, page.paragraphs.size());
+        assertEquals("Item Price", page.paragraphs.get(0).text());
+        assertEquals("This is a paragraph", page.paragraphs.get(1).text());
     }
 }

@@ -109,21 +109,43 @@ JNIEXPORT void JNICALL Java_app_aidan_extension_adobescan_NativePdfEngine_combin
         jsize pwCount = env->GetArrayLength(passwordsArray);
         passwords.reserve(static_cast<size_t>(pwCount));
         for (jsize i = 0; i < pwCount; ++i) {
-            jstring js = static_cast<jstring>(env->GetObjectArrayElement(passwordsArray, i));
-            if (js != nullptr) {
-                const char *chars = env->GetStringUTFChars(js, nullptr);
-                if (chars != nullptr) {
-                    passwords.emplace_back(chars);
-                    env->ReleaseStringUTFChars(js, chars);
+            auto jb = static_cast<jbyteArray>(env->GetObjectArrayElement(passwordsArray, i));
+            if (jb != nullptr) {
+                jsize n = env->GetArrayLength(jb);
+                if (n > 0) {
+                    jbyte *bytes = env->GetByteArrayElements(jb, nullptr);
+                    if (bytes != nullptr && !env->ExceptionCheck()) {
+                        passwords.emplace_back(reinterpret_cast<const char *>(bytes),
+                                               static_cast<size_t>(n));
+                        std::memset(bytes, 0, static_cast<size_t>(n));
+                        env->ReleaseByteArrayElements(jb, bytes, JNI_ABORT);
+                    } else {
+                        passwords.emplace_back("");
+                    }
                 } else {
                     passwords.emplace_back("");
                 }
-                env->DeleteLocalRef(js);
+                env->DeleteLocalRef(jb);
             } else {
                 passwords.emplace_back("");
             }
         }
     }
+
+    struct PasswordsWiper {
+        std::vector<std::string> &pws;
+        ~PasswordsWiper() {
+            for (auto &pw : pws) {
+                if (!pw.empty()) {
+                    volatile char *p = const_cast<volatile char *>(pw.data());
+                    for (size_t i = 0; i < pw.size(); ++i) {
+                        p[i] = 0;
+                    }
+                    pw.clear();
+                }
+            }
+        }
+    } pwsWiper{passwords};
 
     jclass cbClass = nullptr;
     jmethodID onProgressMid = nullptr;

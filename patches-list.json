@@ -3072,7 +3072,7 @@
         {
           "key": "removeGenerativeSummary",
           "title": "Generative Summary",
-          "description": "Removes Generative summary actions from file option menus and the preview screen.",
+          "description": "Removes Generative summary actions from the File Options bottom sheet.",
           "required": false,
           "type": "kotlin.Boolean",
           "default": true,

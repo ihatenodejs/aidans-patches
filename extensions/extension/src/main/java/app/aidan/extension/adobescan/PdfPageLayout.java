@@ -134,11 +134,18 @@ public final class PdfPageLayout {
         sorted.sort(new Comparator<Word>() {
             @Override
             public int compare(Word a, Word b) {
-                float dy = a.top - b.top;
-                if (Math.abs(dy) > 0.015f) return dy < 0 ? -1 : 1;
+                int cmp = Float.compare(a.top, b.top);
+                if (cmp != 0) return cmp;
                 return Float.compare(a.left, b.left);
             }
         });
+
+        final Comparator<Word> leftComparator = new Comparator<Word>() {
+            @Override
+            public int compare(Word a, Word b) {
+                return Float.compare(a.left, b.left);
+            }
+        };
 
         List<Line> lines = new ArrayList<>();
         List<Word> curLine = new ArrayList<>();
@@ -154,6 +161,7 @@ public final class PdfPageLayout {
                 if (Math.abs(w.top - curLineY) <= curLineH * 0.8f) {
                     curLine.add(w);
                 } else {
+                    curLine.sort(leftComparator);
                     lines.add(new Line(curLine));
                     curLine = new ArrayList<>();
                     curLine.add(w);
@@ -163,13 +171,27 @@ public final class PdfPageLayout {
             }
         }
         if (!curLine.isEmpty()) {
+            curLine.sort(leftComparator);
             lines.add(new Line(curLine));
         }
+        final List<List<String>> currentTableRows = new ArrayList<>();
+        final List<Float> currentTableCols = new ArrayList<>();
+        final List<Line> currentTableLines = new ArrayList<>();
+        final List<Line> nonTableLines = new ArrayList<>();
 
-        List<List<String>> currentTableRows = new ArrayList<>();
-        List<Float> currentTableCols = new ArrayList<>();
-        List<Line> nonTableLines = new ArrayList<>();
-
+        final Runnable flushTable = new Runnable() {
+            @Override
+            public void run() {
+                if (currentTableRows.size() >= 2) {
+                    outTables.add(new Table(new ArrayList<>(currentTableRows)));
+                } else if (currentTableRows.size() == 1) {
+                    nonTableLines.addAll(currentTableLines);
+                }
+                currentTableRows.clear();
+                currentTableCols.clear();
+                currentTableLines.clear();
+            }
+        };
         for (Line line : lines) {
             List<String> cells = new ArrayList<>();
             List<Float> colPositions = new ArrayList<>();
@@ -204,7 +226,9 @@ public final class PdfPageLayout {
             if (isTableCandidate) {
                 if (currentTableRows.isEmpty()) {
                     currentTableRows.add(cells);
-                    currentTableCols = colPositions;
+                    currentTableCols.clear();
+                    currentTableCols.addAll(colPositions);
+                    currentTableLines.add(line);
                 } else {
                     boolean colsAlign = (cells.size() == currentTableCols.size());
                     if (colsAlign) {
@@ -217,36 +241,22 @@ public final class PdfPageLayout {
                     }
                     if (colsAlign) {
                         currentTableRows.add(cells);
+                        currentTableLines.add(line);
                     } else {
-                        if (currentTableRows.size() >= 2) {
-                            outTables.add(new Table(new ArrayList<>(currentTableRows)));
-                        } else {
-                            nonTableLines.add(line);
-                        }
-                        currentTableRows = new ArrayList<>();
+                        flushTable.run();
                         currentTableRows.add(cells);
-                        currentTableCols = colPositions;
+                        currentTableCols.clear();
+                        currentTableCols.addAll(colPositions);
+                        currentTableLines.add(line);
                     }
                 }
             } else {
-                if (currentTableRows.size() >= 2) {
-                    outTables.add(new Table(new ArrayList<>(currentTableRows)));
-                } else if (!currentTableRows.isEmpty()) {
-                    nonTableLines.add(line);
-                }
-                currentTableRows.clear();
-                currentTableCols.clear();
+                flushTable.run();
                 nonTableLines.add(line);
             }
         }
 
-        if (currentTableRows.size() >= 2) {
-            outTables.add(new Table(new ArrayList<>(currentTableRows)));
-        } else if (!currentTableRows.isEmpty()) {
-            for (Line l : lines) {
-                if (!nonTableLines.contains(l)) nonTableLines.add(l);
-            }
-        }
+        flushTable.run();
 
         List<Line> curPara = new ArrayList<>();
         for (int i = 0; i < nonTableLines.size(); i++) {

@@ -49,7 +49,7 @@ public final class NativePdfEngine {
 
     public static native void combine(
             int[] inputFds,
-            String[] passwords,
+            byte[][] passwordsUtf8,
             int outputFd,
             NativeCallbacks callbacks);
 

@@ -68,7 +68,7 @@ Gradle requires GitHub Packages credentials through `GITHUB_TOKEN`/`GITHUB_ACTOR
 
 SDK and NDK resolution for Android and native builds:
 - **Android SDK**: Resolved via `ANDROID_HOME`, `ANDROID_SDK_ROOT`, or `sdk.dir` in `local.properties`.
-- **Android NDK**: Resolved via `ANDROID_NDK_HOME`, `ndk.dir` in `local.properties`, or falling back to `$sdkDir/ndk/$REQUIRED_NDK_VERSION` (matching `REQUIRED_NDK_VERSION = "28.2.13676358"` [r28b] or `27.2.12479018` [r27c] in `patches/build.gradle.kts`).
+- **Android NDK**: Resolved via `ANDROID_NDK_HOME`, `ndk.dir` in `local.properties`, or falling back to `$sdkDir/ndk/$REQUIRED_NDK_VERSION` (matching `REQUIRED_NDK_VERSION = "28.2.13676358"` [r28b] in `patches/build.gradle.kts`).
 - **CMake & Ninja**: CMake 3.24+ and Ninja are required for native host and cross-compilation builds (`extensions/adobescan-pdf-native` and Rust native targets).
 
 ### Build and Metadata
@@ -248,7 +248,7 @@ The summary text after `<type>(<scope>): ` must follow these rules:
 - **External APK tools**: install only through `apk-lab setup`; versions and SHA-256 values live in `tools/apk-lab/tools.lock.json`.
 - **Cloudflare**: Worker development/deployment uses Wrangler through the Worker package scripts. Never deploy, mutate bindings, or rotate secrets during routine verification.
 - **Rust**: Stable toolchain (`cargo`, `clippy`, `rustfmt`) for `tools/play-metadata`. Managed via `tools/play-metadata/Cargo.lock`.
-- **Android NDK**: Version matching `REQUIRED_NDK_VERSION` in `patches/build.gradle.kts` (`28.2.13676358` / r28b or `27.2.12479018` / r27c). Resolution uses `ANDROID_NDK_HOME`, `ndk.dir` in `local.properties`, or `$sdkDir/ndk/$REQUIRED_NDK_VERSION`.
+- **Android NDK**: Version matching `REQUIRED_NDK_VERSION` in `patches/build.gradle.kts` (`28.2.13676358` / r28b). Resolution uses `ANDROID_NDK_HOME`, `ndk.dir` in `local.properties`, or `$sdkDir/ndk/$REQUIRED_NDK_VERSION`.
 - **C++**: C++20 for native PDF engine (`extensions/adobescan-pdf-native`). Clang-format (LLVM style, 4-space indent), CMake 3.24+ with Ninja, compiled with `-Wall -Wextra -Werror`.
 
 ## Testing & QA
