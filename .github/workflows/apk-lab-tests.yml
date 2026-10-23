@@ -62,18 +62,26 @@ jobs:
               - 'build.gradle.kts'
               - 'settings.gradle.kts'
               - 'gradle.properties'
+              - 'extensions/adobescan-pdf-native/**'
+              - 'extensions/nhl-adblock-native/**'
+              - '.github/scripts/**'
             rust:
               - 'tools/play-metadata/**'
               - 'extensions/nhl-adblock-native/**'
             native:
               - 'extensions/adobescan-pdf-native/**'
+              - '.clang-format'
 
       - name: Determine Run Type
         id: run-type
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          GITHUB_REF: ${{ github.ref }}
+          CORE_CHANGED: ${{ steps.filter.outputs.core }}
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ] || \
-             ( [ "${{ github.event_name }}" = "push" ] && [ "${{ github.ref }}" = "refs/heads/main" ] ) || \
-             [ "${{ steps.filter.outputs.core }}" = "true" ]; then
+          if [ "$EVENT_NAME" = "workflow_dispatch" ] || \
+             { [ "$EVENT_NAME" = "push" ] && [ "$GITHUB_REF" = "refs/heads/main" ]; } || \
+             [ "$CORE_CHANGED" = "true" ]; then
             echo "is_full_run=true" >> "$GITHUB_OUTPUT"
           else
             echo "is_full_run=false" >> "$GITHUB_OUTPUT"
@@ -173,7 +181,7 @@ jobs:
       - name: Setup Android NDK
         uses: nttld/setup-ndk@v1
         with:
-          ndk-version: r28b
+          ndk-version: r28c
           add-to-path: false
 
       - name: Audit android domain
@@ -247,7 +255,15 @@ jobs:
 
   gate:
     name: Test & Build Gate
-    needs: [detect-changes, test-web, test-python, test-android, test-rust, test-native]
+    needs:
+      [
+        detect-changes,
+        test-web,
+        test-python,
+        test-android,
+        test-rust,
+        test-native,
+      ]
     if: always()
     runs-on: ubuntu-latest
     steps:

@@ -419,7 +419,7 @@ export async function applyApprovedProposal(
             if (content.includes('ndk-version:')) {
               content = content.replace(
                 /(ndk-version:\s*)[^\s\n]+/,
-                `$1${update.assetIdentity || 'r28b'}`,
+                `$1${update.assetIdentity || 'r28c'}`,
               );
               fs.writeFileSync(wPath, content);
               touchedFiles.add(`.github/workflows/${file}`);
