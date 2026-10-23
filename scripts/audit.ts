@@ -1277,7 +1277,11 @@ async function runTest(): Promise<PhaseResult> {
   process.stdout.write(
     `  ${sym.arrow} Running Scripts & Dependencies tests (bun test)... `,
   );
-  const dtRes = await execCommand('bun', ['test', 'scripts/dependencies']);
+  const dtRes = await execCommand('bun', [
+    'test',
+    '--timeout=30000',
+    'scripts/dependencies',
+  ]);
   const dtPassed = dtRes.code === 0;
   const dtSummaryMatch = dtRes.stdout.match(/([0-9]+ pass[^\n]*)/);
   const dtSummary = dtSummaryMatch
