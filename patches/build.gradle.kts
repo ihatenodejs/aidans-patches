@@ -85,41 +85,58 @@ fun resolveHostTag(): String {
     }
 }
 
-fun validateNdkCandidate(dir: File): File {
+fun getNdkRevision(dir: File): String? {
     val propsFile = File(dir, "source.properties")
-    if (propsFile.exists()) {
+    if (!propsFile.exists()) return null
+    return runCatching {
         val props = Properties().apply { propsFile.inputStream().use { load(it) } }
-        val revision = props.getProperty("Pkg.Revision")?.trim()
-        if (revision != null && revision != REQUIRED_NDK_VERSION) {
-            throw GradleException(
-                "Android NDK version mismatch at ${dir.absolutePath}: found revision $revision, but REQUIRED_NDK_VERSION is $REQUIRED_NDK_VERSION. Install NDK $REQUIRED_NDK_VERSION."
-            )
-        }
-    }
-    return dir
+        props.getProperty("Pkg.Revision")?.trim()
+    }.getOrNull()
 }
 
 fun resolveNdkDir(sdkDir: File?): File {
+    val candidates = mutableListOf<File>()
+
     val ndkHomeEnv = System.getenv("ANDROID_NDK_HOME")
     if (!ndkHomeEnv.isNullOrBlank()) {
         val f = File(ndkHomeEnv)
-        if (f.exists()) return validateNdkCandidate(f)
+        if (f.exists()) candidates.add(f)
     }
+
     val localProps = rootProject.file("local.properties")
     if (localProps.exists()) {
         val props = Properties().apply { localProps.inputStream().use { load(it) } }
         val dir = props.getProperty("ndk.dir")
         if (!dir.isNullOrBlank()) {
             val f = File(dir)
-            if (f.exists()) return validateNdkCandidate(f)
+            if (f.exists()) candidates.add(f)
         }
     }
+
+    if (sdkDir != null && sdkDir.exists()) {
+        val d = File(sdkDir, "ndk/$REQUIRED_NDK_VERSION")
+        if (d.exists()) candidates.add(d)
+    }
+
+    for (candidate in candidates) {
+        val rev = getNdkRevision(candidate)
+        if (rev == REQUIRED_NDK_VERSION || (rev == null && candidate.name == REQUIRED_NDK_VERSION)) {
+            return candidate
+        }
+    }
+
+    for (candidate in candidates) {
+        val rev = getNdkRevision(candidate)
+        if (rev != null && rev != REQUIRED_NDK_VERSION) {
+            throw GradleException(
+                "Android NDK version mismatch at ${candidate.absolutePath}: found revision $rev, but REQUIRED_NDK_VERSION is $REQUIRED_NDK_VERSION. Install NDK $REQUIRED_NDK_VERSION."
+            )
+        }
+    }
+
     val baseSdk = sdkDir ?: throw GradleException("Could not resolve Android SDK path for NDK compilation. Set ANDROID_HOME or local.properties.")
     val d = File(baseSdk, "ndk/$REQUIRED_NDK_VERSION")
-    if (!d.exists()) {
-        throw GradleException("Required Android NDK $REQUIRED_NDK_VERSION not found at ${d.absolutePath}. Install NDK $REQUIRED_NDK_VERSION.")
-    }
-    return validateNdkCandidate(d)
+    throw GradleException("Required Android NDK $REQUIRED_NDK_VERSION not found at ${d.absolutePath}. Install NDK $REQUIRED_NDK_VERSION.")
 }
 
 val buildNhlAdblockNative = tasks.register<Exec>("buildNhlAdblockNative") {

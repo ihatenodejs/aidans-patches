@@ -697,7 +697,7 @@ export function collectInventory(
     if (m) ndkVersionNum = m[1];
   }
   const ndkLabels = (workflowInputs['tool:ndk-label'] || []).map((x) => x.val);
-  const ndkLabel = ndkLabels[0] || 'r28b';
+  const ndkLabel = ndkLabels[0] || 'r28c';
   const ndkLocs = [
     `${patchBuildRel} (REQUIRED_NDK_VERSION)`,
     ...(workflowInputs['tool:ndk-label'] || []).map(

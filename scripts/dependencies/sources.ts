@@ -503,9 +503,9 @@ export class SourceManager {
     revision: string;
     sourceUrl: string;
   }> {
-    // Current stable LTS NDK is r28b (28.2.13676358)
+    // Current stable LTS NDK is r28c (28.2.13676358)
     return {
-      label: 'r28b',
+      label: 'r28c',
       revision: '28.2.13676358',
       sourceUrl: 'https://developer.android.com/ndk/downloads',
     };

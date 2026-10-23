@@ -179,11 +179,18 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Setup Android NDK
+        id: setup-ndk
         uses: nttld/setup-ndk@v1
         with:
           ndk-version: r28c
           add-to-path: false
+          link-to-sdk: true
 
+      - name: Configure Android NDK environment
+        run: |
+          echo "ANDROID_NDK_HOME=${{ steps.setup-ndk.outputs.ndk-path }}" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK_ROOT=${{ steps.setup-ndk.outputs.ndk-path }}" >> "$GITHUB_ENV"
+          echo "ANDROID_NDK=${{ steps.setup-ndk.outputs.ndk-path }}" >> "$GITHUB_ENV"
       - name: Audit android domain
         run: bun scripts/audit.ts all --domain android
 
