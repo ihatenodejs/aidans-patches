@@ -255,12 +255,14 @@ public class PdfTransformService extends Service {
                                 capturedStatus[0] = NativePdfEngine.IO_ERROR;
                                 return;
                             }
+                            final String password = (passwords != null && passwords.length > 0) ? passwords[0] : null;
                             PdfOfficeExporter.export(
                                     PdfTransformService.this,
                                     inputs[0],
                                     output,
                                     operation,
                                     ocrModel,
+                                    password,
                                     new PdfOfficeExporter.ExportCallback() {
                                         @Override
                                         public void onProgress(int percent) {

@@ -8,6 +8,7 @@ import com.tom_roush.pdfbox.android.PDFBoxResourceLoader;
 import com.tom_roush.pdfbox.pdmodel.PDDocument;
 import com.tom_roush.pdfbox.pdmodel.PDPage;
 import com.tom_roush.pdfbox.pdmodel.common.PDRectangle;
+import com.tom_roush.pdfbox.pdmodel.encryption.InvalidPasswordException;
 import com.tom_roush.pdfbox.rendering.ImageType;
 import com.tom_roush.pdfbox.rendering.PDFRenderer;
 import com.tom_roush.pdfbox.text.PDFTextStripper;
@@ -38,6 +39,17 @@ public final class PdfOfficeExporter {
             final int format,
             final ParcelFileDescriptor ocrModel,
             final ExportCallback callback) {
+        export(context, inputPdf, outputOffice, format, ocrModel, null, callback);
+    }
+
+    public static void export(
+            final Context context,
+            final ParcelFileDescriptor inputPdf,
+            final ParcelFileDescriptor outputOffice,
+            final int format,
+            final ParcelFileDescriptor ocrModel,
+            final String password,
+            final ExportCallback callback) {
 
         if (context == null || inputPdf == null || outputOffice == null) {
             if (callback != null) callback.onComplete(NativePdfEngine.IO_ERROR, 0, 0);
@@ -55,14 +67,16 @@ public final class PdfOfficeExporter {
             if (callback != null) callback.onProgress(5);
 
             try (final InputStream is = new FileInputStream(inputPdf.getFileDescriptor())) {
-                document = PDDocument.load(is);
+                if (password != null && !password.isEmpty()) {
+                    document = PDDocument.load(is, password);
+                } else {
+                    document = PDDocument.load(is);
+                }
             }
 
             if (document.isEncrypted()) {
-                if (callback != null) callback.onComplete(NativePdfEngine.PASSWORD_REQUIRED, 0, 0);
-                return;
+                document.setAllSecurityToBeRemoved(true);
             }
-
             final int pageCount = document.getNumberOfPages();
             if (pageCount <= 0) {
                 if (callback != null) callback.onComplete(NativePdfEngine.INVALID_PDF, 0, 0);
@@ -155,6 +169,16 @@ public final class PdfOfficeExporter {
             }
 
         } catch (final Throwable t) {
+            if (isInvalidPassword(t)) {
+                Log.w(TAG, "Office export rejected due to password: " + t.getMessage());
+                if (callback != null) {
+                    final int status = (password != null && !password.isEmpty())
+                            ? NativePdfEngine.WRONG_PASSWORD
+                            : NativePdfEngine.PASSWORD_REQUIRED;
+                    callback.onComplete(status, 0, 0);
+                }
+                return;
+            }
             Log.e(TAG, "Office export failed", t);
             if (callback != null) {
                 callback.onComplete(NativePdfEngine.ENGINE_FAILURE, 0, 0);
@@ -186,6 +210,16 @@ public final class PdfOfficeExporter {
         return words;
     }
 
+
+    private static boolean isInvalidPassword(Throwable t) {
+        while (t != null) {
+            if (t instanceof InvalidPasswordException) {
+                return true;
+            }
+            t = t.getCause();
+        }
+        return false;
+    }
     private static class PositionStripper extends PDFTextStripper {
         private final float pageW;
         private final float pageH;

@@ -552,6 +552,14 @@ public class PdfOperationCoordinator {
             final Activity activity,
             final Object scanFileObj,
             final int format) {
+        startExport(activity, scanFileObj, format, null);
+    }
+
+    public void startExport(
+            final Activity activity,
+            final Object scanFileObj,
+            final int format,
+            final String password) {
 
         if (activity == null || scanFileObj == null) {
             Log.e(TAG, "Cannot start export: invalid arguments");
@@ -566,8 +574,8 @@ public class PdfOperationCoordinator {
             PdfOperationUi.showSnackbar(activity, "Target document file not found on disk");
             return;
         }
-        if (adapter.isProtected(scanFileObj) || adapter.getProtectionStatus(scanFileObj) == 2) {
-            PdfOperationUi.showSnackbar(activity, "Cannot export password-protected scan. Remove password first.");
+        if (password == null && (adapter.isProtected(scanFileObj) || adapter.getProtectionStatus(scanFileObj) == 2)) {
+            PdfExportBridge.promptPasswordAndExport(activity, scanFileObj, format, false);
             return;
         }
 
@@ -671,7 +679,7 @@ public class PdfOperationCoordinator {
                             outPfd,
                             format,
                             modelPfd,
-                            null,
+                            (password != null) ? new String[]{password} : null,
                             callback);
 
                 } catch (final Throwable t) {
@@ -800,9 +808,29 @@ public class PdfOperationCoordinator {
                 if (tx != null) tx.abort();
                 dismissProgressAndSnackbar("Failed to export document");
             }
+        } else if (status == NativePdfEngine.PASSWORD_REQUIRED) {
+            if (tx != null) tx.abort();
+            dismissProgressOnly();
+            final Activity targetActivity = (currentActivityRef.get() != null) ? currentActivityRef.get() : activity;
+            mainHandler.post(new Runnable() {
+                @Override
+                public void run() {
+                    PdfExportBridge.promptPasswordAndExport(targetActivity, op.scanFileObj, format, false);
+                }
+            });
+        } else if (status == NativePdfEngine.WRONG_PASSWORD) {
+            if (tx != null) tx.abort();
+            dismissProgressOnly();
+            final Activity targetActivity = (currentActivityRef.get() != null) ? currentActivityRef.get() : activity;
+            mainHandler.post(new Runnable() {
+                @Override
+                public void run() {
+                    PdfExportBridge.promptPasswordAndExport(targetActivity, op.scanFileObj, format, true);
+                }
+            });
         } else {
             if (tx != null) tx.abort();
-            dismissProgressAndSnackbar("Export failed");
+            dismissProgressAndSnackbar(getErrorMessageForStatus(status));
         }
 
         clearActiveOperation(op.operationId);

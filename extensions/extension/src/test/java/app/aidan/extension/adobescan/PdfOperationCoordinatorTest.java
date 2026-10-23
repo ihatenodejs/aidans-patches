@@ -177,4 +177,64 @@ public class PdfOperationCoordinatorTest {
         final long elapsed = System.currentTimeMillis() - start;
         assertTrue("refreshSecurityCache should not block for 500ms latch on main thread", elapsed < 400);
     }
+
+    @Test
+    public void testStartExportAdmittedForProtectedScanWithPassword() throws Exception {
+        final File tempFile = File.createTempFile("test_protected_export", ".pdf");
+        tempFile.deleteOnExit();
+
+        final ScanFileAdapter originalAdapter = ScanFileAdapter.getInstance();
+        try {
+            ScanFileAdapter.setInstance(new ScanFileAdapter() {
+                @Override
+                public long getDatabaseId(final Object scanFileObj) {
+                    return 88L;
+                }
+
+                @Override
+                public File getFile(final Object scanFileObj) {
+                    return tempFile;
+                }
+
+                @Override
+                public long getFileSize(final Object scanFileObj) {
+                    return 2048L;
+                }
+
+                @Override
+                public int getProtectionStatus(final Object scanFileObj) {
+                    return 2;
+                }
+
+                @Override
+                public boolean isProtected(final Object scanFileObj) {
+                    return true;
+                }
+            });
+
+            final List<Runnable> queuedTasks = new ArrayList<>();
+            final ExecutorService queueOnlyExecutor = new AbstractExecutorService() {
+                private boolean shutdown = false;
+                @Override public void shutdown() { shutdown = true; }
+                @Override public List<Runnable> shutdownNow() { shutdown = true; return new ArrayList<>(queuedTasks); }
+                @Override public boolean isShutdown() { return shutdown; }
+                @Override public boolean isTerminated() { return shutdown; }
+                @Override public boolean awaitTermination(long timeout, TimeUnit unit) { return true; }
+                @Override public void execute(Runnable command) { queuedTasks.add(command); }
+            };
+
+            final PdfOperationCoordinator coordinator = new PdfOperationCoordinator(null, false, queueOnlyExecutor);
+            final Activity activity = new Activity();
+            final Object scanFileObj = new Object();
+
+            coordinator.startExport(activity, scanFileObj, NativePdfEngine.EXPORT_DOCX, "pass123");
+            final PdfOperationCoordinator.ActiveOperation op = coordinator.getActiveOperation();
+            assertNotNull("Export operation should be admitted when password is provided", op);
+            assertEquals(88L, op.documentId);
+            assertEquals(NativePdfEngine.EXPORT_DOCX, op.operation);
+        } finally {
+            ScanFileAdapter.setInstance(originalAdapter);
+            tempFile.delete();
+        }
+    }
 }
