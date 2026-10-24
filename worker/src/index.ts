@@ -1477,6 +1477,61 @@ export default {
       });
     }
 
+    // 4.5. Dedicated lightweight version API endpoint: GET /api/version/:packageName
+    if (
+      (url.pathname === '/api/version' ||
+        url.pathname.startsWith('/api/version/')) &&
+      (request.method === 'GET' || request.method === 'HEAD')
+    ) {
+      const rawPkg = url.pathname.replace(/^\/api\/version\/?/, '').trim();
+      let packageName = decodeURIComponent(rawPkg);
+      if (packageName.toLowerCase() === 'fizz') {
+        packageName = 'com.ashtoncofer.Buzz';
+      }
+      if (!packageName) {
+        return new Response(JSON.stringify({ error: 'Missing package name' }), {
+          status: 400,
+          headers: {
+            ...PUBLIC_CORS_HEADERS,
+            'Content-Type': 'application/json',
+          },
+        });
+      }
+
+      const record = await loadAppRecord(env, packageName);
+      if (!record || !record.playVersion) {
+        return new Response(
+          JSON.stringify({ error: 'App version not found' }),
+          {
+            status: 404,
+            headers: {
+              ...PUBLIC_CORS_HEADERS,
+              'Content-Type': 'application/json',
+            },
+          },
+        );
+      }
+
+      const payload = {
+        packageName,
+        versionName: record.playVersion,
+        versionCode: record.playVersionCode ?? null,
+        updatedAt: record.updatedAt ?? record.checkedAt ?? null,
+      };
+
+      return new Response(
+        request.method === 'HEAD' ? null : JSON.stringify(payload),
+        {
+          status: 200,
+          headers: {
+            ...PUBLIC_CORS_HEADERS,
+            'Content-Type': 'application/json',
+            'Cache-Control': 'public, max-age=3600',
+          },
+        },
+      );
+    }
+
     // 5. Public Status endpoint (GET / or GET /api/status)
     if (
       url.pathname === '/api/status' ||

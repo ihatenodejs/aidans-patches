@@ -2312,3 +2312,101 @@ describe('Google Play store metadata scraping and status aggregation', () => {
     expect(reconciledReviews[1].avatar).toBeNull();
   });
 });
+
+describe('Version API endpoint (/api/version/:packageName)', () => {
+  const workerEnv: WorkerEnv = {
+    PATCHES_KV: env.PATCHES_KV,
+  };
+
+  it('returns 200 with version payload and public CORS for valid package', async () => {
+    const buzzRecord: AppVersionRecord = {
+      appName: 'Fizz',
+      playVersion: '1.60.0',
+      playVersionCode: 400032,
+      checkedAt: '2026-10-21T20:48:51.000Z',
+      updatedAt: '2026-10-21T20:48:51.000Z',
+      status: 'fresh',
+      supportedVersions: ['1.54.0'],
+      latestSupportedVersion: '1.54.0',
+    };
+    await saveAppRecord(workerEnv, 'com.ashtoncofer.Buzz', buzzRecord);
+
+    const req = new Request(
+      'http://localhost/api/version/com.ashtoncofer.Buzz',
+      {
+        method: 'GET',
+      },
+    );
+    const res = await worker.fetch(req, workerEnv);
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get('Content-Type')).toContain('application/json');
+    expect(res.headers.get('Cache-Control')).toBe('public, max-age=3600');
+    expect(res.headers.get('Access-Control-Allow-Origin')).toBe('*');
+
+    const data = (await res.json()) as {
+      packageName: string;
+      versionName: string;
+      versionCode: number;
+      updatedAt: string;
+    };
+    expect(data.packageName).toBe('com.ashtoncofer.Buzz');
+    expect(data.versionName).toBe('1.60.0');
+    expect(data.versionCode).toBe(400032);
+    expect(data.updatedAt).toBe('2026-10-21T20:48:51.000Z');
+  });
+
+  it('resolves "fizz" alias to com.ashtoncofer.Buzz', async () => {
+    const req = new Request('http://localhost/api/version/fizz', {
+      method: 'GET',
+    });
+    const res = await worker.fetch(req, workerEnv);
+
+    expect(res.status).toBe(200);
+    const data = (await res.json()) as {
+      packageName: string;
+      versionName: string;
+    };
+    expect(data.packageName).toBe('com.ashtoncofer.Buzz');
+    expect(data.versionName).toBe('1.60.0');
+  });
+
+  it('returns 404 for unknown package or missing playVersion', async () => {
+    const req = new Request('http://localhost/api/version/com.unknown.app', {
+      method: 'GET',
+    });
+    const res = await worker.fetch(req, workerEnv);
+
+    expect(res.status).toBe(404);
+    const data = (await res.json()) as { error: string };
+    expect(data.error).toBe('App version not found');
+    expect(res.headers.get('Access-Control-Allow-Origin')).toBe('*');
+  });
+
+  it('returns 400 when package name is missing', async () => {
+    const req1 = new Request('http://localhost/api/version', { method: 'GET' });
+    const res1 = await worker.fetch(req1, workerEnv);
+    expect(res1.status).toBe(400);
+    const data1 = (await res1.json()) as { error: string };
+    expect(data1.error).toBe('Missing package name');
+
+    const req2 = new Request('http://localhost/api/version/', {
+      method: 'GET',
+    });
+    const res2 = await worker.fetch(req2, workerEnv);
+    expect(res2.status).toBe(400);
+  });
+
+  it('handles HEAD request with 200 and empty body', async () => {
+    const req = new Request(
+      'http://localhost/api/version/com.ashtoncofer.Buzz',
+      {
+        method: 'HEAD',
+      },
+    );
+    const res = await worker.fetch(req, workerEnv);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('Content-Type')).toContain('application/json');
+    expect(await res.text()).toBe('');
+  });
+});
