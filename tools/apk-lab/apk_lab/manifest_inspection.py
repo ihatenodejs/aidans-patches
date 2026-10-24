@@ -23,25 +23,28 @@ def parse_manifest_xmltree(xmltree_output: str) -> list[ManifestComponent]:
     """Parses aapt2 dump xmltree AndroidManifest.xml output into structured components."""
     components: list[ManifestComponent] = []
     current_comp: ManifestComponent | None = None
-    in_intent_filter = False
+    current_comp_depth: int = -1
+    current_tag: str | None = None
 
     for line in xmltree_output.splitlines():
-        line_str = line.strip()
-        # Component tag detection: E: activity, E: service, E: receiver, E: provider
-        tag_match = re.match(r"^E:\s+(activity|service|receiver|provider)\b", line_str)
-        if tag_match:
-            if current_comp:
+        elem_match = re.match(r"^(\s*)E:\s+([a-zA-Z0-9_\-]+)", line)
+        if elem_match:
+            depth = len(elem_match.group(1))
+            tag = elem_match.group(2)
+            if current_comp is not None and depth <= current_comp_depth:
                 components.append(current_comp)
-            current_comp = ManifestComponent(component_type=tag_match.group(1), name="")
-            in_intent_filter = False
-            continue
-
-        if re.match(r"^E:\s+intent-filter\b", line_str):
-            in_intent_filter = True
+                current_comp = None
+                current_comp_depth = -1
+            if tag in ("activity", "service", "receiver", "provider"):
+                current_comp = ManifestComponent(component_type=tag, name="")
+                current_comp_depth = depth
+                current_tag = tag
+                continue
+            current_tag = tag
             continue
 
         if current_comp is not None:
-            # Match attributes
+            line_str = line.strip()
             # Match attributes (quoted or unquoted)
             attr_match = re.search(
                 r'A:\s+http://schemas\.android\.com/apk/res/android:(\w+)[^=]*=(?:"([^"]+)"|([^\s(]+))',
@@ -55,18 +58,22 @@ def parse_manifest_xmltree(xmltree_output: str) -> list[ManifestComponent]:
                     else attr_match.group(3)
                 )
                 if attr_name == "name":
-                    if in_intent_filter:
+                    if current_tag == "action":
                         current_comp.intent_actions.append(attr_val)
-                    elif not current_comp.name:
+                    elif (
+                        current_tag == current_comp.component_type
+                        and not current_comp.name
+                    ):
                         current_comp.name = attr_val
-                elif attr_name == "exported":
-                    current_comp.exported = (
-                        attr_val.lower() == "true" or attr_val == "0xffffffff"
-                    )
-                elif attr_name == "permission":
-                    current_comp.permission = attr_val
-                elif attr_name == "authorities":
-                    current_comp.authorities = attr_val
+                elif current_tag == current_comp.component_type:
+                    if attr_name == "exported":
+                        current_comp.exported = (
+                            attr_val.lower() == "true" or attr_val == "0xffffffff"
+                        )
+                    elif attr_name == "permission":
+                        current_comp.permission = attr_val
+                    elif attr_name == "authorities":
+                        current_comp.authorities = attr_val
 
     if current_comp:
         components.append(current_comp)

@@ -13,6 +13,7 @@ from apk_lab.google_play_accounts import (
 )
 from apk_lab.play_accounts_tui import (
     add_account,
+    check_accounts,
     delete_account,
     exchange_oauth_for_aas,
     sync_github_secret,
@@ -171,3 +172,73 @@ def test_exchange_oauth_for_aas_apkeep(monkeypatch):
 
     token = exchange_oauth_for_aas("u@example.com", "oauth_val")
     assert token == "aas_et/test_token_123"
+
+
+def test_check_accounts_failures_and_redaction(monkeypatch, capsys):
+    acc1 = GooglePlayAccount(
+        label="acc1", email="acc1@test.com", aas_token="token_secret_123"
+    )
+    acc2 = GooglePlayAccount(
+        label="acc2", email="acc2@test.com", aas_token="token_secret_456"
+    )
+    acc_file = GooglePlayAccountsFile(version=1, accounts=[acc1, acc2])
+
+    call_count = 0
+
+    def mock_run(cmd, input=None, capture_output=True, text=True, check=False):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            return subprocess.CompletedProcess(
+                args=cmd,
+                returncode=1,
+                stdout="",
+                stderr="Error: auth failed for token_secret_123",
+            )
+        else:
+            return subprocess.CompletedProcess(
+                args=cmd,
+                returncode=0,
+                stdout="malformed json {{{",
+                stderr="",
+            )
+
+    monkeypatch.setattr("subprocess.run", mock_run)
+    check_accounts(acc_file)
+
+    captured = capsys.readouterr().out
+    assert "token_secret_123" not in captured
+    assert "[REDACTED]" in captured
+    assert "0 success, 2 failures" in captured
+    assert (
+        "Failed: [acc1] com.adobe.scan.android (Helper exited with code 1: Error: auth failed for [REDACTED])"
+        in captured
+    )
+    assert (
+        "Failed: [acc2] com.adobe.scan.android (Failed to parse response:" in captured
+    )
+
+
+def test_check_accounts_unexpected_json_format(monkeypatch, capsys):
+    acc = GooglePlayAccount(
+        label="acc1", email="acc1@test.com", aas_token="token_secret_123"
+    )
+    acc_file = GooglePlayAccountsFile(version=1, accounts=[acc])
+
+    def mock_run(cmd, input=None, capture_output=True, text=True, check=False):
+        return subprocess.CompletedProcess(
+            args=cmd,
+            returncode=0,
+            stdout="[1, 2, 3]",
+            stderr="",
+        )
+
+    monkeypatch.setattr("subprocess.run", mock_run)
+    check_accounts(acc_file)
+
+    captured = capsys.readouterr().out
+    assert "0 success, 1 failures" in captured
+    assert (
+        "Failed: [acc1] com.adobe.scan.android (Unexpected response format: expected dict, got list)"
+        in captured
+    )
