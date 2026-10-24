@@ -6,6 +6,10 @@ on:
     branches: ['main', 'dev', 'next']
   workflow_dispatch:
 
+concurrency:
+  group: test-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
