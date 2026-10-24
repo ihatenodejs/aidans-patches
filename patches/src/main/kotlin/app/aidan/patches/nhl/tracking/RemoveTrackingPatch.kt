@@ -28,11 +28,12 @@ val removeTrackingPatch = bytecodePatch(
 ) {
     category("Privacy")
     compatibleWith(COMPATIBILITY_NHL)
+    extendWith("extensions/extension.mpe")
 
     val disableOneTrustCmp = booleanOption(
         key = "disableOneTrustCmp",
         title = "Disable OneTrust CMP",
-        description = "Neutralizes OneTrust CMP tracking consent popups, network calls, and forces consent queries to Denied.",
+        description = "Neutralizes OneTrust CMP tracking consent popups, network calls, and routes consent checks so push notification SDKs remain consented while advertising and tracking remain denied.",
         default = true
     )
 
@@ -136,7 +137,7 @@ val removeTrackingPatch = bytecodePatch(
             returnInt("Lcom/onetrust/otpublishers/headless/Public/OTPublishersHeadlessSDK;", "getPurposeConsentLocal", 0)
             returnInt("Lcom/onetrust/otpublishers/headless/Public/OTPublishersHeadlessSDK;", "getPurposeLegitInterestLocal", 0)
             returnInt("Lcom/onetrust/otpublishers/headless/Public/OTPublishersHeadlessSDK;", "getUCPurposeConsent", 0)
-            returnRequiredBoolean("Lgce;", "c", false)
+            patchSmartConsentRouting()
         }
 
         if (zeroAdvertisingId.value == true) {
@@ -471,4 +472,51 @@ private fun BytecodePatchContext.returnEmptyList(
     if (!optional && !patched) {
         throw PatchException("Missing required method $classDescriptor->$methodName()Ljava/util/List;")
     }
+}
+
+/**
+ * Selectively grants consent for push notifications and live updates (UrbanAirship and Blaze Push),
+ * while denying tracking, ads, and telemetry in OneTrust CMP checks.
+ */
+private fun BytecodePatchContext.patchSmartConsentRouting() {
+    // 1. Lgce;->c(Lqoj;)Z: Return true if push-consented, false otherwise
+    val gceClass = mutableClassDefByOrNull("Lgce;")
+        ?: throw PatchException("Missing required class Lgce; for smart consent routing")
+    val cMethod = gceClass.methods.singleOrNull { method ->
+        method.name == "c" &&
+            method.parameterTypes == listOf("Lqoj;") &&
+            method.returnType == "Z" &&
+            method.implementation != null
+    } ?: throw PatchException("Missing required method Lgce;->c(Lqoj;)Z")
+    cMethod.addInstructions(
+        0,
+        """
+        invoke-static {p1}, Lapp/aidan/extension/nhl/PushBridge;->isPushConsented(Ljava/lang/Object;)Z
+        move-result p0
+        return p0
+        """.trimIndent()
+    )
+
+    // 2. Lqc8;->M(Lqoj;Lcom/onetrust/otpublishers/headless/Public/OTPublishersHeadlessSDK;)Lvu3;
+    val qc8Class = mutableClassDefByOrNull("Lqc8;")
+        ?: throw PatchException("Missing required class Lqc8; for smart consent routing")
+    val mMethod = qc8Class.methods.singleOrNull { method ->
+        method.name == "M" &&
+            method.parameterTypes == listOf("Lqoj;", "Lcom/onetrust/otpublishers/headless/Public/OTPublishersHeadlessSDK;") &&
+            method.returnType == "Lvu3;" &&
+            method.implementation != null
+    } ?: throw PatchException("Missing required method Lqc8;->M(Lqoj;Lcom/onetrust/otpublishers/headless/Public/OTPublishersHeadlessSDK;)Lvu3;")
+    mMethod.addInstructions(
+        0,
+        """
+        invoke-static {p0}, Lapp/aidan/extension/nhl/PushBridge;->isPushConsented(Ljava/lang/Object;)Z
+        move-result p1
+        if-eqz p1, :cond_denied
+        sget-object p0, Lvu3;->Granted:Lvu3;
+        return-object p0
+        :cond_denied
+        sget-object p0, Lvu3;->Denied:Lvu3;
+        return-object p0
+        """.trimIndent()
+    )
 }

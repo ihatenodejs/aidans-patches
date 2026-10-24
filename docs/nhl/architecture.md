@@ -48,6 +48,12 @@ The official NHL application is built using modern Android Jetpack libraries, Co
 - **OneTrust Headless SDK:** `com.onetrust.otpublishers.headless.Public.OTPublishersHeadlessSDK` integrated through `Lgce;` to manage IAB TCF 2.2 consent strings and purpose grants (`IAB2V2_1`, `sm2.Functional`, `sm2.Performance`).
 - **Consented SDKs (`Lqoj;`):** Enum categorizing third-party modules subject to user consent (`GoogleAds`, `Brightcove`, `UrbanAirshipCore`, `UrbanAirshipFcm`, `BlazePushSdk`, `TicketmasterTickets`, `TicketmasterAuthentication`, `OneTrust`).
 
+### Push Notifications & Live Activities Infrastructure
+
+- **UrbanAirship (Airship) Core & FCM Push:** Manages push registration and token lifecycle (`com.urbanairship.push.fcm.AirshipFirebaseMessagingService`, `AirshipChannel`).
+- **Live Activities (Real-Time Game Scores):** Driven by `LiveActivityNotificationManager` (`cla.smali`), scheduling dynamic lockscreen and notification drawer score widgets via UrbanAirship Live Activities subsystem (`Lroa;->a(...)`).
+- **Firebase Installations (FIS):** Used by `FirebaseMessaging` to mint app-instance tokens. Restricted on Google Cloud by package name and signing certificate SHA-1 digest (`9D:1B:1A:C8:28:E0:47:72:A7:34:91:D8:39:D9:85:2B:80:C4:66:92`).
+
 ### Analytics, Advertising & Telemetry Systems
 
 - **Google Mobile Ads (GMS Ads):** `AdManagerAdView`, `AdService`, `MobileAdsInitProvider`, and `MobileAds`.
