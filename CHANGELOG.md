@@ -1,3 +1,20 @@
+## [1.9.0-dev.5](https://github.com/ihatenodejs/aidans-patches/compare/v1.9.0-dev.4...v1.9.0-dev.5) (2026-10-24)
+
+### 🐛 Bug Fixes
+
+* **adobe-reader:** resolve fragment lifecycle and in-app review task failure ([20d5e52](https://github.com/ihatenodejs/aidans-patches/commit/20d5e52561537a8935ba5839ebd6247f6de4b6a0))
+* **adobe-scan:** add atomic ocr model extraction and validate presentation relationships ([54378d8](https://github.com/ihatenodejs/aidans-patches/commit/54378d86d468e5f7ed384baf8e758c3d7a7dcb67))
+* **adobe-scan:** fix native JNI memory safety, asset file descriptors, and document export formats ([0a7dfc4](https://github.com/ihatenodejs/aidans-patches/commit/0a7dfc4e39d047ccbacab19ed0834ad0f0a72537))
+* **deps:** address review feedback on regex escaping, validation, and timeouts ([e4b1433](https://github.com/ihatenodejs/aidans-patches/commit/e4b14330db427ad05c32a970a7f1dd1c35ac8b63))
+* **deps:** fix scoped package parsing, PyPI regex, and CI targets (Plan 004) ([ee7b382](https://github.com/ihatenodejs/aidans-patches/commit/ee7b382d760f0928c4e32cea29168e88538a2413))
+* **nhl:** address code review feedback on fetch destination mapping and preprocessor fallbacks ([c31bb3b](https://github.com/ihatenodejs/aidans-patches/commit/c31bb3bf3be4c5e09563efc128ad53865b75fa4c))
+* **nhl:** fix adblock concurrency stalls, stream truncation, and request type filtering ([fc197a4](https://github.com/ihatenodejs/aidans-patches/commit/fc197a463254ff0dd8d75503e3d6a6b0760b56a5))
+* **patches:** resolve Dalvik bytecode hazards in NHL, Adobe, and Credit Karma ([054f9ee](https://github.com/ihatenodejs/aidans-patches/commit/054f9ee10de7de9c5c8c7d3ca251d9a0e3f4aa00))
+
+### ✨ New Features
+
+* **deps:** merge plan-004-execution into dev ([a5b48ac](https://github.com/ihatenodejs/aidans-patches/commit/a5b48acd94da5dc6e12a52df5ca660199950392c))
+
 ## [1.9.0-dev.4](https://github.com/ihatenodejs/aidans-patches/compare/v1.9.0-dev.3...v1.9.0-dev.4) (2026-10-24)
 
 ### ✨ New Features
