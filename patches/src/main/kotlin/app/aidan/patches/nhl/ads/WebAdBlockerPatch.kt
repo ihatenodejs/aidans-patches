@@ -196,9 +196,17 @@ private fun BytecodePatchContext.patchWebViewFactories() {
     val i9lInvoke = i9lClass.methods.singleOrNull { it.name == "invoke" && it.returnType == "Ljava/lang/Object;" }
         ?: throw PatchException("Missing required method Li9l.invoke")
 
-    // Attach AdBlockBridge after setWebViewClient
+    // 1. Neutralize MobileAds.b(WebView) in Li9l first (before any instruction shifts)
     val i9lInsts = i9lInvoke.implementation?.instructions?.toList()
         ?: throw PatchException("Li9l.invoke has no implementation")
+    for ((idx, inst) in i9lInsts.withIndex()) {
+        val ref = (inst as? com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction)?.reference as? com.android.tools.smali.dexlib2.iface.reference.MethodReference
+        if (ref?.definingClass == "Lcom/google/android/gms/ads/MobileAds;" && ref.name == "b") {
+            i9lInvoke.replaceInstruction(idx, "nop")
+        }
+    }
+
+    // 2. Attach AdBlockBridge after setWebViewClient
     val setClientIdx = i9lInsts.indexOfFirst { inst ->
         val ref = (inst as? com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction)?.reference as? com.android.tools.smali.dexlib2.iface.reference.MethodReference
         inst.opcode == com.android.tools.smali.dexlib2.Opcode.INVOKE_VIRTUAL &&
@@ -212,14 +220,6 @@ private fun BytecodePatchContext.patchWebViewFactories() {
         )
     }
 
-    // Neutralize MobileAds.b(WebView) in Li9l
-    for ((idx, inst) in i9lInsts.withIndex()) {
-        val ref = (inst as? com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction)?.reference as? com.android.tools.smali.dexlib2.iface.reference.MethodReference
-        if (ref?.definingClass == "Lcom/google/android/gms/ads/MobileAds;" && ref.name == "b") {
-            i9lInvoke.replaceInstruction(idx, "nop")
-        }
-    }
-
     // 2. In Ltv7.invoke (GameZone WebView factory)
     val tv7Class = mutableClassDefByOrNull("Ltv7;")
         ?: throw PatchException("Missing required class Ltv7; (GameZone WebView Factory)")
@@ -228,6 +228,14 @@ private fun BytecodePatchContext.patchWebViewFactories() {
 
     val tv7Insts = tv7Invoke.implementation?.instructions?.toList()
         ?: throw PatchException("Ltv7.invoke has no implementation")
+    // Neutralize MobileAds.b(WebView) in Ltv7
+    for ((idx, inst) in tv7Insts.withIndex()) {
+        val ref = (inst as? com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction)?.reference as? com.android.tools.smali.dexlib2.iface.reference.MethodReference
+        if (ref?.definingClass == "Lcom/google/android/gms/ads/MobileAds;" && ref.name == "b") {
+            tv7Invoke.replaceInstruction(idx, "nop")
+        }
+    }
+
     val tv7SetClientIdx = tv7Insts.indexOfFirst { inst ->
         val ref = (inst as? com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction)?.reference as? com.android.tools.smali.dexlib2.iface.reference.MethodReference
         inst.opcode == com.android.tools.smali.dexlib2.Opcode.INVOKE_VIRTUAL &&
@@ -239,14 +247,6 @@ private fun BytecodePatchContext.patchWebViewFactories() {
             tv7SetClientIdx + 1,
             "invoke-static {v2}, Lapp/aidan/extension/nhl/adblock/AdBlockBridge;->attach(Landroid/webkit/WebView;)V"
         )
-    }
-
-    // Neutralize MobileAds.b(WebView) in Ltv7
-    for ((idx, inst) in tv7Insts.withIndex()) {
-        val ref = (inst as? com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction)?.reference as? com.android.tools.smali.dexlib2.iface.reference.MethodReference
-        if (ref?.definingClass == "Lcom/google/android/gms/ads/MobileAds;" && ref.name == "b") {
-            tv7Invoke.replaceInstruction(idx, "nop")
-        }
     }
 }
 

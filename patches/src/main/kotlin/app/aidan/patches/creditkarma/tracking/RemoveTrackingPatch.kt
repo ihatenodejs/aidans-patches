@@ -296,7 +296,7 @@ private fun BytecodePatchContext.neutralizeThreatMetrixRootScan() {
 private fun BytecodePatchContext.neutralizeBatteryEnvironmentCheck() {
     val ks8Class = mutableClassDefByOrNull("Lks8;") ?: return
     for (method in ks8Class.methods) {
-        if (method.name == "d" && method.implementation != null) {
+        if (method.name == "d" && method.returnType == "Lpxg;" && method.parameterTypes.isEmpty() && method.implementation != null) {
             method.addInstructions(
                 0,
                 """

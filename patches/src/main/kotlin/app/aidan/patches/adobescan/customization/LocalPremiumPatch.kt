@@ -363,8 +363,8 @@ private fun BytecodePatchContext.addWorkerProcessGuards() {
         superAttachIdx + 1,
         """
         invoke-static {}, Lapp/aidan/extension/adobescan/PdfProcess;->isWorkerProcess()Z
-        move-result p1
-        if-eqz p1, :cond_not_worker_attach
+        move-result v0
+        if-eqz v0, :cond_not_worker_attach
         return-void
         """.trimIndent(),
         ExternalLabel("cond_not_worker_attach", targetAttach)
@@ -391,8 +391,8 @@ private fun BytecodePatchContext.addWorkerProcessGuards() {
         splitSuperIdx + 1,
         """
         invoke-static {}, Lapp/aidan/extension/adobescan/PdfProcess;->isWorkerProcess()Z
-        move-result p1
-        if-eqz p1, :cond_not_worker_attach_b
+        move-result v0
+        if-eqz v0, :cond_not_worker_attach_b
         return-void
         """.trimIndent(),
         ExternalLabel("cond_not_worker_attach_b", targetSplit)

@@ -392,7 +392,7 @@ private fun BytecodePatchContext.hideTelemetrySettings() {
 }
 
 private fun BytecodePatchContext.patchCrashReportsDialog() {
-    disableOptionalVoidMethods("Lcom/adobe/reader/misc/l;", "onCreate", "onCreateDialog", "show")
+    disableOptionalVoidMethods("Lcom/adobe/reader/misc/l;", "onCreateDialog", "show")
     disableOptionalVoidMethods("Lcom/adobe/reader/utils/v;", "E0")
     val dialogClass = mutableClassDefByOrNull("Lcom/adobe/reader/misc/l;") ?: return
     for (method in dialogClass.methods) {
@@ -416,10 +416,7 @@ private fun BytecodePatchContext.setBranchTrackingDisabled() {
             val paramReg = if (isStatic) "p0" else "p1"
             method.addInstructions(
                 0,
-                """
-                const/4 $paramReg, 0x1
-                return-void
-                """.trimIndent()
+                "const/4 $paramReg, 0x1"
             )
         }
     }
@@ -428,14 +425,14 @@ private fun BytecodePatchContext.setBranchTrackingDisabled() {
 private fun BytecodePatchContext.suppressInAppReview() {
     val reviewClass = mutableClassDefByOrNull("Lcom/google/android/play/core/review/d;") ?: return
     for (method in reviewClass.methods) {
-        if (method.name == "b" && method.implementation != null) {
+        if (method.name == "b" && method.returnType == "Lcom/google/android/gms/tasks/Task;" && method.implementation != null) {
             method.addInstructions(
                 0,
                 """
-                const/4 p1, 0x0
-                invoke-static {p1}, Lcom/google/android/gms/tasks/Tasks;->f(Ljava/lang/Object;)Lcom/google/android/gms/tasks/Task;
-                move-result-object p1
-                return-object p1
+                const/4 v0, 0x0
+                invoke-static {v0}, Lcom/google/android/gms/tasks/Tasks;->forResult(Ljava/lang/Object;)Lcom/google/android/gms/tasks/Task;
+                move-result-object v0
+                return-object v0
                 """.trimIndent()
             )
         }
