@@ -1,3 +1,13 @@
+## [1.9.0-dev.7](https://github.com/ihatenodejs/aidans-patches/compare/v1.9.0-dev.6...v1.9.0-dev.7) (2026-10-24)
+
+### 🐛 Bug Fixes
+
+* **nhl:** required concrete method implementations in patch lookups ([fd367ff](https://github.com/ihatenodejs/aidans-patches/commit/fd367ffd1c1457343d9e9dffc9deb9f1eafa98eb))
+
+### ✨ New Features
+
+* **nhl:** added notification and live activity support ([6d7476d](https://github.com/ihatenodejs/aidans-patches/commit/6d7476da984e1b830aa7bfe40bff242787135960))
+
 ## [1.9.0-dev.6](https://github.com/ihatenodejs/aidans-patches/compare/v1.9.0-dev.5...v1.9.0-dev.6) (2026-10-24)
 
 ### 🐛 Bug Fixes
