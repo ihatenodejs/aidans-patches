@@ -1,3 +1,10 @@
+## [1.9.0-dev.4](https://github.com/ihatenodejs/aidans-patches/compare/v1.9.0-dev.3...v1.9.0-dev.4) (2026-10-24)
+
+### ✨ New Features
+
+* **fizz:** added block update prompts patch ([4c9a989](https://github.com/ihatenodejs/aidans-patches/commit/4c9a989390af09a98b29cee26af439434a058f20))
+* **worker:** added package version endpoint ([311667a](https://github.com/ihatenodejs/aidans-patches/commit/311667a9053143aa2e6f7604b07a0f981e5d431b))
+
 ## [1.9.0-dev.3](https://github.com/ihatenodejs/aidans-patches/compare/v1.9.0-dev.2...v1.9.0-dev.3) (2026-10-23)
 
 ### 🐛 Bug Fixes
