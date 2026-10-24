@@ -17,6 +17,7 @@ const STOPWORDS = new Set([
  * purely from app ID, words, or package segments.
  */
 export const CUSTOM_SCOPE_ALIASES: Record<string, string> = {
+  adobe: 'adobe-scan',
   pay365: '365-pay',
   sideline: 'sidelineswap',
   navigate: 'navigate360-student',
