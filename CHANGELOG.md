@@ -1,3 +1,16 @@
+## [1.9.0-dev.6](https://github.com/ihatenodejs/aidans-patches/compare/v1.9.0-dev.5...v1.9.0-dev.6) (2026-10-24)
+
+### 🐛 Bug Fixes
+
+* **adobe-scan:** switched worker process guard register to p1 ([9b7f4ca](https://github.com/ihatenodejs/aidans-patches/commit/9b7f4ca0286fb6a919388404154a5a8173e75a72))
+* **apk-lab:** sanitize token prompt, validate accounts per-entry, track manifest tags, and support negative bounds ([e53cef8](https://github.com/ihatenodejs/aidans-patches/commit/e53cef8dae6fc54ef001925e07b63730d4ae70e7))
+* **apk-lab:** scope manifest attributes, track indentation depth, and count account check failures ([45320f9](https://github.com/ihatenodejs/aidans-patches/commit/45320f931dfaf662623f5443daa2b2c8922425f9))
+* **audit:** display stderr on prettier formatting failures ([55b757b](https://github.com/ihatenodejs/aidans-patches/commit/55b757b230e34219fb3c9ecc07174bca4d6fd560))
+* **release:** format generated readme tables with prettier ([dba6e07](https://github.com/ihatenodejs/aidans-patches/commit/dba6e078da945cbf60e32a5198e53e4b75fc12e8))
+* **site:** bind adobe scope to adobe-scan and untrap card stretch link ([d7164f4](https://github.com/ihatenodejs/aidans-patches/commit/d7164f4ac311242e5f4ef7f1fdd553dd685ba97b))
+* **worker:** ensure consistent cache retention across permissions and media assets ([6cb897d](https://github.com/ihatenodejs/aidans-patches/commit/6cb897dd54e368785b5021b9b31cd83460de8e97))
+* **worker:** retain cached screenshots and reviews on empty scrape responses ([28a80cb](https://github.com/ihatenodejs/aidans-patches/commit/28a80cbdae0d8848754b6f8003c5f296b636153e))
+
 ## [1.9.0-dev.5](https://github.com/ihatenodejs/aidans-patches/compare/v1.9.0-dev.4...v1.9.0-dev.5) (2026-10-24)
 
 ### 🐛 Bug Fixes
