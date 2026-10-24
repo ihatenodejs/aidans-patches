@@ -174,7 +174,7 @@ fn resolve_token_value(ident: &str) -> Result<bool, String> {
         | "env_safari"
         | "env_edge" => Ok(false),
         s if s.starts_with("ext_") || s.starts_with("adguard") => Ok(false),
-        unknown => Err(format!("Unknown preprocessor token: '{}'", unknown)),
+        _unknown => Ok(false),
     }
 }
 
@@ -197,21 +197,24 @@ pub fn preprocess_list(input: &str) -> Result<(String, FilterDiagnostics), Strin
         if let Some(rest) = trimmed.strip_prefix("!#if ") {
             let expr = rest.trim();
             let parent_active = cond_stack.last().map(|c| c.1).unwrap_or(true);
-            match eval_condition(expr) {
-                Ok(cond) => {
-                    let active = parent_active && cond;
-                    cond_stack.push((cond, active, false, false));
-                }
-                Err(err) => {
-                    // Unknown tokens or syntax errors make the entire region inactive and log a diagnostic
-                    cond_stack.push((false, false, false, true));
-                    diagnostics.unsupported_count += 1;
-                    if diagnostics.samples.len() < 100 {
-                        diagnostics.samples.push(LineDiagnostic {
-                            line_number: line_num,
-                            rule: trimmed.to_string(),
-                            reason: format!("Unsupported !#if condition: {}", err),
-                        });
+            if !parent_active {
+                cond_stack.push((false, false, false, false));
+            } else {
+                match eval_condition(expr) {
+                    Ok(cond) => {
+                        let active = parent_active && cond;
+                        cond_stack.push((cond, active, false, false));
+                    }
+                    Err(err) => {
+                        cond_stack.push((false, false, false, true));
+                        diagnostics.unsupported_count += 1;
+                        if diagnostics.samples.len() < 100 {
+                            diagnostics.samples.push(LineDiagnostic {
+                                line_number: line_num,
+                                rule: trimmed.to_string(),
+                                reason: format!("Unsupported !#if condition: {}", err),
+                            });
+                        }
                     }
                 }
             }

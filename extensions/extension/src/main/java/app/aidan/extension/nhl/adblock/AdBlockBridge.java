@@ -13,6 +13,7 @@ import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
+import java.util.Locale;
 import java.util.Map;
 import java.util.WeakHashMap;
 
@@ -92,14 +93,22 @@ public final class AdBlockBridge {
             }
 
             String method = request.getMethod() != null ? request.getMethod() : "GET";
-            String dest = null;
-            Map<String, String> headers = request.getRequestHeaders();
-            if (headers != null) {
-                dest = headers.get("Sec-Fetch-Dest");
-                if (dest == null) dest = headers.get("sec-fetch-dest");
+            String resType;
+            if (request.isForMainFrame()) {
+                resType = "main_frame";
+            } else {
+                String dest = null;
+                Map<String, String> headers = request.getRequestHeaders();
+                if (headers != null) {
+                    for (Map.Entry<String, String> entry : headers.entrySet()) {
+                        if ("sec-fetch-dest".equalsIgnoreCase(entry.getKey())) {
+                            dest = entry.getValue();
+                            break;
+                        }
+                    }
+                }
+                resType = mapDestinationToResourceType(dest);
             }
-            String resType = mapDestinationToResourceType(dest);
-
             int match = NativeEngine.match(handle, reqUrl, docUrl, resType, method);
             if (match == 1) {
                 store.recordCheck(true);
@@ -154,7 +163,7 @@ public final class AdBlockBridge {
 
     private static String mapDestinationToResourceType(String dest) {
         if (dest == null) return "other";
-        switch (dest.toLowerCase()) {
+        switch (dest.toLowerCase(Locale.ROOT)) {
             case "document":
                 return "main_frame";
             case "iframe":
@@ -163,6 +172,11 @@ public final class AdBlockBridge {
             case "style":
                 return "stylesheet";
             case "script":
+            case "worker":
+            case "sharedworker":
+            case "serviceworker":
+            case "audioworklet":
+            case "paintworklet":
                 return "script";
             case "image":
                 return "image";
@@ -170,7 +184,13 @@ public final class AdBlockBridge {
                 return "font";
             case "video":
             case "audio":
+            case "track":
                 return "media";
+            case "object":
+            case "embed":
+                return "object";
+            case "report":
+                return "csp_report";
             case "empty":
                 return "xmlhttprequest";
             default:

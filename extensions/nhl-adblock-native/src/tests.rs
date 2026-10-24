@@ -147,8 +147,8 @@ fn test_conditional_directives() {
     assert!(eval_condition("ext_ublock").is_ok());
     assert!(!eval_condition("ext_ublock").unwrap());
 
-    // Unknown tokens produce error
-    assert!(eval_condition("unknown_feature_xyz").is_err());
+    // Unknown tokens evaluate to false
+    assert_eq!(eval_condition("unknown_feature_xyz"), Ok(false));
 
     let list = r#"
 !#if env_mobile
@@ -169,20 +169,50 @@ fn test_conditional_directives() {
 
 #[test]
 fn test_unsupported_if_else_directive() {
-    // Unsupported !#if condition keeps both if-block and else-block disabled
-    let invalid_if_list = r#"
+    // Unknown capability token fallback: evaluates to false, activating the !#else fallback
+    let unknown_cap_list = r#"
 !#if unknown_feature_xyz
+||unsupported-cap.com^
+!#else
+||fallback-rule.com^
+!#endif
+"#;
+    let (accepted, diag) = preprocess_list(unknown_cap_list).unwrap();
+    assert!(!accepted.contains("unsupported-cap.com"));
+    assert!(accepted.contains("fallback-rule.com"));
+    assert_eq!(diag.unsupported_count, 0);
+
+    // Malformed syntax error (e.g. unclosed paren) keeps both if and else blocks disabled
+    let invalid_syntax_list = r#"
+!#if (unclosed_paren
 ||invalid-if.com^
 !#else
 ||invalid-else.com^
 !#endif
 "#;
-    let (accepted_invalid, diag_invalid) = preprocess_list(invalid_if_list).unwrap();
-    assert!(!accepted_invalid.contains("invalid-if.com"));
-    assert!(!accepted_invalid.contains("invalid-else.com"));
-    assert_eq!(diag_invalid.accepted_count, 0);
-    assert_eq!(diag_invalid.unsupported_count, 1);
+    let (accepted_syntax, diag_syntax) = preprocess_list(invalid_syntax_list).unwrap();
+    assert!(!accepted_syntax.contains("invalid-if.com"));
+    assert!(!accepted_syntax.contains("invalid-else.com"));
+    assert_eq!(diag_syntax.accepted_count, 0);
+    assert_eq!(diag_syntax.unsupported_count, 1);
+
+    // Inactive parent block skips evaluation of child directives
+    let inactive_nested_list = r#"
+!#if false
+!#if (unclosed_paren
+||nested-if.com^
+!#else
+||nested-else.com^
+!#endif
+!#endif
+"#;
+    let (accepted_nested, diag_nested) = preprocess_list(inactive_nested_list).unwrap();
+    assert!(!accepted_nested.contains("nested-if.com"));
+    assert!(!accepted_nested.contains("nested-else.com"));
+    assert_eq!(diag_nested.accepted_count, 0);
+    assert_eq!(diag_nested.unsupported_count, 0);
 }
+
 #[test]
 fn test_cosmetics_and_generic_selectors() {
     let rules = r#"
