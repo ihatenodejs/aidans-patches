@@ -12,6 +12,8 @@ python3 generate_patches_readme.py <owner/repo> <branch> [patches-list.json] [RE
 
 import json
 import re
+import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -236,6 +238,27 @@ new_readme = re.sub(
     flags=re.DOTALL,
 )
 readme_path.write_text(new_readme, encoding="utf-8")
+
+prettier_bin = shutil.which("prettier")
+if prettier_bin:
+    subprocess.run(
+        [prettier_bin, "--write", str(readme_path)],
+        check=False,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+else:
+    for runner in ("bunx", "npx"):
+        runner_bin = shutil.which(runner)
+        if runner_bin:
+            subprocess.run(
+                [runner_bin, "prettier", "--write", str(readme_path)],
+                check=False,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            break
+
 print(
     f"✅ Injected patches section into {readme_path} (v{ver}, branch={branch}, {total} patches, expanded={expanded})"
 )
