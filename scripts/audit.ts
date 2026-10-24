@@ -389,12 +389,8 @@ async function runFormat(
         : 'Files need formatting'
       : 'Formatted web, docs & config files';
     console.log(pPassed ? sym.ok : sym.err);
-    if (!pPassed && checkOnly) {
-      console.log(
-        c.dim +
-          pRes.stdout.trim().split('\n').slice(0, 10).join('\n') +
-          c.reset,
-      );
+    if (!pPassed) {
+      printRawCommandOutput(pRes.stdout, pRes.stderr);
     }
     results.push({
       title: 'Web, Configs & Markdown (Prettier)',
