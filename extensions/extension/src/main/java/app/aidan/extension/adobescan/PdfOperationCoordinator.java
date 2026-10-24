@@ -33,6 +33,8 @@ import java.util.concurrent.atomic.AtomicLong;
 public class PdfOperationCoordinator {
 
     private static final String TAG = "PdfOperationCoord";
+    private static final Object OCR_EXTRACT_LOCK = new Object();
+    private static final long EXPECTED_OCR_MODEL_SIZE = 4113088L;
     private static PdfOperationCoordinator sInstance;
 
     private final Application application;
@@ -709,15 +711,38 @@ public class PdfOperationCoordinator {
             final File ocrDir = new File(application.getCacheDir(), "aidan-scan-pdf/ocr");
             if (!ocrDir.exists()) ocrDir.mkdirs();
             final File modelFile = new File(ocrDir, "eng.traineddata");
-            if (!modelFile.exists() || modelFile.length() <= 0) {
-                try (InputStream is = application.getAssets().open("aidan-scan-pdf/ocr/eng.traineddata");
-                     FileOutputStream fos = new FileOutputStream(modelFile)) {
-                    byte[] buf = new byte[65536];
-                    int r;
-                    while ((r = is.read(buf)) != -1) {
-                        fos.write(buf, 0, r);
+            synchronized (OCR_EXTRACT_LOCK) {
+                if (!modelFile.exists() || modelFile.length() != EXPECTED_OCR_MODEL_SIZE) {
+                    final File tmpFile = new File(ocrDir, "eng.traineddata.tmp." + System.currentTimeMillis());
+                    try {
+                        long total = 0;
+                        try (InputStream is = application.getAssets().open("aidan-scan-pdf/ocr/eng.traineddata");
+                             FileOutputStream fos = new FileOutputStream(tmpFile)) {
+                            byte[] buf = new byte[65536];
+                            int r;
+                            while ((r = is.read(buf)) != -1) {
+                                fos.write(buf, 0, r);
+                                total += r;
+                            }
+                            fos.flush();
+                            fos.getFD().sync();
+                        }
+                        if (total != EXPECTED_OCR_MODEL_SIZE || tmpFile.length() != EXPECTED_OCR_MODEL_SIZE) {
+                            tmpFile.delete();
+                            throw new IOException("Extracted OCR model size mismatch: " + total + " bytes");
+                        }
+                        if (!tmpFile.renameTo(modelFile)) {
+                            if (modelFile.exists()) modelFile.delete();
+                            if (!tmpFile.renameTo(modelFile)) {
+                                tmpFile.delete();
+                                throw new IOException("Failed to rename temporary OCR model file to " + modelFile.getAbsolutePath());
+                            }
+                        }
+                    } finally {
+                        if (tmpFile.exists()) {
+                            tmpFile.delete();
+                        }
                     }
-                    fos.flush();
                 }
             }
             return ParcelFileDescriptor.open(modelFile, ParcelFileDescriptor.MODE_READ_ONLY);

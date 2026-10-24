@@ -72,8 +72,10 @@ def main() -> int:
                 count += 1
 
     if count == 0:
+        if os.path.exists(args.output):
+            os.remove(args.output)
         print(
-            f"Error: No PDFBox assets found matching prefix '{prefix}' in {args.aar}",
+            f"Error: No PDFBox assets found matching prefix '{prefix}' in {aar_path}",
             file=sys.stderr,
         )
         return 1

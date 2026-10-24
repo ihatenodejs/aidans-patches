@@ -311,12 +311,12 @@ JNIEXPORT jobjectArray JNICALL Java_app_aidan_extension_adobescan_NativePdfEngin
     for (size_t i = 0; i < words.size(); ++i) {
         jstring textStr = env->NewStringUTF(words[i].text.c_str());
         if (textStr == nullptr || env->ExceptionCheck())
-            break;
+            return nullptr;
         jobject wordObj = env->NewObject(wordClass, wordCtor, textStr, words[i].left, words[i].top,
                                          words[i].right, words[i].bottom);
         if (wordObj == nullptr || env->ExceptionCheck()) {
             env->DeleteLocalRef(textStr);
-            break;
+            return nullptr;
         }
         env->SetObjectArrayElement(arr, static_cast<jsize>(i), wordObj);
         env->DeleteLocalRef(textStr);
