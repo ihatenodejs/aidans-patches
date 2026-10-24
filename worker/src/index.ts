@@ -406,14 +406,14 @@ export async function performVersionCheck(
             ? sMeta.permissionGroups
             : (priorMeta?.permissionGroups ?? []),
         screenshots:
-          sMeta?.screenshots !== undefined
+          sMeta?.screenshots && sMeta.screenshots.length > 0
             ? reconcileMediaAssetsList(
                 sMeta.screenshots,
                 priorMeta?.screenshots,
               )
             : (priorMeta?.screenshots ?? []),
         featuredReviews:
-          sMeta?.featuredReviews !== undefined
+          sMeta?.featuredReviews && sMeta.featuredReviews.length > 0
             ? reconcileReviews(
                 sMeta.featuredReviews,
                 priorMeta?.featuredReviews,
