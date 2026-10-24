@@ -402,7 +402,7 @@ export async function performVersionCheck(
             ? sMeta.inAppPurchases
             : (priorMeta?.inAppPurchases ?? null),
         permissionGroups:
-          sMeta?.permissionGroups !== undefined
+          sMeta?.permissionGroups && sMeta.permissionGroups.length > 0
             ? sMeta.permissionGroups
             : (priorMeta?.permissionGroups ?? []),
         screenshots:
