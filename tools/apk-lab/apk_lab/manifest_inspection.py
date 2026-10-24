@@ -23,7 +23,7 @@ def parse_manifest_xmltree(xmltree_output: str) -> list[ManifestComponent]:
     """Parses aapt2 dump xmltree AndroidManifest.xml output into structured components."""
     components: list[ManifestComponent] = []
     current_comp: ManifestComponent | None = None
-    in_intent_filter = False
+    current_tag: str | None = None
 
     for line in xmltree_output.splitlines():
         line_str = line.strip()
@@ -32,14 +32,14 @@ def parse_manifest_xmltree(xmltree_output: str) -> list[ManifestComponent]:
         if tag_match:
             if current_comp:
                 components.append(current_comp)
-            current_comp = ManifestComponent(component_type=tag_match.group(1), name="")
-            in_intent_filter = False
+            current_tag = tag_match.group(1)
+            current_comp = ManifestComponent(component_type=current_tag, name="")
             continue
 
-        if re.match(r"^E:\s+intent-filter\b", line_str):
-            in_intent_filter = True
+        elem_match = re.match(r"^E:\s+(\w+)\b", line_str)
+        if elem_match:
+            current_tag = elem_match.group(1)
             continue
-
         if current_comp is not None:
             # Match attributes
             # Match attributes (quoted or unquoted)
@@ -55,9 +55,12 @@ def parse_manifest_xmltree(xmltree_output: str) -> list[ManifestComponent]:
                     else attr_match.group(3)
                 )
                 if attr_name == "name":
-                    if in_intent_filter:
+                    if current_tag == "action":
                         current_comp.intent_actions.append(attr_val)
-                    elif not current_comp.name:
+                    elif (
+                        current_tag in ("activity", "service", "receiver", "provider")
+                        and not current_comp.name
+                    ):
                         current_comp.name = attr_val
                 elif attr_name == "exported":
                     current_comp.exported = (

@@ -41,7 +41,7 @@ def exchange_oauth_for_aas(email: str, oauth_token: str) -> str:
     if not apkeep_bin:
         print("\nNotice: apkeep executable not found on host/cache.")
         print("You can exchange manually with:")
-        print(f"  apkeep -e {email} --oauth-token {oauth_token}")
+        print(f"  apkeep -e {email} --oauth-token [OAUTH_TOKEN]")
         aas = questionary.password("Or enter pre-generated AAS token:").ask()
         if not aas or not aas.strip():
             raise GooglePlayAccountError("AAS token cannot be empty")
@@ -232,30 +232,33 @@ def check_accounts(accounts_file: GooglePlayAccountsFile | None) -> None:
     # Find play-metadata helper binary if compiled or Cargo project
     helper_bin = (
         Path(__file__).parent.parent.parent
+        / "tools"
         / "play-metadata"
         / "target"
         / "release"
         / "play-metadata"
     )
-    manifest_path = Path(__file__).parent.parent.parent / "play-metadata" / "Cargo.toml"
+    if not helper_bin.is_file():
+        helper_bin = (
+            Path(__file__).parent.parent.parent
+            / "play-metadata"
+            / "target"
+            / "release"
+            / "play-metadata"
+        )
+    manifest_path = (
+        Path(__file__).parent.parent.parent / "tools" / "play-metadata" / "Cargo.toml"
+    )
+    if not manifest_path.is_file():
+        manifest_path = (
+            Path(__file__).parent.parent.parent / "play-metadata" / "Cargo.toml"
+        )
 
-    request = {
-        "accounts": accounts_file.to_dict(),
-        "packages": ["com.adobe.scan.android"],
-    }
-    input_str = json.dumps(request)
-
-    res: subprocess.CompletedProcess[str] | None = None
+    cmd: list[str] | None = None
     if helper_bin.is_file() and os.access(helper_bin, os.X_OK):
         cmd = [str(helper_bin)]
-        res = subprocess.run(
-            cmd, input=input_str, capture_output=True, text=True, check=False
-        )
     elif manifest_path.is_file():
         cmd = ["cargo", "run", "--quiet", "--manifest-path", str(manifest_path), "--"]
-        res = subprocess.run(
-            cmd, input=input_str, capture_output=True, text=True, check=False
-        )
     else:
         print("play-metadata helper not found. Accounts file validated locally.")
         for acc in accounts_file.accounts:
@@ -265,26 +268,42 @@ def check_accounts(accounts_file: GooglePlayAccountsFile | None) -> None:
             )
         return
 
-    if res is None or res.returncode != 0:
-        code = res.returncode if res else -1
-        err_msg = res.stderr[:300] if res else "Command did not run"
-        print(f"Check failed with exit code {code}")
-        print(err_msg)
-        return
+    all_results = []
+    all_failures = []
+    for acc in accounts_file.accounts:
+        if not acc.enabled:
+            continue
+        request = {
+            "accounts": {"version": accounts_file.version, "accounts": [acc.to_dict()]},
+            "packages": ["com.adobe.scan.android"],
+        }
+        input_str = json.dumps(request)
+        res = subprocess.run(
+            cmd, input=input_str, capture_output=True, text=True, check=False
+        )
+        if res.returncode != 0:
+            code = res.returncode
+            err_msg = res.stderr[:300] if res.stderr else "Command did not run"
+            print(f"Check failed with exit code {code}")
+            print(err_msg)
+            continue
 
-    try:
-        data = json.loads(res.stdout)
-        results = data.get("results", [])
-        failures = data.get("failures", [])
-        print(f"Verified accounts: {len(results)} success, {len(failures)} failures.")
-        for r in results:
-            print(
-                f"  Account [{r.get('accountLabel')}]: Authenticated successfully (tested {r.get('packageName')} v{r.get('versionName')})"
-            )
-        for f in failures:
-            print(f"  Failed: {f.get('packageName')} ({f.get('reason')})")
-    except (json.JSONDecodeError, KeyError) as e:
-        print(f"Error parsing metadata response: {e}")
+        try:
+            data = json.loads(res.stdout)
+            all_results.extend(data.get("results", []))
+            all_failures.extend(data.get("failures", []))
+        except (json.JSONDecodeError, KeyError) as e:
+            print(f"Error parsing metadata response: {e}")
+
+    print(
+        f"Verified accounts: {len(all_results)} success, {len(all_failures)} failures."
+    )
+    for r in all_results:
+        print(
+            f"  Account [{r.get('accountLabel')}]: Authenticated successfully (tested {r.get('packageName')} v{r.get('versionName')})"
+        )
+    for f in all_failures:
+        print(f"  Failed: {f.get('packageName')} ({f.get('reason')})")
 
 
 def sync_github_secret(accounts_file: GooglePlayAccountsFile | None) -> None:

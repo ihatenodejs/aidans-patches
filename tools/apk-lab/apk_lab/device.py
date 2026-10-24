@@ -403,7 +403,7 @@ def resolve_frame_in_smali(frame_str: str, smali_root: Path) -> ResolvedFrame:
         )
 
     method_re = re.compile(
-        r"^(\.method\b[^\n]*?\b" + re.escape(method_name) + r"\([^\n]*\)[^\n]*)",
+        r"^(\.method\b[^\n]*\s+" + re.escape(method_name) + r"\([^\n]*\)[^\n]*)",
         re.MULTILINE,
     )
     m_match = method_re.search(content)
@@ -1082,7 +1082,7 @@ def run_monitor(args: argparse.Namespace) -> int:
 
 def parse_bounds(bounds_str: str) -> tuple[int, int, int, int]:
     """Parses [left,top][right,bottom] into (left, top, right, bottom)."""
-    m = re.match(r"\[(\d+),(\d+)\]\[(\d+),(\d+)\]", bounds_str)
+    m = re.match(r"\[(-?\d+),(-?\d+)\]\[(-?\d+),(-?\d+)\]", bounds_str)
     if not m:
         raise ValueError(f"Invalid bounds string: {bounds_str}")
     return int(m.group(1)), int(m.group(2)), int(m.group(3)), int(m.group(4))
