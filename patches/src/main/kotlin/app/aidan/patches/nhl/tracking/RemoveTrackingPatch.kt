@@ -485,7 +485,8 @@ private fun BytecodePatchContext.patchSmartConsentRouting() {
     val cMethod = gceClass.methods.singleOrNull { method ->
         method.name == "c" &&
             method.parameterTypes == listOf("Lqoj;") &&
-            method.returnType == "Z"
+            method.returnType == "Z" &&
+            method.implementation != null
     } ?: throw PatchException("Missing required method Lgce;->c(Lqoj;)Z")
     cMethod.addInstructions(
         0,
@@ -502,7 +503,8 @@ private fun BytecodePatchContext.patchSmartConsentRouting() {
     val mMethod = qc8Class.methods.singleOrNull { method ->
         method.name == "M" &&
             method.parameterTypes == listOf("Lqoj;", "Lcom/onetrust/otpublishers/headless/Public/OTPublishersHeadlessSDK;") &&
-            method.returnType == "Lvu3;"
+            method.returnType == "Lvu3;" &&
+            method.implementation != null
     } ?: throw PatchException("Missing required method Lqc8;->M(Lqoj;Lcom/onetrust/otpublishers/headless/Public/OTPublishersHeadlessSDK;)Lvu3;")
     mMethod.addInstructions(
         0,

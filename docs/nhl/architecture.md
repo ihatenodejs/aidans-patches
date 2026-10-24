@@ -53,7 +53,6 @@ The official NHL application is built using modern Android Jetpack libraries, Co
 - **UrbanAirship (Airship) Core & FCM Push:** Manages push registration and token lifecycle (`com.urbanairship.push.fcm.AirshipFirebaseMessagingService`, `AirshipChannel`).
 - **Live Activities (Real-Time Game Scores):** Driven by `LiveActivityNotificationManager` (`cla.smali`), scheduling dynamic lockscreen and notification drawer score widgets via UrbanAirship Live Activities subsystem (`Lroa;->a(...)`).
 - **Firebase Installations (FIS):** Used by `FirebaseMessaging` to mint app-instance tokens. Restricted on Google Cloud by package name and signing certificate SHA-1 digest (`9D:1B:1A:C8:28:E0:47:72:A7:34:91:D8:39:D9:85:2B:80:C4:66:92`).
-- **Runtime Bridge (`PushBridge`):** `app.aidan.extension.nhl.PushBridge` packaged in `extensions/extension.mpe` provides the official 20-byte SHA-1 digest to `AndroidUtilsLight.getPackageCertificateHashBytes` and evaluates OneTrust consent for push delivery SDKs (`UrbanAirshipCore`, `UrbanAirshipFcm`, `BlazePushSdk`).
 
 ### Analytics, Advertising & Telemetry Systems
 

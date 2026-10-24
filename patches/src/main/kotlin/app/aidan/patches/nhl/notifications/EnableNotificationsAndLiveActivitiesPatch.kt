@@ -67,7 +67,8 @@ private fun BytecodePatchContext.spoofReleaseCertificateHash() {
     val hashMethod = androidUtilsClass.methods.singleOrNull { method ->
         method.name == "getPackageCertificateHashBytes" &&
             method.parameterTypes == listOf("Landroid/content/Context;", "Ljava/lang/String;") &&
-            method.returnType == "[B"
+            method.returnType == "[B" &&
+            method.implementation != null
     } ?: throw PatchException("Missing required method AndroidUtilsLight.getPackageCertificateHashBytes(Context, String)[B")
 
     hashMethod.addInstructions(
@@ -93,7 +94,8 @@ private fun BytecodePatchContext.bypassPlayServicesSignatureChecks() {
     val zzaMethod = verifierClass.methods.singleOrNull { method ->
         method.name == "zza" &&
             method.parameterTypes == listOf("Landroid/content/pm/PackageInfo;", "Z") &&
-            method.returnType == "Z"
+            method.returnType == "Z" &&
+            method.implementation != null
     } ?: throw PatchException("Missing required method GoogleSignatureVerifier.zza(PackageInfo, Z)Z")
 
     zzaMethod.addInstructions(
@@ -107,7 +109,8 @@ private fun BytecodePatchContext.bypassPlayServicesSignatureChecks() {
     val publicSignedMethod = verifierClass.methods.singleOrNull { method ->
         method.name == "isGooglePublicSignedPackage" &&
             method.parameterTypes == listOf("Landroid/content/pm/PackageInfo;") &&
-            method.returnType == "Z"
+            method.returnType == "Z" &&
+            method.implementation != null
     } ?: throw PatchException("Missing required method GoogleSignatureVerifier.isGooglePublicSignedPackage(PackageInfo)Z")
 
     publicSignedMethod.addInstructions(
@@ -121,7 +124,8 @@ private fun BytecodePatchContext.bypassPlayServicesSignatureChecks() {
     val packageSignedMethod = verifierClass.methods.singleOrNull { method ->
         method.name == "isPackageGoogleSigned" &&
             method.parameterTypes == listOf("Ljava/lang/String;") &&
-            method.returnType == "Z"
+            method.returnType == "Z" &&
+            method.implementation != null
     } ?: throw PatchException("Missing required method GoogleSignatureVerifier.isPackageGoogleSigned(String)Z")
 
     packageSignedMethod.addInstructions(
@@ -135,7 +139,8 @@ private fun BytecodePatchContext.bypassPlayServicesSignatureChecks() {
     val uidSignedMethod = verifierClass.methods.singleOrNull { method ->
         method.name == "isUidGoogleSigned" &&
             method.parameterTypes == listOf("I") &&
-            method.returnType == "Z"
+            method.returnType == "Z" &&
+            method.implementation != null
     } ?: throw PatchException("Missing required method GoogleSignatureVerifier.isUidGoogleSigned(I)Z")
 
     uidSignedMethod.addInstructions(

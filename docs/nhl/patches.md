@@ -191,7 +191,7 @@ The **Remove Tracking** patch neutralizes these tracking systems while preservin
    - Forces `shouldShowBanner` to return `false` and `isBannerShown` to return `0`.
    - Neutralizes OneTrust network calls (`startOtSdkNetworkCall`, `startSDK`, `saveConsent`, `saveAllowAll`, `saveRejectAll`).
    - Forces consent query methods (`getConsentStatusForGroupId`, `getConsentStatusForSDKId`, `getPurposeConsentLocal`, `getPurposeLegitInterestLocal`, `getUCPurposeConsent`) to return `0` (`Denied`).
-   - Forces host application consent check `Lgce;->c(Lqoj;)Z` to return `false`, ensuring all categorized SDKs are treated as unconsented.
+   - Routes host application consent checks through `PushBridge.isPushConsented` (`Lgce;->c(Lqoj;)Z` and `Lqc8;->M(...)Lvu3;`), preserving consent for `UrbanAirshipCore`, `UrbanAirshipFcm`, and `BlazePushSdk` while treating advertising and telemetry SDKs as unconsented.
 3. **Advertising ID Zeroing (`zeroAdvertisingId`):**
    - Spoofs minified `AdvertisingIdClient` (`Ljj;->a` and `Ljj;->f`) to return an Info object (`Lij;`) with a zeroed UUID (`00000000-0000-0000-0000-000000000000`) and `limitAdTrackingEnabled = true`.
    - Stubs unminified `AdvertisingIdClient$Info` (`getId` and `isLimitAdTrackingEnabled`) if present.
