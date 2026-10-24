@@ -92,15 +92,13 @@ public final class AdBlockBridge {
             }
 
             String method = request.getMethod() != null ? request.getMethod() : "GET";
-            String resType = "other";
+            String dest = null;
             Map<String, String> headers = request.getRequestHeaders();
             if (headers != null) {
-                String dest = headers.get("Sec-Fetch-Dest");
+                dest = headers.get("Sec-Fetch-Dest");
                 if (dest == null) dest = headers.get("sec-fetch-dest");
-                if (dest != null && !dest.isEmpty()) {
-                    resType = dest.toLowerCase();
-                }
             }
+            String resType = mapDestinationToResourceType(dest);
 
             int match = NativeEngine.match(handle, reqUrl, docUrl, resType, method);
             if (match == 1) {
@@ -151,6 +149,32 @@ public final class AdBlockBridge {
             }
         } catch (Exception e) {
             return null;
+        }
+    }
+
+    private static String mapDestinationToResourceType(String dest) {
+        if (dest == null) return "other";
+        switch (dest.toLowerCase()) {
+            case "document":
+                return "main_frame";
+            case "iframe":
+            case "frame":
+                return "subdocument";
+            case "style":
+                return "stylesheet";
+            case "script":
+                return "script";
+            case "image":
+                return "image";
+            case "font":
+                return "font";
+            case "video":
+            case "audio":
+                return "media";
+            case "empty":
+                return "xmlhttprequest";
+            default:
+                return "other";
         }
     }
 

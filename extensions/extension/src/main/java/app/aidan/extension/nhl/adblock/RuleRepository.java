@@ -13,6 +13,7 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.net.InetAddress;
 import java.net.URL;
@@ -24,6 +25,8 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.zip.GZIPInputStream;
@@ -56,6 +59,12 @@ public final class RuleRepository {
     private final File mListsDir;
     private final File mCacheFile;
 
+    private final ScheduledExecutorService mCleanupExecutor =
+            Executors.newSingleThreadScheduledExecutor(r -> {
+                Thread t = new Thread(r, "aidan-nhl-engine-cleanup");
+                t.setDaemon(true);
+                return t;
+            });
     private final AtomicLong mActiveEngineHandle = new AtomicLong(0L);
     private final AtomicLong mGeneration = new AtomicLong(1L);
     private final AtomicBoolean mIsCompiling = new AtomicBoolean(false);
@@ -429,12 +438,9 @@ public final class RuleRepository {
                 long oldHandle = mActiveEngineHandle.getAndSet(newHandle);
                 mGeneration.incrementAndGet();
                 if (oldHandle != 0L) {
-                    mExecutor.execute(() -> {
-                        try {
-                            Thread.sleep(5000L);
-                        } catch (InterruptedException ignored) {}
+                    mCleanupExecutor.schedule(() -> {
                         NativeEngine.release(oldHandle);
-                    });
+                    }, 5000L, TimeUnit.MILLISECONDS);
                 }
                 Log.i(TAG, "Successfully compiled adblock engine generation " + mGeneration.get());
             }
@@ -538,6 +544,27 @@ public final class RuleRepository {
             saveSubscriptions();
         }
     }
+    private static byte[] readFully(File file) throws IOException {
+        long length = file.length();
+        if (length > MAX_LIST_BYTES) {
+            throw new IOException("File exceeds maximum allowed size: " + file.getAbsolutePath());
+        }
+        byte[] buffer = new byte[(int) length];
+        try (FileInputStream fis = new FileInputStream(file)) {
+            int offset = 0;
+            int numRead;
+            while (offset < buffer.length && (numRead = fis.read(buffer, offset, buffer.length - offset)) >= 0) {
+                offset += numRead;
+            }
+            if (offset < buffer.length) {
+                byte[] exact = new byte[offset];
+                System.arraycopy(buffer, 0, exact, 0, offset);
+                return exact;
+            }
+            return buffer;
+        }
+    }
+
     private void parseDiagnosticsForFile(File targetFile, SubscriptionInfo s) {
         if (!targetFile.exists() || targetFile.length() == 0) {
             s.lastError = "Rule file missing or empty";
@@ -547,9 +574,8 @@ public final class RuleRepository {
             s.lastError = "Native adblock engine unavailable";
             return;
         }
-        try (FileInputStream fis = new FileInputStream(targetFile)) {
-            byte[] b = new byte[(int) targetFile.length()];
-            fis.read(b);
+        try {
+            byte[] b = readFully(targetFile);
             String diagJson = NativeEngine.parseDiagnostics(new String(b, StandardCharsets.UTF_8));
             if (diagJson != null && !diagJson.isEmpty()) {
                 JSONObject dObj = new JSONObject(diagJson);

@@ -186,8 +186,8 @@ pub fn preprocess_list(input: &str) -> Result<(String, FilterDiagnostics), Strin
     let mut accepted_lines = Vec::new();
     let mut diagnostics = FilterDiagnostics::default();
 
-    // Stack of (condition_matched, condition_active, has_else)
-    let mut cond_stack: Vec<(bool, bool, bool)> = Vec::new();
+    // Stack of (condition_matched, condition_active, has_else, is_err)
+    let mut cond_stack: Vec<(bool, bool, bool, bool)> = Vec::new();
 
     for (idx, raw_line) in input.lines().enumerate() {
         let line_num = idx + 1;
@@ -200,11 +200,11 @@ pub fn preprocess_list(input: &str) -> Result<(String, FilterDiagnostics), Strin
             match eval_condition(expr) {
                 Ok(cond) => {
                     let active = parent_active && cond;
-                    cond_stack.push((cond, active, false));
+                    cond_stack.push((cond, active, false, false));
                 }
                 Err(err) => {
                     // Unknown tokens or syntax errors make the entire region inactive and log a diagnostic
-                    cond_stack.push((false, false, false));
+                    cond_stack.push((false, false, false, true));
                     diagnostics.unsupported_count += 1;
                     if diagnostics.samples.len() < 100 {
                         diagnostics.samples.push(LineDiagnostic {
@@ -217,14 +217,14 @@ pub fn preprocess_list(input: &str) -> Result<(String, FilterDiagnostics), Strin
             }
             continue;
         } else if trimmed == "!#else" {
-            if let Some((cond, _, has_else)) = cond_stack.pop() {
+            if let Some((cond, _, has_else, is_err)) = cond_stack.pop() {
                 if has_else {
                     return Err(format!("Multiple !#else directives at line {}", line_num));
                 }
                 let parent_active = cond_stack.last().map(|c| c.1).unwrap_or(true);
-                let else_cond = !cond;
+                let else_cond = if is_err { false } else { !cond };
                 let active = parent_active && else_cond;
-                cond_stack.push((cond, active, true));
+                cond_stack.push((cond, active, true, is_err));
             } else {
                 return Err(format!("Unmatched !#else at line {}", line_num));
             }

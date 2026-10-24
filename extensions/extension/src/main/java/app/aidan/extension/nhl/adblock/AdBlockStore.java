@@ -11,6 +11,7 @@ import org.json.JSONObject;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -345,14 +346,34 @@ public final class AdBlockStore {
         }
     }
 
+    private static byte[] readFully(File file) throws IOException {
+        long length = file.length();
+        if (length > MAX_HISTORY_FILE_BYTES) {
+            throw new IOException("File exceeds maximum allowed size: " + file.getAbsolutePath());
+        }
+        byte[] buffer = new byte[(int) length];
+        try (FileInputStream fis = new FileInputStream(file)) {
+            int offset = 0;
+            int numRead;
+            while (offset < buffer.length && (numRead = fis.read(buffer, offset, buffer.length - offset)) >= 0) {
+                offset += numRead;
+            }
+            if (offset < buffer.length) {
+                byte[] exact = new byte[offset];
+                System.arraycopy(buffer, 0, exact, 0, offset);
+                return exact;
+            }
+            return buffer;
+        }
+    }
+
     private void loadHistoryFromDisk() {
         mIoExecutor.execute(() -> {
             if (!mHistoryFile.exists() || mHistoryFile.length() > MAX_HISTORY_FILE_BYTES) {
                 return;
             }
-            try (FileInputStream fis = new FileInputStream(mHistoryFile)) {
-                byte[] bytes = new byte[(int) mHistoryFile.length()];
-                fis.read(bytes);
+            try {
+                byte[] bytes = readFully(mHistoryFile);
                 String jsonStr = new String(bytes, StandardCharsets.UTF_8);
                 JSONArray array = new JSONArray(jsonStr);
                 long cutoff = System.currentTimeMillis() - MAX_HISTORY_AGE_MS;

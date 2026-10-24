@@ -168,6 +168,22 @@ fn test_conditional_directives() {
 }
 
 #[test]
+fn test_unsupported_if_else_directive() {
+    // Unsupported !#if condition keeps both if-block and else-block disabled
+    let invalid_if_list = r#"
+!#if unknown_feature_xyz
+||invalid-if.com^
+!#else
+||invalid-else.com^
+!#endif
+"#;
+    let (accepted_invalid, diag_invalid) = preprocess_list(invalid_if_list).unwrap();
+    assert!(!accepted_invalid.contains("invalid-if.com"));
+    assert!(!accepted_invalid.contains("invalid-else.com"));
+    assert_eq!(diag_invalid.accepted_count, 0);
+    assert_eq!(diag_invalid.unsupported_count, 1);
+}
+#[test]
 fn test_cosmetics_and_generic_selectors() {
     let rules = r#"
 nhl.com##.nhl-o-adv[data-adv-container]
