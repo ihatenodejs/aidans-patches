@@ -215,3 +215,54 @@ def test_inspect_artifact_components_integration():
     assert len(components) > 0
     names = [c.name for c in components]
     assert any("ScanDocumentProvider" in n for n in names)
+
+
+def test_parse_manifest_xmltree_activity_alias_ignored():
+    xml = """N: android=http://schemas.android.com/apk/res/android (line=2)
+  E: manifest (line=2)
+    E: application (line=10)
+      E: activity-alias (line=12)
+        A: http://schemas.android.com/apk/res/android:name(0x01010003)="com.example.testapp.AliasActivity" (Raw: "com.example.testapp.AliasActivity")
+        A: http://schemas.android.com/apk/res/android:targetActivity(0x01010202)="com.example.testapp.MainActivity" (Raw: "com.example.testapp.MainActivity")
+        A: http://schemas.android.com/apk/res/android:exported(0x01010010)=true
+"""
+    components = parse_manifest_xmltree(xml)
+    assert len(components) == 0
+
+
+def test_parse_manifest_xmltree_child_metadata_does_not_overwrite_exported():
+    xml = """N: android=http://schemas.android.com/apk/res/android (line=2)
+  E: manifest (line=2)
+    E: application (line=10)
+      E: activity (line=12)
+        A: http://schemas.android.com/apk/res/android:name(0x01010003)="com.example.testapp.MainActivity" (Raw: "com.example.testapp.MainActivity")
+        A: http://schemas.android.com/apk/res/android:exported(0x01010010)=true
+        E: meta-data (line=14)
+          A: http://schemas.android.com/apk/res/android:name(0x01010003)="foo" (Raw: "foo")
+          A: http://schemas.android.com/apk/res/android:exported(0x01010010)=false
+"""
+    components = parse_manifest_xmltree(xml)
+    assert len(components) == 1
+    assert components[0].name == "com.example.testapp.MainActivity"
+    assert components[0].exported is True
+
+
+def test_parse_manifest_xmltree_queries_action_does_not_leak_into_activity():
+    xml = """N: android=http://schemas.android.com/apk/res/android (line=2)
+  E: manifest (line=2)
+    E: application (line=10)
+      E: activity (line=12)
+        A: http://schemas.android.com/apk/res/android:name(0x01010003)="com.example.testapp.MainActivity" (Raw: "com.example.testapp.MainActivity")
+        A: http://schemas.android.com/apk/res/android:exported(0x01010010)=true
+        E: intent-filter (line=15)
+          E: action (line=16)
+            A: http://schemas.android.com/apk/res/android:name(0x01010003)="android.intent.action.MAIN" (Raw: "android.intent.action.MAIN")
+    E: queries (line=20)
+      E: intent (line=21)
+        E: action (line=22)
+          A: http://schemas.android.com/apk/res/android:name(0x01010003)="android.intent.action.VIEW" (Raw: "android.intent.action.VIEW")
+"""
+    components = parse_manifest_xmltree(xml)
+    assert len(components) == 1
+    assert components[0].name == "com.example.testapp.MainActivity"
+    assert components[0].intent_actions == ["android.intent.action.MAIN"]

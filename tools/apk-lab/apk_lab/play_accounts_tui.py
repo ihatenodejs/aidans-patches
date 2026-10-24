@@ -284,16 +284,45 @@ def check_accounts(accounts_file: GooglePlayAccountsFile | None) -> None:
         if res.returncode != 0:
             code = res.returncode
             err_msg = res.stderr[:300] if res.stderr else "Command did not run"
+            if acc.aas_token and acc.aas_token in err_msg:
+                err_msg = err_msg.replace(acc.aas_token, "[REDACTED]")
+            all_failures.append(
+                {
+                    "accountLabel": acc.label,
+                    "packageName": "com.adobe.scan.android",
+                    "reason": f"Helper exited with code {code}: {err_msg.strip()}",
+                }
+            )
             print(f"Check failed with exit code {code}")
             print(err_msg)
             continue
 
         try:
             data = json.loads(res.stdout)
-            all_results.extend(data.get("results", []))
-            all_failures.extend(data.get("failures", []))
-        except (json.JSONDecodeError, KeyError) as e:
+            if isinstance(data, dict):
+                results = data.get("results")
+                failures = data.get("failures")
+                if isinstance(results, list):
+                    all_results.extend([r for r in results if isinstance(r, dict)])
+                if isinstance(failures, list):
+                    all_failures.extend([f for f in failures if isinstance(f, dict)])
+            else:
+                all_failures.append(
+                    {
+                        "accountLabel": acc.label,
+                        "packageName": "com.adobe.scan.android",
+                        "reason": f"Unexpected response format: expected dict, got {type(data).__name__}",
+                    }
+                )
+        except (json.JSONDecodeError, KeyError, AttributeError) as e:
             print(f"Error parsing metadata response: {e}")
+            all_failures.append(
+                {
+                    "accountLabel": acc.label,
+                    "packageName": "com.adobe.scan.android",
+                    "reason": f"Failed to parse response: {e}",
+                }
+            )
 
     print(
         f"Verified accounts: {len(all_results)} success, {len(all_failures)} failures."
@@ -303,7 +332,9 @@ def check_accounts(accounts_file: GooglePlayAccountsFile | None) -> None:
             f"  Account [{r.get('accountLabel')}]: Authenticated successfully (tested {r.get('packageName')} v{r.get('versionName')})"
         )
     for f in all_failures:
-        print(f"  Failed: {f.get('packageName')} ({f.get('reason')})")
+        print(
+            f"  Failed: [{f.get('accountLabel', 'unknown')}] {f.get('packageName', 'unknown')} ({f.get('reason')})"
+        )
 
 
 def sync_github_secret(accounts_file: GooglePlayAccountsFile | None) -> None:
