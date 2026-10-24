@@ -13,6 +13,7 @@
     "deps:check": "bun scripts/deps.ts check",
     "deps:update": "bun scripts/deps.ts update",
     "play-accounts": "uv run --project tools/apk-lab apk-lab play-accounts",
+    "sync:fizz-version": "bun scripts/sync-fizz-version.ts",
     "prepare": "pre-commit install --install-hooks -t pre-commit -t pre-push || true"
   },
   "devDependencies": {

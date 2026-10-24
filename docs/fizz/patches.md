@@ -377,3 +377,100 @@ This patch eliminates sponsored feed advertisements by default and provides a co
    ```bash
    ./gradlew generatePatchesList
    ```
+
+---
+
+## Patch: Block Update Prompts
+
+- **Name:** Block Update Prompts
+- **Target Package:** `com.ashtoncofer.Buzz`
+- **Supported Versions:** `1.54.0`
+- **Default State:** `true` (Enabled by default)
+- **Type:** Dalvik Bytecode Patch (`bytecodePatch`) with Extension Bridge (`extensions/extension.mpe`)
+- **Dependencies:** None
+
+### 1. Motivation & Purpose
+
+Fizz enforces client version freshness via backend session configuration and onboarding state. When the backend reports that the client version is lower than `minimumAppVersion` or when onboarding detects an outdated client version, the app presents a blocking full-screen modal ("New Fizz Update Available" / "To get the best Fizz experience, please update to the newest version of Fizz in the App Store" / "Open Play Store"), locking users out of the application.
+
+This patch neutralizes forced update prompts and active backend gateway version rejections across eight evaluation, rendering, dynamic spoofing, and lifecycle synchronization layers, allowing older client versions to communicate seamlessly with Fizz backend infrastructure.
+
+---
+
+### 2. Technical Implementation & Injection Points
+
+#### Layer 1: SessionState Outdated Check Bypass (`nc.j0.d`)
+
+- **Target:** `Lnc/j0;` (`SessionState`)
+- **Method:** `d()Z`
+- **Mechanism:** Injects `const/4 v0, 0x0 \n return v0` via `returnRequiredBoolean("Lnc/j0;", "d", false)`.
+- **Effect:** Neutralizes the session configuration check comparing `clientVersion` against `minimumAppVersion` and `minimumAppVersionMod`. Prevents `AppViewModel` (methods `x` and `L`) from setting root state to `kd.e.AppUpdateRequired`.
+
+#### Layer 2: Semantic Version Comparator Bypass (`nc.c.b`)
+
+- **Target:** `Lnc/c;`
+- **Method:** `b(Ljava/lang/String;Ljava/lang/String;)Z`
+- **Mechanism:** Injects `const/4 v0, 0x0 \n return v0` via `returnRequiredBoolean("Lnc/c;", "b", false)`.
+- **Effect:** Forces semantic version comparisons to evaluate as false, guaranteeing that the running version is never evaluated as older than any minimum version threshold.
+
+#### Layer 3: Onboarding UI State Field Neutralization (`ge.u1.<init>`)
+
+- **Target:** `Lge/u1;` (`OnboardingUiState`)
+- **Method:** `<init>` (Constructor)
+- **Mechanism:** Locates the `IPUT_BOOLEAN` instruction referencing field `l0:Z` (`isAppUpdateRequired`) and inserts `const/4 v$registerA, 0x0` immediately before it.
+- **Effect:** Guarantees `this.l0` is always set to `false` upon initialization and copy mutations across all `OnboardingUiState` instances.
+
+#### Layer 4: Onboarding Screen Update Branch Neutralization (`ge.r1.h`)
+
+- **Target:** `Lge/r1;`
+- **Method:** `h(La3/s;Lge/s1;Ljava/lang/String;ZLyl/a;Lyl/a;Lcom/fizzsocial/fizz/ui/onboarding/OnboardingViewModel;Lyl/a;Lo2/p;II)V`
+- **Mechanism:** Locates the `IGET_BOOLEAN` instruction reading field `l0:Z` from `Lge/u1;` and replaces it with `const/4 v$registerA, 0x0`.
+- **Effect:** Ensures the subsequent `if-eqz v0, :cond_57f` branch always branches past the update prompt composable `kd.o1.a`, allowing the normal onboarding UI to render.
+
+#### Layer 5: Update Prompt Composable Stubbing (`kd.o1.a`)
+
+- **Target:** `Lkd/o1;`
+- **Method:** `a(La3/s;Lo2/p;I)V`
+- **Mechanism:** Injects an immediate `return-void` at index 0 via `disableRequiredVoidMethods("Lkd/o1;", "a")`.
+- **Effect:** Defense-in-depth: if the update composable layout ("New Fizz Update Available" and "Open Play Store" button) is ever invoked directly, it immediately returns without rendering anything.
+
+#### Layer 6: OkHttp Header Interceptor Dynamic Version Spoofing (`ic.g.a`)
+
+- **Target:** `Lic/g;` (`ic.g`)
+- **Method:** `a(Lokhttp3/internal/http/RealInterceptorChain;)Lokhttp3/Response;`
+- **Mechanism:** Locates the `CONST_STRING` instructions defining `"1.54.0"` (associated with `fizz-client-version` header) and `"400032"` (associated with `fizz-build-number` header), replacing them with static invocations to `VersionBridge.getClientVersion()` and `VersionBridge.getBuildNumber()`.
+- **Effect:** Ensures every outbound HTTP/HTTPS request sent by the app transmits the latest spoofed client version and build number in request headers.
+
+#### Layer 7: Session State Request Body DTO Spoofing (`ub.dc.<init>`)
+
+- **Target:** `Lub/dc;` (`SessionStateRequestData`)
+- **Method:** `<init>(Ljava/lang/String;Llb/j0;Ljava/lang/String;Ljava/lang/String;)V`
+- **Mechanism:** Replaces the hardcoded `"1.54.0"` literal stored into `this.a` (`clientVersion`) with `VersionBridge.getClientVersion()`.
+- **Effect:** Guarantees that the JSON request body sent to `/api/v1/app/session-state` carries the spoofed client version, preventing server-side transition to `SessionUnavailable` ("Error connecting to Fizz").
+
+#### Layer 8: Lifecycle Bridge Initialization (`MainActivity.onCreate`)
+
+- **Target:** `Lcom/fizzsocial/fizz/MainActivity;`
+- **Method:** `onCreate(Landroid/os/Bundle;)V`
+- **Mechanism:** Injects `VersionBridge.init(this)` immediately following `super.onCreate`.
+- **Effect:** Initializes cached version parameters from `SharedPreferences` and launches an asynchronous daemon thread to synchronize the latest Google Play version from the Cloudflare Worker `/api/version/com.ashtoncofer.Buzz` once every 24 hours.
+
+---
+
+### 3. Preconditions & Verification
+
+1. **Target Specification**: Compatible with Fizz `1.54.0` (`com.ashtoncofer.Buzz`).
+2. **Build Verification**:
+
+   ```bash
+   ./gradlew :patches:buildAndroid clean --no-daemon
+   ```
+
+3. **Metadata Generation**:
+
+   ```bash
+   ./gradlew generatePatchesList
+   ```
+
+4. **Runtime Smoke Test**:
+   - Verify on `emulator-5554` that the app starts up without displaying the "New Fizz Update Available" modal or blocking prompt.

@@ -152,3 +152,53 @@ When `EmojiCompat` is neutralized:
 4. **`RemoveAdsPatch.kt` (`bytecodePatch`)**:
    - Filters commercial feed advertisements (`sc.k`) and optional marketplace listing cards (`sc.t1`) from Home feed `displayItems` via `FeedFilterBridge` in `HomeFeedViewModel.l0`.
    - Preserves repository item models in `FeedRepository`, maintaining uninterrupted infinite scrolling without falsely triggering `endReached`.
+5. **`BlockUpdatePromptsPatch.kt` (`bytecodePatch` with `extensions/extension.mpe`)**:
+   - Bypasses `SessionState` outdated check (`nc.j0.d`) and semantic version comparison (`nc.c.b`).
+   - Neutralizes `isAppUpdateRequired` field initialization in `OnboardingUiState` (`ge.u1.<init>`).
+   - Neutralizes onboarding screen update check branch in `ge.r1.h`.
+   - Stubs update prompt composable `kd.o1.a` with an immediate `return-void`.
+   - Spoofs `fizz-client-version` and `fizz-build-number` headers in OkHttp interceptor `ic.g.a` using `VersionBridge`.
+   - Spoofs `clientVersion` in session synchronization DTO `ub.dc.<init>` using `VersionBridge.getClientVersion()`.
+   - Injects `VersionBridge.init(this)` into `MainActivity.onCreate` for daily asynchronous Google Play version synchronization via Cloudflare Worker.
+
+---
+
+## Dynamic Version Spoofing & Gateway Synchronization
+
+### 1. Gateway Version Gate Mechanism
+
+Fizz enforces client freshness at the HTTP gateway level (`api510.pineapple-connect.com`). When establishing a session (`/api/v1/app/session-state`), both HTTP request headers and the request body must present an accepted client version:
+
+1. **Header Interceptor (`ic.g.a`)**: Emits `fizz-client-version` and `fizz-build-number` on every outbound request to the Fizz gateway.
+2. **DTO Initialization (`ub.dc.<init>`)**: Hardcodes `clientVersion: "1.54.0"` into `SessionStateRequestData`.
+
+When the backend detects an outdated version (e.g. `1.54.0` while `1.60.0` is current), it rejects session establishment, transitioning the root app state to `kd.e.SessionUnavailable` and displaying the "Error connecting to Fizz" screen with developer debug controls ("Mono App sandbox: Disabled").
+
+### 2. Runtime Extension Architecture (`VersionBridge.java`)
+
+To prevent session rejection without requiring manual patch recompilation for every Play Store update:
+
+1. **Seed Version**: `VersionBridge` contains build-time defaults (`DEFAULT_VERSION = "1.60.0"`, `DEFAULT_BUILD_NUMBER = "400032"`).
+2. **Persistent Storage**: On first launch, `VersionBridge.init(Context)` loads the cached version from `SharedPreferences` (`aidan_fizz_version_spoof`).
+3. **Daily Daemon Sync**: If the cached timestamp is older than 24 hours, a background daemon thread queries the Cloudflare Worker:
+   `GET https://worker.patch.p0ntus.com/api/version/com.ashtoncofer.Buzz`
+4. **Zero Main-Thread Blocking**: `VersionBridge.getClientVersion()` and `getBuildNumber()` return volatile memory fields instantly, avoiding any main-thread network operations or frame drops.
+
+### 3. Edge Worker Synchronization Contract
+
+The Cloudflare Worker exposes a dedicated endpoint:
+
+`GET /api/version/:packageName` (with alias `GET /api/version/fizz`)
+
+Payload contract:
+
+```json
+{
+  "packageName": "com.ashtoncofer.Buzz",
+  "versionName": "1.60.0",
+  "versionCode": 400032,
+  "updatedAt": "2026-10-21T20:48:51.000Z"
+}
+```
+
+Edge caching is set to `Cache-Control: public, max-age=3600` with public CORS support. A daily CI script (`scripts/sync-fizz-version.ts` / `.github/workflows/sync-fizz-version.yml`) keeps the initial build-time seed in `VersionBridge.java` aligned with the latest Play Store release.
