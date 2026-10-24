@@ -21,6 +21,7 @@ import javax.xml.parsers.DocumentBuilderFactory;
 import org.junit.Test;
 import org.w3c.dom.Document;
 import org.w3c.dom.NodeList;
+import org.w3c.dom.Element;
 
 public class OfficeDocumentWriterTest {
 
@@ -136,6 +137,19 @@ public class OfficeDocumentWriterTest {
         assertTrue(entries.containsKey("ppt/slides/slide1.xml"));
         assertTrue(entries.containsKey("ppt/slides/_rels/slide1.xml.rels"));
 
+        assertTrue(entries.containsKey("ppt/slideLayouts/_rels/slideLayout1.xml.rels"));
+        final Document layoutRelsXml = parseXml(entries.get("ppt/slideLayouts/_rels/slideLayout1.xml.rels"));
+        final NodeList relNodes = layoutRelsXml.getElementsByTagName("Relationship");
+        boolean foundSlideMasterRel = false;
+        for (int i = 0; i < relNodes.getLength(); i++) {
+            final Element el = (Element) relNodes.item(i);
+            if ("http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideMaster".equals(el.getAttribute("Type"))
+                    && "../slideMasters/slideMaster1.xml".equals(el.getAttribute("Target"))) {
+                foundSlideMasterRel = true;
+                break;
+            }
+        }
+        assertTrue(foundSlideMasterRel);
         final Document slideXml = parseXml(entries.get("ppt/slides/slide1.xml"));
         final NodeList spNodes = slideXml.getElementsByTagNameNS("http://schemas.openxmlformats.org/presentationml/2006/main", "sp");
         assertTrue(spNodes.getLength() > 0);

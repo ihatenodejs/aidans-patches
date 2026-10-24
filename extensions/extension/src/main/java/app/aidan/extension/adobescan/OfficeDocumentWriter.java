@@ -322,6 +322,12 @@ public final class OfficeDocumentWriter {
                     "  <p:cSld><p:spTree><p:nvGrpSpPr><p:cNvPr id=\"1\" name=\"\"/><p:cNvGrpSpPr/><p:grpSpPr/></p:nvGrpSpPr><p:grpSpPr/></p:spTree></p:cSld>\n" +
                     "</p:sldLayout>");
 
+            // 7b. ppt/slideLayouts/_rels/slideLayout1.xml.rels
+            putZipEntry(zos, "ppt/slideLayouts/_rels/slideLayout1.xml.rels",
+                    "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n" +
+                    "<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\">\n" +
+                    "  <Relationship Id=\"rId1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideMaster\" Target=\"../slideMasters/slideMaster1.xml\"/>\n" +
+                    "</Relationships>");
             // 8. Slides and their rels
             final long slideW_emu = 9144000L;
             final long slideH_emu = 6858000L;

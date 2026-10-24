@@ -375,6 +375,10 @@ int transform(int inputFd, int outputFd, int operation, int compressionLevel,
                     result.status = WRONG_PASSWORD;
                     return WRONG_PASSWORD;
                 }
+                if (!isValidUtf8Password(password)) {
+                    result.status = INVALID_PDF;
+                    return INVALID_PDF;
+                }
             }
             if (compressionLevel != HIGH && compressionLevel != LOW) {
                 result.status = ENGINE_FAILURE;

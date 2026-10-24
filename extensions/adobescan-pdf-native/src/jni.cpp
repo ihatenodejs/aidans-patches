@@ -232,6 +232,7 @@ JNIEXPORT jobjectArray JNICALL Java_app_aidan_extension_adobescan_NativePdfEngin
 
     if (sApi == nullptr || sModelDev != st.st_dev || sModelIno != st.st_ino ||
         sModelSize != static_cast<size_t>(st.st_size)) {
+        sApi.reset();
         if (sModelMap != nullptr && sModelSize > 0) {
             munmap(sModelMap, sModelSize);
             sModelMap = nullptr;
@@ -251,6 +252,11 @@ JNIEXPORT jobjectArray JNICALL Java_app_aidan_extension_adobescan_NativePdfEngin
                        tesseract::OEM_LSTM_ONLY, nullptr, 0, nullptr, nullptr, false,
                        nullptr) != 0) {
             sApi.reset();
+            if (sModelMap != nullptr && sModelSize > 0) {
+                munmap(sModelMap, sModelSize);
+                sModelMap = nullptr;
+                sModelSize = 0;
+            }
             return nullptr;
         }
         sApi->SetPageSegMode(tesseract::PSM_AUTO);
@@ -304,8 +310,14 @@ JNIEXPORT jobjectArray JNICALL Java_app_aidan_extension_adobescan_NativePdfEngin
 
     for (size_t i = 0; i < words.size(); ++i) {
         jstring textStr = env->NewStringUTF(words[i].text.c_str());
+        if (textStr == nullptr || env->ExceptionCheck())
+            return nullptr;
         jobject wordObj = env->NewObject(wordClass, wordCtor, textStr, words[i].left, words[i].top,
                                          words[i].right, words[i].bottom);
+        if (wordObj == nullptr || env->ExceptionCheck()) {
+            env->DeleteLocalRef(textStr);
+            return nullptr;
+        }
         env->SetObjectArrayElement(arr, static_cast<jsize>(i), wordObj);
         env->DeleteLocalRef(textStr);
         env->DeleteLocalRef(wordObj);
