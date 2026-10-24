@@ -1,3 +1,51 @@
+## [1.9.0-dev.4](https://github.com/ihatenodejs/aidans-patches/compare/v1.9.0-dev.3...v1.9.0-dev.4) (2026-10-24)
+
+### ✨ New Features
+
+* **fizz:** added block update prompts patch ([4c9a989](https://github.com/ihatenodejs/aidans-patches/commit/4c9a989390af09a98b29cee26af439434a058f20))
+* **worker:** added package version endpoint ([311667a](https://github.com/ihatenodejs/aidans-patches/commit/311667a9053143aa2e6f7604b07a0f981e5d431b))
+
+## [1.9.0-dev.3](https://github.com/ihatenodejs/aidans-patches/compare/v1.9.0-dev.2...v1.9.0-dev.3) (2026-10-23)
+
+### 🐛 Bug Fixes
+
+* **adobe-scan:** deferred promotional neutralizers and pruned options ([cf4c77f](https://github.com/ihatenodejs/aidans-patches/commit/cf4c77f285377e76a2ce8a1ef791b0e7f84bc4f2))
+* **adobe-scan:** disabled host pkg-config in native build ([8902907](https://github.com/ihatenodejs/aidans-patches/commit/89029070771cdb45fef49da9b636af18ef16d068))
+* **adobe-scan:** hardened pdf engine operations and build packaging ([00f23d9](https://github.com/ihatenodejs/aidans-patches/commit/00f23d99fc9177b19252ac5c521e874f8ae90b8a))
+* **adobe-scan:** preserve export password whitespace, refresh combine protection, and wrap zip streams ([528c6ac](https://github.com/ihatenodejs/aidans-patches/commit/528c6acebd942cb34a968638e68f634b01d4f751))
+* **adobe-scan:** removed branch labels from preference hiding ([0d930cf](https://github.com/ihatenodejs/aidans-patches/commit/0d930cfacdab0561ccb6870b35407a549054b8ce))
+* **audit:** tracked cmake configure duration and preserved failure status ([036953e](https://github.com/ihatenodejs/aidans-patches/commit/036953e1b9ffd75a53d56ffe841366e0b6e64c0c))
+* **deps:** extend timeout for cli update test ([700737f](https://github.com/ihatenodejs/aidans-patches/commit/700737f2991ad01aff93f2206ff4699057fb7332))
+* **deps:** fixed scalar version fallback in proposal application ([0853a45](https://github.com/ihatenodejs/aidans-patches/commit/0853a45f3e6a327ebe4017b32d2c01d91f263ce6))
+
+### ✨ New Features
+
+* **adobe-scan:** added local premium patch and native pdf engine ([86a7fa2](https://github.com/ihatenodejs/aidans-patches/commit/86a7fa2cf6b3eda104a61b7535b1c44bc7f46558))
+* **adobe-scan:** added password support for pdf export ([407b37e](https://github.com/ihatenodejs/aidans-patches/commit/407b37e16d502f90235d62a5ae6a8c9a1486cc95))
+* **audit:** add domain filtering to verification orchestrator ([e59c8b6](https://github.com/ihatenodejs/aidans-patches/commit/e59c8b673d939b67bf0e3bee477c5b07d5b030bb))
+* **audit:** add markdown formatting, linting, and link verification ([9e00213](https://github.com/ihatenodejs/aidans-patches/commit/9e0021385134bc5ba41e3b5a0a9c21b10df460ed))
+* **patches:** enabled dual companion resources in composite patches ([be89c4a](https://github.com/ihatenodejs/aidans-patches/commit/be89c4ae3f925ef4b4b5a38d12bce5ba63ead5ff))
+
+## [1.9.0-dev.2](https://github.com/ihatenodejs/aidans-patches/compare/v1.9.0-dev.1...v1.9.0-dev.2) (2026-10-21)
+
+### 🐛 Bug Fixes
+
+* **nhl:** neutralized ad insertion calls in pregame and boxscore ([830e8b3](https://github.com/ihatenodejs/aidans-patches/commit/830e8b3614e6754ed54d8c67b5c6966c3ef598c8))
+
+## [1.9.0-dev.1](https://github.com/ihatenodejs/aidans-patches/compare/v1.8.0...v1.9.0-dev.1) (2026-10-18)
+
+### ✨ New Features
+
+* **adobe-reader:** added ad and tracking removal patches ([93dbab9](https://github.com/ihatenodejs/aidans-patches/commit/93dbab9b3ebd6e10a478cdc6742ed17c97e708d2))
+* **apk-lab:** added string analysis and manifest inspection tools ([4241876](https://github.com/ihatenodejs/aidans-patches/commit/4241876deefd9a37a23b84835df2136463fec5b2))
+* **credit-karma:** added tracking removal patch and documentation ([96c916e](https://github.com/ihatenodejs/aidans-patches/commit/96c916e88ce15dc4eb996c3250c7b07543d9dcc3))
+* **deps:** added dependency inventory and policy management tooling ([62a13e6](https://github.com/ihatenodejs/aidans-patches/commit/62a13e689199a8841f699a7a162ca11f3ee476e8))
+* **nhl:** added native ad blocker and tracking neutralizers ([f0735bb](https://github.com/ihatenodejs/aidans-patches/commit/f0735bbc47213320355a86dfd318469c700e7300))
+* **patches:** updated telemetry options and regenerated catalog ([87d9ad5](https://github.com/ihatenodejs/aidans-patches/commit/87d9ad53fb69f96bd5f4d38d8d164535c1bde81b))
+* **pro-metronome:** added pro unlock and tracking removal patches ([7261380](https://github.com/ihatenodejs/aidans-patches/commit/7261380e844ccd30946135e7d24364eb6e7d3a1c))
+* **site:** added app store listings and screenshot rail component ([df9e621](https://github.com/ihatenodejs/aidans-patches/commit/df9e621f53388ef37059c349416964de3915dc7f))
+* **worker:** added media asset and review reconciliation logic ([d5f4cd6](https://github.com/ihatenodejs/aidans-patches/commit/d5f4cd64c27ebc00f12601ba6387324385d32ea4))
+
 ## [1.8.0](https://github.com/ihatenodejs/aidans-patches/compare/v1.7.0...v1.8.0) (2026-10-17)
 
 ### 🐛 Bug Fixes

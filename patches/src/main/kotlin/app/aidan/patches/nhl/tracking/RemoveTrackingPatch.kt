@@ -23,11 +23,18 @@ private const val ZEROED_ADVERTISING_ID = "00000000-0000-0000-0000-000000000000"
 @Suppress("unused")
 val removeTrackingPatch = bytecodePatch(
     name = "Remove Tracking",
-    description = "Removes the OneTrust CMP tracking consent popup, zeros Google Play Advertising ID (AAID), blocks host application analytics, disables Firebase Analytics, AppMeasurement, Firebase Performance Monitoring, Crashlytics, and Sessions telemetry, neutralizes UrbanAirship and Blaze tracking and logging, suppresses Brightcove video metrics reporting, and blocks Ticketmaster telemetry.",
+    description = "Removes the OneTrust CMP tracking consent popup, zeros Google Play Advertising ID (AAID), blocks host application analytics, disables Firebase Analytics, AppMeasurement, Firebase Performance Monitoring, Crashlytics, and Sessions telemetry, neutralizes UrbanAirship and Blaze tracking, user activity, and logging, suppresses Brightcove video metrics reporting and backlog processing, and blocks Ticketmaster telemetry.",
     default = true
 ) {
     category("Privacy")
     compatibleWith(COMPATIBILITY_NHL)
+
+    val disableOneTrustCmp = booleanOption(
+        key = "disableOneTrustCmp",
+        title = "Disable OneTrust CMP",
+        description = "Neutralizes OneTrust CMP tracking consent popups, network calls, and forces consent queries to Denied.",
+        default = true
+    )
 
     val removeBrokenPrivacySettings = booleanOption(
         key = "removeBrokenPrivacySettings",
@@ -36,87 +43,183 @@ val removeTrackingPatch = bytecodePatch(
         default = true
     )
 
+    val zeroAdvertisingId = booleanOption(
+        key = "zeroAdvertisingId",
+        title = "Zero Advertising ID",
+        description = "Spoofs the Google Play Advertising ID (AAID) to return an all-zero identifier and limit ad tracking.",
+        default = true
+    )
+
+    val disableHostAnalytics = booleanOption(
+        key = "disableHostAnalytics",
+        title = "Disable Host App Analytics",
+        description = "Blocks host application screen tracking and interaction event logging.",
+        default = true
+    )
+
+    val disableFirebaseAnalytics = booleanOption(
+        key = "disableFirebaseAnalytics",
+        title = "Disable Firebase Analytics",
+        description = "Blocks Firebase Analytics, AppMeasurement, and the WebView JavaScript analytics bridge.",
+        default = true
+    )
+
+    val disableFirebasePerformance = booleanOption(
+        key = "disableFirebasePerformance",
+        title = "Disable Firebase Performance Monitoring",
+        description = "Neutralizes Firebase Performance Monitoring traces, metrics, and gauge collection.",
+        default = true
+    )
+
+    val disableUrbanAirshipTelemetry = booleanOption(
+        key = "disableUrbanAirshipTelemetry",
+        title = "Disable UrbanAirship Telemetry",
+        description = "Neutralizes UrbanAirship install referrer capture, event queueing, session tracking, and metered usage telemetry.",
+        default = true
+    )
+
+    val disableBlazeTracking = booleanOption(
+        key = "disableBlazeTracking",
+        title = "Disable Blaze Tracking & Logging",
+        description = "Blocks Blaze SDK bulk event analytics, user viewing activity history, and remote diagnostic logging.",
+        default = true
+    )
+
+    val disableBrightcoveAnalytics = booleanOption(
+        key = "disableBrightcoveAnalytics",
+        title = "Disable Brightcove Video Analytics",
+        description = "Suppresses Brightcove video playback metrics, interactivity tracking, and backlog processing.",
+        default = true
+    )
+
+    val disableTicketmasterTelemetry = booleanOption(
+        key = "disableTicketmasterTelemetry",
+        title = "Disable Ticketmaster Telemetry",
+        description = "Neutralizes Ticketmaster authentication analytics, event reporting queues, and presence analytics.",
+        default = true
+    )
+
+    val disableCrashlyticsAndSessions = booleanOption(
+        key = "disableCrashlyticsAndSessions",
+        title = "Disable Crashlytics & Sessions",
+        description = "Neutralizes Firebase Crashlytics logging, exception capture, Sessions lifecycle monitoring, and DataTransport uploads.",
+        default = true
+    )
+
     execute {
         if (removeBrokenPrivacySettings.value == true) {
             removeBrokenPrivacySettingsEntry()
         }
 
-        // 1. OneTrust Consent Management Platform (CMP) & Tracking Banner
-        disableRequiredVoidMethods(
-            "Lcom/onetrust/otpublishers/headless/Public/OTPublishersHeadlessSDK;",
-            "setupUI",
-            "showBannerUI",
-            "callSetupUI",
-            "callShowConsentPreferencesUI",
-            "callShowPreferenceCenterUI",
-            "showPreferenceCenterUI",
-            "showConsentPurposesUI",
-            "showConsentUI",
-            "startOtSdkNetworkCall",
-            "startSDK",
-            "saveConsent",
-            "saveAllowAll",
-            "saveRejectAll"
-        )
-        returnRequiredBoolean("Lcom/onetrust/otpublishers/headless/Public/OTPublishersHeadlessSDK;", "shouldShowBanner", false)
-        returnInt("Lcom/onetrust/otpublishers/headless/Public/OTPublishersHeadlessSDK;", "isBannerShown", 0)
-        returnInt("Lcom/onetrust/otpublishers/headless/Public/OTPublishersHeadlessSDK;", "getConsentStatusForGroupId", 0)
-        returnInt("Lcom/onetrust/otpublishers/headless/Public/OTPublishersHeadlessSDK;", "getConsentStatusForSDKId", 0)
-        returnInt("Lcom/onetrust/otpublishers/headless/Public/OTPublishersHeadlessSDK;", "getPurposeConsentLocal", 0)
-        returnInt("Lcom/onetrust/otpublishers/headless/Public/OTPublishersHeadlessSDK;", "getPurposeLegitInterestLocal", 0)
-        returnInt("Lcom/onetrust/otpublishers/headless/Public/OTPublishersHeadlessSDK;", "getUCPurposeConsent", 0)
+        if (disableOneTrustCmp.value == true) {
+            // 1. OneTrust Consent Management Platform (CMP) & Tracking Banner
+            disableRequiredVoidMethods(
+                "Lcom/onetrust/otpublishers/headless/Public/OTPublishersHeadlessSDK;",
+                "setupUI",
+                "showBannerUI",
+                "callSetupUI",
+                "callShowConsentPreferencesUI",
+                "callShowPreferenceCenterUI",
+                "showPreferenceCenterUI",
+                "showConsentPurposesUI",
+                "showConsentUI",
+                "startOtSdkNetworkCall",
+                "startSDK",
+                "saveConsent",
+                "saveAllowAll",
+                "saveRejectAll"
+            )
+            returnRequiredBoolean("Lcom/onetrust/otpublishers/headless/Public/OTPublishersHeadlessSDK;", "shouldShowBanner", false)
+            returnInt("Lcom/onetrust/otpublishers/headless/Public/OTPublishersHeadlessSDK;", "isBannerShown", 0)
+            returnInt("Lcom/onetrust/otpublishers/headless/Public/OTPublishersHeadlessSDK;", "getConsentStatusForGroupId", 0)
+            returnInt("Lcom/onetrust/otpublishers/headless/Public/OTPublishersHeadlessSDK;", "getConsentStatusForSDKId", 0)
+            returnInt("Lcom/onetrust/otpublishers/headless/Public/OTPublishersHeadlessSDK;", "getPurposeConsentLocal", 0)
+            returnInt("Lcom/onetrust/otpublishers/headless/Public/OTPublishersHeadlessSDK;", "getPurposeLegitInterestLocal", 0)
+            returnInt("Lcom/onetrust/otpublishers/headless/Public/OTPublishersHeadlessSDK;", "getUCPurposeConsent", 0)
+            returnRequiredBoolean("Lgce;", "c", false)
+        }
 
-        // 2. Google Play Advertising ID (AAID) spoofing
-        spoofAdvertisingId()
-        spoofMinifiedAdvertisingId("Ljj;", "Lij;")
+        if (zeroAdvertisingId.value == true) {
+            // 2. Google Play Advertising ID (AAID) spoofing
+            spoofAdvertisingId()
+            spoofMinifiedAdvertisingId("Ljj;", "Lij;")
+        }
 
-        // 3. Host App Internal Analytics Engine
-        disableRequiredVoidMethods("Lnv;", "a", "b")
+        if (disableHostAnalytics.value == true) {
+            // 3. Host App Internal Analytics Engine
+            disableRequiredVoidMethods("Lnv;", "a", "b")
+        }
 
-        // 4. Firebase Analytics & AppMeasurement
-        disableRequiredVoidMethods("Lcom/google/android/gms/measurement/AppMeasurement;", "logEventInternal")
-        disableRequiredVoidMethods("Lcom/google/android/gms/measurement/api/AppMeasurementSdk;", "logEvent")
-        disableRequiredVoidMethods("Lcom/google/firebase/analytics/FirebaseAnalytics;", "b", "c", "setCurrentScreen")
-        disableRequiredVoidMethods("Lg3q;", "c")
-        disableRequiredVoidMethods("Lhhd;", "logEvent", "setUserProperty")
-        returnEmptyList("Lcom/google/firebase/analytics/connector/internal/AnalyticsConnectorRegistrar;", "getComponents")
+        if (disableFirebaseAnalytics.value == true) {
+            // 4. Firebase Analytics & AppMeasurement
+            disableRequiredVoidMethods("Lcom/google/android/gms/measurement/AppMeasurement;", "logEventInternal")
+            disableRequiredVoidMethods("Lcom/google/android/gms/measurement/api/AppMeasurementSdk;", "logEvent")
+            disableRequiredVoidMethods("Lcom/google/firebase/analytics/FirebaseAnalytics;", "b", "c", "setCurrentScreen")
+            disableRequiredVoidMethods("Lg3q;", "c")
+            disableRequiredVoidMethods("Lhhd;", "logEvent", "setUserProperty")
+            returnEmptyList("Lcom/google/firebase/analytics/connector/internal/AnalyticsConnectorRegistrar;", "getComponents")
+        }
 
-        // 5. Firebase Performance Monitoring
-        returnEmptyList("Lcom/google/firebase/perf/FirebasePerfRegistrar;", "getComponents")
-        returnEmptyList("Lcom/google/firebase/perf/FirebasePerfKtxRegistrar;", "getComponents")
-        disableRequiredVoidMethods("Lmak;", "b", "c", "d")
-        disableRequiredVoidMethods("Lcom/google/firebase/perf/metrics/AppStartTrace;", "onActivityCreated", "onActivityResumed", "onActivityStarted")
-        disableRequiredVoidMethods("Lcom/google/firebase/perf/session/SessionManager;", "initializeGaugeCollection", "updatePerfSession")
+        if (disableFirebasePerformance.value == true) {
+            // 5. Firebase Performance Monitoring
+            returnEmptyList("Lcom/google/firebase/perf/FirebasePerfRegistrar;", "getComponents")
+            returnEmptyList("Lcom/google/firebase/perf/FirebasePerfKtxRegistrar;", "getComponents")
+            disableRequiredVoidMethods("Lmak;", "b", "c", "d")
+            disableRequiredVoidMethods("Lcom/google/firebase/perf/metrics/AppStartTrace;", "onActivityCreated", "onActivityResumed", "onActivityStarted")
+            disableRequiredVoidMethods("Lcom/google/firebase/perf/session/SessionManager;", "initializeGaugeCollection", "updatePerfSession")
+        }
 
-        // 6. UrbanAirship Telemetry & Analytics
-        disableRequiredVoidMethods("Lcom/urbanairship/analytics/InstallReceiver;", "onReceive")
-        disableRequiredVoidMethods("Lpo;", "a")
-        disableRequiredVoidMethods("Lrt;", "e", "h")
-        disableRequiredVoidMethods("Lqp;", "g", "h")
+        if (disableUrbanAirshipTelemetry.value == true) {
+            // 6. UrbanAirship Telemetry & Analytics
+            disableRequiredVoidMethods("Lcom/urbanairship/analytics/InstallReceiver;", "onReceive")
+            disableRequiredVoidMethods("Lpo;", "a")
+            disableRequiredVoidMethods("Lrt;", "e", "g", "h")
+            returnRequiredBoolean("Lrt;", "f", false)
+            disableRequiredVoidMethods("Lqp;", "g", "h")
+        }
 
-        // 7. Blaze SDK Analytics & Logging
-        returnRequiredNullObjectIncludingDefault("Lcom/blaze/blazesdk/analytics/AnalyticsApi;", "sendTrackEvents")
-        returnRequiredNullObjectIncludingDefault("Lcom/blaze/blazesdk/analytics/AnalyticsApi;", "sendDoNotTrackEvents")
-        returnRequiredNullObjectIncludingDefault("Lcom/blaze/blazesdk/logger/apis/BlazeLoggerApi;", "sendLogs", optional = true)
+        if (disableBlazeTracking.value == true) {
+            // 7. Blaze SDK Analytics, User Activity & Logging
+            returnRequiredBoolean("Lcom/blaze/blazesdk/shared/BlazeSDK;", "getDisableAnalytics", true)
+            returnRequiredBoolean("Lcom/blaze/blazesdk/shared/BlazeSDK;", "getDisableUserActivity", true)
+            returnOptionalBoolean("Lcom/blaze/blazesdk/shared/BlazeSDK;", "getDoNotTrack", true)
+            returnOptionalBoolean("Lcom/blaze/blazesdk/shared/BlazeSDK;", "getDoNotTrack\$blazesdk_release", true)
+            returnRequiredNullObjectIncludingDefault("Lcom/blaze/blazesdk/analytics/AnalyticsApi;", "sendTrackEvents")
+            returnRequiredNullObjectIncludingDefault("Lcom/blaze/blazesdk/analytics/AnalyticsApi;", "sendDoNotTrackEvents")
+            returnRequiredNullObjectIncludingDefault("Lcom/blaze/blazesdk/logger/apis/BlazeLoggerApi;", "sendLogs", optional = true)
+        }
 
-        // 8. Brightcove Video Analytics & Interactivity Metrics
-        patchBrightcoveAnalytics()
-        disableRequiredVoidMethods("Lcom/brightcove/player/analytics/DefaultAnalyticsHandler;", "onAnalyticsEvent")
+        if (disableBrightcoveAnalytics.value == true) {
+            // 8. Brightcove Video Analytics & Interactivity Metrics
+            patchBrightcoveAnalytics()
+            disableRequiredVoidMethods(
+                "Lcom/brightcove/player/analytics/DefaultAnalyticsHandler;",
+                "onAnalyticsEvent",
+                "processBacklog",
+                "trySubmit",
+                "trySubmitInteractivity"
+            )
+        }
 
-        // 9. Ticketmaster Analytics
-        returnRequiredBoolean("Lcom/ticketmaster/authenticationsdk/Analytics;", "getEnabled", false)
-        disableRequiredVoidMethods("Lcom/ticketmaster/tickets/eventanalytic/AnalyticsQueue;", "putEvent", "send")
-        disableRequiredVoidMethods("Lcom/ticketmaster/tickets/eventanalytic/TmxAnalyticsSender;", "send")
+        if (disableTicketmasterTelemetry.value == true) {
+            // 9. Ticketmaster Analytics
+            returnRequiredBoolean("Lcom/ticketmaster/authenticationsdk/Analytics;", "getEnabled", false)
+            disableRequiredVoidMethods("Lcom/ticketmaster/tickets/eventanalytic/AnalyticsQueue;", "putEvent", "send")
+            disableRequiredVoidMethods("Lcom/ticketmaster/tickets/eventanalytic/TmxAnalyticsSender;", "send")
+            disableRequiredVoidMethods("Lcom/ticketmaster/presence/AnalyticsHelper;", "sendAnalyticEvent")
+        }
 
-        // 10. Firebase Crashlytics & Sessions Telemetry
-        disableRequiredVoidMethods("Lbn6;", "b", "c")
-        returnEmptyList("Lcom/google/firebase/sessions/FirebaseSessionsRegistrar;", "getComponents")
-        disableOptionalVoidMethods("Lcom/google/firebase/sessions/SessionLifecycleService;", "onCreate")
-        returnRequiredNullObject("Lcom/google/firebase/sessions/SessionLifecycleService;", "onBind")
-        returnInt("Lcom/google/firebase/sessions/SessionLifecycleService;", "onStartCommand", 2, optional = true)
+        if (disableCrashlyticsAndSessions.value == true) {
+            // 10. Firebase Crashlytics & Sessions Telemetry
+            disableRequiredVoidMethods("Lbn6;", "b", "c")
+            returnEmptyList("Lcom/google/firebase/sessions/FirebaseSessionsRegistrar;", "getComponents")
+            disableOptionalVoidMethods("Lcom/google/firebase/sessions/SessionLifecycleService;", "onCreate")
+            returnRequiredNullObject("Lcom/google/firebase/sessions/SessionLifecycleService;", "onBind")
+            returnInt("Lcom/google/firebase/sessions/SessionLifecycleService;", "onStartCommand", 2, optional = true)
 
-        // 11. Google DataTransport Telemetry Uploader
-        disableRequiredVoidMethods("Lomk;", "a")
+            // 11. Google DataTransport Telemetry Uploader
+            disableRequiredVoidMethods("Lomk;", "a")
+        }
     }
 }
 
