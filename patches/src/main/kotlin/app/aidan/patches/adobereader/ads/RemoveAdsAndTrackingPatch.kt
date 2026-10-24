@@ -180,7 +180,7 @@ val removeAdsAndTrackingPatch = bytecodePatch(
             )
             returnOptionalBoolean("Lcom/adobe/reader/utils/v;", "m0", false)
             disableOptionalVoidMethods("Lem/a;", "b", "c")
-            disableOptionalVoidMethods("Lcom/adobe/reader/misc/l;", "onCreate", "onCreateDialog", "show")
+            disableOptionalVoidMethods("Lcom/adobe/reader/misc/l;", "onCreateDialog", "show")
 
             // Frame and UI Jank performance metrics
             disableOptionalVoidMethods(
@@ -400,6 +400,7 @@ private fun BytecodePatchContext.patchCrashReportsDialog() {
             method.addInstructions(
                 0,
                 """
+                invoke-super {p0}, Landroidx/fragment/app/l;->onStart()V
                 invoke-virtual {p0}, Landroidx/fragment/app/l;->dismiss()V
                 return-void
                 """.trimIndent()
@@ -411,7 +412,7 @@ private fun BytecodePatchContext.patchCrashReportsDialog() {
 private fun BytecodePatchContext.setBranchTrackingDisabled() {
     val branchClass = mutableClassDefByOrNull("Lio/branch/referral/Branch;") ?: return
     for (method in branchClass.methods) {
-        if (method.name == "C0" && method.implementation != null) {
+        if (method.name == "C0" && method.parameterTypes == listOf("Z") && method.returnType == "V" && method.implementation != null) {
             val isStatic = (method.accessFlags and com.android.tools.smali.dexlib2.AccessFlags.STATIC.value) != 0
             val paramReg = if (isStatic) "p0" else "p1"
             method.addInstructions(
@@ -429,8 +430,9 @@ private fun BytecodePatchContext.suppressInAppReview() {
             method.addInstructions(
                 0,
                 """
-                const/4 v0, 0x0
-                invoke-static {v0}, Lcom/google/android/gms/tasks/Tasks;->forResult(Ljava/lang/Object;)Lcom/google/android/gms/tasks/Task;
+                new-instance v0, Ljava/lang/Exception;
+                invoke-direct {v0}, Ljava/lang/Exception;-><init>()V
+                invoke-static {v0}, Lcom/google/android/gms/tasks/Tasks;->forException(Ljava/lang/Exception;)Lcom/google/android/gms/tasks/Task;
                 move-result-object v0
                 return-object v0
                 """.trimIndent()
