@@ -51,6 +51,9 @@ jobs:
               - 'bun.lock'
               - '.prettierrc.json'
               - '.oxlintrc.json'
+              - 'docs/**'
+              - '*.md'
+              - '.markdownlint-cli2.jsonc'
             python:
               - 'tools/apk-lab/**'
               - '.github/scripts/**'
@@ -191,6 +194,10 @@ jobs:
           echo "ANDROID_NDK_HOME=${{ steps.setup-ndk.outputs.ndk-path }}" >> "$GITHUB_ENV"
           echo "ANDROID_NDK_ROOT=${{ steps.setup-ndk.outputs.ndk-path }}" >> "$GITHUB_ENV"
           echo "ANDROID_NDK=${{ steps.setup-ndk.outputs.ndk-path }}" >> "$GITHUB_ENV"
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@1.97.1
+        with:
+          targets: aarch64-linux-android
       - name: Audit android domain
         run: bun scripts/audit.ts all --domain android
 

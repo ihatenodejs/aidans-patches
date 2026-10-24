@@ -157,9 +157,18 @@ export async function syncFizzVersion(
 }
 
 if (import.meta.main) {
+  if (process.argv.includes('--help') || process.argv.includes('-h')) {
+    console.log('Usage: bun scripts/sync-fizz-version.ts [--check]');
+    process.exit(0);
+  }
   const checkOnly = process.argv.includes('--check');
-  syncFizzVersion({ checkOnly }).catch((err) => {
+  try {
+    const hasChanges = await syncFizzVersion({ checkOnly });
+    if (checkOnly && hasChanges) {
+      process.exit(1);
+    }
+  } catch (err) {
     console.error('Failed to sync Fizz version:', err);
     process.exit(1);
-  });
+  }
 }
