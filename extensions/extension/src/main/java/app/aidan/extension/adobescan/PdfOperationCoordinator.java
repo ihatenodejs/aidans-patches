@@ -706,13 +706,6 @@ public class PdfOperationCoordinator {
 
     private ParcelFileDescriptor openOcrModelFd() {
         try {
-            android.content.res.AssetFileDescriptor afd = application.getAssets().openFd("aidan-scan-pdf/ocr/eng.traineddata");
-            if (afd != null) {
-                return afd.getParcelFileDescriptor();
-            }
-        } catch (final Exception ignored) {}
-
-        try {
             final File ocrDir = new File(application.getCacheDir(), "aidan-scan-pdf/ocr");
             if (!ocrDir.exists()) ocrDir.mkdirs();
             final File modelFile = new File(ocrDir, "eng.traineddata");

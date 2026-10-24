@@ -65,7 +65,6 @@ public final class PdfExportBridge {
                         selected[0] = which;
                     }
                 })
-                .setMessage("Export this scan as an editable Office document. Text and layout are converted on device.")
                 .setPositiveButton("Export", new DialogInterface.OnClickListener() {
                     @Override
                     public void onClick(DialogInterface dialog, int which) {

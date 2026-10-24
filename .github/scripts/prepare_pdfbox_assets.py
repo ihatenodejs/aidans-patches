@@ -71,6 +71,13 @@ def main() -> int:
                 out_zip.writestr(arcname, data)
                 count += 1
 
+    if count == 0:
+        print(
+            f"Error: No PDFBox assets found matching prefix '{prefix}' in {args.aar}",
+            file=sys.stderr,
+        )
+        return 1
+
     print(f"Packaged {count} PDFBox assets into {args.output}")
     return 0
 

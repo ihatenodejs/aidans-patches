@@ -136,6 +136,7 @@ public class OfficeDocumentWriterTest {
         assertTrue(entries.containsKey("ppt/slides/slide1.xml"));
         assertTrue(entries.containsKey("ppt/slides/_rels/slide1.xml.rels"));
 
+        assertTrue(entries.containsKey("ppt/slideLayouts/_rels/slideLayout1.xml.rels"));
         final Document slideXml = parseXml(entries.get("ppt/slides/slide1.xml"));
         final NodeList spNodes = slideXml.getElementsByTagNameNS("http://schemas.openxmlformats.org/presentationml/2006/main", "sp");
         assertTrue(spNodes.getLength() > 0);
