@@ -10,6 +10,10 @@ import {
   computeProposalDigest,
 } from './model';
 
+export function escapeRegex(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 export type CommandRunner = (
   cmd: string,
   args: string[],
@@ -160,8 +164,17 @@ export async function applyApprovedProposal(
       // --- NPM Packages ---
       if (id.startsWith('npm:')) {
         const hashIdx = id.indexOf('#');
+        if (hashIdx === -1) {
+          throw new Error(`Invalid NPM package ID structure: ${id}`);
+        }
         const manifestRel = id.slice(4, hashIdx);
-        const [section, pkgName] = id.slice(hashIdx + 1).split('/');
+        const rest = id.slice(hashIdx + 1);
+        const slashIdx = rest.indexOf('/');
+        if (slashIdx === -1) {
+          throw new Error(`Invalid NPM package ID structure: ${id}`);
+        }
+        const section = rest.slice(0, slashIdx);
+        const pkgName = rest.slice(slashIdx + 1);
         const stagedManifest = path.join(stagingDir, manifestRel);
 
         if (fs.existsSync(stagedManifest)) {
@@ -197,11 +210,18 @@ export async function applyApprovedProposal(
         if (fs.existsSync(stagedManifest)) {
           let content = fs.readFileSync(stagedManifest, 'utf8');
           // Replace package constraint in python pyproject.toml
+          const safePkgName = escapeRegex(pkgName);
           const regex = new RegExp(
-            `("${pkgName})(==|>=|>|<=|<|~=)?([^"]*)(")`,
+            `("${safePkgName}(?:\\[[^\\]]+\\])?\\s*)(===|==|>=|>|<=|<|~=|!=)\\s*([^,;\\s"]+)([^"]*)(")`,
             'g',
           );
-          content = content.replace(regex, `$1>=${to}$4`);
+          content = content.replace(
+            regex,
+            (_match, prefix, op, _oldVer, suffix, quote) => {
+              const newOp = op === '==' ? '==' : '>=';
+              return `${prefix}${newOp}${to}${suffix}${quote}`;
+            },
+          );
           fs.writeFileSync(stagedManifest, content);
           touchedFiles.add(manifestRel);
         }
@@ -217,9 +237,13 @@ export async function applyApprovedProposal(
         if (fs.existsSync(stagedManifest)) {
           let content = fs.readFileSync(stagedManifest, 'utf8');
           // Replace simple string version or table version
-          const simpleRegex = new RegExp(`(${pkgName}\\s*=\\s*)"([^"]+)"`, 'g');
+          const safePkgName = escapeRegex(pkgName);
+          const simpleRegex = new RegExp(
+            `(${safePkgName}\\s*=\\s*)"([^"]+)"`,
+            'g',
+          );
           const tableRegex = new RegExp(
-            `(${pkgName}\\s*=\\s*\\{[^}]*version\\s*=\\s*)"([^"]+)"`,
+            `(${safePkgName}\\s*=\\s*\\{[^}]*version\\s*=\\s*)"([^"]+)"`,
             'g',
           );
           if (tableRegex.test(content)) {

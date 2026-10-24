@@ -34,6 +34,7 @@ async function fetchLatestFizzVersion(): Promise<{
   try {
     const res = await fetch(versionUrl, {
       headers: { 'User-Agent': 'aidans-patches-sync' },
+      signal: AbortSignal.timeout(10_000),
     });
     if (res.ok) {
       const data = (await res.json()) as VersionResponse;
@@ -55,6 +56,7 @@ async function fetchLatestFizzVersion(): Promise<{
   const statusUrl = `${statusBase.replace(/\/$/, '')}/api/status`;
   const statusRes = await fetch(statusUrl, {
     headers: { 'User-Agent': 'aidans-patches-sync' },
+    signal: AbortSignal.timeout(10_000),
   });
   if (!statusRes.ok) {
     throw new Error(
@@ -108,10 +110,26 @@ export async function syncFizzVersion(
   try {
     latest = await fetchLatestFizzVersion();
   } catch (err) {
+    if (options.checkOnly) {
+      throw err;
+    }
     console.warn(
       `Could not fetch live version from worker: ${err instanceof Error ? err.message : String(err)}`,
     );
     return false;
+  }
+
+  const VERSION_REGEX = /^[0-9]+(\.[0-9]+)+$/;
+  const BUILD_REGEX = /^[0-9]+$/;
+  if (!VERSION_REGEX.test(latest.versionName)) {
+    throw new Error(
+      `Invalid versionName received from upstream: ${latest.versionName}`,
+    );
+  }
+  if (latest.versionCode != null && !BUILD_REGEX.test(latest.versionCode)) {
+    throw new Error(
+      `Invalid versionCode received from upstream: ${latest.versionCode}`,
+    );
   }
 
   console.log(
@@ -157,9 +175,18 @@ export async function syncFizzVersion(
 }
 
 if (import.meta.main) {
+  if (process.argv.includes('--help') || process.argv.includes('-h')) {
+    console.log('Usage: bun scripts/sync-fizz-version.ts [--check]');
+    process.exit(0);
+  }
   const checkOnly = process.argv.includes('--check');
-  syncFizzVersion({ checkOnly }).catch((err) => {
+  try {
+    const hasChanges = await syncFizzVersion({ checkOnly });
+    if (checkOnly && hasChanges) {
+      process.exit(1);
+    }
+  } catch (err) {
     console.error('Failed to sync Fizz version:', err);
     process.exit(1);
-  });
+  }
 }
