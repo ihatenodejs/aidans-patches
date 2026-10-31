@@ -2,17 +2,17 @@
 
 ## Overview
 
-| Attribute | Specification |
-|---|---|
-| **Application Name** | Canvas Student |
-| **Package Name** | `com.instructure.candroid` |
-| **Supported Version** | `8.10.0` (Morphe Compatibility: `8.10.0`, `minSdk` 28) |
-| **Analyzed Version Code** | `297` (Derived from APK analysis; Constants specifies version string) |
-| **Target SDK** | `35` (Android 15) |
-| **Minimum SDK** | `28` (Android 9.0) |
-| **APK Format** | APKM (`base.apk`, arm64-v8a, xhdpi splits) |
-| **Package Signing SHA-256** | `abfe1362d84c5234c174c2c03d405a480405e361162f7b28dad6bec825ba02b3` |
-| **Architecture** | Native Kotlin/Java; Jetpack Compose, Hilt, Room, Retrofit, WorkManager, and arm64-v8a native libraries |
+| Attribute                   | Specification                                                                                          |
+| --------------------------- | ------------------------------------------------------------------------------------------------------ |
+| **Application Name**        | Canvas Student                                                                                         |
+| **Package Name**            | `com.instructure.candroid`                                                                             |
+| **Supported Version**       | `8.10.0` (Morphe Compatibility: `8.10.0`, `minSdk` 28)                                                 |
+| **Analyzed Version Code**   | `297` (Derived from APK analysis; Constants specifies version string)                                  |
+| **Target SDK**              | `35` (Android 15)                                                                                      |
+| **Minimum SDK**             | `28` (Android 9.0)                                                                                     |
+| **APK Format**              | APKM (`base.apk`, arm64-v8a, xhdpi splits)                                                             |
+| **Package Signing SHA-256** | `abfe1362d84c5234c174c2c03d405a480405e361162f7b28dad6bec825ba02b3`                                     |
+| **Architecture**            | Native Kotlin/Java; Jetpack Compose, Hilt, Room, Retrofit, WorkManager, and arm64-v8a native libraries |
 
 Canvas Student is Instructure's Android learning-management client. The APK includes the Pendo SDK, first-party Pandata tracking, Firebase Crashlytics, and support for course content rendered through Nutrient/PSPDFKit.
 
