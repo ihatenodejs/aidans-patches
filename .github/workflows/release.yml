@@ -56,7 +56,7 @@ jobs:
             emoji-font-
 
       - name: Setup Rust toolchain
-        uses: dtolnay/rust-toolchain@1.97.1
+        uses: dtolnay/rust-toolchain@1.120.0
         with:
           targets: aarch64-linux-android
           components: rustfmt, clippy
@@ -135,7 +135,7 @@ jobs:
 
 
       - name: Setup Rust toolchain
-        uses: dtolnay/rust-toolchain@1.97.1
+        uses: dtolnay/rust-toolchain@1.120.0
         with:
           targets: aarch64-linux-android
 
