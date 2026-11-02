@@ -22,19 +22,23 @@ The patch preserves course access, login, synchronization, document viewing, sub
 ### 2. Technical Implementation & Injection Points
 
 #### Layer 1: Pendo SDK (`Lsdk/pendo/io/Pendo;`)
+
 - **Void methods stubbed to `return-void`:** `setup`, `startSession`, `track`, `screenContentChanged`, `setAccountData`, `setVisitorData`, `dismissVisibleGuides`, `pauseGuides`, `resumeGuides`, `endSession`.
 - **Boolean return stubbed to `false`:** `sendClickAnalytic`.
 - **Object returns stubbed to `null`:** `getAccountId`, `getVisitorId`, `getDeviceId`.
 
 #### Layer 2: Pendo Consent Handlers (`Lcom/instructure/pandautils/features/cookieconsent/AnalyticsConsentHandler;`)
+
 - **Methods stubbed to `return-void`:** `onConsentGranted`, `onConsentRevoked`.
 
 #### Layer 3: First-Party Event Dispatch & Token Reporting
+
 - **`Lcom/instructure/canvasapi2/utils/Analytics;`:** Stubs `logEvent` and `setUserProperty` to `return-void`; stubs `isSessionActive` to return `false`.
 - **`Lcom/instructure/student/util/Analytics;`:** Stubs `trackAppFlow`, `trackBookmarkCreated`, `trackBookmarkSelected`, `trackButtonPressed`, `trackUnsupportedFeature`, and `trackWidgetFlow` to `return-void`.
 - **`Lcom/instructure/canvasapi2/AppManager;`:** Stubs `logTokenAnalytics` to `return-void`.
 
 #### Layer 4: ScreenView & Pandata Pageview Surveillance
+
 - **`Lcom/instructure/pandautils/analytics/ScreenViewAnnotationProcessor;`:** Stubs `processScreenView` to `return-void`.
 - **`Lcom/instructure/canvasapi2/utils/pageview/PandataManager;`:** Stubs `uploadPageViewEvents` to `return-void`.
 - **`Lcom/instructure/pandautils/analytics/pageview/PageViewUtils;`:** Stubs `saveSingleEvent` and `stopEvent` to `return-void`.
@@ -42,6 +46,7 @@ The patch preserves course access, login, synchronization, document viewing, sub
 - **`Lcom/instructure/pandautils/analytics/pageview/PageViewUploadWorker;`:** Injects `new-instance v0, Landroidx/work/u$a$c; \n invoke-direct {v0}, Landroidx/work/u$a$c;-><init>()V \n return-object v0` into `doWork()`, returning `Result.success()` immediately without querying the local database or uploading queued records.
 
 #### Layer 5: Offline Analytics, Crashlytics, Rating & Logging
+
 - **`Lcom/instructure/pandautils/analytics/OfflineAnalyticsManager;`:** Stubs `offlineModeStarted`, `reportCourseOpenedInOfflineMode`, and `offlineModeEnded` to `return-void`.
 - **`Lcom/google/firebase/crashlytics/FirebaseCrashlytics;`:** Stubs `log`, `recordException`, `setCrashlyticsCollectionEnabled`, `setCustomKey`, `setCustomKeys`, `setUserId`, `sendUnsentReports`, and `deleteUnsentReports` to `return-void`.
 - **`Lcom/instructure/student/mobius/settings/help/StudentHelpDialogFragmentBehavior;`:** Stubs `rateTheApp` to `return-void`.
