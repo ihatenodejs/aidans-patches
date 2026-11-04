@@ -199,7 +199,7 @@ jobs:
           echo "ANDROID_NDK_ROOT=${{ steps.setup-ndk.outputs.ndk-path }}" >> "$GITHUB_ENV"
           echo "ANDROID_NDK=${{ steps.setup-ndk.outputs.ndk-path }}" >> "$GITHUB_ENV"
       - name: Setup Rust toolchain
-        uses: dtolnay/rust-toolchain@1.97.1
+        uses: dtolnay/rust-toolchain@1.120.0
         with:
           targets: aarch64-linux-android
       - name: Audit android domain
@@ -223,7 +223,7 @@ jobs:
           bun-version: latest
 
       - name: Setup Rust toolchain
-        uses: dtolnay/rust-toolchain@1.97.1
+        uses: dtolnay/rust-toolchain@1.120.0
         with:
           targets: aarch64-linux-android
           components: rustfmt, clippy
