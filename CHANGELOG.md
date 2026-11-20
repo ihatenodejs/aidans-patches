@@ -1,3 +1,14 @@
+## [1.9.1](https://github.com/ihatenodejs/aidans-patches/compare/v1.9.0...v1.9.1) (2026-11-20)
+
+### 🐛 Bug Fixes
+
+* **apk-lab:** harden fixture acquisition and clone checks ([27c23f0](https://github.com/ihatenodejs/aidans-patches/commit/27c23f0d4090413fb193be7a244d8f319695c127))
+* **apk-lab:** serialize first compatibility case before fan-out ([07ad704](https://github.com/ihatenodejs/aidans-patches/commit/07ad70446387536c2b98f429567efd4c54938b96))
+
+### 🚀 Updated App Support
+
+* **pro-metronome:** update supported version to 1.14 ([98edc10](https://github.com/ihatenodejs/aidans-patches/commit/98edc10e1fe2a587e25780da4218de0f09068907))
+
 ## [1.9.0](https://github.com/ihatenodejs/aidans-patches/compare/v1.8.0...v1.9.0) (2026-11-20)
 
 ### 🐛 Bug Fixes
