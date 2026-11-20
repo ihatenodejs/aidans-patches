@@ -1,3 +1,9 @@
+## [1.9.2](https://github.com/ihatenodejs/aidans-patches/compare/v1.9.1...v1.9.2) (2026-11-20)
+
+### 🐛 Bug Fixes
+
+* **canvas:** stop PDF viewer crash and remove evaluation watermark ([32a1414](https://github.com/ihatenodejs/aidans-patches/commit/32a14149153b7970ae9a321331a39e29e5928183))
+
 ## [1.9.1](https://github.com/ihatenodejs/aidans-patches/compare/v1.9.0...v1.9.1) (2026-11-20)
 
 ### 🐛 Bug Fixes
