@@ -8,7 +8,7 @@ This document specifies patches for **Canvas Student** (`com.instructure.candroi
 
 - **Name:** Remove Tracking and Analytics
 - **Target Package:** `com.instructure.candroid`
-- **Supported Versions:** `8.10.0`
+- **Supported Versions:** `8.12.0`
 - **Default State:** `true` (Enabled by default)
 - **Type:** Dalvik Bytecode Patch (`bytecodePatch`)
 - **Dependencies:** None
@@ -54,7 +54,7 @@ The patch preserves course access, login, synchronization, document viewing, sub
 
 ### 3. Preconditions & Verification
 
-1. Targets Canvas Student `8.10.0` signed with SHA-256 certificate `abfe1362d84c5234c174c2c03d405a480405e361162f7b28dad6bec825ba02b3`.
+1. Targets Canvas Student `8.12.0` signed with SHA-256 certificate `abfe1362d84c5234c174c2c03d405a480405e361162f7b28dad6bec825ba02b3`.
 2. Every method lookup resolves through `mutableClassDefByOrNull` and verifies implementation presence before injecting instructions.
 3. Verify build with `./gradlew :patches:buildAndroid clean --no-daemon`.
 4. Verify metadata generation with `./gradlew generatePatchesList`.
@@ -63,7 +63,7 @@ The patch preserves course access, login, synchronization, document viewing, sub
 
 - **Name:** Change App Name
 - **Target Package:** `com.instructure.candroid`
-- **Supported Versions:** `8.10.0`
+- **Supported Versions:** `8.12.0`
 - **Default State:** `false` (opt-in)
 - **Type:** Resource Patch (`resourcePatch`)
 - **Options:** `appName` (default `Canvas`)
@@ -76,7 +76,7 @@ Sets `android:label` to the supplied literal on the manifest `<application>` and
 
 - **Name:** Clone App
 - **Target Package:** `com.instructure.candroid`
-- **Supported Versions:** `8.10.0`
+- **Supported Versions:** `8.12.0`
 - **Default State:** `false` (opt-in)
 - **Type:** Resource Patch (`resourcePatch`)
 - **Options:** `packageName` (default `com.instructure.candroid.morphe`)
@@ -91,7 +91,7 @@ Changes the manifest package so the build installs beside the original app. The 
 
 - **Name:** Change App Icon
 - **Target Package:** `com.instructure.candroid`
-- **Supported Versions:** `8.10.0`
+- **Supported Versions:** `8.12.0`
 - **Default State:** `false` (opt-in)
 - **Type:** Resource Patch (`resourcePatch`)
 - **Options:** `foregroundColor` (default `#E62429`), `backgroundColor` (default `#FFFFFF`), `customForeground` (optional PNG)

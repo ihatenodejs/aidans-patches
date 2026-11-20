@@ -6,9 +6,9 @@
 | --------------------------- | ------------------------------------------------------------------------------------------------------ |
 | **Application Name**        | Canvas Student                                                                                         |
 | **Package Name**            | `com.instructure.candroid`                                                                             |
-| **Supported Version**       | `8.10.0` (Morphe Compatibility: `8.10.0`, `minSdk` 28)                                                 |
-| **Analyzed Version Code**   | `297` (Derived from APK analysis; Constants specifies version string)                                  |
-| **Target SDK**              | `35` (Android 15)                                                                                      |
+| **Supported Version**       | `8.12.0` (Morphe Compatibility: `8.12.0`, `minSdk` 28)                                                 |
+| **Analyzed Version Code**   | `300` (Derived from APK analysis; Constants specifies version string)                                  |
+| **Target SDK**              | `36` (Android 16)                                                                                      |
 | **Minimum SDK**             | `28` (Android 9.0)                                                                                     |
 | **APK Format**              | APKM (`base.apk`, arm64-v8a, xhdpi splits)                                                             |
 | **Package Signing SHA-256** | `abfe1362d84c5234c174c2c03d405a480405e361162f7b28dad6bec825ba02b3`                                     |
@@ -70,9 +70,9 @@ flowchart LR
 
 ## Launcher Resources
 
-The 8.10.0 manifest points `android:icon` at `@mipmap/ic_launcher`. The effective adaptive icon is `res/mipmap-anydpi-v26/ic_launcher.xml` in the APK; Morphe decodes it as `res/mipmap-anydpi/ic_launcher.xml` after the version qualifier is stripped. The default configuration `res/mipmap/ic_launcher.xml` is an empty `<adaptive-icon/>` placeholder. Both declare an adaptive-icon root, and only the v26 configuration declares `<background>`, `<foreground>`, and `<monochrome>`.
+The 8.12.0 manifest points `android:icon` at `@mipmap/ic_launcher`. The effective adaptive icon is `res/mipmap-anydpi-v26/ic_launcher.xml` in the APK; Morphe decodes it as `res/mipmap-anydpi/ic_launcher.xml` after the version qualifier is stripped. The default configuration `res/mipmap/ic_launcher.xml` is an empty `<adaptive-icon/>` placeholder. Both declare an adaptive-icon root, and only the v26 configuration declares `<background>`, `<foreground>`, and `<monochrome>`.
 
-The v26 foreground and monochrome both reference `@drawable/ic_launcher_foreground`, a 72×72 viewport vector whose single `<path>` originally uses `android:fillColor="#e62429"`. The background references `@color/white`. `ChangeAppIconPatch` treats those anchors as required for 8.10.0 and fails if the red vector path or the v26 foreground/monochrome references change.
+The v26 foreground and monochrome both reference `@drawable/ic_launcher_foreground`, a 72×72 viewport vector whose single `<path>` originally uses `android:fillColor="#e62429"`. The background references `@color/white`. `ChangeAppIconPatch` treats those anchors as required for 8.12.0 and fails if the red vector path or the v26 foreground/monochrome references change.
 
 The patch writes the selected background to `@color/aidan_canvas_launcher_background` instead of a literal color. Adaptive icon inflation resolves `<background android:drawable>` as a drawable; a raw color literal can make the launcher fall back to the default Android icon. Because the decoder strips the `-v26` qualifier when minSdk is 28, the patch also recreates `res/mipmap-anydpi-v26/ic_launcher.xml` from the decoded anydpi adaptive icon.
 
