@@ -1,3 +1,10 @@
+## [1.9.0-dev.8](https://github.com/ihatenodejs/aidans-patches/compare/v1.9.0-dev.7...v1.9.0-dev.8) (2026-11-20)
+
+### ✨ New Features
+
+* **canvas:** Added Canvas icon, name, and clone customization patches ([5ea7227](https://github.com/ihatenodejs/aidans-patches/commit/5ea7227cd58adad04d1f0d67e66feb92d03517a5))
+* **canvas:** bumped supported Canvas Student version to 8.12.0 ([68998bf](https://github.com/ihatenodejs/aidans-patches/commit/68998bfbf470dd315b732c6c85975d999caec1f5))
+
 ## [1.9.0-dev.7](https://github.com/ihatenodejs/aidans-patches/compare/v1.9.0-dev.6...v1.9.0-dev.7) (2026-10-24)
 
 ### 🐛 Bug Fixes

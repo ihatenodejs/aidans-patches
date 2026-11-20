@@ -48,7 +48,7 @@ My [Morphe](https://morphe.software) patches
 
 <!-- PATCHES_START EXPANDED -->
 
-> **[v1.9.0-dev.7](https://github.com/ihatenodejs/aidans-patches/releases/tag/v1.9.0-dev.7)**&nbsp;&nbsp;•&nbsp;&nbsp;`dev`&nbsp;&nbsp;•&nbsp;&nbsp;73 patches total
+> **[v1.9.0-dev.8](https://github.com/ihatenodejs/aidans-patches/releases/tag/v1.9.0-dev.8)**&nbsp;&nbsp;•&nbsp;&nbsp;`dev`&nbsp;&nbsp;•&nbsp;&nbsp;76 patches total
 
 <details open>
 <summary>📦 SidelineSwap&nbsp;&nbsp;•&nbsp;&nbsp;4 patches&nbsp;&nbsp;<a href="https://patch.p0ntus.com/status"><img src="https://worker.patch.p0ntus.com/badges/tests/com.sidelineswap.android.svg" alt="Tests Passing" align="absmiddle"></a></summary>
@@ -129,6 +129,24 @@ My [Morphe](https://morphe.software) patches
 | **Remove Ads**                    | Removes sponsored feed advertisements and optional marketplace listing advertisements from the feed.                                                                                                                                                                     | • Remove Marketplace Ads                          |
 | **Remove Tracking and Analytics** | Neutralizes first-party client event tracking, Mixpanel analytics, Airbridge and Adjust attribution SDKs, Google Advertising ID (AAID) collection, and bypasses PairIP Play Integrity verification, with options for silent DM screenshots and Sentry telemetry removal. | • Silent Screenshots<br>• Disable Crash Reporting |
 | **Replace Emoji Font with iOS**   | Replaces Android system emoji with iOS Apple Color Emoji across Compose UI, posts, comments, and direct messages (effective on Android 10+ / API 29+).                                                                                                                   |                                                   |
+
+</details>
+
+<details open>
+<summary>📦 Canvas Student&nbsp;&nbsp;•&nbsp;&nbsp;4 patches&nbsp;&nbsp;<a href="https://patch.p0ntus.com/status"><img src="https://worker.patch.p0ntus.com/badges/tests/com.instructure.candroid.svg" alt="Tests Passing" align="absmiddle"></a></summary>
+<br>
+
+**🎯 Supported versions:**
+
+| 8.12.0 |
+| :----: |
+
+| 💊&nbsp;Patch                     | 📜&nbsp;Description                                                                                                                                                                                                                                                                                                                                                 | ⚙️&nbsp;Options                                                       |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| **Change App Icon**               | Recolors the Canvas launcher icon and optionally replaces its foreground with a custom PNG. The image is an adaptive-icon foreground, so launchers mask it to their icon shape; keep artwork inside the central safe area of a 432x432 PNG.                                                                                                                         | • Foreground Color<br>• Background Color<br>• Custom Foreground Image |
+| **Change App Name**               | Replaces the launcher label shown under the app icon. In-app text is unchanged.                                                                                                                                                                                                                                                                                     | • App Name                                                            |
+| **Clone App**                     | Changes the package name so this build installs alongside the original Canvas Student. The clone has separate app data. Re-signed or cloned App Links, push notifications, and package/certificate-bound services may not work; verify login, sharing, and document viewing.                                                                                        | • Clone Package Name                                                  |
+| **Remove Tracking and Analytics** | Neutralizes behavioral tracking (Pendo SDK session recordings, guides, and click tracking), student surveillance telemetry (Pandata pageview recording, time-spent counters, and background upload worker), first-party app analytics (ScreenView processors, offline analytics, token logging), crash reporting (Firebase Crashlytics), and in-app rating prompts. |                                                                       |
 
 </details>
 
@@ -285,21 +303,6 @@ My [Morphe](https://morphe.software) patches
 | ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Remove Tracking** | Neutralizes Umeng Analytics, Facebook App Events, Advertising ID harvesting, device fingerprinting, Bolts measurement events, and Google DataTransport telemetry. | • Disable Facebook App Events<br>• Zero Advertising ID<br>• Disable Background Telemetry<br>• Disable Umeng Analytics<br>• Neutralize Device Fingerprinting |
 | **Unlock Pro**      | Unlocks all Pro features including polyrhythms, advanced subdivisions, visual beat modes, practice modes, and unlimited presets.                                  |                                                                                                                                                             |
-
-</details>
-
-<details open>
-<summary>📦 Canvas Student&nbsp;&nbsp;•&nbsp;&nbsp;1 patch&nbsp;&nbsp;<a href="https://patch.p0ntus.com/status"><img src="https://worker.patch.p0ntus.com/badges/tests/com.instructure.candroid.svg" alt="Tests Passing" align="absmiddle"></a></summary>
-<br>
-
-**🎯 Supported versions:**
-
-| 8.10.0 |
-| :----: |
-
-| 💊&nbsp;Patch                     | 📜&nbsp;Description                                                                                                                                                                                                                                                                                                                                                 | ⚙️&nbsp;Options |
-| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
-| **Remove Tracking and Analytics** | Neutralizes behavioral tracking (Pendo SDK session recordings, guides, and click tracking), student surveillance telemetry (Pandata pageview recording, time-spent counters, and background upload worker), first-party app analytics (ScreenView processors, offline analytics, token logging), crash reporting (Firebase Crashlytics), and in-app rating prompts. |                 |
 
 </details>
 

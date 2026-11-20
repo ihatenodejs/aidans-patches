@@ -1,7 +1,7 @@
 {
-  "created_at": "2026-10-24T21:37:11",
-  "description": "## [1.9.0-dev.7](https://github.com/ihatenodejs/aidans-patches/compare/v1.9.0-dev.6...v1.9.0-dev.7) (2026-10-24)\n\n### 🐛 Bug Fixes\n\n* **nhl:** required concrete method implementations in patch lookups ([fd367ff](https://github.com/ihatenodejs/aidans-patches/commit/fd367ffd1c1457343d9e9dffc9deb9f1eafa98eb))\n\n### ✨ New Features\n\n* **nhl:** added notification and live activity support ([6d7476d](https://github.com/ihatenodejs/aidans-patches/commit/6d7476da984e1b830aa7bfe40bff242787135960))",
-  "download_url": "https://github.com/ihatenodejs/aidans-patches/releases/download/v1.9.0-dev.7/patches-1.9.0-dev.7.mpp",
+  "created_at": "2026-11-20T02:11:08",
+  "description": "## [1.9.0-dev.8](https://github.com/ihatenodejs/aidans-patches/compare/v1.9.0-dev.7...v1.9.0-dev.8) (2026-11-20)\n\n### ✨ New Features\n\n* **canvas:** Added Canvas icon, name, and clone customization patches ([5ea7227](https://github.com/ihatenodejs/aidans-patches/commit/5ea7227cd58adad04d1f0d67e66feb92d03517a5))\n* **canvas:** bumped supported Canvas Student version to 8.12.0 ([68998bf](https://github.com/ihatenodejs/aidans-patches/commit/68998bfbf470dd315b732c6c85975d999caec1f5))",
+  "download_url": "https://github.com/ihatenodejs/aidans-patches/releases/download/v1.9.0-dev.8/patches-1.9.0-dev.8.mpp",
   "signature_download_url": "",
-  "version": "1.9.0-dev.7"
+  "version": "1.9.0-dev.8"
 }
