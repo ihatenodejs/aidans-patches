@@ -67,3 +67,17 @@ flowchart LR
 ## Patch Targets
 
 1. **`RemoveTrackingAndAnalyticsPatch.kt` (`bytecodePatch`):** Neutralizes Pendo setup/session startup and event APIs, stubs first-party analytics and token analytics reporting (`AppManager.logTokenAnalytics`), suppresses Pandata pageview persistence and uploads, offline telemetry, Firebase Crashlytics reporting (including custom keys), the Help rating redirect, and `Logger.canLogUserDetails`.
+
+## Launcher Resources
+
+The 8.10.0 manifest points `android:icon` at `@mipmap/ic_launcher`. The effective adaptive icon is `res/mipmap-anydpi-v26/ic_launcher.xml` in the APK; Morphe decodes it as `res/mipmap-anydpi/ic_launcher.xml` after the version qualifier is stripped. The default configuration `res/mipmap/ic_launcher.xml` is an empty `<adaptive-icon/>` placeholder. Both declare an adaptive-icon root, and only the v26 configuration declares `<background>`, `<foreground>`, and `<monochrome>`.
+
+The v26 foreground and monochrome both reference `@drawable/ic_launcher_foreground`, a 72×72 viewport vector whose single `<path>` originally uses `android:fillColor="#e62429"`. The background references `@color/white`. `ChangeAppIconPatch` treats those anchors as required for 8.10.0 and fails if the red vector path or the v26 foreground/monochrome references change.
+
+The patch writes the selected background to `@color/aidan_canvas_launcher_background` instead of a literal color. Adaptive icon inflation resolves `<background android:drawable>` as a drawable; a raw color literal can make the launcher fall back to the default Android icon. Because the decoder strips the `-v26` qualifier when minSdk is 28, the patch also recreates `res/mipmap-anydpi-v26/ic_launcher.xml` from the decoded anydpi adaptive icon.
+
+## Clone Manifest Invariants
+
+The manifest package is `com.instructure.candroid`, and every component class name is already absolute. Provider authorities are literal strings with the original package prefix. The original-package custom permission is `com.instructure.candroid.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION`; its declaration and `<uses-permission>` entry must both be rewritten for a clone.
+
+The clone does not touch DEX classes or package-name strings such as `com.instructure.student.BuildConfig.APPLICATION_ID`. Runtime FileProvider authorities are built from `Context.getPackageName()`, so rewriting manifest authorities keeps sharing consistent with the cloned package. App Links, OAuth redirects, push registration, and Nutrient/PSPDFKit licensing can still be bound to the original application ID or certificate; these are account- and service-dependent and must be verified on a device.
