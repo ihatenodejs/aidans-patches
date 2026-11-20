@@ -10,8 +10,9 @@ This document specifies patches for **Canvas Student** (`com.instructure.candroi
 - **Target Package:** `com.instructure.candroid`
 - **Supported Versions:** `8.12.0`
 - **Default State:** `true` (Enabled by default)
-- **Type:** Dalvik Bytecode Patch (`bytecodePatch`)
-- **Dependencies:** None
+- **Type:** Composite Feature Patch (`compositeFeaturePatch`)
+- **Dependencies:** Internal companion resource layer (`Remove Tracking and Analytics (Internal Resource)`)
+- **Options:** `removeCrashlyticsCollection` (default `true`)
 
 ### 1. Motivation & Purpose
 
@@ -52,12 +53,67 @@ The patch preserves course access, login, synchronization, document viewing, sub
 - **`Lcom/instructure/student/mobius/settings/help/StudentHelpDialogFragmentBehavior;`:** Stubs `rateTheApp` to `return-void`.
 - **`Lcom/instructure/canvasapi2/utils/Logger;`:** Stubs `canLogUserDetails` to return `false`.
 
+#### Manifest Layer: Crashlytics Collection (`removeCrashlyticsCollection`, default on)
+
+The Java method stubs alone leave Crashlytics initialized and the NDK crash handler loaded. The resource layer edits `AndroidManifest.xml`:
+
+- Sets `firebase_crashlytics_collection_enabled=false` as a direct `<meta-data>` child of `<application>`, adding it when the manifest does not declare it and updating the value when it does.
+- Removes the `com.google.firebase.components:com.google.firebase.crashlytics.ndk.CrashlyticsNdkRegistrar` metadata from `com.google.firebase.components.ComponentDiscoveryService`, so `libcrashlytics*.so` is never loaded. Other registrars, including `CrashlyticsRegistrar`, stay in place.
+
+Meta-data is matched only among direct children: a document-wide `meta-data` search also returns entries nested inside services and providers. A manifest without exactly one `<application>`, without `ComponentDiscoveryService`, or without the NDK registrar metadata fails the patch. Disabling the option leaves the pass bytecode-only.
+
 ### 3. Preconditions & Verification
 
 1. Targets Canvas Student `8.12.0` signed with SHA-256 certificate `abfe1362d84c5234c174c2c03d405a480405e361162f7b28dad6bec825ba02b3`.
 2. Every method lookup resolves through `mutableClassDefByOrNull` and verifies implementation presence before injecting instructions.
 3. Verify build with `./gradlew :patches:buildAndroid clean --no-daemon`.
 4. Verify metadata generation with `./gradlew generatePatchesList`.
+
+## Patch: Show Remote Config Editor
+
+- **Name:** Show Remote Config Editor
+- **Target Package:** `com.instructure.candroid`
+- **Supported Versions:** `8.12.0`
+- **Default State:** `false` (opt-in)
+- **Type:** Dalvik Bytecode Patch (`bytecodePatch`)
+- **Category:** `Developer`
+
+### Behavior
+
+`SettingsItem.REMOTE_CONFIG` and its `SettingsFragment` navigation exist in the app, but `StudentSettingsBehaviour.getSettingsItems()` never adds the item, so the editor is unreachable. The patch appends `REMOTE_CONFIG` to the list stored under `R.string.preferences` (`0x7f130c1a`) immediately before the method's `return-object`.
+
+The stored list is copied into a `java.util.ArrayList` before `add`, because the value returned by the original body is not guaranteed to be mutable. The patch requires `StudentSettingsBehaviour.getSettingsItems()Ljava/util/Map;`, a reference to `0x7f130c1a` in that method, and a `return-object`; otherwise it throws.
+
+The editor writes each edited value through `RemoteConfigPrefs.putString` and persists across screen re-entry. Values can still be overwritten by the next Firebase remote-config fetch, so the screen is an inspection/override tool, not a permanent override.
+
+## Patch: Unlock Notebook and Offline Content
+
+- **Name:** Unlock Notebook and Offline Content
+- **Target Package:** `com.instructure.candroid`
+- **Supported Versions:** `8.12.0`
+- **Default State:** `false` (opt-in)
+- **Type:** Dalvik Bytecode Patch (`bytecodePatch`)
+- **Category:** `Features`
+- **Options:** `enableNotebook` (default `true`), `enableOfflineContent` (default `true`)
+
+### Behavior
+
+`FeatureFlagProvider.notebookEnabled` and `FeatureFlagProvider.offlineEnabled` are suspend wrappers over the environment flags `notebook` and `mobile_offline_mode`. For each enabled option the patch makes the corresponding method return `Boolean.TRUE` at index 0. Callers only test for `COROUTINE_SUSPENDED` before unboxing, so the injected boxed return is equivalent to a completed continuation.
+
+A missing `FeatureFlagProvider` or missing method throws. Only client gates change: the institution must still serve the Notebook and offline-content endpoints, so screens can be empty or error when the server does not support them.
+
+## Patch: Disable AI Study Tools
+
+- **Name:** Disable AI Study Tools
+- **Target Package:** `com.instructure.candroid`
+- **Supported Versions:** `8.12.0`
+- **Default State:** `false` (opt-in)
+- **Type:** Dalvik Bytecode Patch (`bytecodePatch`)
+- **Category:** `Privacy`
+
+### Behavior
+
+Study Tools is a student AI feature with a client-side availability gate. The patch stubs `StudyToolsViewModel.checkStudyToolsAvailability(String)` to `return-void` — the only path that calls `GetStudyToolsUseCase` — and forces `StudyToolsUiState.getAvailable()` to `false`, which is the value `PageDetailsScreenKt` checks before showing the Study Tools button. Both targets are required; a missing class or method fails the patch.
 
 ## Patch: Change App Name
 
