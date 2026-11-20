@@ -289,7 +289,10 @@
         "Change App Icon",
         "Change App Name",
         "Clone App",
-        "Remove Tracking and Analytics"
+        "Disable AI Study Tools",
+        "Remove Tracking and Analytics",
+        "Show Remote Config Editor",
+        "Unlock Notebook and Offline Content"
       ],
       "supportedVersions": [
         "8.12.0"
@@ -1030,6 +1033,35 @@
           "values": null
         }
       ]
+    },
+    {
+      "name": "Disable AI Study Tools",
+      "description": "Hides Study Tools and stops page content from being sent to Instructure's AI study-assist endpoint.",
+      "default": false,
+      "category": "Privacy",
+      "dependencies": [],
+      "compatiblePackages": [
+        {
+          "packageName": "com.instructure.candroid",
+          "name": "Canvas Student",
+          "description": null,
+          "apkFileType": "APKM",
+          "appIconColor": "#E62725",
+          "signatures": [
+            "abfe1362d84c5234c174c2c03d405a480405e361162f7b28dad6bec825ba02b3"
+          ],
+          "targets": [
+            {
+              "version": "8.12.0",
+              "versionCodes": null,
+              "isExperimental": false,
+              "minSdk": 28,
+              "description": null
+            }
+          ]
+        }
+      ],
+      "options": []
     },
     {
       "name": "Display Cutout Adaptation",
@@ -3049,7 +3081,17 @@
           ]
         }
       ],
-      "options": []
+      "options": [
+        {
+          "key": "removeCrashlyticsCollection",
+          "title": "Disable Crashlytics Collection",
+          "description": "Sets the Firebase Crashlytics collection manifest flag to false and removes the Crashlytics NDK registrar. The existing Java Crashlytics method stubs remain active.",
+          "required": false,
+          "type": "kotlin.Boolean",
+          "default": true,
+          "values": null
+        }
+      ]
     },
     {
       "name": "Remove Tracking and Analytics",
@@ -3447,6 +3489,35 @@
       "options": []
     },
     {
+      "name": "Show Remote Config Editor",
+      "description": "Adds the hidden Remote Config editor to Settings, allowing Firebase remote-config overrides and experimental flags to be inspected and changed.",
+      "default": false,
+      "category": "Developer",
+      "dependencies": [],
+      "compatiblePackages": [
+        {
+          "packageName": "com.instructure.candroid",
+          "name": "Canvas Student",
+          "description": null,
+          "apkFileType": "APKM",
+          "appIconColor": "#E62725",
+          "signatures": [
+            "abfe1362d84c5234c174c2c03d405a480405e361162f7b28dad6bec825ba02b3"
+          ],
+          "targets": [
+            {
+              "version": "8.12.0",
+              "versionCodes": null,
+              "isExperimental": false,
+              "minSdk": 28,
+              "description": null
+            }
+          ]
+        }
+      ],
+      "options": []
+    },
+    {
       "name": "Skip to Next Level",
       "description": "Allows tapping the next level indicator on the top bar to show a confirmation dialog and skip to the next level. REQUIRES Add Custom Chip Store to be enabled.",
       "default": true,
@@ -3829,6 +3900,54 @@
           "key": "showGameZoneOnHome",
           "title": "Show GameZone on Home",
           "description": "Forces the shipped NHL GameZone Home visibility gate on; web content and authentication remain server-controlled.",
+          "required": false,
+          "type": "kotlin.Boolean",
+          "default": true,
+          "values": null
+        }
+      ]
+    },
+    {
+      "name": "Unlock Notebook and Offline Content",
+      "description": "Forces the client-side Notebook and Offline Content environment feature flags on, regardless of the institution's rollout. Server support is still required for content sync.",
+      "default": false,
+      "category": "Features",
+      "dependencies": [],
+      "compatiblePackages": [
+        {
+          "packageName": "com.instructure.candroid",
+          "name": "Canvas Student",
+          "description": null,
+          "apkFileType": "APKM",
+          "appIconColor": "#E62725",
+          "signatures": [
+            "abfe1362d84c5234c174c2c03d405a480405e361162f7b28dad6bec825ba02b3"
+          ],
+          "targets": [
+            {
+              "version": "8.12.0",
+              "versionCodes": null,
+              "isExperimental": false,
+              "minSdk": 28,
+              "description": null
+            }
+          ]
+        }
+      ],
+      "options": [
+        {
+          "key": "enableNotebook",
+          "title": "Enable Notebook",
+          "description": "Forces FeatureFlagProvider.notebookEnabled to return true.",
+          "required": false,
+          "type": "kotlin.Boolean",
+          "default": true,
+          "values": null
+        },
+        {
+          "key": "enableOfflineContent",
+          "title": "Enable Offline Content",
+          "description": "Forces FeatureFlagProvider.offlineEnabled to return true.",
           "required": false,
           "type": "kotlin.Boolean",
           "default": true,
