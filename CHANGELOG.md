@@ -1,3 +1,27 @@
+## [1.9.3-dev.1](https://github.com/ihatenodejs/aidans-patches/compare/v1.9.2...v1.9.3-dev.1) (2026-11-20)
+
+### 🐛 Bug Fixes
+
+* **apk-lab:** redact goopdl stderr before truncating ([cb23dd5](https://github.com/ihatenodejs/aidans-patches/commit/cb23dd5bd3dc6c6c0c3f9a90fa81d40961ee342e))
+* **ci:** fall back to status for fizz version code ([d1c14e4](https://github.com/ihatenodejs/aidans-patches/commit/d1c14e424af0ebe8171d37f122b7cea5ff366877))
+* **release:** use merge strategy for stable backmerges ([0bd4915](https://github.com/ihatenodejs/aidans-patches/commit/0bd4915f12af14e6bfc0d620b27bb54ea13804a7))
+
+### 🚀 Updated App Support
+
+* **fizz:** sync dynamic version spoofing seed from Google Play ([197dc41](https://github.com/ihatenodejs/aidans-patches/commit/197dc41c4e6be58f55d13af3969b509d3acce1e0))
+
+## [1.9.2-dev.1](https://github.com/ihatenodejs/aidans-patches/compare/v1.9.1...v1.9.2-dev.1) (2026-11-20)
+
+### 🐛 Bug Fixes
+
+* **apk-lab:** redact goopdl stderr before truncating ([cb23dd5](https://github.com/ihatenodejs/aidans-patches/commit/cb23dd5bd3dc6c6c0c3f9a90fa81d40961ee342e))
+* **ci:** fall back to status for fizz version code ([d1c14e4](https://github.com/ihatenodejs/aidans-patches/commit/d1c14e424af0ebe8171d37f122b7cea5ff366877))
+* **release:** use merge strategy for stable backmerges ([0bd4915](https://github.com/ihatenodejs/aidans-patches/commit/0bd4915f12af14e6bfc0d620b27bb54ea13804a7))
+
+### 🚀 Updated App Support
+
+* **fizz:** sync dynamic version spoofing seed from Google Play ([197dc41](https://github.com/ihatenodejs/aidans-patches/commit/197dc41c4e6be58f55d13af3969b509d3acce1e0))
+
 ## [1.9.2](https://github.com/ihatenodejs/aidans-patches/compare/v1.9.1...v1.9.2) (2026-11-20)
 
 ### 🐛 Bug Fixes

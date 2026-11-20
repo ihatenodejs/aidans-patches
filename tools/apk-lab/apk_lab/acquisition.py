@@ -36,6 +36,17 @@ class AcquisitionSource(str, Enum):
 
 
 FIXED_ZIP_DATETIME = (2026, 1, 1, 0, 0, 0)
+STDERR_DIAGNOSTIC_LIMIT = 300
+
+
+def _sanitize_stderr(stderr: str, account: GooglePlayAccount | None) -> str:
+    """Redacts account credentials, then truncates the diagnostic output."""
+    if account is not None:
+        if account.aas_token:
+            stderr = stderr.replace(account.aas_token, "[REDACTED_TOKEN]")
+        if account.email:
+            stderr = stderr.replace(account.email, account.redacted_email)
+    return stderr[:STDERR_DIAGNOSTIC_LIMIT]
 
 
 APKMIRROR_APP_MAP: dict[str, dict[str, str]] = {
@@ -289,12 +300,8 @@ def acquire_with_apkeep(
             cmd = build_apkeep_cmd(package_name, ini_path, attempt_path)
             res = tool_mgr.run_tool_cmd("apkeep", cmd)
             if res.returncode != 0:
-                # Sanitize error output so tokens or emails are never leaked
-                sanitized_stderr = res.stderr.replace(
-                    aas_token, "[REDACTED_TOKEN]"
-                ).replace(email, account.redacted_email)
                 raise AcquisitionError(
-                    f"apkeep download failed for account [{label}]: {sanitized_stderr[:300]}",
+                    f"apkeep download failed for account [{label}]: {_sanitize_stderr(res.stderr, account)}",
                     ExitCode.INFRASTRUCTURE_FAILURE,
                 )
 
@@ -362,13 +369,8 @@ def acquire_with_goopdl(
                 env=build_goopdl_env(account),
             )
             if res.returncode != 0:
-                stderr = res.stderr[:300]
-                if account is not None:
-                    stderr = stderr.replace(
-                        account.aas_token, "[REDACTED_TOKEN]"
-                    ).replace(account.email, account.redacted_email)
                 raise AcquisitionError(
-                    f"goopdl failed: {stderr}",
+                    f"goopdl failed: {_sanitize_stderr(res.stderr, account)}",
                     ExitCode.INFRASTRUCTURE_FAILURE,
                 )
         except (subprocess.SubprocessError, OSError) as e:
