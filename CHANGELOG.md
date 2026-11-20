@@ -1,3 +1,9 @@
+## [1.9.0-dev.9](https://github.com/ihatenodejs/aidans-patches/compare/v1.9.0-dev.8...v1.9.0-dev.9) (2026-11-20)
+
+### ✨ New Features
+
+* **canvas-student:** add hidden feature and privacy patches ([fa4576b](https://github.com/ihatenodejs/aidans-patches/commit/fa4576b02afa3b3f7e59fc5b42e1daa6072e2659))
+
 ## [1.9.0-dev.8](https://github.com/ihatenodejs/aidans-patches/compare/v1.9.0-dev.7...v1.9.0-dev.8) (2026-11-20)
 
 ### ✨ New Features

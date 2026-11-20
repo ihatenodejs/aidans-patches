@@ -1,7 +1,7 @@
 {
-  "created_at": "2026-11-20T02:11:08",
-  "description": "## [1.9.0-dev.8](https://github.com/ihatenodejs/aidans-patches/compare/v1.9.0-dev.7...v1.9.0-dev.8) (2026-11-20)\n\n### ✨ New Features\n\n* **canvas:** Added Canvas icon, name, and clone customization patches ([5ea7227](https://github.com/ihatenodejs/aidans-patches/commit/5ea7227cd58adad04d1f0d67e66feb92d03517a5))\n* **canvas:** bumped supported Canvas Student version to 8.12.0 ([68998bf](https://github.com/ihatenodejs/aidans-patches/commit/68998bfbf470dd315b732c6c85975d999caec1f5))",
-  "download_url": "https://github.com/ihatenodejs/aidans-patches/releases/download/v1.9.0-dev.8/patches-1.9.0-dev.8.mpp",
+  "created_at": "2026-11-20T02:36:06",
+  "description": "## [1.9.0-dev.9](https://github.com/ihatenodejs/aidans-patches/compare/v1.9.0-dev.8...v1.9.0-dev.9) (2026-11-20)\n\n### ✨ New Features\n\n* **canvas-student:** add hidden feature and privacy patches ([fa4576b](https://github.com/ihatenodejs/aidans-patches/commit/fa4576b02afa3b3f7e59fc5b42e1daa6072e2659))",
+  "download_url": "https://github.com/ihatenodejs/aidans-patches/releases/download/v1.9.0-dev.9/patches-1.9.0-dev.9.mpp",
   "signature_download_url": "",
-  "version": "1.9.0-dev.8"
+  "version": "1.9.0-dev.9"
 }
