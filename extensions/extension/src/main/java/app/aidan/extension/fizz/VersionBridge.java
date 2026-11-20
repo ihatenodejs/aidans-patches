@@ -142,7 +142,7 @@ public final class VersionBridge {
     }
 
     /**
-     * Returns the spoofed Fizz client version string (e.g. "1.60.0").
+     * Returns the spoofed Fizz client version string (e.g. "1.72.0").
      */
     public static String getClientVersion() {
         return sClientVersion;
