@@ -926,43 +926,40 @@ def run_compatibility_check(
     test_case_results: list[PatchTestCaseResult] = []
     failed_reasons: list[str] = []
 
+    def execute_case(case: PatchTestCase) -> PatchTestCaseResult:
+        return run_single_patch_case(
+            artifact_path=art_path,
+            mpp_path=m_path,
+            test_case=case,
+            input_inspection=input_inspection,
+            force=force,
+            keep_workspace=keep_workspace,
+            ws_mgr=ws_mgr,
+            tool_mgr=tool_mgr,
+        )
+
+    results_by_idx: dict[int, PatchTestCaseResult] = {}
     if max_workers == 1 or len(all_cases) <= 1:
-        for _idx, case in all_cases:
-            res = run_single_patch_case(
-                artifact_path=art_path,
-                mpp_path=m_path,
-                test_case=case,
-                input_inspection=input_inspection,
-                force=force,
-                keep_workspace=keep_workspace,
-                ws_mgr=ws_mgr,
-                tool_mgr=tool_mgr,
-            )
-            test_case_results.append(res)
+        for idx, case in all_cases:
+            results_by_idx[idx] = execute_case(case)
     else:
+        # Run one case first so shared one-time tool state is initialized before
+        # multiple JVMs start and race to create it.
+        warm_idx, warm_case = all_cases[0]
+        results_by_idx[warm_idx] = execute_case(warm_case)
+        remaining_cases = all_cases[1:]
         with ThreadPoolExecutor(
-            max_workers=min(max_workers, len(all_cases))
+            max_workers=min(max_workers, len(remaining_cases))
         ) as executor:
             future_to_idx = {
-                executor.submit(
-                    run_single_patch_case,
-                    artifact_path=art_path,
-                    mpp_path=m_path,
-                    test_case=case,
-                    input_inspection=input_inspection,
-                    force=force,
-                    keep_workspace=keep_workspace,
-                    ws_mgr=ws_mgr,
-                    tool_mgr=tool_mgr,
-                ): idx
-                for idx, case in all_cases
+                executor.submit(execute_case, case): idx
+                for idx, case in remaining_cases
             }
-            results_by_idx: dict[int, PatchTestCaseResult] = {}
             for future in as_completed(future_to_idx):
                 idx = future_to_idx[future]
                 results_by_idx[idx] = future.result()
 
-        test_case_results = [results_by_idx[i] for i in range(len(all_cases))]
+    test_case_results = [results_by_idx[i] for i in range(len(all_cases))]
 
     for res in test_case_results:
         if not res.success:
