@@ -171,7 +171,7 @@ jobs:
 
       # Semantic release runs its own Gradle build command on main.
       - name: Release
-        uses: cycjimmy/semantic-release-action@v7
+        uses: cycjimmy/semantic-release-action@v8
         id: release
         with:
           extra_plugins: |
