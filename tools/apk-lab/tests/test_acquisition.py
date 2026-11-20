@@ -97,6 +97,31 @@ def test_build_goopdl_env_uses_aas_token_only():
     assert unsupported_env == base
 
 
+def test_goopdl_failure_redacts_credentials_before_truncation(monkeypatch, tmp_path):
+    token = "aas_et/" + "a" * 400
+    account = GooglePlayAccount(
+        label="primary",
+        email="primary@example.com",
+        aas_token=token,
+    )
+    # The token starts before the 300-character limit and ends after it.
+    stderr = "x" * 20 + f"{account.email} {token}\n" + "y" * 400
+
+    def mock_run(*_args, **_kwargs):
+        return subprocess.CompletedProcess([], returncode=1, stdout="", stderr=stderr)
+
+    monkeypatch.setattr("subprocess.run", mock_run)
+
+    with pytest.raises(AcquisitionError) as exc_info:
+        acquire_with_goopdl("com.test.pkg", tmp_path, account=account)
+
+    message = str(exc_info.value)
+    assert "[REDACTED_TOKEN]" in message
+    assert token[:20] not in message
+    assert account.email not in message
+    assert account.redacted_email in message
+
+
 def test_apkeep_credentials_ini_and_isolation(monkeypatch, tmp_path):
     accounts_json = json.dumps(
         {
