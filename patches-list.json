@@ -278,7 +278,7 @@
       ],
       "targets": [
         {
-          "version": "8.10.0",
+          "version": "8.12.0",
           "versionCodes": null,
           "isExperimental": false,
           "minSdk": 28,
@@ -286,12 +286,15 @@
         }
       ],
       "patchNames": [
+        "Change App Icon",
+        "Change App Name",
+        "Clone App",
         "Remove Tracking and Analytics"
       ],
       "supportedVersions": [
-        "8.10.0"
+        "8.12.0"
       ],
-      "latestSupportedVersion": "8.10.0"
+      "latestSupportedVersion": "8.12.0"
     },
     {
       "packageName": "com.nhl.gc1112.free",
@@ -679,6 +682,102 @@
       "options": []
     },
     {
+      "name": "Change App Icon",
+      "description": "Recolors the Canvas launcher icon and optionally replaces its foreground with a custom PNG. The image is an adaptive-icon foreground, so launchers mask it to their icon shape; keep artwork inside the central safe area of a 432x432 PNG.",
+      "default": false,
+      "category": "Customization",
+      "dependencies": [],
+      "compatiblePackages": [
+        {
+          "packageName": "com.instructure.candroid",
+          "name": "Canvas Student",
+          "description": null,
+          "apkFileType": "APKM",
+          "appIconColor": "#E62725",
+          "signatures": [
+            "abfe1362d84c5234c174c2c03d405a480405e361162f7b28dad6bec825ba02b3"
+          ],
+          "targets": [
+            {
+              "version": "8.12.0",
+              "versionCodes": null,
+              "isExperimental": false,
+              "minSdk": 28,
+              "description": null
+            }
+          ]
+        }
+      ],
+      "options": [
+        {
+          "key": "foregroundColor",
+          "title": "Foreground Color",
+          "description": "Color of the original launcher foreground vector (#RRGGBB or opaque #AARRGGBB). Also tints the monochrome icon vector.",
+          "required": false,
+          "type": "kotlin.String",
+          "default": "#E62429",
+          "values": null
+        },
+        {
+          "key": "backgroundColor",
+          "title": "Background Color",
+          "description": "Adaptive icon background color (#RRGGBB or opaque #AARRGGBB).",
+          "required": false,
+          "type": "kotlin.String",
+          "default": "#FFFFFF",
+          "values": null
+        },
+        {
+          "key": "customForeground",
+          "title": "Custom Foreground Image",
+          "description": "Optional square PNG used as the adaptive icon foreground. The launcher masks the image to its icon shape, so keep artwork inside the central safe area.",
+          "required": false,
+          "type": "kotlin.String",
+          "default": "",
+          "values": null
+        }
+      ]
+    },
+    {
+      "name": "Change App Name",
+      "description": "Replaces the launcher label shown under the app icon. In-app text is unchanged.",
+      "default": false,
+      "category": "Customization",
+      "dependencies": [],
+      "compatiblePackages": [
+        {
+          "packageName": "com.instructure.candroid",
+          "name": "Canvas Student",
+          "description": null,
+          "apkFileType": "APKM",
+          "appIconColor": "#E62725",
+          "signatures": [
+            "abfe1362d84c5234c174c2c03d405a480405e361162f7b28dad6bec825ba02b3"
+          ],
+          "targets": [
+            {
+              "version": "8.12.0",
+              "versionCodes": null,
+              "isExperimental": false,
+              "minSdk": 28,
+              "description": null
+            }
+          ]
+        }
+      ],
+      "options": [
+        {
+          "key": "appName",
+          "title": "App Name",
+          "description": "Launcher label shown under the app icon.",
+          "required": false,
+          "type": "kotlin.String",
+          "default": "Canvas",
+          "values": null
+        }
+      ]
+    },
+    {
       "name": "Change Brand Color",
       "description": "Customizes the primary accent brand color across SidelineSwap buttons, navigation highlights, badges, and accents.",
       "default": false,
@@ -759,6 +858,45 @@
           "required": false,
           "type": "kotlin.Boolean",
           "default": true,
+          "values": null
+        }
+      ]
+    },
+    {
+      "name": "Clone App",
+      "description": "Changes the package name so this build installs alongside the original Canvas Student. The clone has separate app data. Re-signed or cloned App Links, push notifications, and package/certificate-bound services may not work; verify login, sharing, and document viewing.",
+      "default": false,
+      "category": "Customization",
+      "dependencies": [],
+      "compatiblePackages": [
+        {
+          "packageName": "com.instructure.candroid",
+          "name": "Canvas Student",
+          "description": null,
+          "apkFileType": "APKM",
+          "appIconColor": "#E62725",
+          "signatures": [
+            "abfe1362d84c5234c174c2c03d405a480405e361162f7b28dad6bec825ba02b3"
+          ],
+          "targets": [
+            {
+              "version": "8.12.0",
+              "versionCodes": null,
+              "isExperimental": false,
+              "minSdk": 28,
+              "description": null
+            }
+          ]
+        }
+      ],
+      "options": [
+        {
+          "key": "packageName",
+          "title": "Clone Package Name",
+          "description": "Android package name for the clone. It must contain at least two segments and must differ from com.instructure.candroid.",
+          "required": false,
+          "type": "kotlin.String",
+          "default": "com.instructure.candroid.morphe",
           "values": null
         }
       ]
@@ -2902,7 +3040,7 @@
           ],
           "targets": [
             {
-              "version": "8.10.0",
+              "version": "8.12.0",
               "versionCodes": null,
               "isExperimental": false,
               "minSdk": 28,
