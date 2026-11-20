@@ -45,7 +45,7 @@ My [Morphe](https://morphe.software) patches
 
 <!-- PATCHES_START EXPANDED -->
 
-> **[v1.9.2](https://github.com/ihatenodejs/aidans-patches/releases/tag/v1.9.2)**&nbsp;&nbsp;•&nbsp;&nbsp;`dev`&nbsp;&nbsp;•&nbsp;&nbsp;80 patches total
+> **[v1.9.3-dev.1](https://github.com/ihatenodejs/aidans-patches/releases/tag/v1.9.3-dev.1)**&nbsp;&nbsp;•&nbsp;&nbsp;`dev`&nbsp;&nbsp;•&nbsp;&nbsp;80 patches total
 
 <details open>
 <summary>📦 SidelineSwap&nbsp;&nbsp;•&nbsp;&nbsp;4 patches&nbsp;&nbsp;<a href="https://patch.p0ntus.com/status"><img src="https://worker.patch.p0ntus.com/badges/tests/com.sidelineswap.android.svg" alt="Tests Passing" align="absmiddle"></a></summary>
