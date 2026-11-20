@@ -66,7 +66,28 @@ flowchart LR
 
 ## Patch Targets
 
-1. **`RemoveTrackingAndAnalyticsPatch.kt` (`bytecodePatch`):** Neutralizes Pendo setup/session startup and event APIs, stubs first-party analytics and token analytics reporting (`AppManager.logTokenAnalytics`), suppresses Pandata pageview persistence and uploads, offline telemetry, Firebase Crashlytics reporting (including custom keys), the Help rating redirect, and `Logger.canLogUserDetails`.
+1. **`RemoveTrackingAndAnalyticsPatch.kt` (`compositeFeaturePatch`):** Neutralizes Pendo setup/session startup and event APIs, stubs first-party analytics and token analytics reporting (`AppManager.logTokenAnalytics`), suppresses Pandata pageview persistence and uploads, offline telemetry, Firebase Crashlytics reporting (including custom keys), the Help rating redirect, and `Logger.canLogUserDetails`. Its internal resource layer sets `firebase_crashlytics_collection_enabled=false` on `<application>` and removes the Crashlytics NDK registrar metadata from `ComponentDiscoveryService`.
+2. **`ShowRemoteConfigEditorPatch.kt` (`bytecodePatch`):** Appends `SettingsItem.REMOTE_CONFIG` to the `Preferences` section of `StudentSettingsBehaviour.getSettingsItems()`.
+3. **`UnlockNotebookAndOfflineContentPatch.kt` (`bytecodePatch`):** Forces `FeatureFlagProvider.notebookEnabled` and `offlineEnabled` to return `Boolean.TRUE`.
+4. **`DisableAiStudyToolsPatch.kt` (`bytecodePatch`):** Stubs `StudyToolsViewModel.checkStudyToolsAvailability` and forces `StudyToolsUiState.getAvailable()` to `false`.
+
+## Hidden Client Gates
+
+Several 8.12.0 features are gated only in the client, so their UI is unreachable without an entitlement the app never asks for, or reachable only when an environment flag is on.
+
+### Settings Sections
+
+`StudentSettingsBehaviour.getSettingsItems()` builds a `LinkedHashMap<Integer, List<SettingsItem>>` keyed by section string resource; `0x7f130c1a` is the `Preferences` section that already receives conditional items (`PAIR_WITH_OBSERVER`, `SUBSCRIBE_TO_CALENDAR`, `SWITCH_EXPERIENCE`, `HOMEROOM_VIEW`). `SettingsItem.REMOTE_CONFIG` and its `RemoteConfigParamAdapter` editor are complete, but the enum is never appended, so the editor is unreachable. `SettingsViewModel` takes `offlineEnabled` as a constructor parameter and drops the offline section when it is false, which is why the flag gates a settings surface rather than a course screen.
+
+### Environment Feature Flags
+
+`FeatureFlagProvider` exposes one suspend `checkEnvironmentFeatureFlag(name, continuation)` and thin per-flag wrappers: `notebookEnabled` → `notebook`, `offlineEnabled` → `mobile_offline_mode`, plus `checkCookieConsentFlag`, `checkRestrictStudentAccessFlag`, `checkWidgetDashboardFlag`, `checkAccountSurveyNotificationsFlag`, and `checkCanvasForElementaryFlag`. Values come from the `EnvironmentFeatureFlagsDao` Room cache after `fetchEnvironmentFeatureFlags`. Each wrapper compiles to `(Lju/c;)Ljava/lang/Object;` and returns `Boolean`, so an injected `Boolean.TRUE` return is a valid completed result.
+
+Canvas Career and Next Gen Canvas are not client flag gates: `SWITCH_EXPERIENCE` depends on `ApiPrefs.getCanSwitchToCanvasCareer()` and the Canvas Career/Next Gen choice comes from server entitlement (`career/experience_summary`, `next_gen_canvas`), so forcing them can strand an account the institution does not support.
+
+### Study Tools Availability
+
+`StudyToolsViewModel.checkStudyToolsAvailability(String)` is the only caller of `GetStudyToolsUseCase`; its result feeds `StudyToolsUiState.available`, and `PageDetailsScreenKt` renders the Study Tools button only when that field is true. Stubbing the private check and forcing `getAvailable()` to false removes both the entry point and the button.
 
 ## Launcher Resources
 
