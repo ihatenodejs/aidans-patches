@@ -22,9 +22,6 @@ My [Morphe](https://morphe.software) patches
 [![Tests Passing](https://worker.patch.p0ntus.com/badges/tests.svg)](https://patch.p0ntus.com/status)
 
 [![Add to Morphe badge](https://github.com/ihatenodejs/aidans-patches/blob/main/assets/add-to-morphe.png?raw=true)](https://morphe.software/add-source?github=ihatenodejs/aidans-patches)
-<a href="https://www.buymeacoffee.com/ihatenodejs">
-<img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me a Coffee" height="100">
-</a>
 
 <h2>DISCLAIMERS</h2>
 
