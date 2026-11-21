@@ -78,6 +78,7 @@ node_modules/
 !.agents/skills/apk-lab/
 !.agents/skills/morphe-patches/
 .claude
+plans/
 
 # Font assets
 *.ttf
