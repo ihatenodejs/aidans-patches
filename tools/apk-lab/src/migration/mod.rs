@@ -9,11 +9,45 @@
 #![recursion_limit = "256"]
 
 pub mod benchmark;
+pub mod icons;
 pub mod inventory;
 pub mod oracle;
 pub mod prerequisites;
 
 use std::io::Write;
+
+mod preflight {
+    use super::icons;
+
+    /// Routes `preflight <area> ...`; only `icons` exists so far.
+    pub fn run(args: &[String]) -> Result<(), String> {
+        let Some((subcommand, rest)) = args.split_first() else {
+            print_usage();
+            return Err("preflight requires a subcommand".to_string());
+        };
+        match subcommand.as_str() {
+            "icons" => icons::run(rest),
+            "-h" | "--help" | "help" => {
+                print_usage();
+                Ok(())
+            }
+            other => {
+                print_usage();
+                Err(format!("unknown preflight subcommand '{other}'"))
+            }
+        }
+    }
+
+    fn print_usage() {
+        println!(
+            "apk-lab-migrate preflight <area> [options]\n\
+             \n\
+             Areas:\n\
+             \x20 icons   Prove native icon pixels against the pinned Pillow baseline\n\
+             \x20         (capture, --check, or --sanitize a public summary)"
+        );
+    }
+}
 
 /// Runs one migration subcommand. `args` contains the arguments after the
 /// subcommand name, matching what the binary received on the command line.
@@ -26,6 +60,7 @@ pub fn run(args: &[String]) -> Result<(), String> {
     match command.as_str() {
         "inventory" => inventory::run(rest),
         "prerequisites" => prerequisites::run(rest),
+        "preflight" => preflight::run(rest),
         "capture" | "verify" => oracle::run(&args[0..]),
         "bench" => benchmark::run(rest),
         "-h" | "--help" | "help" => {
@@ -48,6 +83,7 @@ fn print_usage() {
 Commands:
   inventory      Validate the frozen command/test/consumer contract inventory
   prerequisites  Inventory or check migration prerequisites
+  preflight      Prove asset-pipeline compatibility (icons)
   capture        Record the independent Python oracle (offline profile)
   verify         Compare two oracle capture documents
   bench          Run process-level baseline benchmarks
@@ -68,5 +104,17 @@ mod tests {
     #[test]
     fn unknown_subcommand_is_an_error() {
         assert!(run(&["nope".to_string()]).is_err());
+    }
+
+    #[test]
+    fn preflight_icons_help_is_dispatched() {
+        assert!(run(&[
+            "preflight".to_string(),
+            "icons".to_string(),
+            "--help".to_string(),
+        ])
+        .is_ok());
+        assert!(run(&["preflight".to_string()]).is_err());
+        assert!(run(&["preflight".to_string(), "unknown".to_string(),]).is_err());
     }
 }

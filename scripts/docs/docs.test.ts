@@ -26,6 +26,7 @@ function collectMarkdownFiles(dir: string): string[] {
     node_modules: true,
     '.venv': true,
     '.apk-lab': true,
+    '.apk-lab-migration': true,
     build: true,
     dist: true,
     '.git': true,
@@ -40,6 +41,8 @@ function collectMarkdownFiles(dir: string): string[] {
     // Golden renderer inputs/outputs are data, not published documents; their
     // relative links deliberately retain the original README's context.
     if (fullPath === path.join(REPO_ROOT, 'scripts', 'test-fixtures')) continue;
+    if (fullPath === path.join(REPO_ROOT, 'tools', 'asset-prep', 'vendor'))
+      continue;
     if (entry.isDirectory()) {
       results.push(...collectMarkdownFiles(fullPath));
     } else if (entry.isFile() && entry.name.endsWith('.md')) {

@@ -3672,7 +3672,7 @@
     },
     {
       "id": "plan011-icon-compression-noop",
-      "status": "future-approved-only",
+      "status": "approved-native-verified",
       "baselineRewrite": false,
       "sourcePlan": "plans/011-prove-icon-pixel-compatibility.md",
       "scope": "Existing equal-pixel PNG files retain exact bytes and mtime when only compression settings change; no pixel tolerance, resampler change or format reduction is approved.",
@@ -3680,7 +3680,23 @@
         "006-replace-python-asset-pipeline",
         "009-cut-over-and-retire-python"
       ],
-      "note": "Ledger entry only. Plan 001 does not rewrite the Python asset pipeline and this exception must not be used to normalize baseline image bytes."
+      "verification": {
+        "reports": [
+          "docs/benchmarks/apk-lab/preflight-icons.json",
+          "docs/benchmarks/apk-lab/preflight-icons-linux.json"
+        ],
+        "casesPerHost": 37,
+        "hosts": ["macos/aarch64", "linux/x86_64 (local OrbStack container)"],
+        "differingRgbaBytes": 0,
+        "nativeImageTests": 16,
+        "noOpTests": [
+          "equal_pixels_with_different_encoding_preserve_bytes_and_mtime",
+          "one_byte_alpha_change_is_a_genuine_update",
+          "one_byte_rgb_change_is_a_genuine_update",
+          "corrupt_or_truncated_png_iend_is_a_genuine_update"
+        ]
+      },
+      "note": "Reusable native behavior is verified; production Python/icons remain unchanged until plan 006 adopts it. Baseline image bytes are never rewritten or normalized by this exception."
     },
     {
       "id": "fix-python-closed-pipe-stdout-flush",

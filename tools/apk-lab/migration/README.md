@@ -41,18 +41,20 @@ uv run --project tools/apk-lab pytest -q
 
 ### Dependency and lock rationale
 
-The crate uses Rust edition 2021 and the stable host toolchain. Its four direct
-dependencies are deliberately narrow: `serde` derive + `serde_json` for the capture
-schema (`raw_value` preserves exact bytes around measured Morphe timing fields),
-`sha2` for content/archive identities, and `tempfile` for isolated sandboxes.
-`Cargo.lock` pins serde 1.0.229, serde_json 1.0.154, sha2 0.10.9, and tempfile 3.27.0
-(32 packages total); direct licenses are MIT OR Apache-2.0, and the highest transitive
-`rust-version` floor is 1.85 (`getrandom` 0.4.3), below the stable host's 1.97.1.
-There are intentionally no ZIP, image, or HTTP client dependencies in the migration
-harness: synthetic ZIP fixtures use a small local writer, and CI callback probes use a
-loopback Python HTTP server. This keeps new dependency surface out of gated phases.
-The lock metadata above was collected by orchestrator inspection, not as quality-gate
-proof.
+The baseline harness uses Rust edition 2021, serde/serde_json for typed evidence,
+sha2 for identities, and tempfile for isolated sandboxes. Icon preflight additionally
+links the reusable `asset-prep` crate, PNG encoding for compression-only no-op
+evidence, and flate2 for bounded lossless fixture decompression. Cargo manifests and
+lockfiles are authoritative; the original dependency graph remains in the baseline archive.
+
+The icon module uses PNG, WebP and a safe TurboJPEG interface. Its small local
+`turbojpeg-sys` replacement builds the exact hash-verified libjpeg-turbo 3.1.1 source;
+both Cargo roots declare the same patch because Cargo patches are not transitive.
+See `tools/asset-prep/vendor/turbojpeg-sys/NOTICE.md` for provenance/licenses and
+`tools/asset-prep/PILLOW-LICENSE.txt` for the resampling/conversion attribution.
+The first native build needs CMake 3.24+, a C compiler and network access to bootstrap
+the pinned archive; subsequent builds verify and reuse it. Native transformations
+never invoke Python. The independent PNG decoder in the preflight harness does.
 
 ## Commands
 
@@ -73,6 +75,11 @@ $MIG bench --engine python --profile local \
   --out .apk-lab-migration/python-baseline.json
 $MIG bench --sanitize --input .apk-lab-migration/python-baseline.json \
   --out docs/benchmarks/apk-lab/baseline.json
+$MIG preflight icons --manifest .apk-lab-migration/icons-reference/proof.local.json \
+  --out .apk-lab-migration/icons-proof.json
+$MIG preflight icons --check --report .apk-lab-migration/icons-proof.json
+$MIG preflight icons --sanitize --input .apk-lab-migration/icons-proof.json \
+  --out docs/benchmarks/apk-lab/preflight-icons.json
 ```
 
 Each command exits `0` only after performing the requested work. Unsupported engines,
@@ -210,6 +217,43 @@ limitation. Release-binary size and build cost are measured in plan 008, when a 
 release CLI exists; the Python baseline records interpreter and environment identity
 instead.
 
+## Exact icon proof
+
+The icon comparator checks every RGBA byte, including hidden RGB under zero alpha,
+against independently captured Python 3.12.14 / Pillow 11.3.0 references. The
+maintainer approved this new reference environment; it is not a recovered historical
+CI environment. Synthetic files are redistributable; original Play source icons
+remain private, with only identities/hashes in public requirements.
+
+The compiled `fixtures/icons/required-corpus.json` binds all 33 public and three
+private mandatory cases and their hashes/coverage. A freshly reduced caller manifest
+cannot declare away required cases. Additional characterized cases may extend the
+proof. Neither a public-only corpus nor an unavailable independent decoder passes
+acceptance. Capture writes diagnostics before returning nonzero on any blocker.
+
+Reports bind the executed binary, embedded source/dependency fingerprint, reference
+source and manifest/input/reference identities. An old executable rejects changed
+checkout bytes; `--check` re-executes comparison and rejects missing, altered or stale
+evidence. Candidate and reference PNGs are independently decoded with pinned Pillow.
+Different PNG compression is exercised separately: equal valid existing pixels retain
+their original bytes/mtime and the unchanged decision.
+
+The largest pre-resize RGBA reference is stored as zlib to respect the unchanged
+2048 KiB repository file limit. `storedSha256` verifies compressed bytes before
+bounded inflation; the original `sha256` still verifies every decompressed RGBA
+byte. Dimensions, independently captured raw digest, corpus coverage and resized
+pixel expectations are unchanged.
+
+The public sanitizer preserves observed outcomes, measurements and hashes while
+removing private paths. Its summary is explicitly non-replayable; `--check` rejects
+that publication artifact. Reproduce acceptance with the ignored raw report and
+manifest, not by trusting a public `acceptancePassed` boolean.
+
+When plan 006 retires the production Python icon script, the manifest's reference
+source path must point to the identical hash-verified plan-001 archive. Preserve the
+reference digest and frozen pixels; do not skip source verification or keep a hidden
+production Python fallback.
+
 ## Mapping lifecycle and cutover checklist
 
 The inventory is a living contract, not a snapshot: adding or discovering a command,
@@ -268,8 +312,8 @@ command may delegate to it or return placeholder success.
   Morphe with 2 and 10. CPU and descendant RSS are sampled every 5 ms via `ps`; process
   I/O is unsupported on macOS and recorded as a non-blocking, explanation-required
   limitation, so plan 008 must explain it rather than compare or zero-fill it. Morphe
-  workloads run with `--jobs 1` after one timed default-jobs sample hit an internal
-  Morphe archive race; all cases still run and prepared hashes are unchanged. The
+  workloads run with `--jobs 1` after one timed default-jobs sample hit an intermittent
+  Morphe archive-reader failure; all cases still run and prepared hashes are unchanged. The
   measured code re-hashes exactly against the archived source.
 - **Five defects found by integration gates are fixed with regressions:** an inventory
   call-offset bug, an expired-window fixture that described a malformed interval,

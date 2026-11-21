@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
   "kind": "apk-lab-migration-execution-checkpoint",
-  "status": "plan-007-complete-plan-011-in-progress",
-  "activePlan": "011",
-  "completedPlans": ["001", "007"],
+  "status": "plans-001-007-011-complete",
+  "activePlan": "006",
+  "completedPlans": ["001", "007", "011"],
   "implementationBaseRevision": "3a9efadb7b02c745b00f121443a436681136412f",
   "initialSourceRevision": "66ff5ed",
   "currentSourceRevision": "295cde7abd498ac5c8905777a1eac043ce6b5899",
@@ -94,6 +94,65 @@
     "pillow": "11.3.0",
     "scope": "New isolated reference baseline; public Play source-image downloads into private frozen local fixtures only; no production icon refresh."
   },
+  "initialNativeIconGate": {
+    "command": "cargo test --locked --manifest-path tools/asset-prep/Cargo.toml --test icon_pixel_preflight",
+    "exitCode": 101,
+    "passed": 10,
+    "failed": 1,
+    "failure": "All four synthetic JPEG cases differed from the pinned Pillow reference; PNG, WebP, integrity, corruption and no-op test groups passed.",
+    "firstDifferences": [
+      {
+        "case": "jpeg-rgb-opaque",
+        "offset": 20,
+        "candidate": 25,
+        "reference": 24
+      },
+      {
+        "case": "jpeg-grayscale",
+        "offset": 756,
+        "candidate": 223,
+        "reference": 224
+      },
+      {
+        "case": "jpeg-cmyk",
+        "offset": 31192,
+        "candidate": 128,
+        "reference": 129
+      },
+      {
+        "case": "jpeg-exif-orientation",
+        "offset": 14,
+        "candidate": 99,
+        "reference": 98
+      }
+    ],
+    "decision": "Maintainer selected native_codec: investigate an exact pinned libjpeg-turbo 3.1.1 backend behind safe Rust. Additional native C build dependency authorized; no tolerance, Python fallback, format reduction or production cutover.",
+    "status": "resolved-by-pinned-native-codec-and-compatibility-fixes"
+  },
+  "plan007Commit": "a48beacd6a5c0804197c11b26132fc30ac27ba42",
+  "plan011Evidence": {
+    "reports": [
+      "docs/benchmarks/apk-lab/preflight-icons.json",
+      "docs/benchmarks/apk-lab/preflight-icons-linux.json"
+    ],
+    "matchedCasesPerHost": 37,
+    "mandatoryCases": 36,
+    "requiredCoverageTags": 32,
+    "differingRgbaBytes": 0,
+    "privatePlayOriginals": 3,
+    "imageTestsPerHost": 22,
+    "migrationHarnessTests": 133,
+    "sourceFingerprint": "59f8e54f8a7356e702628993e09b9be952bae98b3fdbbf36686c225eb1921711",
+    "hosts": ["macos/aarch64", "linux/x86_64 via local OrbStack container"],
+    "linuxProofImage": "sha256:8ff6e6a56d6f9666dd0c4c004a22d2a82fe1409655aed14b59d7d2b7c69e0ffe",
+    "nativeCodec": "turbojpeg 1.5.1 with local turbojpeg-sys 1.2.0 building official hash-pinned libjpeg-turbo 3.1.1",
+    "nativeCodecSourceSha256": "aadc97ea91f6ef078b0ae3a62bba69e008d9a7db19b34e4ac973b19b71b4217c",
+    "quality": "Locked builds, tests, fmt and clippy with warnings denied passed; private capture and --check exited 0 on both hosts.",
+    "regressions": "Strict valid-existing-PNG no-op versus Pillow-compatible truncated-IEND transform input; Adam7 rows; embedded JPEG thumbnail EOI; nonfatal JPEG warnings versus fatal Huffman errors; mandatory-corpus omission; stale executable/source rejection.",
+    "productionIconMutation": false,
+    "publication": "Sanitized reports are explicitly non-replayable; acceptance was executed against private raw evidence."
+  },
+  "plan011Packaging": "The full 3145728-byte decoded-input reference is losslessly stored in 696397 bytes of zlib, below the unchanged 2048 KiB gate. Stored/raw hashes and bounded inflation are checked; all pixels, cases and coverage remain. Fresh native capture and --check passed 37/37 on both hosts after the reader change.",
   "plan007Evidence": {
     "automationAndDependencyTests": 143,
     "documentationTestsAfterFixtureExclusion": 116,
