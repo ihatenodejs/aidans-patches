@@ -414,14 +414,18 @@ def build_morphe_patch_set_cmd(
     scratch_dir: Path | str,
     force: bool = False,
 ) -> list[str]:
-    """Builds the exact argument list for morphe patch command applying multiple patches."""
+    """Builds the exact argument list for morphe patch command applying multiple patches.
+
+    Morphe binds `-O` options to the `-e` of the same `-p` group, so every selection opens its
+    own group. Emitting a single `-p` silently drops the options of every patch but the first.
+    """
     cmd = [
         "patch",
-        "-p",
-        str(Path(mpp_path).resolve()),
         "--exclusive",
     ]
+    bundle = str(Path(mpp_path).resolve())
     for sel in selections:
+        cmd.extend(["-p", bundle])
         for k, v in sorted(sel.options.items()):
             if v is None:
                 continue
