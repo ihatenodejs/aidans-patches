@@ -272,9 +272,11 @@ def test_build_morphe_patch_set_cmd_ordering():
     assert cmd[idx_ea + 1] == "PatchA"
     assert idx_k1 < idx_ea
 
-    # PatchB follows
+    # PatchB follows in its own -p group so its (empty) option set binds to PatchB
     assert cmd.count("-e") == 2
     assert cmd[idx_ea + 2 :] == [
+        "-p",
+        str(Path("patches.mpp").resolve()),
         "-e",
         "PatchB",
         "--unsigned",
