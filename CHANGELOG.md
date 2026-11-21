@@ -1,3 +1,13 @@
+## [1.10.0-dev.1](https://github.com/ihatenodejs/aidans-patches/compare/v1.9.3...v1.10.0-dev.1) (2026-11-21)
+
+### 🐛 Bug Fixes
+
+* **tools:** emitted one -p argument per patch selection so -O options bind ([0e433b3](https://github.com/ihatenodejs/aidans-patches/commit/0e433b33daa90a1b8844bf0efff6ee1ebfeefcaf))
+
+### ✨ New Features
+
+* **fizz:** added support for Fizz 1.72.0 via per-version bytecode targets ([27b0b51](https://github.com/ihatenodejs/aidans-patches/commit/27b0b514f4b65949cacd73efd19d7a1b83bab2e6))
+
 ## [1.9.3](https://github.com/ihatenodejs/aidans-patches/compare/v1.9.2...v1.9.3) (2026-11-20)
 
 ### 🐛 Bug Fixes
