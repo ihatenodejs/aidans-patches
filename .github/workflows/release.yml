@@ -15,7 +15,11 @@ on:
       - 'gradle.properties'
       - '.releaserc'
       - '.github/scripts/prepare_emoji_font.py'
-      - '.github/scripts/generate_patches_readme.py'
+      - 'scripts/generate-patches-readme.ts'
+      - 'scripts/generate-patches-readme.test.ts'
+      - 'scripts/test-fixtures/generate-patches-readme/**'
+      - 'package.json'
+      - 'bun.lock'
       - '.github/workflows/release.yml'
 
 concurrency:
@@ -157,6 +161,11 @@ jobs:
         with:
           node-version: 'lts/*'
           cache: 'npm'
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
 
       - name: Install dependencies
         run: npm install

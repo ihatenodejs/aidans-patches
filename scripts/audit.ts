@@ -1468,6 +1468,9 @@ async function runTest(domain: AuditDomain = 'all'): Promise<PhaseResult> {
       'test',
       '--timeout=30000',
       'scripts/dependencies',
+      'scripts/generate-patches-readme.test.ts',
+      'scripts/hooks.test.ts',
+      'scripts/install-hooks.test.ts',
     ]);
     const dtPassed = dtRes.code === 0;
     const dtSummaryMatch = dtRes.stdout.match(/([0-9]+ pass[^\n]*)/);

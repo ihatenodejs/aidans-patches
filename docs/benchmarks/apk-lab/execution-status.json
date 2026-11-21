@@ -1,15 +1,17 @@
 {
   "schemaVersion": 1,
   "kind": "apk-lab-migration-execution-checkpoint",
-  "status": "plan-001-complete",
-  "activePlan": "001",
+  "status": "plan-007-complete-plan-011-in-progress",
+  "activePlan": "011",
+  "completedPlans": ["001", "007"],
+  "implementationBaseRevision": "3a9efadb7b02c745b00f121443a436681136412f",
   "initialSourceRevision": "66ff5ed",
   "currentSourceRevision": "295cde7abd498ac5c8905777a1eac043ce6b5899",
   "sourceRevisionNote": "A concurrent user release commit (chore: Release v1.10.0-dev.1 [skip ci]) advanced HEAD during plan 001. The scoped migration tools/docs/workflow diff from the initial observation is empty. The actual Python report metadata reports patch bundle 1.10.0-dev.1, while the pinned MPP artifact remains the patches-1.9.3 file with SHA-256 c837d80450b29613219226bdacb6b6fd86de1bde8c04719bbb5af591fcaaeaf0; report versions are never inferred from filenames. The private baseline archive includes the root release metadata and separates executed-source identity from manifest/policy digests.",
   "initialWorktreeDirty": false,
   "currentWorktreeDirty": true,
   "productionPythonChanged": true,
-  "productionPythonChangedNote": "The user explicitly approved the narrow fix_python correction on 2026-11-20. The change is limited to buffered-stdout shutdown-flush handling plus the single regression test tests/test_cli.py::test_main_closed_pipe_exits_success. No other Python behavior changed and no capture expectation was relaxed.",
+  "productionPythonChangedNote": "The user approved the narrow APK Lab stdout-flush correction, verified in plan 001. Plan 007 subsequently replaced the README generator after frozen-fixture tests and current-inventory byte parity; APK Lab remains the independent Python oracle.",
   "acceptedOracleCapture": true,
   "oracleCaptureEvidence": {
     "artifact": "docs/benchmarks/apk-lab/python-contracts.json",
@@ -74,7 +76,38 @@
   },
   "baselineMeasurementsCollected": true,
   "performanceImprovementClaimed": false,
-  "completedPhaseCommitted": false,
+  "completedPhaseCommitted": true,
+  "plan001Commits": [
+    "44f1c5799863c5edc33dd3bfc2fb729d4cdc01a0",
+    "3a9efadb7b02c745b00f121443a436681136412f"
+  ],
+  "approvedPlan007Changes": [
+    "Reject malformed or ambiguous README boundaries before publishing.",
+    "Insert generated metadata literally and make template substitutions idempotent.",
+    "Propagate formatter failures and set up Bun in the release job.",
+    "Separate raw exterior-byte preservation from whole-file Prettier formatting.",
+    "Use check-only whitespace/EOF diagnostics without editing staged or unstaged files."
+  ],
+  "approvedPlan011Reference": {
+    "historicalIdentityClaimed": false,
+    "python": "3.12.14",
+    "pillow": "11.3.0",
+    "scope": "New isolated reference baseline; public Play source-image downloads into private frozen local fixtures only; no production icon refresh."
+  },
+  "plan007Evidence": {
+    "automationAndDependencyTests": 143,
+    "documentationTestsAfterFixtureExclusion": 116,
+    "currentInventoryReadmeParity": "Python/Bun byte-identical on temporary copies before deleting the legacy generator; repeated Bun execution identical.",
+    "realHookCliSmoke": "Both audits observed staged contents; controlled lint rejection propagated; original index and unstaged file unchanged.",
+    "actualInstallerCheck": "Initially exit 1 for existing Python wrappers. Maintainer subsequently authorized migration: only those two recognized wrappers were replaced; final --check exited 0 (installed/current), no Git configuration or custom/legacy hooks changed.",
+    "fullAudit": {
+      "exitCode": 1,
+      "checksPassed": 27,
+      "checksTotal": 30,
+      "failures": ["renderer formatting", "fixture Markdown lint", "fixture links treated as documentation"],
+      "resolution": "Focused formatting/fixture-data exclusions; affected web format and lint commands plus all documentation tests passed afterward. No full-audit rerun is claimed."
+    }
+  },
   "gates": [
     {
       "command": "uv run --project tools/apk-lab pytest -q",

@@ -3656,6 +3656,21 @@
   ],
   "approvedExceptions": [
     {
+      "id": "plan007-bun-automation-safety",
+      "status": "approved-targeted-verified",
+      "baselineRewrite": false,
+      "sourcePlan": "plans/007-replace-readme-and-python-hooks.md",
+      "scope": "README generation rejects malformed/ambiguous boundaries, inserts metadata literally, makes template substitutions idempotent and propagates formatter failures before publishing. Raw transformation preserves exterior bytes; installed Prettier formats the whole final document. Whitespace/EOF hooks are check-only and never alter staged or unstaged files; all other hygiene and audit stages remain required.",
+      "approval": "Maintainer explicitly selected safe_cutover and check_only on 2026-11-21; adding Bun setup to the release job was included.",
+      "verification": {
+        "automationAndDependencyTests": 143,
+        "currentInventoryPythonReadmeParity": "byte-identical on temporary copies before deleting the original generator",
+        "repeatReadmeExecution": "byte-identical",
+        "actualInstallerInspection": "exit 1: existing Python pre-commit wrappers require explicit --migrate-pre-commit; no hook files changed"
+      },
+      "note": "No release, actual hook installation, index/worktree modification, support reduction, or device/Play/cloud authorization follows from this exception."
+    },
+    {
       "id": "plan011-icon-compression-noop",
       "status": "future-approved-only",
       "baselineRewrite": false,

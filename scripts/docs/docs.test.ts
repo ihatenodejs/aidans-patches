@@ -37,6 +37,9 @@ function collectMarkdownFiles(dir: string): string[] {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     if (ignoredDirs[entry.name]) continue;
     const fullPath = path.join(dir, entry.name);
+    // Golden renderer inputs/outputs are data, not published documents; their
+    // relative links deliberately retain the original README's context.
+    if (fullPath === path.join(REPO_ROOT, 'scripts', 'test-fixtures')) continue;
     if (entry.isDirectory()) {
       results.push(...collectMarkdownFiles(fullPath));
     } else if (entry.isFile() && entry.name.endsWith('.md')) {

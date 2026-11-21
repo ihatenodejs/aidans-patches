@@ -524,7 +524,7 @@ Features:
 4. **Analyze & Remap**: Run `apk-lab analyze <new_artifact> --smali` to rediscover changed classes, obfuscated descriptors, and instructions using stable landmarks. For native/Unity patches, rerun `apk-lab il2cpp` and `apk-lab unity` to update shifted offsets.
 5. **Update Source**: Update patch definitions, extension classes, and bump target in `Constants.kt`.
 6. **Matrix Check**: Rebuild and run `apk-lab check <new_artifact> --mpp <bundle> --package <pkg> --all`. Require 100% pass rate.
-7. **Documentation & List**: Update reverse engineering specs in `docs/<app>/`, run `./gradlew generatePatchesList`, and sync README with `python3 .github/scripts/generate_patches_readme.py ihatenodejs/aidans-patches dev patches-list.json README.md`.
+7. **Documentation & List**: Update reverse engineering specs in `docs/<app>/`, run `./gradlew generatePatchesList`, and sync README with `bun scripts/generate-patches-readme.ts ihatenodejs/aidans-patches dev patches-list.json README.md`.
 
 ---
 

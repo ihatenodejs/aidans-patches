@@ -23,3 +23,4 @@ tools.lock.json
 patches-list.json
 patches-bundle.json
 CHANGELOG.md
+scripts/test-fixtures/

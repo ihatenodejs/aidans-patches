@@ -48,10 +48,17 @@ The updater covers all direct software dependencies and version-sensitive toolch
 | Gradle Plugins          | `settings.gradle.kts`, `gradle/libs.versions.toml`                           | Gradle metadata                                                              |
 | External APK Binaries   | `tools/apk-lab/tools.lock.json`                                              | Integrity hashes and version probes                                          |
 | Code Quality Tooling    | `scripts/audit.ts` (`KTLINT_VERSION`)                                        | Pinned checksum verification                                                 |
-| GitHub Actions & Hooks  | `.github/workflows/*.yml`, `.pre-commit-config.yaml`                         | Pinned versions and commit hashes                                            |
+| GitHub Actions          | `.github/workflows/*.yml`                                                    | Pinned versions and commit hashes                                            |
 | Toolchain Runtimes      | Workflow setup inputs, `rust-toolchain.toml`, `build.gradle.kts` (NDK)       | Pinned versions across coordinated files                                     |
 | Embedded In-Repo Assets | `OsmMapView.java` (Leaflet CDN)                                              | Coupled asset URLs                                                           |
 | C++ / Native            | `extensions/adobescan-pdf-native/CMakeLists.txt`                             | CMake FetchContent archives and integrity hashes                             |
+
+Repository hooks use Bun (`scripts/hooks.ts` and `scripts/install-hooks.ts`), not the
+Python pre-commit framework. `toml-eslint-parser` is required for TOML 1.0 syntax
+validation, including integers beyond JavaScript's safe-number range; Bun's built-in
+TOML reader is not a compatible validator. YAML checks use Bun's syntax parser and
+retain custom-tag/multiple-document acceptance. The dependency manager's historical
+hook ecosystem support remains until the final migration cleanup.
 
 ### Non-Dependency Exclusions
 

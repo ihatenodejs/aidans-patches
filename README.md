@@ -359,6 +359,32 @@ uv run --project tools/apk-lab apk-lab check path/to/app.apkm --mpp patches/buil
 
 See [`docs/apk-lab.md`](docs/apk-lab.md) for complete CLI documentation and workflows.
 
+### Developer Hooks
+
+With Bun installed, `bun run prepare` installs repository-owned pre-commit/pre-push
+wrappers. Installation errors are visible; existing custom hooks are never replaced.
+
+```bash
+bun scripts/install-hooks.ts --check
+# Explicit migration of recognized Python pre-commit wrappers:
+bun scripts/install-hooks.ts --migrate-pre-commit
+# Manual stage execution:
+bun scripts/hooks.ts pre-commit
+bun scripts/hooks.ts pre-push
+```
+
+Shared/external hooks directories require `--allow-external-hooks-path`.
+An active `.legacy` hook additionally requires `--accept-legacy-loss`; keep it if its
+behavior is still needed. Inspect conflicts before opting in. `/dev/null` hooks
+configuration remains deliberately disabled.
+
+Hooks inspect Git blobs, not unrelated unstaged edits, and run all audit stages in
+isolated snapshots. Pre-commit runs format/lint; pre-push runs typecheck/tests.
+Whitespace/EOF hygiene is check-only: fix reported files and stage the intended
+changes yourself. No hook rewrites or stages your files.
+Frozen renderer fixtures retain their original whitespace/EOF bytes and are excluded
+from those two hygiene checks, formatting, and documentation lint/link discovery.
+
 ## 📲 Applying Patches
 
 Using [Morphe Desktop](https://github.com/MorpheApp/morphe-desktop):

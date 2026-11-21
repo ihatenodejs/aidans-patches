@@ -17,7 +17,7 @@ Use pinned actions and least-privilege `permissions`. Preserve path filters and 
 
 ## Generator Scripts
 
-- `scripts/generate_patches_readme.py`: rewrites the README block between `PATCHES_START` and `PATCHES_END` from `patches-list.json`, and updates any matching template repository or add-source URLs elsewhere in `README.md`.
+- `../scripts/generate-patches-readme.ts`: generates the README patch block and template repository/add-source URLs using Bun and installed Prettier. Rejects malformed boundaries and formats before publishing; release callers use this entrypoint.
 - `scripts/sync_app_icons.py`: check or synchronize `site/public/icons/<package>.png` from patch metadata/Play images.
 - `scripts/prepare_emoji_font.py`: downloads a pinned source, verifies SHA-256, transforms/checks the font, and writes a generated build resource/cache.
 

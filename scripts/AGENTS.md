@@ -31,6 +31,8 @@ This script is the source of truth. Root/nested guides should describe its publi
 - Prefer existing repository package scripts and `uv`/Gradle wrappers over duplicating tool setup.
 - Keep output concise but retain enough raw diagnostics to reproduce failures. Never suppress a failed subcommand to make the aggregate green.
 - When adding a language/module, update format, lint, typecheck, test, and dependency checker phases deliberately; do not claim coverage in docs before the orchestrator actually runs it.
+- `generate-patches-readme.ts` owns the README transformation and installed-Prettier formatting. Preserve ordinary frozen Python output; validate markers/metadata and finish formatting before writing. Pure transformation preserves exterior bytes apart from template links.
+- `hooks.ts` performs check-only staged/committed hygiene and isolated-snapshot audits; never mutate the user's index or working files. `install-hooks.ts --check` is non-mutating; installation and legacy/shared-path migration require explicit developer execution/opt-ins. New automation tests are registered in the web audit domain.
 - Dependency management (`scripts/deps.ts`) isolates updates in temporary staging before publication, verifies inputs with SHA-256 digests, and enforces mandatory reasons in `dependency-policy.json` for held dependencies.
 
 ## Verification
