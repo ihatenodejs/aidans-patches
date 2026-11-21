@@ -1624,13 +1624,30 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _flush_stdout() -> None:
+    """Flush pending stdout writes, allowing BrokenPipeError to surface here."""
+    if not getattr(sys.stdout, "closed", False):
+        sys.stdout.flush()
+
+
 def main(argv: list[str] | None = None) -> int:
     try:
         parser = build_parser()
-        args = parser.parse_args(argv)
+        try:
+            args = parser.parse_args(argv)
+        except SystemExit as exc:
+            # argparse exits successfully with buffered --help output that would
+            # otherwise be flushed during interpreter shutdown. Preserve usage
+            # errors (non-zero SystemExit) exactly as before.
+            if exc.code in (None, 0):
+                _flush_stdout()
+            raise
         if hasattr(args, "handler"):
-            return args.handler(args)
-        return ExitCode.SUCCESS
+            result = args.handler(args)
+        else:
+            result = ExitCode.SUCCESS
+        _flush_stdout()
+        return result
     except BrokenPipeError:
         try:
             sys.stdout.close()

@@ -958,3 +958,58 @@ def test_handle_check_no_mpp_raises_error(monkeypatch, tmp_path):
         json=None,
     )
     assert handle_check(args) == ExitCode.USAGE_OR_TOOL_ERROR
+
+
+def test_main_closed_pipe_exits_success(tmp_path):
+    import os
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    package_root = Path(__file__).resolve().parents[1]
+    env = os.environ.copy()
+    env["HOME"] = str(tmp_path / "home")
+    env["XDG_CONFIG_HOME"] = str(tmp_path / "xdg-config")
+    env["XDG_CACHE_HOME"] = str(tmp_path / "xdg-cache")
+    env["XDG_DATA_HOME"] = str(tmp_path / "xdg-data")
+    env["PYTHONPATH"] = str(package_root)
+    env["PYTHONDONTWRITEBYTECODE"] = "1"
+    env.pop("PYTHONUNBUFFERED", None)
+
+    def run_with_closed_stdout(*args):
+        # Close the read end before spawning so the child's first stdout flush
+        # hits EPIPE; default Python buffering is deliberately left unchanged.
+        read_fd, write_fd = os.pipe()
+        os.close(read_fd)
+        try:
+            proc = subprocess.Popen(
+                [sys.executable, "-m", "apk_lab.cli", *args],
+                cwd=package_root,
+                env=env,
+                stdin=subprocess.DEVNULL,
+                stdout=write_fd,
+                stderr=subprocess.PIPE,
+                close_fds=True,
+            )
+        finally:
+            os.close(write_fd)
+        try:
+            _, stderr = proc.communicate(timeout=60)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            _, stderr = proc.communicate()
+            raise AssertionError(
+                f"apk-lab {' '.join(args)} timed out; stderr={stderr!r}"
+            )
+        return proc.returncode, stderr
+
+    for args in (("asm", "ret", "--format", "hex"), ("--help",)):
+        returncode, stderr = run_with_closed_stdout(*args)
+        assert returncode == 0, (args, returncode, stderr)
+        assert b"Exception ignored" not in stderr, (args, stderr)
+        assert b"BrokenPipeError" not in stderr, (args, stderr)
+        assert b"Traceback" not in stderr, (args, stderr)
+
+    returncode, stderr = run_with_closed_stdout("asm", "ret", "--format", "bogus")
+    assert returncode == 2
+    assert b"invalid choice" in stderr
