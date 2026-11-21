@@ -1,0 +1,890 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:apk-lab:prerequisites:schema:1",
+  "title": "APK Lab migration prerequisite manifest and report",
+  "description": "Schema for the private prerequisite manifest consumed by `apk-lab-migrate prerequisites` and the sanitized public report it writes. The manifest can contain private paths and identity aliases and must remain ignored. Reports must not contain private paths, accounts, serials, bucket names, or evidence paths.",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/manifest"
+    },
+    {
+      "$ref": "#/$defs/report"
+    }
+  ],
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{64}$",
+      "description": "SHA-256 hex digest."
+    },
+    "utcTimestamp": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$",
+      "description": "UTC RFC 3339 timestamp without fractional seconds."
+    },
+    "token": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$",
+      "description": "Non-secret label: letters, digits, dot, underscore, colon, hyphen."
+    },
+    "resourceId": {
+      "type": "string",
+      "enum": [
+        "host.jdk",
+        "host.android-sdk",
+        "host.android-ndk",
+        "host.cmake",
+        "host.ninja",
+        "host.bun",
+        "host.rust",
+        "host.python-oracle",
+        "corpus.single-apk",
+        "corpus.split-apk",
+        "corpus.mpp",
+        "device.disposable",
+        "play.latest",
+        "play.older",
+        "play.direct",
+        "play.dispenser",
+        "play.oauth",
+        "play.hosts",
+        "cloud.r2",
+        "cloud.worker-callback",
+        "ci.compatibility-workflow"
+      ]
+    },
+    "resourceKind": {
+      "type": "string",
+      "enum": [
+        "host-tool",
+        "artifact-corpus",
+        "device-authorization",
+        "play-delivery",
+        "play-oauth",
+        "play-network-hosts",
+        "cloud-storage",
+        "worker-endpoint",
+        "ci-workflow"
+      ]
+    },
+    "manifest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "kind", "generatedAt", "host", "resources"],
+      "properties": {
+        "schemaVersion": {
+          "const": 1
+        },
+        "kind": {
+          "const": "apk-lab-prerequisites-manifest"
+        },
+        "generatedAt": {
+          "$ref": "#/$defs/utcTimestamp"
+        },
+        "host": {
+          "$ref": "#/$defs/host"
+        },
+        "resources": {
+          "type": "array",
+          "minItems": 21,
+          "maxItems": 21,
+          "items": {
+            "$ref": "#/$defs/manifestResource"
+          }
+        }
+      }
+    },
+    "host": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["profile", "os", "arch", "cpuCount", "memoryBytes"],
+      "properties": {
+        "profile": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+        },
+        "os": {
+          "type": "string",
+          "enum": ["macos", "linux", "windows"]
+        },
+        "arch": {
+          "type": "string",
+          "enum": ["aarch64", "x86_64"]
+        },
+        "cpuCount": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "memoryBytes": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "manifestResource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "owner"],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/resourceId"
+        },
+        "kind": {
+          "$ref": "#/$defs/resourceKind"
+        },
+        "owner": {
+          "$ref": "#/$defs/token"
+        },
+        "probes": {
+          "type": "array",
+          "maxItems": 16,
+          "items": {
+            "$ref": "#/$defs/probe"
+          }
+        },
+        "authorization": {
+          "$ref": "#/$defs/authorizationSpec"
+        },
+        "availability": {
+          "$ref": "#/$defs/availabilitySpec"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "id": {
+                "enum": [
+                  "device.disposable",
+                  "play.latest",
+                  "play.older",
+                  "play.direct",
+                  "play.dispenser",
+                  "play.oauth",
+                  "play.hosts",
+                  "cloud.r2",
+                  "cloud.worker-callback",
+                  "ci.compatibility-workflow"
+                ]
+              }
+            },
+            "required": ["id"]
+          },
+          "then": {
+            "required": ["authorization", "availability"],
+            "properties": {
+              "probes": {
+                "maxItems": 0
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "id": {
+                "enum": [
+                  "host.jdk",
+                  "host.android-sdk",
+                  "host.android-ndk",
+                  "host.cmake",
+                  "host.ninja",
+                  "host.bun",
+                  "host.rust",
+                  "host.python-oracle",
+                  "corpus.single-apk",
+                  "corpus.split-apk",
+                  "corpus.mpp"
+                ]
+              }
+            },
+            "required": ["id"]
+          },
+          "then": {
+            "required": ["probes"],
+            "properties": {
+              "probes": {
+                "minItems": 1
+              }
+            },
+            "not": {
+              "required": ["availability"]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "id": {
+                "const": "corpus.single-apk"
+              }
+            },
+            "required": ["id"]
+          },
+          "then": {
+            "properties": {
+              "probes": {
+                "contains": {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/apkContainerProbe"
+                    },
+                    {
+                      "properties": {
+                        "containerType": {
+                          "const": "APK"
+                        }
+                      }
+                    }
+                  ]
+                },
+                "minContains": 1,
+                "maxContains": 1
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "id": {
+                "const": "corpus.split-apk"
+              }
+            },
+            "required": ["id"]
+          },
+          "then": {
+            "properties": {
+              "probes": {
+                "contains": {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/apkContainerProbe"
+                    },
+                    {
+                      "properties": {
+                        "containerType": {
+                          "enum": ["APKM", "XAPK", "APKS"]
+                        }
+                      }
+                    }
+                  ]
+                },
+                "minContains": 1,
+                "maxContains": 1
+              }
+            }
+          }
+        }
+      ]
+    },
+    "probe": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/executableProbe"
+        },
+        {
+          "$ref": "#/$defs/fileProbe"
+        },
+        {
+          "$ref": "#/$defs/apkContainerProbe"
+        }
+      ]
+    },
+    "executableProbe": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["label", "type", "program"],
+      "properties": {
+        "label": {
+          "$ref": "#/$defs/token"
+        },
+        "type": {
+          "const": "executable"
+        },
+        "program": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1024
+        },
+        "args": {
+          "type": "array",
+          "maxItems": 32,
+          "items": {
+            "type": "string",
+            "maxLength": 512
+          }
+        },
+        "expectedOutputContains": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "expectedVersion": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      },
+      "anyOf": [
+        {
+          "required": ["expectedOutputContains"]
+        },
+        {
+          "required": ["expectedVersion"]
+        }
+      ]
+    },
+    "fileProbe": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["label", "type", "path", "sha256"],
+      "properties": {
+        "label": {
+          "$ref": "#/$defs/token"
+        },
+        "type": {
+          "const": "file"
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "sizeBytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "expectedContains": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "expectedVersion": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        }
+      }
+    },
+    "apkContainerProbe": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "label",
+        "type",
+        "path",
+        "sha256",
+        "containerType",
+        "oracle"
+      ],
+      "properties": {
+        "label": {
+          "$ref": "#/$defs/token"
+        },
+        "type": {
+          "const": "apk-container"
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "sizeBytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "containerType": {
+          "type": "string",
+          "enum": ["APK", "APKM", "XAPK", "APKS"],
+          "description": "Expected content identity derived from archive members, never the filename extension."
+        },
+        "oracle": {
+          "$ref": "#/$defs/containerOracle"
+        }
+      }
+    },
+    "containerOracle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["program", "sha256", "moduleRoot"],
+      "properties": {
+        "program": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1024
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "moduleRoot": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        }
+      },
+      "description": "Pinned independent Python oracle used only by the plan-001 harness."
+    },
+    "authorizationSpec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["required"],
+      "properties": {
+        "required": {
+          "type": "boolean"
+        },
+        "reference": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$",
+          "description": "Opaque, non-account authorization reference."
+        },
+        "identity": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256,
+          "description": "Operator-chosen identity alias. Never serialize to public reports."
+        },
+        "evidence": {
+          "$ref": "#/$defs/evidencePin"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "required": {
+                "const": true
+              }
+            },
+            "required": ["required"]
+          },
+          "then": {
+            "required": ["reference", "identity", "evidence"]
+          }
+        }
+      ]
+    },
+    "evidencePin": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256"],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "authorizationEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "resourceId",
+        "decision",
+        "identity",
+        "issuedAt",
+        "expiresAt",
+        "scope"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "const": 1
+        },
+        "resourceId": {
+          "$ref": "#/$defs/resourceId"
+        },
+        "decision": {
+          "type": "string",
+          "enum": ["authorized", "pending", "denied"]
+        },
+        "identity": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "issuedAt": {
+          "$ref": "#/$defs/utcTimestamp"
+        },
+        "expiresAt": {
+          "$ref": "#/$defs/utcTimestamp"
+        },
+        "scope": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        }
+      }
+    },
+    "report": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "kind",
+        "generatedAt",
+        "mode",
+        "host",
+        "summary",
+        "resources",
+        "blockers"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "const": 1
+        },
+        "kind": {
+          "const": "apk-lab-prerequisites-report"
+        },
+        "generatedAt": {
+          "$ref": "#/$defs/utcTimestamp"
+        },
+        "mode": {
+          "type": "string",
+          "enum": ["inventory", "check"]
+        },
+        "host": {
+          "$ref": "#/$defs/host"
+        },
+        "summary": {
+          "$ref": "#/$defs/summary"
+        },
+        "resources": {
+          "type": "array",
+          "minItems": 21,
+          "maxItems": 21,
+          "items": {
+            "$ref": "#/$defs/reportResource"
+          }
+        },
+        "blockers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/blocker"
+          }
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["total", "ready", "blocked", "missing", "acceptancePassed"],
+      "properties": {
+        "total": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "ready": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "blocked": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "missing": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "acceptancePassed": {
+          "type": "boolean"
+        }
+      }
+    },
+    "reportResource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "kind",
+        "owner",
+        "consumingPlan",
+        "description",
+        "required",
+        "status",
+        "verification",
+        "probes",
+        "availability",
+        "authorization",
+        "blockers"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/resourceId"
+        },
+        "kind": {
+          "$ref": "#/$defs/resourceKind"
+        },
+        "owner": {
+          "$ref": "#/$defs/token"
+        },
+        "consumingPlan": {
+          "type": "string",
+          "pattern": "^[0-9]{3}(,[0-9]{3})*$"
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "required": {
+          "const": true
+        },
+        "status": {
+          "type": "string",
+          "enum": ["ready", "blocked", "missing"]
+        },
+        "verification": {
+          "type": "string",
+          "enum": [
+            "probed",
+            "authorization-and-availability-evidence",
+            "missing"
+          ]
+        },
+        "probes": {
+          "type": "array",
+          "maxItems": 16,
+          "items": {
+            "$ref": "#/$defs/probeResult"
+          }
+        },
+        "authorization": {
+          "$ref": "#/$defs/authorizationReport"
+        },
+        "blockers": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          }
+        },
+        "availability": {
+          "$ref": "#/$defs/availabilityReport"
+        }
+      }
+    },
+    "probeResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["label", "type", "status"],
+      "properties": {
+        "label": {
+          "$ref": "#/$defs/token"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["executable", "file", "apk-container"]
+        },
+        "status": {
+          "type": "string",
+          "enum": ["passed", "failed"]
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "sizeBytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "containerType": {
+          "type": "string",
+          "enum": ["APK", "APKM", "XAPK", "APKS"]
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        }
+      }
+    },
+    "authorizationReport": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["required", "status"],
+      "properties": {
+        "required": {
+          "type": "boolean"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "not-required",
+            "authorized",
+            "missing",
+            "denied",
+            "pending",
+            "expired",
+            "not-yet-valid",
+            "stale",
+            "malformed",
+            "identity-mismatch",
+            "resource-mismatch",
+            "invalid"
+          ]
+        },
+        "reference": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$"
+        },
+        "evidenceSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "identityFingerprint": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{16}$"
+        },
+        "expiresAt": {
+          "$ref": "#/$defs/utcTimestamp"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        }
+      }
+    },
+    "blocker": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["resourceId", "owner", "reason"],
+      "properties": {
+        "resourceId": {
+          "$ref": "#/$defs/resourceId"
+        },
+        "owner": {
+          "$ref": "#/$defs/token"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        }
+      }
+    },
+    "availabilitySpec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256"],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      },
+      "description": "Pin for a recorded availability observation. The file is an availabilityEvidence record, not authorization."
+    },
+    "availabilityEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "resourceId",
+        "identity",
+        "probe",
+        "outcome",
+        "observedAt",
+        "expiresAt",
+        "scenario"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "const": 1
+        },
+        "resourceId": {
+          "$ref": "#/$defs/resourceId"
+        },
+        "identity": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "probe": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "outcome": {
+          "type": "string",
+          "enum": ["available", "unavailable", "pending"]
+        },
+        "observedAt": {
+          "$ref": "#/$defs/utcTimestamp"
+        },
+        "expiresAt": {
+          "$ref": "#/$defs/utcTimestamp"
+        },
+        "scenario": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        }
+      },
+      "description": "Fresh, safe probe/scenario outcome proving the resource actually existed at the recorded identity and time. Authorization alone is never availability."
+    },
+    "availabilityReport": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "status"],
+      "properties": {
+        "source": {
+          "type": "string",
+          "enum": ["probe", "evidence", "missing"]
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "available",
+            "unavailable",
+            "pending",
+            "missing",
+            "stale",
+            "expired",
+            "not-yet-valid",
+            "malformed",
+            "identity-mismatch",
+            "resource-mismatch",
+            "invalid"
+          ]
+        },
+        "evidenceSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "observedAt": {
+          "$ref": "#/$defs/utcTimestamp"
+        },
+        "expiresAt": {
+          "$ref": "#/$defs/utcTimestamp"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        }
+      }
+    }
+  }
+}

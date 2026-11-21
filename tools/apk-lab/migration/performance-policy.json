@@ -1,0 +1,66 @@
+{
+  "schemaVersion": 1,
+  "id": "apk-lab-performance-policy-v1",
+  "description": "Pre-registered baseline sampling and cutover thresholds. This policy is fixed before any measurement is collected; changing it invalidates comparison against an earlier baseline.",
+  "sampleClasses": {
+    "local": {
+      "warmups": 5,
+      "samples": 30
+    },
+    "costly": {
+      "warmups": 2,
+      "samples": 10
+    }
+  },
+  "budgets": {
+    "wallTime": {
+      "ratioMax": 1.05,
+      "absoluteNoiseFloorMs": 5,
+      "bootstrapConfidence": 0.95,
+      "blockOnWorse": true,
+      "requiresExplanation": false
+    },
+    "rss": {
+      "ratioMax": 1.05,
+      "absoluteNoiseFloorBytes": 1048576,
+      "bootstrapConfidence": 0.95,
+      "blockOnWorse": true,
+      "requiresExplanation": false
+    },
+    "cpu": {
+      "ratioMax": 1.05,
+      "bootstrapConfidence": 0.95,
+      "blockOnWorse": true,
+      "requiresExplanation": true
+    },
+    "io": {
+      "blockOnWorse": false,
+      "requiresExplanation": true
+    }
+  },
+  "requiredWorkloads": [
+    "startup.help",
+    "inspect.small",
+    "inspect.large",
+    "splits.small",
+    "splits.large",
+    "dex.small",
+    "dex.large",
+    "unity.small",
+    "unity.large",
+    "il2cpp.small",
+    "il2cpp.large",
+    "resources.small",
+    "resources.large",
+    "code.small",
+    "code.large",
+    "morphe.small",
+    "morphe.large"
+  ],
+  "seed": 20261120,
+  "cachePolicy": "warm-file-cache-no-eviction",
+  "order": {
+    "singleEngine": "fixed-manifest-order",
+    "dualEngine": "alternating-randomized-fixed-seed"
+  }
+}

@@ -1,0 +1,79 @@
+{
+  "schemaVersion": 1,
+  "kind": "apk-lab-synthetic-binary-corpus-spec",
+  "description": "Deterministic synthetic Unity and IL2CPP APK inputs for plan-001 performance workloads. The recipes mirror the synthetic builders in tests/test_unity.py and tests/test_il2cpp.py and are generated outside timed regions. No proprietary bytes or proprietary corpus paths are stored here.",
+  "generator": "generate.py",
+  "defaultOutput": ".apk-lab-migration/corpus",
+  "fixtures": [
+    {
+      "id": "unity-small",
+      "filename": "unity-small.apk",
+      "builder": "unity",
+      "recipe": "tests/test_unity.py:build_synthetic_gameobject_bytes",
+      "query": "Button_HelpCenter",
+      "params": {
+        "members": 1,
+        "objectsPerMember": 1,
+        "targetMember": 0,
+        "targetIndex": 0,
+        "targetName": "Button_HelpCenter",
+        "tag": 3,
+        "active": 0,
+        "prefixPadding": 32,
+        "fillerBeforeBytes": 0,
+        "fillerAfterBytes": 0,
+        "recordNamePrefix": "SyntheticObject"
+      }
+    },
+    {
+      "id": "unity-large",
+      "filename": "unity-large.apk",
+      "builder": "unity",
+      "recipe": "tests/test_unity.py:build_synthetic_gameobject_bytes",
+      "query": "Button_HelpCenter_Large",
+      "params": {
+        "members": 16,
+        "objectsPerMember": 1500,
+        "targetMember": 15,
+        "targetIndex": 900,
+        "targetName": "Button_HelpCenter_Large",
+        "tag": 7,
+        "active": 1,
+        "prefixPadding": 0,
+        "fillerBeforeBytes": 1048576,
+        "fillerAfterBytes": 131072,
+        "recordNamePrefix": "SyntheticObject"
+      }
+    },
+    {
+      "id": "il2cpp-small",
+      "filename": "il2cpp-small.apk",
+      "builder": "il2cpp",
+      "recipe": "tests/test_il2cpp.py:build_synthetic_metadata",
+      "query": "OpenShop",
+      "params": {
+        "version": 29,
+        "variant": "test-recipe"
+      }
+    },
+    {
+      "id": "il2cpp-large",
+      "filename": "il2cpp-large.apk",
+      "builder": "il2cpp",
+      "recipe": "tests/test_il2cpp.py:build_synthetic_metadata extended with a realistically large v29 symbol table",
+      "query": "SyntheticTarget_OpenShop_Large",
+      "params": {
+        "version": 29,
+        "methodCount": 131072,
+        "typeCount": 8192,
+        "methodsPerType": 16,
+        "fillerStringBytes": 8388608,
+        "nativeLibBytes": 1048576,
+        "targetMethodName": "SyntheticTarget_OpenShop_Large",
+        "targetTypeName": "SyntheticType_0000",
+        "targetNamespace": "Synthetic.Namespace",
+        "targetParameterCount": 3
+      }
+    }
+  ]
+}

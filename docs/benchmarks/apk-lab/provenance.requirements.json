@@ -1,0 +1,83 @@
+{
+  "schemaVersion": 1,
+  "kind": "apk-lab-benchmark-provenance-requirements",
+  "policyId": "apk-lab-performance-policy-v1",
+  "notes": "Contract for reconstructing and auditing a Python-oracle baseline. It records requirements, not measurements. No private path, credential, or APK byte belongs in this file.",
+  "requiredResultFields": {
+    "source.revision": "Full git revision of the checkout the oracle ran from.",
+    "source.dirty": "True when the worktree differed from the revision.",
+    "source.headIsExecutedSource": "False when dirty; HEAD must not then be treated as the executed source.",
+    "source.worktreeDigest": "Digest covering only executed-source identity: revision, dirty flag, and the dirty/untracked source digest. Policy and manifest digests are separate provenance fields and must not change this value.",
+    "source.archive.digest": "Content digest of the private source archive.",
+    "source.archive.location": "Private archive location, relative to the local migration root.",
+    "provenance.policySha256": "Digest of the pre-registered performance policy.",
+    "provenance.manifestSha256": "Digest of the private runnable corpus manifest.",
+    "provenance.archiveDigest": "Must equal source.archive.digest when archiving succeeded.",
+    "environment.pythonVersion": "Version reported by the pre-synced interpreter, not by uv.",
+    "environment.gitVersion": "Version of git used to record the revision.",
+    "environment.os/arch": "Operating system and CPU architecture of the measurement host.",
+    "environment.cpuModel/logicalCpus/ramBytes": "Host capacity, null when the platform query is unsupported.",
+    "environment.storage": "Total/free bytes from df -Pk with its 1024-byte block method recorded.",
+    "environment.workerCount": "Concurrency used by the driver (1 for process-level baseline runs).",
+    "workload.inputs[].declaredSha256": "Hash declared by the private manifest.",
+    "workload.inputs[].actualSha256": "Hash verified before execution; must equal the declared hash.",
+    "workload.mpp.declaredSha256/actualSha256": "Same verification for the Morphe patch bundle.",
+    "workload.samples[]": "Raw samples including warmups, wall time, status, normalized and raw output hashes, optional failed-run diagnostics, and validation errors.",
+    "workload.outputValidation": "Whether stdout/stderr hashes were pinned and whether all outputs validated.",
+    "acceptance.valid": "False for missing required workloads, missing corpus, hash mismatches, unpinned outputs, unsupported required provenance, or a metric whose pre-registered policy budget sets blockOnWorse and that the host cannot collect with tested units. A non-blocking unsupported metric stays null with a reason and must be explained when the policy sets requiresExplanation; it is never recorded as zero.",
+    "workload.samples[].cpuMs/peakChildRssBytes/readBytes/writeBytes": "Measured only when the host exposes the documented unit conversion; null otherwise. Acceptance is blocked when a supported blocking metric is missing from measured samples."
+  },
+  "metricRequirements": {
+    "source": "tools/apk-lab/migration/performance-policy.json budgets[].blockOnWorse",
+    "wallTime": "Always supported; measured around spawn through process exit and full stdout/stderr drain.",
+    "cpu": "Blocking under the current policy. Linux uses /proc process-tree CPU ticks; macOS sums per-process peak cumulative ps TIME at approximately 10ms display resolution and must not be described as exact.",
+    "descendantRss": "Blocking under the current policy. Linux samples /proc RSS; macOS sums ps rss (KiB converted to bytes) over the process group plus parent-linked descendants, and must not be described as aggregate /usr/bin/time maximum single-child RSS.",
+    "io": "Non-blocking under the current policy, so an unsupported host reports null with a reason plus an explicit explanation-required limitation. If a future policy sets blockOnWorse, an unsupported metric becomes a hard acceptance blocker."
+  },
+  "privateSourceArchive": {
+    "contents": [
+      "tools/apk-lab/apk_lab/**",
+      "tools/apk-lab/tests/**",
+      "tools/apk-lab/pyproject.toml",
+      "tools/apk-lab/uv.lock",
+      "tools/apk-lab/tools.lock.json",
+      "tools/apk-lab/.python-version when present",
+      "rust-toolchain.toml when present",
+      ".github/scripts/** (legacy Python asset/README generators)",
+      ".github/workflows/{release,sync-app-icons,apk-lab-tests}.yml",
+      ".releaserc and .pre-commit-config.yaml",
+      "scripts/audit.ts",
+      "patches/build.gradle.kts and gradle/libs.versions.toml",
+      "patches-list.json (release metadata consumed by Morphe reports)",
+      "package.json, bun.lock, package-lock.json, site/package.json, site/bun.lock",
+      "extensions/adobescan-pdf-native/tests/fixtures/generate_fixtures.py",
+      "dirty.patch when the worktree differs from the revision"
+    ],
+    "excluded": [
+      "APK/APKM/APKS/XAPK bytes",
+      "corpora",
+      "credentials and account stores",
+      "local.properties and .dev.vars*",
+      ".venv, target, node_modules, pytest and bytecode caches"
+    ],
+    "reconstruction": [
+      "Restore the archived files exactly at source.revision.",
+      "Do not apply dirty.patch on top: the archive already holds the executed bytes and dirty.patch is evidence of the pre-existing worktree difference.",
+      "Verify every file sha256 against the archive manifest.",
+      "Run the private corpus manifest through the pre-synced Python interpreter; never install during timing."
+    ]
+  },
+  "sanitization": {
+    "publicFiles": [
+      "schema.manifest.v1.json",
+      "schema.result.v1.json",
+      "pins.schema.v1.json",
+      "workloads.public.json",
+      "provenance.requirements.json",
+      "output-pins.json",
+      "execution-status.json",
+      "prerequisites.json"
+    ],
+    "privateStorage": "The runnable manifest, source archive, raw baseline, and any proprietary input identities stay in ignored local storage. A committed result must contain only relative or placeholder paths."
+  }
+}

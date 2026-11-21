@@ -533,3 +533,61 @@ Features:
 - **Durable vs. Disposable**: Durable repository changes are patch Kotlin sources, Java extension sources, compatibility metadata, docs, tests, and web UI. APK files, decompiled smali/java trees, patched APK outputs, and downloader tokens are **disposable and never committed**.
 - **Private Fixtures**: APK fixture bytes exist only in runner temp memory or the private `aidans-patches-apk-fixtures` R2 bucket. Public worker endpoints and status APIs only return metadata and status badges, never proprietary binaries.
 - **Fail-Fast Invariant**: All patches enforce strict preconditions; if bytecode shapes differ, patches throw `PatchException` rather than generating corrupted APKs.
+
+---
+
+## 5. Temporary Rust Migration Harness
+
+`tools/apk-lab/src/bin/apk-lab-migrate.rs` is an auxiliary migration and benchmark
+binary under `tools/apk-lab/Cargo.toml`. It is **not** the production `apk-lab` CLI and
+does not replace the Python commands above. The Python implementation remains the
+independent oracle until each command has native Rust coverage and the release gates in
+`tools/apk-lab/migration/README.md` pass.
+
+Build and run from the repository root:
+
+```bash
+cargo build --release --locked --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab-migrate
+MIG=tools/apk-lab/target/release/apk-lab-migrate
+$MIG inventory --check
+$MIG prerequisites --manifest .apk-lab-migration/prerequisites.local.json --out .apk-lab-migration/prerequisites.json
+$MIG capture --engine python --profile offline --out .apk-lab-migration/python-contracts.json
+$MIG verify --expected .apk-lab-migration/python-contracts.json --actual .apk-lab-migration/python-contracts.json
+$MIG bench --prepare --engine python --profile local --manifest docs/benchmarks/apk-lab/corpus.local.json --out .apk-lab-migration/output-pins.json
+$MIG bench --engine python --profile local --manifest docs/benchmarks/apk-lab/corpus.local.json --out .apk-lab-migration/python-baseline.json
+$MIG bench --sanitize --input .apk-lab-migration/python-baseline.json --out docs/benchmarks/apk-lab/baseline.json
+```
+
+- `capture` executes the real Python CLI and module entrypoints against deterministic
+  synthetic APK/APKM/DEX/Unity/IL2CPP/resource/ADB-log fixtures in an isolated
+  temporary sandbox. It uses temporary fake Android build tools under `ANDROID_HOME`
+  and a loopback-only HTTP endpoint for CI callback probes; it performs no external
+  network, account, device, or cloud mutation. Capture fails unless mandatory cases,
+  exit classes, ordering, nullable JSON, booleans, callback markers, and Unicode
+  invariants all hold.
+- `verify` compares two capture documents exactly after rejecting invalid schema/kind,
+  empty fixture lists, and missing or duplicate mandatory cases. Only sandbox/repository
+  prefixes and the Python executable path normalize; ANSI is retained for same-mode
+  captures, and timestamps/durations are omitted rather than globally ignored. Exit
+  status, JSON nulls, ordering, hashes, booleans, callback markers, and Unicode are
+  significant.
+- `prerequisites` inventories host, corpus, device, Play, R2, Worker, and workflow
+  resources without live mutation. `--check` is the acceptance form: it exits nonzero
+  until every required resource is available, authorized, and identity-stable.
+- `bench --prepare` runs each selected workload once outside the timing region to
+  validate exit status, required output tokens, expected files, and the approved
+  Morphe timing-only normalization, then records observed output pins. It is not a
+  performance sample.
+- `bench` executes the pre-registered workload matrix with the declared warmup/sample
+  classes and derives metric acceptance from the frozen performance policy: a metric
+  whose budget sets `blockOnWorse` must be collected, while a non-blocking metric stays
+  `null` with a recorded explanation.
+- `bench --sanitize` rewrites a private result into the publishable form by replacing
+  engine, archive, and corpus paths with fixed hash-derived placeholders. It rejects
+  unknown shapes and any surviving private path marker, and writes nothing on
+  rejection.
+- Generated migration output (`.apk-lab-migration/`) and private corpus manifests
+  (`docs/benchmarks/apk-lab/*.local.json`) are ignored. Public files contain only
+  sanitized identities and hashes, never proprietary APK bytes or credentials.
+- Live device, Play, R2, Worker, and compatibility-workflow scenarios are pending until
+  the operator grants execution authorization and their prerequisite report is green.

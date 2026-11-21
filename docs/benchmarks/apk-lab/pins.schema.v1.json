@@ -1,0 +1,168 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:apk-lab:benchmark:output-pins:v1",
+  "title": "APK Lab baseline output pins",
+  "description": "Report written by `apk-lab-migrate bench --prepare`. It records one unmeasured, isolated execution per selected workload. Hashes are accepted pins only for rows whose status is `prepared`; failed or incomplete rows carry null hashes. A failed row that actually ran may carry bounded, path-redacted stdout/stderr diagnostics while its pins stay null. Preparing a subset can succeed as a report while the overall status remains `incomplete` until every selected row is prepared. The command exits zero only when every selected row actually ran and passed the existing semantic assertions.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "kind",
+    "status",
+    "engine",
+    "profile",
+    "manifestSha256",
+    "source",
+    "workloads",
+    "acceptance"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "kind": { "const": "apk-lab-benchmark-output-pins" },
+    "status": { "enum": ["complete", "incomplete"] },
+    "engine": { "const": "python" },
+    "profile": { "const": "local" },
+    "manifestSha256": { "$ref": "#/$defs/sha256" },
+    "source": { "$ref": "#/$defs/source" },
+    "workloads": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/workload" }
+    },
+    "acceptance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["valid", "reasons"],
+      "properties": {
+        "valid": { "type": "boolean" },
+        "reasons": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{64}$"
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "revision",
+        "dirty",
+        "worktreeDigest",
+        "headIsExecutedSource",
+        "warning",
+        "archive"
+      ],
+      "properties": {
+        "revision": { "type": "string" },
+        "dirty": { "type": "boolean" },
+        "worktreeDigest": { "$ref": "#/$defs/sha256" },
+        "headIsExecutedSource": { "type": "boolean" },
+        "warning": { "type": ["string", "null"] },
+        "archive": {
+          "oneOf": [
+            { "type": "null" },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "kind",
+                "location",
+                "digest",
+                "fileCount",
+                "reconstruction"
+              ],
+              "properties": {
+                "kind": { "const": "private-source-archive" },
+                "location": {
+                  "type": "string",
+                  "description": "Private relative archive label; never an absolute host path."
+                },
+                "digest": { "$ref": "#/$defs/sha256" },
+                "fileCount": { "type": "integer", "minimum": 1 },
+                "reconstruction": { "type": "string" }
+              }
+            }
+          ]
+        }
+      }
+    },
+    "workload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "status",
+        "exitCode",
+        "stdoutSha256",
+        "stderrSha256",
+        "rawStdoutSha256",
+        "rawStderrSha256",
+        "outputNormalization",
+        "validationErrors"
+      ],
+      "properties": {
+        "id": { "type": "string" },
+        "status": { "enum": ["prepared", "failed", "incomplete"] },
+        "exitCode": { "type": ["integer", "null"] },
+        "stdoutSha256": {
+          "description": "Accepted normalized stdout pin; null unless status is prepared.",
+          "oneOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }]
+        },
+        "stderrSha256": {
+          "description": "Accepted normalized stderr pin; null unless status is prepared.",
+          "oneOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }]
+        },
+        "rawStdoutSha256": {
+          "description": "Accepted raw stdout pin before any normalization; null unless status is prepared.",
+          "oneOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }]
+        },
+        "rawStderrSha256": {
+          "description": "Accepted raw stderr pin before any normalization; null unless status is prepared.",
+          "oneOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }]
+        },
+        "outputNormalization": {
+          "type": "array",
+          "description": "Applied normalization rule objects. Empty for workloads without a rule. Morphe uses only the approved test-case durationSeconds timing normalization.",
+          "items": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "validationErrors": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "diagnostics": {
+          "description": "Optional bounded, path-redacted stdout/stderr excerpts. Present only when status is failed after the workload actually ran; accepted pins stay null.",
+          "$ref": "#/$defs/outputDiagnostics"
+        }
+      }
+    },
+    "outputDiagnostics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "stdoutExcerpt",
+        "stderrExcerpt",
+        "stdoutTruncated",
+        "stderrTruncated"
+      ],
+      "properties": {
+        "stdoutExcerpt": {
+          "type": "string",
+          "maxLength": 8192,
+          "description": "Normalized observable stdout after private path redaction, bounded to 8192 characters."
+        },
+        "stderrExcerpt": {
+          "type": "string",
+          "maxLength": 8192,
+          "description": "Normalized observable stderr after private path redaction, bounded to 8192 characters."
+        },
+        "stdoutTruncated": { "type": "boolean" },
+        "stderrTruncated": { "type": "boolean" }
+      }
+    }
+  }
+}

@@ -59,6 +59,10 @@ nbdist/
 bin/
 out/
 
+# Track the apk-lab migration binary source despite the build-output `bin/` rule
+!tools/apk-lab/src/bin/
+!tools/apk-lab/src/bin/apk-lab-migrate.rs
+
 # Node
 node_modules/
 
@@ -86,6 +90,8 @@ patches/src/main/resources/fonts/
 
 # APK Lab & Python
 .apk-lab/
+.apk-lab-migration/
+docs/benchmarks/apk-lab/*.local.json
 .dev.vars*
 __pycache__/
 *.py[cod]

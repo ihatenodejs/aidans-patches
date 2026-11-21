@@ -1,0 +1,1685 @@
+{
+  "schemaVersion": 1,
+  "kind": "apk-lab-python-contracts",
+  "engine": "python",
+  "profile": "offline",
+  "python": {
+    "implementation": "cpython",
+    "version": "3.12.14",
+    "executable": "<python>"
+  },
+  "provenance": {
+    "harness": "apk-lab-migrate 0.1.0",
+    "sourceRevision": "295cde7abd498ac5c8905777a1eac043ce6b5899",
+    "worktreeDirty": true,
+    "sourceDigest": "282987b54d739701220480d8f165e15ad0c7754e651262424667ed296946f447"
+  },
+  "normalization": [
+    "sandbox-root-prefix",
+    "repository-root-prefix",
+    "python-executable-path"
+  ],
+  "fixtures": [
+    {
+      "path": "<sandbox>/fake-sdk/build-tools/36.0.0/aapt2",
+      "sha256": "6ec151da0b5fe49fef1a57643ffe95c1dce9ab5339105ac7b6236749aadc397f",
+      "size": 3358,
+      "mediaKind": "test-executable"
+    },
+    {
+      "path": "<sandbox>/fake-sdk/build-tools/36.0.0/apksigner",
+      "sha256": "275239824e00e61b0a220e61a41791c7e9b4bd726f8b0c27077a338f8131c9dc",
+      "size": 17,
+      "mediaKind": "test-executable"
+    },
+    {
+      "path": "<sandbox>/fixtures/absolute.apk",
+      "sha256": "f6e1cf1edf0c196e1798c6dccf34b249a9747b5cd4b61d9c8ce298a9644f6a8c",
+      "size": 145,
+      "mediaKind": "android-container"
+    },
+    {
+      "path": "<sandbox>/fixtures/app.apkm",
+      "sha256": "15102bda7123286cd4d68432f99b4feb23e9788069301f56f85dc69a952edc5a",
+      "size": 2414,
+      "mediaKind": "android-container"
+    },
+    {
+      "path": "<sandbox>/fixtures/base.apk",
+      "sha256": "5fe49ac9cc12e75889309794871361aaa07b15c810f762af9ece86a9e1fd27d5",
+      "size": 1608,
+      "mediaKind": "android-container"
+    },
+    {
+      "path": "<sandbox>/fixtures/base2.apk",
+      "sha256": "5922c18b1fd9c9c5e3161e0b5aabb9b6b24e8384b178df5db1b640f4812a8ce2",
+      "size": 656,
+      "mediaKind": "android-container"
+    },
+    {
+      "path": "<sandbox>/fixtures/duplicate.apk",
+      "sha256": "3e990a2b72fe6236423ca2bf8df22e953f8a01c877067992fd6590d4fae8456b",
+      "size": 247,
+      "mediaKind": "android-container"
+    },
+    {
+      "path": "<sandbox>/fixtures/il2cpp-corrupt.apk",
+      "sha256": "b8efc0f8a71557c09be7c9552a4e873d3861a865b4bfa7216836f2069d8494b3",
+      "size": 848,
+      "mediaKind": "android-container"
+    },
+    {
+      "path": "<sandbox>/fixtures/il2cpp.apk",
+      "sha256": "79d1b646f73fe6af19b15672db7880f48a6a379bc82ee12158b08731cd02c986",
+      "size": 987,
+      "mediaKind": "android-container"
+    },
+    {
+      "path": "<sandbox>/fixtures/nested.apkm",
+      "sha256": "28a3c7bf67ae94707970bc31fceac93112aa91209d8b0d1f9ba23f4751eb3a42",
+      "size": 2442,
+      "mediaKind": "android-container"
+    },
+    {
+      "path": "<sandbox>/fixtures/patches-list.json",
+      "sha256": "a6c80613fa2596aa3f10827d27c9d4b6a7afac154760738c074d2ed294e41808",
+      "size": 1191,
+      "mediaKind": "synthetic-input"
+    },
+    {
+      "path": "<sandbox>/fixtures/split_config.arm64_v8a.apk",
+      "sha256": "1d3933dbbfe443170cbe2f513ba6feb0c64eb97f4b5d770ca680883f21e8aac9",
+      "size": 564,
+      "mediaKind": "android-container"
+    },
+    {
+      "path": "<sandbox>/fixtures/traversal.apk",
+      "sha256": "53b8a2a7cc08b66892045e26994f6e9c71fbff6b08b9182d2ddb832ea11c6df7",
+      "size": 140,
+      "mediaKind": "android-container"
+    },
+    {
+      "path": "<sandbox>/fixtures/truncated.apk",
+      "sha256": "ec50991945972d303865af10055c76b7ad142b6a6bc078d91204f1fb6aa462d1",
+      "size": 21,
+      "mediaKind": "android-container"
+    },
+    {
+      "path": "<sandbox>/fixtures/unity.apk",
+      "sha256": "d7826f2cb511bd8d0a4851e9312929a37d5b6d4108924d6e0d864d6652b5617e",
+      "size": 402,
+      "mediaKind": "android-container"
+    },
+    {
+      "path": "<sandbox>/fixtures/wide.apk",
+      "sha256": "5fe49ac9cc12e75889309794871361aaa07b15c810f762af9ece86a9e1fd27d5",
+      "size": 1608,
+      "mediaKind": "android-container"
+    }
+  ],
+  "cases": [
+    {
+      "id": "asm-ret-hex",
+      "argv": [
+        "asm",
+        "ret",
+        "--format",
+        "hex"
+      ],
+      "exitCode": 0,
+      "stdout": "c0 03 5f d6\n",
+      "stderr": "",
+      "stdoutJson": null,
+      "files": [],
+      "inputs": []
+    },
+    {
+      "id": "asm-branch-kotlin",
+      "argv": [
+        "asm",
+        "bl 0x3c98ce4",
+        "--pc",
+        "0x1000",
+        "--format",
+        "kotlin"
+      ],
+      "exitCode": 0,
+      "stdout": "byteArrayOf(0x39, 0x5f, 0xf2.toByte(), 0x94.toByte())\n",
+      "stderr": "",
+      "stdoutJson": null,
+      "files": [],
+      "inputs": []
+    },
+    {
+      "id": "asm-invalid-register",
+      "argv": [
+        "asm",
+        "ret x99"
+      ],
+      "exitCode": 2,
+      "stdout": "",
+      "stderr": "Assembly error: Register number out of range (0-30): 'x99'\n",
+      "stdoutJson": null,
+      "files": [],
+      "inputs": []
+    },
+    {
+      "id": "validate-smali-valid",
+      "argv": [
+        "validate-smali",
+        "--snippet",
+        "const/4 v0, 0x1\nreturn v0",
+        "--locals",
+        "2"
+      ],
+      "exitCode": 0,
+      "stdout": "Validation succeeded with 0 errors and 0 warnings.\n",
+      "stderr": "",
+      "stdoutJson": null,
+      "files": [],
+      "inputs": []
+    },
+    {
+      "id": "validate-smali-invalid",
+      "argv": [
+        "validate-smali",
+        "--snippet",
+        "invoke-virtual {v9}, Lx;->y()V",
+        "--locals",
+        "1",
+        "--params",
+        "0"
+      ],
+      "exitCode": 2,
+      "stdout": "Validation failed with 1 error(s) and 0 warning(s):\n  [ERROR] Line 1 (REGISTER_OUT_OF_RANGE): Register 'v9' out of range for total 2 registers (v0..v1)\n",
+      "stderr": "",
+      "stdoutJson": null,
+      "files": [],
+      "inputs": []
+    },
+    {
+      "id": "inspect-json-stdout",
+      "argv": [
+        "inspect",
+        "../../fixtures/base.apk",
+        "--json"
+      ],
+      "exitCode": 0,
+      "stdout": "{\n  \"assets\": [\n    \"assets/callback.txt\",\n    \"assets/unicode-\\u251c\\u2310.txt\"\n  ],\n  \"containerType\": \"APK\",\n  \"dexClassesCount\": 4,\n  \"dexFiles\": [\n    \"classes.dex\",\n    \"classes2.dex\"\n  ],\n  \"dexMethodsCount\": 9,\n  \"filePath\": \"<sandbox>/fixtures/base.apk\",\n  \"fileSize\": 1608,\n  \"minSdk\": null,\n  \"nativeLibraries\": [\n    \"lib/arm64-v8a/libnative.so\"\n  ],\n  \"packageName\": \"com.example.synthetic\",\n  \"resources\": [\n    \"res/drawable-xxhdpi/\\u256c\\u2561\\u256c\\u2563\\u256c\\u2551\\u2567\\u00ee\\u256c\\u255c\\u256c\\u2592.webp\",\n    \"res/values/strings.xml\"\n  ],\n  \"sha256\": \"5fe49ac9cc12e75889309794871361aaa07b15c810f762af9ece86a9e1fd27d5\",\n  \"signingCertificateSha256\": null,\n  \"splits\": [],\n  \"targetSdk\": 34,\n  \"versionCode\": 2147483647,\n  \"versionName\": \"1.0-\\u0394\",\n  \"warnings\": []\n}\n",
+      "stderr": "",
+      "stdoutJson": {
+        "assets": [
+          "assets/callback.txt",
+          "assets/unicode-├⌐.txt"
+        ],
+        "containerType": "APK",
+        "dexClassesCount": 4,
+        "dexFiles": [
+          "classes.dex",
+          "classes2.dex"
+        ],
+        "dexMethodsCount": 9,
+        "filePath": "<sandbox>/fixtures/base.apk",
+        "fileSize": 1608,
+        "minSdk": null,
+        "nativeLibraries": [
+          "lib/arm64-v8a/libnative.so"
+        ],
+        "packageName": "com.example.synthetic",
+        "resources": [
+          "res/drawable-xxhdpi/╬╡╬╣╬║╧î╬╜╬▒.webp",
+          "res/values/strings.xml"
+        ],
+        "sha256": "5fe49ac9cc12e75889309794871361aaa07b15c810f762af9ece86a9e1fd27d5",
+        "signingCertificateSha256": null,
+        "splits": [],
+        "targetSdk": 34,
+        "versionCode": 2147483647,
+        "versionName": "1.0-Δ",
+        "warnings": []
+      },
+      "files": [],
+      "inputs": [
+        {
+          "path": "<sandbox>/fixtures/base.apk",
+          "sha256": "5fe49ac9cc12e75889309794871361aaa07b15c810f762af9ece86a9e1fd27d5",
+          "size": 1608
+        }
+      ]
+    },
+    {
+      "id": "inspect-wide-version-code",
+      "argv": [
+        "inspect",
+        "../../fixtures/wide.apk",
+        "--json"
+      ],
+      "exitCode": 0,
+      "stdout": "{\n  \"assets\": [\n    \"assets/callback.txt\",\n    \"assets/unicode-\\u251c\\u2310.txt\"\n  ],\n  \"containerType\": \"APK\",\n  \"dexClassesCount\": 4,\n  \"dexFiles\": [\n    \"classes.dex\",\n    \"classes2.dex\"\n  ],\n  \"dexMethodsCount\": 9,\n  \"filePath\": \"<sandbox>/fixtures/wide.apk\",\n  \"fileSize\": 1608,\n  \"minSdk\": null,\n  \"nativeLibraries\": [\n    \"lib/arm64-v8a/libnative.so\"\n  ],\n  \"packageName\": \"com.example.synthetic\",\n  \"resources\": [\n    \"res/drawable-xxhdpi/\\u256c\\u2561\\u256c\\u2563\\u256c\\u2551\\u2567\\u00ee\\u256c\\u255c\\u256c\\u2592.webp\",\n    \"res/values/strings.xml\"\n  ],\n  \"sha256\": \"5fe49ac9cc12e75889309794871361aaa07b15c810f762af9ece86a9e1fd27d5\",\n  \"signingCertificateSha256\": null,\n  \"splits\": [],\n  \"targetSdk\": 34,\n  \"versionCode\": 9007199254740993,\n  \"versionName\": \"2.0-wide-\\u0394\",\n  \"warnings\": []\n}\n",
+      "stderr": "",
+      "stdoutJson": {
+        "assets": [
+          "assets/callback.txt",
+          "assets/unicode-├⌐.txt"
+        ],
+        "containerType": "APK",
+        "dexClassesCount": 4,
+        "dexFiles": [
+          "classes.dex",
+          "classes2.dex"
+        ],
+        "dexMethodsCount": 9,
+        "filePath": "<sandbox>/fixtures/wide.apk",
+        "fileSize": 1608,
+        "minSdk": null,
+        "nativeLibraries": [
+          "lib/arm64-v8a/libnative.so"
+        ],
+        "packageName": "com.example.synthetic",
+        "resources": [
+          "res/drawable-xxhdpi/╬╡╬╣╬║╧î╬╜╬▒.webp",
+          "res/values/strings.xml"
+        ],
+        "sha256": "5fe49ac9cc12e75889309794871361aaa07b15c810f762af9ece86a9e1fd27d5",
+        "signingCertificateSha256": null,
+        "splits": [],
+        "targetSdk": 34,
+        "versionCode": 9007199254740993,
+        "versionName": "2.0-wide-Δ",
+        "warnings": []
+      },
+      "files": [],
+      "inputs": [
+        {
+          "path": "<sandbox>/fixtures/wide.apk",
+          "sha256": "5fe49ac9cc12e75889309794871361aaa07b15c810f762af9ece86a9e1fd27d5",
+          "size": 1608
+        }
+      ]
+    },
+    {
+      "id": "inspect-json-file",
+      "argv": [
+        "inspect",
+        "../../fixtures/base.apk",
+        "--json",
+        "inspect.json"
+      ],
+      "exitCode": 0,
+      "stdout": "",
+      "stderr": "",
+      "stdoutJson": null,
+      "files": [
+        {
+          "path": "<sandbox>/cases/inspect.json",
+          "sha256": "4fd52fab952c709a399dd886de86eda88c57e8d48814b709a66dfe82df65cda5",
+          "size": 790,
+          "content": "{\n  \"assets\": [\n    \"assets/callback.txt\",\n    \"assets/unicode-\\u251c\\u2310.txt\"\n  ],\n  \"containerType\": \"APK\",\n  \"dexClassesCount\": 4,\n  \"dexFiles\": [\n    \"classes.dex\",\n    \"classes2.dex\"\n  ],\n  \"dexMethodsCount\": 9,\n  \"filePath\": \"<sandbox>/fixtures/base.apk\",\n  \"fileSize\": 1608,\n  \"minSdk\": null,\n  \"nativeLibraries\": [\n    \"lib/arm64-v8a/libnative.so\"\n  ],\n  \"packageName\": \"com.example.synthetic\",\n  \"resources\": [\n    \"res/drawable-xxhdpi/\\u256c\\u2561\\u256c\\u2563\\u256c\\u2551\\u2567\\u00ee\\u256c\\u255c\\u256c\\u2592.webp\",\n    \"res/values/strings.xml\"\n  ],\n  \"sha256\": \"5fe49ac9cc12e75889309794871361aaa07b15c810f762af9ece86a9e1fd27d5\",\n  \"signingCertificateSha256\": null,\n  \"splits\": [],\n  \"targetSdk\": 34,\n  \"versionCode\": 2147483647,\n  \"versionName\": \"1.0-\\u0394\",\n  \"warnings\": []\n}"
+        }
+      ],
+      "inputs": [
+        {
+          "path": "<sandbox>/fixtures/base.apk",
+          "sha256": "5fe49ac9cc12e75889309794871361aaa07b15c810f762af9ece86a9e1fd27d5",
+          "size": 1608
+        }
+      ]
+    },
+    {
+      "id": "inspect-split-container",
+      "argv": [
+        "inspect",
+        "../../fixtures/app.apkm",
+        "--json"
+      ],
+      "exitCode": 0,
+      "stdout": "{\n  \"assets\": [\n    \"assets/callback.txt\",\n    \"assets/unicode-\\u251c\\u2310.txt\"\n  ],\n  \"containerType\": \"APKM\",\n  \"dexClassesCount\": 5,\n  \"dexFiles\": [\n    \"base.apk:classes.dex\",\n    \"base.apk:classes2.dex\",\n    \"split_config.arm64_v8a.apk:classes.dex\"\n  ],\n  \"dexMethodsCount\": 11,\n  \"filePath\": \"<sandbox>/fixtures/app.apkm\",\n  \"fileSize\": 2414,\n  \"minSdk\": null,\n  \"nativeLibraries\": [\n    \"lib/arm64-v8a/libnative.so\",\n    \"lib/arm64-v8a/libsplit.so\"\n  ],\n  \"packageName\": \"com.example.synthetic\",\n  \"resources\": [\n    \"res/drawable-xxhdpi/\\u256c\\u2561\\u256c\\u2563\\u256c\\u2551\\u2567\\u00ee\\u256c\\u255c\\u256c\\u2592.webp\",\n    \"res/values/strings.xml\"\n  ],\n  \"sha256\": \"15102bda7123286cd4d68432f99b4feb23e9788069301f56f85dc69a952edc5a\",\n  \"signingCertificateSha256\": null,\n  \"splits\": [\n    {\n      \"filename\": \"base.apk\",\n      \"isBase\": true,\n      \"sha256\": \"5fe49ac9cc12e75889309794871361aaa07b15c810f762af9ece86a9e1fd27d5\",\n      \"size\": 1608,\n      \"splitName\": \"base\"\n    },\n    {\n      \"filename\": \"split_config.arm64_v8a.apk\",\n      \"isBase\": false,\n      \"sha256\": \"1d3933dbbfe443170cbe2f513ba6feb0c64eb97f4b5d770ca680883f21e8aac9\",\n      \"size\": 564,\n      \"splitName\": \"config.arm64_v8a\"\n    }\n  ],\n  \"targetSdk\": 34,\n  \"versionCode\": 2147483647,\n  \"versionName\": \"1.0-\\u0394\",\n  \"warnings\": []\n}\n",
+      "stderr": "",
+      "stdoutJson": {
+        "assets": [
+          "assets/callback.txt",
+          "assets/unicode-├⌐.txt"
+        ],
+        "containerType": "APKM",
+        "dexClassesCount": 5,
+        "dexFiles": [
+          "base.apk:classes.dex",
+          "base.apk:classes2.dex",
+          "split_config.arm64_v8a.apk:classes.dex"
+        ],
+        "dexMethodsCount": 11,
+        "filePath": "<sandbox>/fixtures/app.apkm",
+        "fileSize": 2414,
+        "minSdk": null,
+        "nativeLibraries": [
+          "lib/arm64-v8a/libnative.so",
+          "lib/arm64-v8a/libsplit.so"
+        ],
+        "packageName": "com.example.synthetic",
+        "resources": [
+          "res/drawable-xxhdpi/╬╡╬╣╬║╧î╬╜╬▒.webp",
+          "res/values/strings.xml"
+        ],
+        "sha256": "15102bda7123286cd4d68432f99b4feb23e9788069301f56f85dc69a952edc5a",
+        "signingCertificateSha256": null,
+        "splits": [
+          {
+            "filename": "base.apk",
+            "isBase": true,
+            "sha256": "5fe49ac9cc12e75889309794871361aaa07b15c810f762af9ece86a9e1fd27d5",
+            "size": 1608,
+            "splitName": "base"
+          },
+          {
+            "filename": "split_config.arm64_v8a.apk",
+            "isBase": false,
+            "sha256": "1d3933dbbfe443170cbe2f513ba6feb0c64eb97f4b5d770ca680883f21e8aac9",
+            "size": 564,
+            "splitName": "config.arm64_v8a"
+          }
+        ],
+        "targetSdk": 34,
+        "versionCode": 2147483647,
+        "versionName": "1.0-Δ",
+        "warnings": []
+      },
+      "files": [],
+      "inputs": [
+        {
+          "path": "<sandbox>/fixtures/app.apkm",
+          "sha256": "15102bda7123286cd4d68432f99b4feb23e9788069301f56f85dc69a952edc5a",
+          "size": 2414
+        }
+      ]
+    },
+    {
+      "id": "inspect-traversal-rejected",
+      "argv": [
+        "inspect",
+        "../../fixtures/traversal.apk",
+        "--json"
+      ],
+      "exitCode": 3,
+      "stdout": "",
+      "stderr": "Inspection error: Security validation failed: Path traversal detected in archive entry: ../escaped.txt\n",
+      "stdoutJson": null,
+      "files": [],
+      "inputs": [
+        {
+          "path": "<sandbox>/fixtures/traversal.apk",
+          "sha256": "53b8a2a7cc08b66892045e26994f6e9c71fbff6b08b9182d2ddb832ea11c6df7",
+          "size": 140
+        }
+      ]
+    },
+    {
+      "id": "inspect-missing-artifact",
+      "argv": [
+        "inspect",
+        "../../fixtures/absent.apk",
+        "--json"
+      ],
+      "exitCode": 2,
+      "stdout": "",
+      "stderr": "Inspection error: Artifact not found: <sandbox>/fixtures/absent.apk\n",
+      "stdoutJson": null,
+      "files": [],
+      "inputs": []
+    },
+    {
+      "id": "inspect-missing-tool",
+      "argv": [
+        "inspect",
+        "../../fixtures/base.apk",
+        "--json"
+      ],
+      "exitCode": 2,
+      "stdout": "",
+      "stderr": "Inspection error: Android build tool 'aapt2' not found. Check ANDROID_HOME or local.properties\n",
+      "stdoutJson": null,
+      "files": [],
+      "inputs": [
+        {
+          "path": "<sandbox>/fixtures/base.apk",
+          "sha256": "5fe49ac9cc12e75889309794871361aaa07b15c810f762af9ece86a9e1fd27d5",
+          "size": 1608
+        }
+      ]
+    },
+    {
+      "id": "strings-json-stdout",
+      "argv": [
+        "strings",
+        "../../fixtures/base.apk",
+        "--json"
+      ],
+      "exitCode": 0,
+      "stdout": "[\n  {\n    \"split\": \"base\",\n    \"dex\": \"classes.dex\",\n    \"string\": \"hello world\"\n  },\n  {\n    \"split\": \"base\",\n    \"dex\": \"classes.dex\",\n    \"string\": \"\\u0391\\u03c1\\u03c7\\u03b5\\u03af\\u03bf-\\u0394\\u03bf\\u03ba\\u03b9\\u03bc\\u03ae\\u03c2\"\n  },\n  {\n    \"split\": \"base\",\n    \"dex\": \"classes.dex\",\n    \"string\": \"SpecialCase\"\n  },\n  {\n    \"split\": \"base\",\n    \"dex\": \"classes.dex\",\n    \"string\": \"specialcase\"\n  },\n  {\n    \"split\": \"base\",\n    \"dex\": \"classes.dex\",\n    \"string\": \"callback-marker=ready\"\n  },\n  {\n    \"split\": \"base\",\n    \"dex\": \"classes.dex\",\n    \"string\": \"alpha\"\n  },\n  {\n    \"split\": \"base\",\n    \"dex\": \"classes.dex\",\n    \"string\": \"beta\"\n  },\n  {\n    \"split\": \"base\",\n    \"dex\": \"classes2.dex\",\n    \"string\": \"second dex value\"\n  },\n  {\n    \"split\": \"base\",\n    \"dex\": \"classes2.dex\",\n    \"string\": \"\\u0394\\u03b5\\u03cd\\u03c4\\u03b5\\u03c1\\u03bf\"\n  }\n]\n",
+      "stderr": "",
+      "stdoutJson": [
+        {
+          "dex": "classes.dex",
+          "split": "base",
+          "string": "hello world"
+        },
+        {
+          "dex": "classes.dex",
+          "split": "base",
+          "string": "Αρχείο-Δοκιμής"
+        },
+        {
+          "dex": "classes.dex",
+          "split": "base",
+          "string": "SpecialCase"
+        },
+        {
+          "dex": "classes.dex",
+          "split": "base",
+          "string": "specialcase"
+        },
+        {
+          "dex": "classes.dex",
+          "split": "base",
+          "string": "callback-marker=ready"
+        },
+        {
+          "dex": "classes.dex",
+          "split": "base",
+          "string": "alpha"
+        },
+        {
+          "dex": "classes.dex",
+          "split": "base",
+          "string": "beta"
+        },
+        {
+          "dex": "classes2.dex",
+          "split": "base",
+          "string": "second dex value"
+        },
+        {
+          "dex": "classes2.dex",
+          "split": "base",
+          "string": "Δεύτερο"
+        }
+      ],
+      "files": [],
+      "inputs": [
+        {
+          "path": "<sandbox>/fixtures/base.apk",
+          "sha256": "5fe49ac9cc12e75889309794871361aaa07b15c810f762af9ece86a9e1fd27d5",
+          "size": 1608
+        }
+      ]
+    },
+    {
+      "id": "strings-case-sensitive",
+      "argv": [
+        "strings",
+        "../../fixtures/base.apk",
+        "--case-sensitive",
+        "-q",
+        "Special",
+        "--json"
+      ],
+      "exitCode": 0,
+      "stdout": "[\n  {\n    \"split\": \"base\",\n    \"dex\": \"classes.dex\",\n    \"string\": \"SpecialCase\"\n  }\n]\n",
+      "stderr": "",
+      "stdoutJson": [
+        {
+          "dex": "classes.dex",
+          "split": "base",
+          "string": "SpecialCase"
+        }
+      ],
+      "files": [],
+      "inputs": [
+        {
+          "path": "<sandbox>/fixtures/base.apk",
+          "sha256": "5fe49ac9cc12e75889309794871361aaa07b15c810f762af9ece86a9e1fd27d5",
+          "size": 1608
+        }
+      ]
+    },
+    {
+      "id": "strings-unicode-human",
+      "argv": [
+        "strings",
+        "../../fixtures/base.apk",
+        "--case-sensitive",
+        "-q",
+        "Δ"
+      ],
+      "exitCode": 0,
+      "stdout": "[base:classes.dex] Αρχείο-Δοκιμής\n[base:classes2.dex] Δεύτερο\n",
+      "stderr": "",
+      "stdoutJson": null,
+      "files": [],
+      "inputs": [
+        {
+          "path": "<sandbox>/fixtures/base.apk",
+          "sha256": "5fe49ac9cc12e75889309794871361aaa07b15c810f762af9ece86a9e1fd27d5",
+          "size": 1608
+        }
+      ]
+    },
+    {
+      "id": "strings-json-file",
+      "argv": [
+        "strings",
+        "../../fixtures/app.apkm",
+        "-q",
+        "Δ",
+        "--json",
+        "strings.json"
+      ],
+      "exitCode": 0,
+      "stdout": "",
+      "stderr": "",
+      "stdoutJson": null,
+      "files": [
+        {
+          "path": "<sandbox>/cases/strings.json",
+          "sha256": "c6ede1a97971fc5ed1b17aec844b8cc0d685c9349707219d37f9ba7ce41e5920",
+          "size": 270,
+          "content": "[\n  {\n    \"split\": \"base\",\n    \"dex\": \"classes.dex\",\n    \"string\": \"\\u0391\\u03c1\\u03c7\\u03b5\\u03af\\u03bf-\\u0394\\u03bf\\u03ba\\u03b9\\u03bc\\u03ae\\u03c2\"\n  },\n  {\n    \"split\": \"base\",\n    \"dex\": \"classes2.dex\",\n    \"string\": \"\\u0394\\u03b5\\u03cd\\u03c4\\u03b5\\u03c1\\u03bf\"\n  }\n]"
+        }
+      ],
+      "inputs": [
+        {
+          "path": "<sandbox>/fixtures/app.apkm",
+          "sha256": "15102bda7123286cd4d68432f99b4feb23e9788069301f56f85dc69a952edc5a",
+          "size": 2414
+        }
+      ]
+    },
+    {
+      "id": "manifest-json",
+      "argv": [
+        "manifest",
+        "../../fixtures/base.apk",
+        "--json"
+      ],
+      "exitCode": 0,
+      "stdout": "[\n  {\n    \"type\": \"activity\",\n    \"name\": \"com.example.synthetic.MainActivity\",\n    \"exported\": true,\n    \"permission\": null,\n    \"authorities\": null,\n    \"intent_actions\": [\n      \"android.intent.action.MAIN\"\n    ]\n  },\n  {\n    \"type\": \"activity\",\n    \"name\": \"com.example.synthetic.\\u0394\\u03c1\\u03b1\\u03c3\\u03c4\\u03b7\\u03c1\\u03b9\\u03cc\\u03c4\\u03b7\\u03c4\\u03b1\",\n    \"exported\": false,\n    \"permission\": null,\n    \"authorities\": null,\n    \"intent_actions\": []\n  },\n  {\n    \"type\": \"service\",\n    \"name\": \"com.example.synthetic.SyncService\",\n    \"exported\": null,\n    \"permission\": \"com.example.synthetic.permission.SYNC\",\n    \"authorities\": null,\n    \"intent_actions\": []\n  },\n  {\n    \"type\": \"receiver\",\n    \"name\": \"com.example.synthetic.BootReceiver\",\n    \"exported\": true,\n    \"permission\": null,\n    \"authorities\": null,\n    \"intent_actions\": []\n  },\n  {\n    \"type\": \"provider\",\n    \"name\": \"com.example.synthetic.DataProvider\",\n    \"exported\": false,\n    \"permission\": null,\n    \"authorities\": \"com.example.synthetic.data\",\n    \"intent_actions\": []\n  }\n]\n",
+      "stderr": "",
+      "stdoutJson": [
+        {
+          "authorities": null,
+          "exported": true,
+          "intent_actions": [
+            "android.intent.action.MAIN"
+          ],
+          "name": "com.example.synthetic.MainActivity",
+          "permission": null,
+          "type": "activity"
+        },
+        {
+          "authorities": null,
+          "exported": false,
+          "intent_actions": [],
+          "name": "com.example.synthetic.Δραστηριότητα",
+          "permission": null,
+          "type": "activity"
+        },
+        {
+          "authorities": null,
+          "exported": null,
+          "intent_actions": [],
+          "name": "com.example.synthetic.SyncService",
+          "permission": "com.example.synthetic.permission.SYNC",
+          "type": "service"
+        },
+        {
+          "authorities": null,
+          "exported": true,
+          "intent_actions": [],
+          "name": "com.example.synthetic.BootReceiver",
+          "permission": null,
+          "type": "receiver"
+        },
+        {
+          "authorities": "com.example.synthetic.data",
+          "exported": false,
+          "intent_actions": [],
+          "name": "com.example.synthetic.DataProvider",
+          "permission": null,
+          "type": "provider"
+        }
+      ],
+      "files": [],
+      "inputs": [
+        {
+          "path": "<sandbox>/fixtures/base.apk",
+          "sha256": "5fe49ac9cc12e75889309794871361aaa07b15c810f762af9ece86a9e1fd27d5",
+          "size": 1608
+        }
+      ]
+    },
+    {
+      "id": "manifest-provider-json",
+      "argv": [
+        "manifest",
+        "../../fixtures/base.apk",
+        "--type",
+        "provider",
+        "--json"
+      ],
+      "exitCode": 0,
+      "stdout": "[\n  {\n    \"type\": \"provider\",\n    \"name\": \"com.example.synthetic.DataProvider\",\n    \"exported\": false,\n    \"permission\": null,\n    \"authorities\": \"com.example.synthetic.data\",\n    \"intent_actions\": []\n  }\n]\n",
+      "stderr": "",
+      "stdoutJson": [
+        {
+          "authorities": "com.example.synthetic.data",
+          "exported": false,
+          "intent_actions": [],
+          "name": "com.example.synthetic.DataProvider",
+          "permission": null,
+          "type": "provider"
+        }
+      ],
+      "files": [],
+      "inputs": [
+        {
+          "path": "<sandbox>/fixtures/base.apk",
+          "sha256": "5fe49ac9cc12e75889309794871361aaa07b15c810f762af9ece86a9e1fd27d5",
+          "size": 1608
+        }
+      ]
+    },
+    {
+      "id": "manifest-human-unicode",
+      "argv": [
+        "manifest",
+        "../../fixtures/base.apk"
+      ],
+      "exitCode": 0,
+      "stdout": "[ACTIVITY] com.example.synthetic.MainActivity [exported=True] (actions: android.intent.action.MAIN)\n[ACTIVITY] com.example.synthetic.Δραστηριότητα [exported=False]\n[SERVICE] com.example.synthetic.SyncService\n[RECEIVER] com.example.synthetic.BootReceiver [exported=True]\n[PROVIDER] com.example.synthetic.DataProvider [exported=False]\n",
+      "stderr": "",
+      "stdoutJson": null,
+      "files": [],
+      "inputs": [
+        {
+          "path": "<sandbox>/fixtures/base.apk",
+          "sha256": "5fe49ac9cc12e75889309794871361aaa07b15c810f762af9ece86a9e1fd27d5",
+          "size": 1608
+        }
+      ]
+    },
+    {
+      "id": "compare-json",
+      "argv": [
+        "compare",
+        "../../fixtures/base.apk",
+        "../../fixtures/base2.apk",
+        "--json"
+      ],
+      "exitCode": 0,
+      "stdout": "{\n  \"addedAssets\": [\n    \"assets/version.txt\"\n  ],\n  \"addedComponents\": [],\n  \"addedNativeLibraries\": [],\n  \"addedPermissions\": [],\n  \"addedSplits\": [],\n  \"classesDiff\": {},\n  \"dexClassesDelta\": -1,\n  \"dexMethodsDelta\": -2,\n  \"modifiedAssets\": [],\n  \"modifiedNativeLibraries\": [],\n  \"modifiedSplits\": [],\n  \"new\": {\n    \"assets\": [\n      \"assets/version.txt\"\n    ],\n    \"containerType\": \"APK\",\n    \"dexClassesCount\": 3,\n    \"dexFiles\": [\n      \"classes.dex\"\n    ],\n    \"dexMethodsCount\": 7,\n    \"filePath\": \"<sandbox>/fixtures/base2.apk\",\n    \"fileSize\": 656,\n    \"minSdk\": null,\n    \"nativeLibraries\": [],\n    \"packageName\": \"com.example.synthetic\",\n    \"resources\": [],\n    \"sha256\": \"5922c18b1fd9c9c5e3161e0b5aabb9b6b24e8384b178df5db1b640f4812a8ce2\",\n    \"signingCertificateSha256\": null,\n    \"splits\": [],\n    \"targetSdk\": 34,\n    \"versionCode\": 2147483646,\n    \"versionName\": \"0.9-\\u0394\",\n    \"warnings\": []\n  },\n  \"old\": {\n    \"assets\": [\n      \"assets/callback.txt\",\n      \"assets/unicode-\\u251c\\u2310.txt\"\n    ],\n    \"containerType\": \"APK\",\n    \"dexClassesCount\": 4,\n    \"dexFiles\": [\n      \"classes.dex\",\n      \"classes2.dex\"\n    ],\n    \"dexMethodsCount\": 9,\n    \"filePath\": \"<sandbox>/fixtures/base.apk\",\n    \"fileSize\": 1608,\n    \"minSdk\": null,\n    \"nativeLibraries\": [\n      \"lib/arm64-v8a/libnative.so\"\n    ],\n    \"packageName\": \"com.example.synthetic\",\n    \"resources\": [\n      \"res/drawable-xxhdpi/\\u256c\\u2561\\u256c\\u2563\\u256c\\u2551\\u2567\\u00ee\\u256c\\u255c\\u256c\\u2592.webp\",\n      \"res/values/strings.xml\"\n    ],\n    \"sha256\": \"5fe49ac9cc12e75889309794871361aaa07b15c810f762af9ece86a9e1fd27d5\",\n    \"signingCertificateSha256\": null,\n    \"splits\": [],\n    \"targetSdk\": 34,\n    \"versionCode\": 2147483647,\n    \"versionName\": \"1.0-\\u0394\",\n    \"warnings\": []\n  },\n  \"removedAssets\": [\n    \"assets/callback.txt\",\n    \"assets/unicode-\\u251c\\u2310.txt\"\n  ],\n  \"removedComponents\": [],\n  \"removedNativeLibraries\": [\n    \"lib/arm64-v8a/libnative.so\"\n  ],\n  \"removedPermissions\": [],\n  \"removedSplits\": [],\n  \"signerChanged\": false,\n  \"versionChanged\": true,\n  \"versionCodeDelta\": -1\n}\n",
+      "stderr": "",
+      "stdoutJson": {
+        "addedAssets": [
+          "assets/version.txt"
+        ],
+        "addedComponents": [],
+        "addedNativeLibraries": [],
+        "addedPermissions": [],
+        "addedSplits": [],
+        "classesDiff": {},
+        "dexClassesDelta": -1,
+        "dexMethodsDelta": -2,
+        "modifiedAssets": [],
+        "modifiedNativeLibraries": [],
+        "modifiedSplits": [],
+        "new": {
+          "assets": [
+            "assets/version.txt"
+          ],
+          "containerType": "APK",
+          "dexClassesCount": 3,
+          "dexFiles": [
+            "classes.dex"
+          ],
+          "dexMethodsCount": 7,
+          "filePath": "<sandbox>/fixtures/base2.apk",
+          "fileSize": 656,
+          "minSdk": null,
+          "nativeLibraries": [],
+          "packageName": "com.example.synthetic",
+          "resources": [],
+          "sha256": "5922c18b1fd9c9c5e3161e0b5aabb9b6b24e8384b178df5db1b640f4812a8ce2",
+          "signingCertificateSha256": null,
+          "splits": [],
+          "targetSdk": 34,
+          "versionCode": 2147483646,
+          "versionName": "0.9-Δ",
+          "warnings": []
+        },
+        "old": {
+          "assets": [
+            "assets/callback.txt",
+            "assets/unicode-├⌐.txt"
+          ],
+          "containerType": "APK",
+          "dexClassesCount": 4,
+          "dexFiles": [
+            "classes.dex",
+            "classes2.dex"
+          ],
+          "dexMethodsCount": 9,
+          "filePath": "<sandbox>/fixtures/base.apk",
+          "fileSize": 1608,
+          "minSdk": null,
+          "nativeLibraries": [
+            "lib/arm64-v8a/libnative.so"
+          ],
+          "packageName": "com.example.synthetic",
+          "resources": [
+            "res/drawable-xxhdpi/╬╡╬╣╬║╧î╬╜╬▒.webp",
+            "res/values/strings.xml"
+          ],
+          "sha256": "5fe49ac9cc12e75889309794871361aaa07b15c810f762af9ece86a9e1fd27d5",
+          "signingCertificateSha256": null,
+          "splits": [],
+          "targetSdk": 34,
+          "versionCode": 2147483647,
+          "versionName": "1.0-Δ",
+          "warnings": []
+        },
+        "removedAssets": [
+          "assets/callback.txt",
+          "assets/unicode-├⌐.txt"
+        ],
+        "removedComponents": [],
+        "removedNativeLibraries": [
+          "lib/arm64-v8a/libnative.so"
+        ],
+        "removedPermissions": [],
+        "removedSplits": [],
+        "signerChanged": false,
+        "versionChanged": true,
+        "versionCodeDelta": -1
+      },
+      "files": [],
+      "inputs": [
+        {
+          "path": "<sandbox>/fixtures/base.apk",
+          "sha256": "5fe49ac9cc12e75889309794871361aaa07b15c810f762af9ece86a9e1fd27d5",
+          "size": 1608
+        },
+        {
+          "path": "<sandbox>/fixtures/base2.apk",
+          "sha256": "5922c18b1fd9c9c5e3161e0b5aabb9b6b24e8384b178df5db1b640f4812a8ce2",
+          "size": 656
+        }
+      ]
+    },
+    {
+      "id": "usage-invalid-option",
+      "argv": [
+        "inspect",
+        "--bogus"
+      ],
+      "exitCode": 2,
+      "stdout": "",
+      "stderr": "usage: apk-lab inspect [-h] [--json [JSON]] artifact\napk-lab inspect: error: the following arguments are required: artifact\n",
+      "stdoutJson": null,
+      "files": [],
+      "inputs": []
+    },
+    {
+      "id": "clean-valid-workspace-run",
+      "argv": [
+        "--workspace-root",
+        ".apk-lab",
+        "clean",
+        "--run",
+        ".apk-lab/com.example.synthetic/2147483647-abcdefabcdef/0123456789ab"
+      ],
+      "exitCode": 0,
+      "stdout": "Removed run: .apk-lab/com.example.synthetic/2147483647-abcdefabcdef/0123456789ab\n",
+      "stderr": "",
+      "stdoutJson": null,
+      "files": [
+        {
+          "path": "<sandbox>/cases/.apk-lab/keep.txt",
+          "sha256": "ca65f5398fac61210086413448ed2c6bb0f020f3bf34f60cb87070a06fad4f0b",
+          "size": 28,
+          "content": "kept outside the managed run"
+        }
+      ],
+      "inputs": []
+    },
+    {
+      "id": "clean-malformed-marker-rejected",
+      "argv": [
+        "--workspace-root",
+        ".apk-lab",
+        "clean",
+        "--run",
+        ".apk-lab/com.example.synthetic/2147483647-abcdefabcdef/0123456789ab"
+      ],
+      "exitCode": 2,
+      "stdout": "",
+      "stderr": "Workspace error: Unsupported marker schema in <sandbox>/cases/clean-malformed-marker-rejected/.apk-lab/com.example.synthetic/2147483647-abcdefabcdef/0123456789ab\n",
+      "stdoutJson": null,
+      "files": [
+        {
+          "path": "<sandbox>/cases/.apk-lab/com.example.synthetic/2147483647-abcdefabcdef/0123456789ab/.marker.json",
+          "sha256": "5b3c2d773486cb285a22fe19973d2cd4ef1f4be146760063baa53d421336b6e1",
+          "size": 291,
+          "content": "{\n  \"command\": \"inspect\",\n  \"configDigest\": \"0123456789ab\",\n  \"createdAt\": \"2026-01-01T00:00:00+00:00\",\n  \"inputCanonicalPath\": \"<sandbox>/fixtures/base.apk\",\n  \"inputSha256\": \"abcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcdefabcd\",\n  \"schemaVersion\": 999,\n  \"toolVersions\": {}\n}\n"
+        },
+        {
+          "path": "<sandbox>/cases/.apk-lab/com.example.synthetic/2147483647-abcdefabcdef/0123456789ab/payload.bin",
+          "sha256": "ea41daff0c33ba08e3fdae9b8d11d84f0fe5c631ac59a92c7c7d185d91cd3623",
+          "size": 27,
+          "content": "synthetic workspace payload"
+        },
+        {
+          "path": "<sandbox>/cases/.apk-lab/keep.txt",
+          "sha256": "ca65f5398fac61210086413448ed2c6bb0f020f3bf34f60cb87070a06fad4f0b",
+          "size": 28,
+          "content": "kept outside the managed run"
+        }
+      ],
+      "inputs": []
+    },
+    {
+      "id": "archive-absolute-path-rejected",
+      "argv": [
+        "inspect",
+        "../../fixtures/absolute.apk",
+        "--json"
+      ],
+      "exitCode": 3,
+      "stdout": "",
+      "stderr": "Inspection error: Security validation failed: Absolute path in archive entry: /absolute.txt\n",
+      "stdoutJson": null,
+      "files": [],
+      "inputs": [
+        {
+          "path": "<sandbox>/fixtures/absolute.apk",
+          "sha256": "f6e1cf1edf0c196e1798c6dccf34b249a9747b5cd4b61d9c8ce298a9644f6a8c",
+          "size": 145
+        }
+      ]
+    },
+    {
+      "id": "archive-duplicate-entry-rejected",
+      "argv": [
+        "inspect",
+        "../../fixtures/duplicate.apk",
+        "--json"
+      ],
+      "exitCode": 3,
+      "stdout": "",
+      "stderr": "Inspection error: Security validation failed: Duplicate entry in archive: duplicate.txt\n",
+      "stdoutJson": null,
+      "files": [],
+      "inputs": [
+        {
+          "path": "<sandbox>/fixtures/duplicate.apk",
+          "sha256": "3e990a2b72fe6236423ca2bf8df22e953f8a01c877067992fd6590d4fae8456b",
+          "size": 247
+        }
+      ]
+    },
+    {
+      "id": "archive-truncated-rejected",
+      "argv": [
+        "inspect",
+        "../../fixtures/truncated.apk",
+        "--json"
+      ],
+      "exitCode": 3,
+      "stdout": "",
+      "stderr": "Inspection error: Security validation failed: Corrupt or invalid zip archive: File is not a zip file\n",
+      "stdoutJson": null,
+      "files": [],
+      "inputs": [
+        {
+          "path": "<sandbox>/fixtures/truncated.apk",
+          "sha256": "ec50991945972d303865af10055c76b7ad142b6a6bc078d91204f1fb6aa462d1",
+          "size": 21
+        }
+      ]
+    },
+    {
+      "id": "inspect-nested-split-container",
+      "argv": [
+        "inspect",
+        "../../fixtures/nested.apkm",
+        "--json"
+      ],
+      "exitCode": 0,
+      "stdout": "{\n  \"assets\": [\n    \"assets/callback.txt\",\n    \"assets/unicode-\\u251c\\u2310.txt\"\n  ],\n  \"containerType\": \"APKM\",\n  \"dexClassesCount\": 5,\n  \"dexFiles\": [\n    \"splits/base.apk:classes.dex\",\n    \"splits/base.apk:classes2.dex\",\n    \"splits/split_config.arm64_v8a.apk:classes.dex\"\n  ],\n  \"dexMethodsCount\": 11,\n  \"filePath\": \"<sandbox>/fixtures/nested.apkm\",\n  \"fileSize\": 2442,\n  \"minSdk\": null,\n  \"nativeLibraries\": [\n    \"lib/arm64-v8a/libnative.so\",\n    \"lib/arm64-v8a/libsplit.so\"\n  ],\n  \"packageName\": \"com.example.synthetic\",\n  \"resources\": [\n    \"res/drawable-xxhdpi/\\u256c\\u2561\\u256c\\u2563\\u256c\\u2551\\u2567\\u00ee\\u256c\\u255c\\u256c\\u2592.webp\",\n    \"res/values/strings.xml\"\n  ],\n  \"sha256\": \"28a3c7bf67ae94707970bc31fceac93112aa91209d8b0d1f9ba23f4751eb3a42\",\n  \"signingCertificateSha256\": null,\n  \"splits\": [\n    {\n      \"filename\": \"splits/base.apk\",\n      \"isBase\": true,\n      \"sha256\": \"5fe49ac9cc12e75889309794871361aaa07b15c810f762af9ece86a9e1fd27d5\",\n      \"size\": 1608,\n      \"splitName\": \"base\"\n    },\n    {\n      \"filename\": \"splits/split_config.arm64_v8a.apk\",\n      \"isBase\": false,\n      \"sha256\": \"1d3933dbbfe443170cbe2f513ba6feb0c64eb97f4b5d770ca680883f21e8aac9\",\n      \"size\": 564,\n      \"splitName\": \"config.arm64_v8a\"\n    }\n  ],\n  \"targetSdk\": 34,\n  \"versionCode\": 2147483647,\n  \"versionName\": \"1.0-\\u0394\",\n  \"warnings\": []\n}\n",
+      "stderr": "",
+      "stdoutJson": {
+        "assets": [
+          "assets/callback.txt",
+          "assets/unicode-├⌐.txt"
+        ],
+        "containerType": "APKM",
+        "dexClassesCount": 5,
+        "dexFiles": [
+          "splits/base.apk:classes.dex",
+          "splits/base.apk:classes2.dex",
+          "splits/split_config.arm64_v8a.apk:classes.dex"
+        ],
+        "dexMethodsCount": 11,
+        "filePath": "<sandbox>/fixtures/nested.apkm",
+        "fileSize": 2442,
+        "minSdk": null,
+        "nativeLibraries": [
+          "lib/arm64-v8a/libnative.so",
+          "lib/arm64-v8a/libsplit.so"
+        ],
+        "packageName": "com.example.synthetic",
+        "resources": [
+          "res/drawable-xxhdpi/╬╡╬╣╬║╧î╬╜╬▒.webp",
+          "res/values/strings.xml"
+        ],
+        "sha256": "28a3c7bf67ae94707970bc31fceac93112aa91209d8b0d1f9ba23f4751eb3a42",
+        "signingCertificateSha256": null,
+        "splits": [
+          {
+            "filename": "splits/base.apk",
+            "isBase": true,
+            "sha256": "5fe49ac9cc12e75889309794871361aaa07b15c810f762af9ece86a9e1fd27d5",
+            "size": 1608,
+            "splitName": "base"
+          },
+          {
+            "filename": "splits/split_config.arm64_v8a.apk",
+            "isBase": false,
+            "sha256": "1d3933dbbfe443170cbe2f513ba6feb0c64eb97f4b5d770ca680883f21e8aac9",
+            "size": 564,
+            "splitName": "config.arm64_v8a"
+          }
+        ],
+        "targetSdk": 34,
+        "versionCode": 2147483647,
+        "versionName": "1.0-Δ",
+        "warnings": []
+      },
+      "files": [],
+      "inputs": [
+        {
+          "path": "<sandbox>/fixtures/nested.apkm",
+          "sha256": "28a3c7bf67ae94707970bc31fceac93112aa91209d8b0d1f9ba23f4751eb3a42",
+          "size": 2442
+        }
+      ]
+    },
+    {
+      "id": "unity-gameobject-json",
+      "argv": [
+        "unity",
+        "../../fixtures/unity.apk",
+        "--gameobject",
+        "Button_HelpCenter",
+        "--json"
+      ],
+      "exitCode": 0,
+      "stdout": "[\n  {\n    \"file_offset\": 32,\n    \"is_active_offset\": 58,\n    \"is_active_offset_hex\": \"0x3a\",\n    \"is_active_value\": 0,\n    \"member\": \"assets/bin/Data/sharedassets0.assets\",\n    \"name\": \"Button_HelpCenter\",\n    \"path_id\": 0\n  }\n]\n",
+      "stderr": "",
+      "stdoutJson": [
+        {
+          "file_offset": 32,
+          "is_active_offset": 58,
+          "is_active_offset_hex": "0x3a",
+          "is_active_value": 0,
+          "member": "assets/bin/Data/sharedassets0.assets",
+          "name": "Button_HelpCenter",
+          "path_id": 0
+        }
+      ],
+      "files": [],
+      "inputs": [
+        {
+          "path": "<sandbox>/fixtures/unity.apk",
+          "sha256": "d7826f2cb511bd8d0a4851e9312929a37d5b6d4108924d6e0d864d6652b5617e",
+          "size": 402
+        }
+      ]
+    },
+    {
+      "id": "unity-gameobject-missing",
+      "argv": [
+        "unity",
+        "../../fixtures/unity.apk",
+        "--gameobject",
+        "Button_Missing",
+        "--json"
+      ],
+      "exitCode": 0,
+      "stdout": "[]\n",
+      "stderr": "",
+      "stdoutJson": [],
+      "files": [],
+      "inputs": [
+        {
+          "path": "<sandbox>/fixtures/unity.apk",
+          "sha256": "d7826f2cb511bd8d0a4851e9312929a37d5b6d4108924d6e0d864d6652b5617e",
+          "size": 402
+        }
+      ]
+    },
+    {
+      "id": "il2cpp-symbol-json",
+      "argv": [
+        "il2cpp",
+        "../../fixtures/il2cpp.apk",
+        "--query",
+        "OpenShop",
+        "--json"
+      ],
+      "exitCode": 0,
+      "stdout": "[\n  {\n    \"method\": \"OpenShop\",\n    \"namespace\": \"TestNamespace\",\n    \"parameters_count\": 1,\n    \"type\": \"BlackjackApplication\"\n  }\n]\n",
+      "stderr": "",
+      "stdoutJson": [
+        {
+          "method": "OpenShop",
+          "namespace": "TestNamespace",
+          "parameters_count": 1,
+          "type": "BlackjackApplication"
+        }
+      ],
+      "files": [],
+      "inputs": [
+        {
+          "path": "<sandbox>/fixtures/il2cpp.apk",
+          "sha256": "79d1b646f73fe6af19b15672db7880f48a6a379bc82ee12158b08731cd02c986",
+          "size": 987
+        }
+      ]
+    },
+    {
+      "id": "il2cpp-corrupt-table",
+      "argv": [
+        "il2cpp",
+        "../../fixtures/il2cpp-corrupt.apk",
+        "--query",
+        "OpenShop",
+        "--json"
+      ],
+      "exitCode": 2,
+      "stdout": "",
+      "stderr": "IL2CPP metadata error: Methods table size (33 bytes) is not a multiple of record size (32 bytes)\n",
+      "stdoutJson": null,
+      "files": [],
+      "inputs": [
+        {
+          "path": "<sandbox>/fixtures/il2cpp-corrupt.apk",
+          "sha256": "b8efc0f8a71557c09be7c9552a4e873d3861a865b4bfa7216836f2069d8494b3",
+          "size": 848
+        }
+      ]
+    },
+    {
+      "id": "res-type-name-query",
+      "argv": [
+        "res",
+        "../../fixtures/base.apk",
+        "--query",
+        "@drawable/icon"
+      ],
+      "exitCode": 0,
+      "stdout": "Found 1 matching resources:\n0x7f08028e | drawable/icon | xxhdpi | base:res/drawable-xxhdpi/icon.webp | resourcePatch | unique\n",
+      "stderr": "",
+      "stdoutJson": null,
+      "files": [],
+      "inputs": [
+        {
+          "path": "<sandbox>/fixtures/base.apk",
+          "sha256": "5fe49ac9cc12e75889309794871361aaa07b15c810f762af9ece86a9e1fd27d5",
+          "size": 1608
+        }
+      ]
+    },
+    {
+      "id": "res-unicode-path-query",
+      "argv": [
+        "res",
+        "../../fixtures/base.apk",
+        "--query",
+        "res/drawable-xxhdpi/εικόνα.webp"
+      ],
+      "exitCode": 0,
+      "stdout": "Found 1 matching resources:\n0x7f08028f | drawable/εικόνα | xxhdpi | base:res/drawable-xxhdpi/εικόνα.webp | resourcePatch | unique\n",
+      "stderr": "",
+      "stdoutJson": null,
+      "files": [],
+      "inputs": [
+        {
+          "path": "<sandbox>/fixtures/base.apk",
+          "sha256": "5fe49ac9cc12e75889309794871361aaa07b15c810f762af9ece86a9e1fd27d5",
+          "size": 1608
+        }
+      ]
+    },
+    {
+      "id": "res-invalid-query",
+      "argv": [
+        "res",
+        "../../fixtures/base.apk",
+        "--query",
+        "../escape.png"
+      ],
+      "exitCode": 2,
+      "stdout": "",
+      "stderr": "Resource inspection error: Resource query contains path traversal or absolute path: '../escape.png'\n",
+      "stdoutJson": null,
+      "files": [],
+      "inputs": [
+        {
+          "path": "<sandbox>/fixtures/base.apk",
+          "sha256": "5fe49ac9cc12e75889309794871361aaa07b15c810f762af9ece86a9e1fd27d5",
+          "size": 1608
+        }
+      ]
+    },
+    {
+      "id": "compatibility-ci-matrix",
+      "argv": [
+        "module:apk_lab.compatibility_ci",
+        "matrix",
+        "--patches-list",
+        "../../fixtures/patches-list.json",
+        "--output-file",
+        "matrix.out"
+      ],
+      "exitCode": 0,
+      "stdout": "packages=[\"com.example.synthetic\"]\n",
+      "stderr": "",
+      "stdoutJson": null,
+      "files": [
+        {
+          "path": "<sandbox>/cases/matrix.out",
+          "sha256": "eb08b9263ccd789e53c1703e1a3a25bf9cd881496dcd1f4e16ccd436e05f4af4",
+          "size": 35,
+          "content": "packages=[\"com.example.synthetic\"]\n"
+        }
+      ],
+      "inputs": [
+        {
+          "path": "<sandbox>/fixtures/patches-list.json",
+          "sha256": "a6c80613fa2596aa3f10827d27c9d4b6a7afac154760738c074d2ed294e41808",
+          "size": 1191
+        }
+      ]
+    },
+    {
+      "id": "morphe-independent-boolean",
+      "argv": [
+        "script:morphe-independent-boolean",
+        "../../fixtures/patches-list.json"
+      ],
+      "exitCode": 0,
+      "stdout": "{\n  \"patches\": [\n    {\n      \"cases\": [\n        {\n          \"dependencies\": [\n            \"Base Patch\"\n          ],\n          \"options\": {\n            \"alpha\": false,\n            \"beta\": true,\n            \"mode\": \"fast\"\n          }\n        },\n        {\n          \"dependencies\": [\n            \"Base Patch\"\n          ],\n          \"options\": {\n            \"alpha\": true,\n            \"beta\": true,\n            \"mode\": \"fast\"\n          }\n        },\n        {\n          \"dependencies\": [\n            \"Base Patch\"\n          ],\n          \"options\": {\n            \"alpha\": false,\n            \"beta\": false,\n            \"mode\": \"fast\"\n          }\n        }\n      ],\n      \"patch\": \"Boolean Patch\"\n    }\n  ]\n}\n",
+      "stderr": "",
+      "stdoutJson": {
+        "patches": [
+          {
+            "cases": [
+              {
+                "dependencies": [
+                  "Base Patch"
+                ],
+                "options": {
+                  "alpha": false,
+                  "beta": true,
+                  "mode": "fast"
+                }
+              },
+              {
+                "dependencies": [
+                  "Base Patch"
+                ],
+                "options": {
+                  "alpha": true,
+                  "beta": true,
+                  "mode": "fast"
+                }
+              },
+              {
+                "dependencies": [
+                  "Base Patch"
+                ],
+                "options": {
+                  "alpha": false,
+                  "beta": false,
+                  "mode": "fast"
+                }
+              }
+            ],
+            "patch": "Boolean Patch"
+          }
+        ]
+      },
+      "files": [],
+      "inputs": [
+        {
+          "path": "<sandbox>/fixtures/patches-list.json",
+          "sha256": "a6c80613fa2596aa3f10827d27c9d4b6a7afac154760738c074d2ed294e41808",
+          "size": 1191
+        }
+      ]
+    },
+    {
+      "id": "resource-dump-boundaries",
+      "argv": [
+        "script:resource-dump-boundaries"
+      ],
+      "exitCode": 0,
+      "stdout": "{\n  \"entries\": [\n    {\n      \"container_member\": null,\n      \"package_name\": \"com.example.synthetic\",\n      \"path\": null,\n      \"qualifier\": null,\n      \"resource_id\": \"0x7f010001\",\n      \"resource_name\": \"app_name\",\n      \"resource_type\": \"string\",\n      \"split_name\": \"base\",\n      \"value\": \"\\\"Synthetic Δ App\\\"\"\n    },\n    {\n      \"container_member\": null,\n      \"package_name\": \"com.example.synthetic\",\n      \"path\": null,\n      \"qualifier\": \"fr\",\n      \"resource_id\": \"0x7f010001\",\n      \"resource_name\": \"app_name\",\n      \"resource_type\": \"string\",\n      \"split_name\": \"base\",\n      \"value\": \"\\\"Appli Δ\\\"\"\n    },\n    {\n      \"container_member\": null,\n      \"package_name\": \"com.example.synthetic\",\n      \"path\": \"res/drawable-xxhdpi/icon.webp\",\n      \"qualifier\": \"xxhdpi\",\n      \"resource_id\": \"0x7f08028e\",\n      \"resource_name\": \"icon\",\n      \"resource_type\": \"drawable\",\n      \"split_name\": \"base\",\n      \"value\": null\n    }\n  ],\n  \"errors\": [\n    {\n      \"error\": \"Resource query contains path traversal or absolute path: '../escape.png'\",\n      \"query\": \"../escape.png\"\n    },\n    {\n      \"error\": \"Resource query contains path traversal or absolute path: '/etc/passwd'\",\n      \"query\": \"/etc/passwd\"\n    },\n    {\n      \"error\": \"Resource query contains invalid control characters: 'res/icon\\\\x00.png'\",\n      \"query\": \"res/icon\\u0000.png\"\n    },\n    {\n      \"error\": \"Resource query cannot be empty\",\n      \"query\": \"   \"\n    }\n  ],\n  \"queries\": {\n    \"0x7f08028e\": {\n      \"kind\": \"id\",\n      \"package_name\": null,\n      \"path\": null,\n      \"resource_id\": \"0x7f08028e\",\n      \"resource_name\": null,\n      \"resource_type\": null,\n      \"text_value\": null\n    },\n    \"@drawable/icon\": {\n      \"kind\": \"type_name\",\n      \"package_name\": null,\n      \"path\": null,\n      \"resource_id\": null,\n      \"resource_name\": \"icon\",\n      \"resource_type\": \"drawable\",\n      \"text_value\": null\n    },\n    \"res/drawable-xxhdpi/icon.webp\": {\n      \"kind\": \"path\",\n      \"package_name\": null,\n      \"path\": \"res/drawable-xxhdpi/icon.webp\",\n      \"resource_id\": null,\n      \"resource_name\": null,\n      \"resource_type\": null,\n      \"text_value\": null\n    },\n    \"text:Appli Δ\": {\n      \"kind\": \"value\",\n      \"package_name\": null,\n      \"path\": null,\n      \"resource_id\": null,\n      \"resource_name\": null,\n      \"resource_type\": null,\n      \"text_value\": \"Appli Δ\"\n    }\n  }\n}\n",
+      "stderr": "",
+      "stdoutJson": {
+        "entries": [
+          {
+            "container_member": null,
+            "package_name": "com.example.synthetic",
+            "path": null,
+            "qualifier": null,
+            "resource_id": "0x7f010001",
+            "resource_name": "app_name",
+            "resource_type": "string",
+            "split_name": "base",
+            "value": "\"Synthetic Δ App\""
+          },
+          {
+            "container_member": null,
+            "package_name": "com.example.synthetic",
+            "path": null,
+            "qualifier": "fr",
+            "resource_id": "0x7f010001",
+            "resource_name": "app_name",
+            "resource_type": "string",
+            "split_name": "base",
+            "value": "\"Appli Δ\""
+          },
+          {
+            "container_member": null,
+            "package_name": "com.example.synthetic",
+            "path": "res/drawable-xxhdpi/icon.webp",
+            "qualifier": "xxhdpi",
+            "resource_id": "0x7f08028e",
+            "resource_name": "icon",
+            "resource_type": "drawable",
+            "split_name": "base",
+            "value": null
+          }
+        ],
+        "errors": [
+          {
+            "error": "Resource query contains path traversal or absolute path: '../escape.png'",
+            "query": "../escape.png"
+          },
+          {
+            "error": "Resource query contains path traversal or absolute path: '/etc/passwd'",
+            "query": "/etc/passwd"
+          },
+          {
+            "error": "Resource query contains invalid control characters: 'res/icon\\x00.png'",
+            "query": "res/icon\u0000.png"
+          },
+          {
+            "error": "Resource query cannot be empty",
+            "query": "   "
+          }
+        ],
+        "queries": {
+          "0x7f08028e": {
+            "kind": "id",
+            "package_name": null,
+            "path": null,
+            "resource_id": "0x7f08028e",
+            "resource_name": null,
+            "resource_type": null,
+            "text_value": null
+          },
+          "@drawable/icon": {
+            "kind": "type_name",
+            "package_name": null,
+            "path": null,
+            "resource_id": null,
+            "resource_name": "icon",
+            "resource_type": "drawable",
+            "text_value": null
+          },
+          "res/drawable-xxhdpi/icon.webp": {
+            "kind": "path",
+            "package_name": null,
+            "path": "res/drawable-xxhdpi/icon.webp",
+            "resource_id": null,
+            "resource_name": null,
+            "resource_type": null,
+            "text_value": null
+          },
+          "text:Appli Δ": {
+            "kind": "value",
+            "package_name": null,
+            "path": null,
+            "resource_id": null,
+            "resource_name": null,
+            "resource_type": null,
+            "text_value": "Appli Δ"
+          }
+        }
+      },
+      "files": [],
+      "inputs": []
+    },
+    {
+      "id": "adb-log-boundaries",
+      "argv": [
+        "script:adb-log-boundaries"
+      ],
+      "exitCode": 0,
+      "stdout": "{\n  \"bounds\": [\n    0,\n    0,\n    1080,\n    1920\n  ],\n  \"devices\": [\n    {\n      \"serial\": \"emulator-5554\",\n      \"state\": \"device\"\n    },\n    {\n      \"serial\": \"emulator-5556\",\n      \"state\": \"offline\"\n    },\n    {\n      \"serial\": \"192.168.1.100:5555\",\n      \"state\": \"unauthorized\"\n    }\n  ],\n  \"pids\": {\n    \"brief\": 9999,\n    \"epoch\": 1234,\n    \"invalid\": null,\n    \"threadtime\": 5678\n  },\n  \"records\": [\n    {\n      \"description\": \"Process failed to complete startup\",\n      \"pid\": 4321,\n      \"reason_code\": 6,\n      \"reason_name\": \"ANR\",\n      \"subreason_code\": 34,\n      \"subreason_name\": \"BIND APPLICATION ANR\",\n      \"timestamp\": 1710000005000\n    },\n    {\n      \"description\": \"SIGSEGV\",\n      \"pid\": 4320,\n      \"reason_code\": 5,\n      \"reason_name\": \"CRASH_NATIVE\",\n      \"subreason_code\": 0,\n      \"subreason_name\": null,\n      \"timestamp\": 1710000001000\n    },\n    {\n      \"description\": \"java.lang.NullPointerException\",\n      \"pid\": 4310,\n      \"reason_code\": 4,\n      \"reason_name\": \"CRASH\",\n      \"subreason_code\": null,\n      \"subreason_name\": null,\n      \"timestamp\": 1709000000000\n    }\n  ]\n}\n",
+      "stderr": "",
+      "stdoutJson": {
+        "bounds": [
+          0,
+          0,
+          1080,
+          1920
+        ],
+        "devices": [
+          {
+            "serial": "emulator-5554",
+            "state": "device"
+          },
+          {
+            "serial": "emulator-5556",
+            "state": "offline"
+          },
+          {
+            "serial": "192.168.1.100:5555",
+            "state": "unauthorized"
+          }
+        ],
+        "pids": {
+          "brief": 9999,
+          "epoch": 1234,
+          "invalid": null,
+          "threadtime": 5678
+        },
+        "records": [
+          {
+            "description": "Process failed to complete startup",
+            "pid": 4321,
+            "reason_code": 6,
+            "reason_name": "ANR",
+            "subreason_code": 34,
+            "subreason_name": "BIND APPLICATION ANR",
+            "timestamp": 1710000005000
+          },
+          {
+            "description": "SIGSEGV",
+            "pid": 4320,
+            "reason_code": 5,
+            "reason_name": "CRASH_NATIVE",
+            "subreason_code": 0,
+            "subreason_name": null,
+            "timestamp": 1710000001000
+          },
+          {
+            "description": "java.lang.NullPointerException",
+            "pid": 4310,
+            "reason_code": 4,
+            "reason_name": "CRASH",
+            "subreason_code": null,
+            "subreason_name": null,
+            "timestamp": 1709000000000
+          }
+        ]
+      },
+      "files": [],
+      "inputs": []
+    },
+    {
+      "id": "tty-non-tty-diff",
+      "argv": [
+        "script:tty-non-tty-diff"
+      ],
+      "exitCode": 0,
+      "stdout": "{\"nonTty\": \"--- a/Example.java\\n+++ b/Example.java\\n@@ -1,1 +1,1 @@\\n-old value\\n+new value\\n context line\\n\", \"nonTtyBytesHex\": \"2d2d2d20612f4578616d706c652e6a6176610a2b2b2b20622f4578616d706c652e6a6176610a4040202d312c31202b312c312040400a2d6f6c642076616c75650a2b6e65772076616c75650a20636f6e74657874206c696e650a\", \"nonTtyColored\": false, \"nonTtyExit\": 0, \"nonTtyIsatty\": false, \"nonTtySource\": \"subprocess.PIPE\", \"tty\": \"\\u001b[1m--- a/Example.java\\u001b[0m\\r\\n\\u001b[1m+++ b/Example.java\\u001b[0m\\r\\n\\u001b[36m@@ -1,1 +1,1 @@\\u001b[0m\\r\\n\\u001b[31m-old value\\u001b[0m\\r\\n\\u001b[32m+new value\\u001b[0m\\r\\n context line\\r\\n\", \"ttyBytesHex\": \"1b5b316d2d2d2d20612f4578616d706c652e6a6176611b5b306d0d0a1b5b316d2b2b2b20622f4578616d706c652e6a6176611b5b306d0d0a1b5b33366d4040202d312c31202b312c312040401b5b306d0d0a1b5b33316d2d6f6c642076616c75651b5b306d0d0a1b5b33326d2b6e65772076616c75651b5b306d0d0a20636f6e74657874206c696e650d0a\", \"ttyColored\": true, \"ttyExit\": 0, \"ttyIsatty\": true, \"ttySource\": \"os.openpty\"}\n",
+      "stderr": "",
+      "stdoutJson": {
+        "nonTty": "--- a/Example.java\n+++ b/Example.java\n@@ -1,1 +1,1 @@\n-old value\n+new value\n context line\n",
+        "nonTtyBytesHex": "2d2d2d20612f4578616d706c652e6a6176610a2b2b2b20622f4578616d706c652e6a6176610a4040202d312c31202b312c312040400a2d6f6c642076616c75650a2b6e65772076616c75650a20636f6e74657874206c696e650a",
+        "nonTtyColored": false,
+        "nonTtyExit": 0,
+        "nonTtyIsatty": false,
+        "nonTtySource": "subprocess.PIPE",
+        "tty": "\u001b[1m--- a/Example.java\u001b[0m\r\n\u001b[1m+++ b/Example.java\u001b[0m\r\n\u001b[36m@@ -1,1 +1,1 @@\u001b[0m\r\n\u001b[31m-old value\u001b[0m\r\n\u001b[32m+new value\u001b[0m\r\n context line\r\n",
+        "ttyBytesHex": "1b5b316d2d2d2d20612f4578616d706c652e6a6176611b5b306d0d0a1b5b316d2b2b2b20622f4578616d706c652e6a6176611b5b306d0d0a1b5b33366d4040202d312c31202b312c312040401b5b306d0d0a1b5b33316d2d6f6c642076616c75651b5b306d0d0a1b5b33326d2b6e65772076616c75651b5b306d0d0a20636f6e74657874206c696e650d0a",
+        "ttyColored": true,
+        "ttyExit": 0,
+        "ttyIsatty": true,
+        "ttySource": "os.openpty"
+      },
+      "files": [],
+      "inputs": []
+    },
+    {
+      "id": "broken-pipe-success",
+      "argv": [
+        "script:broken-pipe-success",
+        "../../fixtures/base.apk"
+      ],
+      "exitCode": 0,
+      "stdout": "{\"attempted\": \"[base:classes.dex] Αρχείο-Δοκιμής\\n[base:classes2.dex] Δεύτερο\\n\", \"attemptedBytesHex\": \"5b626173653a636c61737365732e6465785d20ce91cf81cf87ceb5ceafcebf2dce94cebfcebaceb9cebcceaecf820a5b626173653a636c6173736573322e6465785d20ce94ceb5cf8dcf84ceb5cf81cebf0a\", \"code\": 0, \"errno\": 32, \"errnoName\": \"EPIPE\", \"isatty\": false, \"processExit\": 0, \"raised\": true, \"shutdownFlushFailure\": false, \"source\": \"os.pipe consumer-closed\", \"writes\": [\"[base:classes.dex] Αρχείο-Δοκιμής\", \"\\n\", \"[base:classes2.dex] Δεύτερο\", \"\\n\"]}\n",
+      "stderr": "",
+      "stdoutJson": {
+        "attempted": "[base:classes.dex] Αρχείο-Δοκιμής\n[base:classes2.dex] Δεύτερο\n",
+        "attemptedBytesHex": "5b626173653a636c61737365732e6465785d20ce91cf81cf87ceb5ceafcebf2dce94cebfcebaceb9cebcceaecf820a5b626173653a636c6173736573322e6465785d20ce94ceb5cf8dcf84ceb5cf81cebf0a",
+        "code": 0,
+        "errno": 32,
+        "errnoName": "EPIPE",
+        "isatty": false,
+        "processExit": 0,
+        "raised": true,
+        "shutdownFlushFailure": false,
+        "source": "os.pipe consumer-closed",
+        "writes": [
+          "[base:classes.dex] Αρχείο-Δοκιμής",
+          "\n",
+          "[base:classes2.dex] Δεύτερο",
+          "\n"
+        ]
+      },
+      "files": [],
+      "inputs": [
+        {
+          "path": "<sandbox>/fixtures/base.apk",
+          "sha256": "5fe49ac9cc12e75889309794871361aaa07b15c810f762af9ece86a9e1fd27d5",
+          "size": 1608
+        }
+      ]
+    },
+    {
+      "id": "ci-callback-persistence",
+      "argv": [
+        "script:ci-callback-persistence",
+        "../../fixtures/patches-list.json"
+      ],
+      "exitCode": 0,
+      "stdout": "{\n  \"failure\": {\n    \"logs\": \"Failed to post run start to Worker: HTTP Error 500: Internal Server Error\\nChecking com.example.synthetic with target version 9.9.9, requested_roles=None\\nTarget compatibility: compatible (3/3)\\nFailed to post results to worker: HTTP Error 500: Internal Server Error\\n\",\n    \"marker\": null,\n    \"requests\": [\n      {\n        \"authorization\": \"Bearer test-secret\",\n        \"body\": {\n          \"appName\": \"Synthetic App\",\n          \"gitRevision\": \"deadbeef\",\n          \"packageName\": \"com.example.synthetic\",\n          \"requestId\": \"req-fail\",\n          \"supportedVersions\": [\n            \"9.9.9\"\n          ],\n          \"targetVersion\": \"9.9.9\"\n        },\n        \"path\": \"/api/compatibility-runs\"\n      },\n      {\n        \"authorization\": \"Bearer test-secret\",\n        \"body\": {\n          \"packageName\": \"com.example.synthetic\",\n          \"requestId\": \"req-fail\",\n          \"results\": [\n            {\n              \"failedCount\": 0,\n              \"failureReason\": null,\n              \"gitRevision\": \"deadbeef\",\n              \"passedCount\": 3,\n              \"patchBundleVersion\": \"test-1\",\n              \"role\": \"target\",\n              \"status\": \"compatible\",\n              \"versionCode\": 999,\n              \"versionName\": \"9.9.9\",\n              \"workflowRunUrl\": null\n            }\n          ]\n        },\n        \"path\": \"/api/compatibility-results\"\n      }\n    ],\n    \"runCode\": 4,\n    \"startCode\": 4,\n    \"submission\": {\n      \"packageName\": \"com.example.synthetic\",\n      \"requestId\": \"req-fail\",\n      \"results\": [\n        {\n          \"failedCount\": 0,\n          \"failureReason\": null,\n          \"gitRevision\": \"deadbeef\",\n          \"passedCount\": 3,\n          \"patchBundleVersion\": \"test-1\",\n          \"role\": \"target\",\n          \"status\": \"compatible\",\n          \"versionCode\": 999,\n          \"versionName\": \"9.9.9\",\n          \"workflowRunUrl\": null\n        }\n      ]\n    }\n  },\n  \"success\": {\n    \"logs\": \"Registered run start for com.example.synthetic: HTTP 200\\nChecking com.example.synthetic with target version 9.9.9, requested_roles=None\\nTarget compatibility: compatible (3/3)\\nPosted 1 results to worker: HTTP 200\\n\",\n    \"marker\": \"ok\",\n    \"requests\": [\n      {\n        \"authorization\": \"Bearer test-secret\",\n        \"body\": {\n          \"appName\": \"Synthetic App\",\n          \"gitRevision\": \"deadbeef\",\n          \"packageName\": \"com.example.synthetic\",\n          \"requestId\": \"req-123\",\n          \"supportedVersions\": [\n            \"9.9.9\"\n          ],\n          \"targetVersion\": \"9.9.9\"\n        },\n        \"path\": \"/api/compatibility-runs\"\n      },\n      {\n        \"authorization\": \"Bearer test-secret\",\n        \"body\": {\n          \"packageName\": \"com.example.synthetic\",\n          \"requestId\": \"req-123\",\n          \"results\": [\n            {\n              \"failedCount\": 0,\n              \"failureReason\": null,\n              \"gitRevision\": \"deadbeef\",\n              \"passedCount\": 3,\n              \"patchBundleVersion\": \"test-1\",\n              \"role\": \"target\",\n              \"status\": \"compatible\",\n              \"versionCode\": 999,\n              \"versionName\": \"9.9.9\",\n              \"workflowRunUrl\": null\n            }\n          ]\n        },\n        \"path\": \"/api/compatibility-results\"\n      }\n    ],\n    \"runCode\": 0,\n    \"startCode\": 0,\n    \"submission\": {\n      \"packageName\": \"com.example.synthetic\",\n      \"requestId\": \"req-123\",\n      \"results\": [\n        {\n          \"failedCount\": 0,\n          \"failureReason\": null,\n          \"gitRevision\": \"deadbeef\",\n          \"passedCount\": 3,\n          \"patchBundleVersion\": \"test-1\",\n          \"role\": \"target\",\n          \"status\": \"compatible\",\n          \"versionCode\": 999,\n          \"versionName\": \"9.9.9\",\n          \"workflowRunUrl\": null\n        }\n      ]\n    }\n  }\n}\n",
+      "stderr": "",
+      "stdoutJson": {
+        "failure": {
+          "logs": "Failed to post run start to Worker: HTTP Error 500: Internal Server Error\nChecking com.example.synthetic with target version 9.9.9, requested_roles=None\nTarget compatibility: compatible (3/3)\nFailed to post results to worker: HTTP Error 500: Internal Server Error\n",
+          "marker": null,
+          "requests": [
+            {
+              "authorization": "Bearer test-secret",
+              "body": {
+                "appName": "Synthetic App",
+                "gitRevision": "deadbeef",
+                "packageName": "com.example.synthetic",
+                "requestId": "req-fail",
+                "supportedVersions": [
+                  "9.9.9"
+                ],
+                "targetVersion": "9.9.9"
+              },
+              "path": "/api/compatibility-runs"
+            },
+            {
+              "authorization": "Bearer test-secret",
+              "body": {
+                "packageName": "com.example.synthetic",
+                "requestId": "req-fail",
+                "results": [
+                  {
+                    "failedCount": 0,
+                    "failureReason": null,
+                    "gitRevision": "deadbeef",
+                    "passedCount": 3,
+                    "patchBundleVersion": "test-1",
+                    "role": "target",
+                    "status": "compatible",
+                    "versionCode": 999,
+                    "versionName": "9.9.9",
+                    "workflowRunUrl": null
+                  }
+                ]
+              },
+              "path": "/api/compatibility-results"
+            }
+          ],
+          "runCode": 4,
+          "startCode": 4,
+          "submission": {
+            "packageName": "com.example.synthetic",
+            "requestId": "req-fail",
+            "results": [
+              {
+                "failedCount": 0,
+                "failureReason": null,
+                "gitRevision": "deadbeef",
+                "passedCount": 3,
+                "patchBundleVersion": "test-1",
+                "role": "target",
+                "status": "compatible",
+                "versionCode": 999,
+                "versionName": "9.9.9",
+                "workflowRunUrl": null
+              }
+            ]
+          }
+        },
+        "success": {
+          "logs": "Registered run start for com.example.synthetic: HTTP 200\nChecking com.example.synthetic with target version 9.9.9, requested_roles=None\nTarget compatibility: compatible (3/3)\nPosted 1 results to worker: HTTP 200\n",
+          "marker": "ok",
+          "requests": [
+            {
+              "authorization": "Bearer test-secret",
+              "body": {
+                "appName": "Synthetic App",
+                "gitRevision": "deadbeef",
+                "packageName": "com.example.synthetic",
+                "requestId": "req-123",
+                "supportedVersions": [
+                  "9.9.9"
+                ],
+                "targetVersion": "9.9.9"
+              },
+              "path": "/api/compatibility-runs"
+            },
+            {
+              "authorization": "Bearer test-secret",
+              "body": {
+                "packageName": "com.example.synthetic",
+                "requestId": "req-123",
+                "results": [
+                  {
+                    "failedCount": 0,
+                    "failureReason": null,
+                    "gitRevision": "deadbeef",
+                    "passedCount": 3,
+                    "patchBundleVersion": "test-1",
+                    "role": "target",
+                    "status": "compatible",
+                    "versionCode": 999,
+                    "versionName": "9.9.9",
+                    "workflowRunUrl": null
+                  }
+                ]
+              },
+              "path": "/api/compatibility-results"
+            }
+          ],
+          "runCode": 0,
+          "startCode": 0,
+          "submission": {
+            "packageName": "com.example.synthetic",
+            "requestId": "req-123",
+            "results": [
+              {
+                "failedCount": 0,
+                "failureReason": null,
+                "gitRevision": "deadbeef",
+                "passedCount": 3,
+                "patchBundleVersion": "test-1",
+                "role": "target",
+                "status": "compatible",
+                "versionCode": 999,
+                "versionName": "9.9.9",
+                "workflowRunUrl": null
+              }
+            ]
+          }
+        }
+      },
+      "files": [
+        {
+          "path": "<sandbox>/cases/callback.marker",
+          "sha256": "2689367b205c16ce32ed4200942b8b8b1e262dfc70d9bc9fbc77c49699a4f1df",
+          "size": 2,
+          "content": "ok"
+        },
+        {
+          "path": "<sandbox>/cases/failure-submission.json",
+          "sha256": "236c4118fd76741e606c628331423733584d8b0e4b62cb591c92237c9c479087",
+          "size": 390,
+          "content": "{\n  \"requestId\": \"req-fail\",\n  \"packageName\": \"com.example.synthetic\",\n  \"results\": [\n    {\n      \"role\": \"target\",\n      \"versionName\": \"9.9.9\",\n      \"versionCode\": 999,\n      \"patchBundleVersion\": \"test-1\",\n      \"gitRevision\": \"deadbeef\",\n      \"status\": \"compatible\",\n      \"passedCount\": 3,\n      \"failedCount\": 0,\n      \"failureReason\": null,\n      \"workflowRunUrl\": null\n    }\n  ]\n}"
+        },
+        {
+          "path": "<sandbox>/cases/runner-fail/com.example.synthetic-target.apk",
+          "sha256": "699195abc5577a822f35b0809300bf0e8e69905967584fe5e12a2925c988ae22",
+          "size": 19,
+          "content": "synthetic apk bytes"
+        },
+        {
+          "path": "<sandbox>/cases/runner/com.example.synthetic-target.apk",
+          "sha256": "699195abc5577a822f35b0809300bf0e8e69905967584fe5e12a2925c988ae22",
+          "size": 19,
+          "content": "synthetic apk bytes"
+        },
+        {
+          "path": "<sandbox>/cases/submission.json",
+          "sha256": "5f9b1e04606639c137e7cf1ec06b43293c18c46dff6db560b062a824803330f4",
+          "size": 389,
+          "content": "{\n  \"requestId\": \"req-123\",\n  \"packageName\": \"com.example.synthetic\",\n  \"results\": [\n    {\n      \"role\": \"target\",\n      \"versionName\": \"9.9.9\",\n      \"versionCode\": 999,\n      \"patchBundleVersion\": \"test-1\",\n      \"gitRevision\": \"deadbeef\",\n      \"status\": \"compatible\",\n      \"passedCount\": 3,\n      \"failedCount\": 0,\n      \"failureReason\": null,\n      \"workflowRunUrl\": null\n    }\n  ]\n}"
+        },
+        {
+          "path": "<sandbox>/cases/synthetic.mpp",
+          "sha256": "f9a26470841f4b0468f25eaae3bd2cab0072b3a22ee422c7607cdc03efad8bee",
+          "size": 22,
+          "content": "synthetic patch bundle"
+        }
+      ],
+      "inputs": [
+        {
+          "path": "<sandbox>/fixtures/patches-list.json",
+          "sha256": "a6c80613fa2596aa3f10827d27c9d4b6a7afac154760738c074d2ed294e41808",
+          "size": 1191
+        }
+      ]
+    }
+  ]
+}

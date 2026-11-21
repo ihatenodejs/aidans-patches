@@ -1,0 +1,194 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:apk-lab:benchmark:manifest:v1",
+  "title": "APK Lab benchmark corpus manifest (local, private)",
+  "description": "Manifest consumed by `apk-lab-migrate bench`. The real manifest is private because input paths may identify proprietary corpora; only this schema and the sanitized workload inventory are committed.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "profile", "engine", "workloads"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "profile": { "enum": ["local"] },
+    "description": { "type": "string" },
+    "notes": { "type": "string" },
+    "repositoryRoot": {
+      "type": "string",
+      "description": "Optional repository root. Relative values resolve against the manifest directory."
+    },
+    "toolCache": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source", "strict"],
+      "description": "Explicit private source for the already-synced apk-lab tool cache. The benchmark copies only tools named by workload requiredTools into an owned staging directory before any timed sample. It never downloads, installs, or modifies the source cache.",
+      "properties": {
+        "source": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Private path to an existing cache root in the tools.py layout <name>/<version>/<sha256>/<executablePath>. Relative values resolve against repositoryRoot; a leading ~/ expands to the invoking account home. Never emitted in public results."
+        },
+        "strict": {
+          "type": "boolean",
+          "description": "When true, any required tool that is missing, unpinned in tools.lock.json, or fails hash verification aborts the benchmark before any workload is timed. When false, affected workloads are skipped unexecuted and the report is incomplete. Neither mode installs or mutates the source cache."
+        }
+      }
+    },
+    "engine": { "$ref": "#/$defs/engine" },
+    "workloads": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/workload" }
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{64}$"
+    },
+    "engine": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "executable"],
+      "properties": {
+        "name": { "const": "python" },
+        "executable": {
+          "type": "string",
+          "description": "Path to an already-synced Python interpreter. Relative paths resolve against repositoryRoot."
+        },
+        "cwd": {
+          "type": "string",
+          "default": "tools/apk-lab",
+          "description": "Oracle working directory, resolved against repositoryRoot."
+        },
+        "argsPrefix": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": ["-B", "-m", "apk_lab.cli"]
+        },
+        "env": {
+          "type": "object",
+          "description": "Explicit safe tool environment overrides only (PATH/JAVA_HOME/ANDROID_* /LANG/LC_*/TZ/PYTHON*/APK_LAB_*). Secret-looking or non-allowlisted keys are rejected; the driver does not inherit the full parent environment.",
+          "additionalProperties": { "type": "string" }
+        }
+      }
+    },
+    "input": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["role", "path", "sha256"],
+      "properties": {
+        "role": { "type": "string", "minLength": 1 },
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Absolute path or path relative to repositoryRoot. Never committed when private."
+        },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "expectedFile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256"],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Supports {tmp}, {workspace}, and {repo} placeholders. Relative paths resolve against repositoryRoot."
+        },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "expected": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["exitCode"],
+      "properties": {
+        "exitCode": { "type": "integer" },
+        "stdoutSha256": {
+          "$ref": "#/$defs/sha256",
+          "description": "Hash of normalized stdout. Without it a workload can be measured but not accepted as output-verified."
+        },
+        "stderrSha256": { "$ref": "#/$defs/sha256" },
+        "stdoutContains": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "files": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/expectedFile" }
+        }
+      }
+    },
+    "workload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "category", "size", "costly", "argv", "expected"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9._-]+$"
+        },
+        "category": {
+          "enum": [
+            "startup",
+            "inspection",
+            "splits",
+            "dex",
+            "unity",
+            "il2cpp",
+            "resources",
+            "code",
+            "morphe"
+          ]
+        },
+        "size": { "enum": ["small", "large"] },
+        "costly": {
+          "type": "boolean",
+          "description": "Uses the pre-registered costly sample class (2 warmups / 10 samples); otherwise local (5/30)."
+        },
+        "description": { "type": "string" },
+        "notes": { "type": "string" },
+        "warmups": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Must be at least the policy minimum for the selected class."
+        },
+        "samples": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Must be at least the policy minimum for the selected class."
+        },
+        "argv": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string" },
+          "description": "Exact oracle arguments after argsPrefix. Supports {tmp}, {workspace}, and {repo} placeholders."
+        },
+        "inputs": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/input" }
+        },
+        "mpp": { "$ref": "#/$defs/input" },
+        "expected": { "$ref": "#/$defs/expected" },
+        "env": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        },
+        "timeoutSeconds": { "type": "integer", "minimum": 1 },
+        "isolateWorkspace": {
+          "type": "boolean",
+          "default": false,
+          "description": "Prepends --workspace-root <per-run temp workspace> unless argv already supplies one."
+        },
+        "requiredTools": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9._-]+$"
+          },
+          "description": "Pinned tools.lock.json tool names this workload needs. Requires the top-level toolCache. Only the union of these names is staged, before timing, from the private cache."
+        }
+      }
+    }
+  }
+}

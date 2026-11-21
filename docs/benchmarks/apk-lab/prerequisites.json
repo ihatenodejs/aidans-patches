@@ -1,0 +1,802 @@
+{
+  "schemaVersion": 1,
+  "kind": "apk-lab-prerequisites-report",
+  "generatedAt": "2026-11-21T02:53:42Z",
+  "mode": "inventory",
+  "host": {
+    "profile": "macos-arm64-workstation",
+    "os": "macos",
+    "arch": "aarch64",
+    "cpuCount": 16,
+    "memoryBytes": 34359738368
+  },
+  "summary": {
+    "total": 21,
+    "ready": 11,
+    "blocked": 10,
+    "missing": 0,
+    "acceptancePassed": false
+  },
+  "resources": [
+    {
+      "id": "host.jdk",
+      "kind": "host-tool",
+      "owner": "toolchain-operator",
+      "consumingPlan": "002",
+      "description": "JDK 21+ with java and keytool",
+      "required": true,
+      "status": "ready",
+      "verification": "probed",
+      "probes": [
+        {
+          "label": "java",
+          "type": "executable",
+          "status": "passed",
+          "sha256": "39c88c7820ff95e9eae0217c604fa37e834057a7d805abf8a542aeeb0bc9903e",
+          "version": "21.0.12.1"
+        },
+        {
+          "label": "keytool",
+          "type": "executable",
+          "status": "passed",
+          "sha256": "39c88c7820ff95e9eae0217c604fa37e834057a7d805abf8a542aeeb0bc9903e"
+        }
+      ],
+      "availability": {
+        "source": "probe",
+        "status": "available"
+      },
+      "authorization": {
+        "required": false,
+        "status": "not-required"
+      },
+      "blockers": []
+    },
+    {
+      "id": "host.android-sdk",
+      "kind": "host-tool",
+      "owner": "toolchain-operator",
+      "consumingPlan": "002",
+      "description": "Android SDK with Build Tools 36.0.0 and platform-tools",
+      "required": true,
+      "status": "ready",
+      "verification": "probed",
+      "probes": [
+        {
+          "label": "aapt2",
+          "type": "file",
+          "status": "passed",
+          "sha256": "a8844d4089b442b034aed8953deee1893253053c900e03141ae7173e3edd8157",
+          "sizeBytes": 10682288
+        },
+        {
+          "label": "apksigner",
+          "type": "file",
+          "status": "passed",
+          "sha256": "b47549e373b895ce6ca620d0c7887e674d9615ffa837a86ac601dcfd04adb0f0",
+          "sizeBytes": 2959
+        },
+        {
+          "label": "zipalign",
+          "type": "file",
+          "status": "passed",
+          "sha256": "0427144f4a3fd242c5a159e7088637082539ae556bc1d2bbc2032bb775d47cea",
+          "sizeBytes": 503264
+        },
+        {
+          "label": "dexdump",
+          "type": "file",
+          "status": "passed",
+          "sha256": "9c4addfdb5373f0923e418a64683976922c1ffdd1a3e9673b9cce5a0838e9692",
+          "sizeBytes": 3545296
+        },
+        {
+          "label": "adb",
+          "type": "executable",
+          "status": "passed",
+          "sha256": "1811e253b21b12cbfda7201ebaf86c10e7ddcb5c606a7a81f7c82b4c429c2d3b",
+          "version": "1.0.41"
+        }
+      ],
+      "availability": {
+        "source": "probe",
+        "status": "available"
+      },
+      "authorization": {
+        "required": false,
+        "status": "not-required"
+      },
+      "blockers": []
+    },
+    {
+      "id": "host.android-ndk",
+      "kind": "host-tool",
+      "owner": "toolchain-operator",
+      "consumingPlan": "002",
+      "description": "Pinned Android NDK revision",
+      "required": true,
+      "status": "ready",
+      "verification": "probed",
+      "probes": [
+        {
+          "label": "ndk-source-properties",
+          "type": "file",
+          "status": "passed",
+          "sha256": "c00aa236fdb205e9be9edd9e2169763e48aca52735efff4e16f34205d49783b5",
+          "sizeBytes": 108,
+          "version": "28.2.13676358"
+        }
+      ],
+      "availability": {
+        "source": "probe",
+        "status": "available"
+      },
+      "authorization": {
+        "required": false,
+        "status": "not-required"
+      },
+      "blockers": []
+    },
+    {
+      "id": "host.cmake",
+      "kind": "host-tool",
+      "owner": "toolchain-operator",
+      "consumingPlan": "002",
+      "description": "CMake for native build verification",
+      "required": true,
+      "status": "ready",
+      "verification": "probed",
+      "probes": [
+        {
+          "label": "cmake",
+          "type": "executable",
+          "status": "passed",
+          "sha256": "2bbaadb5c82f39580e3b8a8cf4aa241319549b8843631f9d1e5143cace513d4a",
+          "version": "4.5.0"
+        }
+      ],
+      "availability": {
+        "source": "probe",
+        "status": "available"
+      },
+      "authorization": {
+        "required": false,
+        "status": "not-required"
+      },
+      "blockers": []
+    },
+    {
+      "id": "host.ninja",
+      "kind": "host-tool",
+      "owner": "toolchain-operator",
+      "consumingPlan": "002",
+      "description": "Ninja for native build verification",
+      "required": true,
+      "status": "ready",
+      "verification": "probed",
+      "probes": [
+        {
+          "label": "ninja",
+          "type": "executable",
+          "status": "passed",
+          "sha256": "48761628046784f59bd789f5a72b88da99205c5849e5d19ae4d317854ae09e83",
+          "version": "1.13.2"
+        }
+      ],
+      "availability": {
+        "source": "probe",
+        "status": "available"
+      },
+      "authorization": {
+        "required": false,
+        "status": "not-required"
+      },
+      "blockers": []
+    },
+    {
+      "id": "host.bun",
+      "kind": "host-tool",
+      "owner": "toolchain-operator",
+      "consumingPlan": "002",
+      "description": "Bun used by root repository orchestration",
+      "required": true,
+      "status": "ready",
+      "verification": "probed",
+      "probes": [
+        {
+          "label": "bun",
+          "type": "executable",
+          "status": "passed",
+          "sha256": "0a2237cdcfa0d16ef501d9acca9f0026309ef348bea7393a64e8d1e3609565cc",
+          "version": "1.4.4"
+        }
+      ],
+      "availability": {
+        "source": "probe",
+        "status": "available"
+      },
+      "authorization": {
+        "required": false,
+        "status": "not-required"
+      },
+      "blockers": []
+    },
+    {
+      "id": "host.rust",
+      "kind": "host-tool",
+      "owner": "toolchain-operator",
+      "consumingPlan": "002",
+      "description": "Stable Rust toolchain with rustc and cargo",
+      "required": true,
+      "status": "ready",
+      "verification": "probed",
+      "probes": [
+        {
+          "label": "rustc",
+          "type": "executable",
+          "status": "passed",
+          "sha256": "aeb4105778ca1bd3c6b0e75768f581c656633cd51368fa61289b6a71696ac7e1",
+          "version": "1.97.1"
+        },
+        {
+          "label": "cargo",
+          "type": "executable",
+          "status": "passed",
+          "sha256": "aeb4105778ca1bd3c6b0e75768f581c656633cd51368fa61289b6a71696ac7e1",
+          "version": "1.97.1"
+        }
+      ],
+      "availability": {
+        "source": "probe",
+        "status": "available"
+      },
+      "authorization": {
+        "required": false,
+        "status": "not-required"
+      },
+      "blockers": []
+    },
+    {
+      "id": "host.python-oracle",
+      "kind": "host-tool",
+      "owner": "toolchain-operator",
+      "consumingPlan": "001,002",
+      "description": "Synchronized Python environment used as the migration oracle",
+      "required": true,
+      "status": "ready",
+      "verification": "probed",
+      "probes": [
+        {
+          "label": "python-version",
+          "type": "executable",
+          "status": "passed",
+          "sha256": "bc56ea9cdc0fface1eb75712f871a454324f6cbfec4e30311b197f208a7f3d07",
+          "version": "3.12.14"
+        },
+        {
+          "label": "apk-lab-import",
+          "type": "executable",
+          "status": "passed",
+          "sha256": "bc56ea9cdc0fface1eb75712f871a454324f6cbfec4e30311b197f208a7f3d07"
+        }
+      ],
+      "availability": {
+        "source": "probe",
+        "status": "available"
+      },
+      "authorization": {
+        "required": false,
+        "status": "not-required"
+      },
+      "blockers": []
+    },
+    {
+      "id": "corpus.single-apk",
+      "kind": "artifact-corpus",
+      "owner": "benchmark-owner",
+      "consumingPlan": "001,002",
+      "description": "Hash-pinned private single signed APK for inspection/archive coverage; not a pristine Morphe baseline",
+      "required": true,
+      "status": "ready",
+      "verification": "probed",
+      "probes": [
+        {
+          "label": "single-apk",
+          "type": "apk-container",
+          "status": "passed",
+          "sha256": "e619d8687a86dd9dd62ce3f0078f2f74d00d196ef2a3a3865d19329136c22eac",
+          "sizeBytes": 54033976,
+          "containerType": "APK"
+        }
+      ],
+      "availability": {
+        "source": "probe",
+        "status": "available"
+      },
+      "authorization": {
+        "required": false,
+        "status": "not-required"
+      },
+      "blockers": []
+    },
+    {
+      "id": "corpus.split-apk",
+      "kind": "artifact-corpus",
+      "owner": "benchmark-owner",
+      "consumingPlan": "001,002",
+      "description": "Hash-pinned private split APK/APKM input for normalization coverage",
+      "required": true,
+      "status": "ready",
+      "verification": "probed",
+      "probes": [
+        {
+          "label": "split-apkm",
+          "type": "apk-container",
+          "status": "passed",
+          "sha256": "4168fce61eaff21ee594465c245a1bc0b9f09c20b801241e4f8fd65c82b21ebc",
+          "sizeBytes": 83224408,
+          "containerType": "APKM"
+        }
+      ],
+      "availability": {
+        "source": "probe",
+        "status": "available"
+      },
+      "authorization": {
+        "required": false,
+        "status": "not-required"
+      },
+      "blockers": []
+    },
+    {
+      "id": "corpus.mpp",
+      "kind": "artifact-corpus",
+      "owner": "benchmark-owner",
+      "consumingPlan": "001,002",
+      "description": "Hash-pinned Morphe patch bundle used by compatibility workloads",
+      "required": true,
+      "status": "ready",
+      "verification": "probed",
+      "probes": [
+        {
+          "label": "morphe-bundle",
+          "type": "file",
+          "status": "passed",
+          "sha256": "c837d80450b29613219226bdacb6b6fd86de1bde8c04719bbb5af591fcaaeaf0",
+          "sizeBytes": 49460494
+        }
+      ],
+      "availability": {
+        "source": "probe",
+        "status": "available"
+      },
+      "authorization": {
+        "required": false,
+        "status": "not-required"
+      },
+      "blockers": []
+    },
+    {
+      "id": "device.disposable",
+      "kind": "device-authorization",
+      "owner": "device-operator",
+      "consumingPlan": "004",
+      "description": "Authorized disposable Android device/emulator with install and harmless UI-click scope",
+      "required": true,
+      "status": "blocked",
+      "verification": "authorization-and-availability-evidence",
+      "probes": [],
+      "availability": {
+        "source": "evidence",
+        "status": "pending",
+        "evidenceSha256": "3d056fca4525c34fd9701bd60e4433f9176cdee0bd45cc08e4e658d8d20996e3",
+        "observedAt": "2026-11-20T00:00:00Z",
+        "expiresAt": "2027-05-19T00:00:00Z",
+        "reason": "availability observation pending"
+      },
+      "authorization": {
+        "required": true,
+        "status": "pending",
+        "reference": "AUTH-2026-11-20-device-01",
+        "evidenceSha256": "6fe9bb80ad47935fab21e01a8cecaf945cc86bae82d6e77a5068dd61a455b343",
+        "identityFingerprint": "e7dfe4168cc018c7",
+        "expiresAt": "2027-05-19T00:00:00Z",
+        "reason": "authorization decision is pending"
+      },
+      "blockers": [
+        "authorization decision is pending",
+        "availability observation pending"
+      ]
+    },
+    {
+      "id": "play.latest",
+      "kind": "play-delivery",
+      "owner": "release-operator",
+      "consumingPlan": "010",
+      "description": "Authorized Play account/package for latest-version acquisition",
+      "required": true,
+      "status": "blocked",
+      "verification": "authorization-and-availability-evidence",
+      "probes": [],
+      "availability": {
+        "source": "evidence",
+        "status": "pending",
+        "evidenceSha256": "5d022c8bf6837ba7ae2b25e3df97af7f4f7a079cc338d121866c0b3e51071baf",
+        "observedAt": "2026-11-20T00:00:00Z",
+        "expiresAt": "2027-05-19T00:00:00Z",
+        "reason": "availability observation pending"
+      },
+      "authorization": {
+        "required": true,
+        "status": "pending",
+        "reference": "AUTH-2026-11-20-play-latest",
+        "evidenceSha256": "3f5bb7424e5176577fa318f94656036076c19e7edc809804e91f0159f7642d73",
+        "identityFingerprint": "0e40c79439e5f64b",
+        "expiresAt": "2027-05-19T00:00:00Z",
+        "reason": "authorization decision is pending"
+      },
+      "blockers": [
+        "authorization decision is pending",
+        "availability observation pending"
+      ]
+    },
+    {
+      "id": "play.older",
+      "kind": "play-delivery",
+      "owner": "release-operator",
+      "consumingPlan": "010",
+      "description": "Authorized Play retrieval of an older version",
+      "required": true,
+      "status": "blocked",
+      "verification": "authorization-and-availability-evidence",
+      "probes": [],
+      "availability": {
+        "source": "evidence",
+        "status": "pending",
+        "evidenceSha256": "16b97e42cb864cf68ce3cd319e441371205271495629c470dd2ef9f81e745e48",
+        "observedAt": "2026-11-20T00:00:00Z",
+        "expiresAt": "2027-05-19T00:00:00Z",
+        "reason": "availability observation pending"
+      },
+      "authorization": {
+        "required": true,
+        "status": "pending",
+        "reference": "AUTH-2026-11-20-play-older",
+        "evidenceSha256": "017e58ca05503a1e5411cc0306062f6f4b739b8623456198a1166a7d0c2e00ca",
+        "identityFingerprint": "46efc0413cc59588",
+        "expiresAt": "2027-05-19T00:00:00Z",
+        "reason": "authorization decision is pending"
+      },
+      "blockers": [
+        "authorization decision is pending",
+        "availability observation pending"
+      ]
+    },
+    {
+      "id": "play.direct",
+      "kind": "play-delivery",
+      "owner": "release-operator",
+      "consumingPlan": "010",
+      "description": "Authorized direct authenticated Play delivery path",
+      "required": true,
+      "status": "blocked",
+      "verification": "authorization-and-availability-evidence",
+      "probes": [],
+      "availability": {
+        "source": "evidence",
+        "status": "pending",
+        "evidenceSha256": "6d086dc7bb145eda2bc309c13e9c7c114515a3f8177f6787edfa95ef2beb4e06",
+        "observedAt": "2026-11-20T00:00:00Z",
+        "expiresAt": "2027-05-19T00:00:00Z",
+        "reason": "availability observation pending"
+      },
+      "authorization": {
+        "required": true,
+        "status": "pending",
+        "reference": "AUTH-2026-11-20-play-direct",
+        "evidenceSha256": "457c4f3f12a780e0269e9a6febee42f8ab6987bf85f6d9b42feb5558ad412294",
+        "identityFingerprint": "4594497d3f8a7863",
+        "expiresAt": "2027-05-19T00:00:00Z",
+        "reason": "authorization decision is pending"
+      },
+      "blockers": [
+        "authorization decision is pending",
+        "availability observation pending"
+      ]
+    },
+    {
+      "id": "play.dispenser",
+      "kind": "play-delivery",
+      "owner": "release-operator",
+      "consumingPlan": "010",
+      "description": "Authorized public Aurora device-dispenser fallback path",
+      "required": true,
+      "status": "blocked",
+      "verification": "authorization-and-availability-evidence",
+      "probes": [],
+      "availability": {
+        "source": "evidence",
+        "status": "pending",
+        "evidenceSha256": "97598006296e8b277c7e5733927e0ba138f2a6a24c4afa3c440b7679e0d46434",
+        "observedAt": "2026-11-20T00:00:00Z",
+        "expiresAt": "2027-05-19T00:00:00Z",
+        "reason": "availability observation pending"
+      },
+      "authorization": {
+        "required": true,
+        "status": "pending",
+        "reference": "AUTH-2026-11-20-play-dispenser",
+        "evidenceSha256": "ed6a360a8d0fd9cffde203e3e19989de6a12db8f0a8b71afdfad9d6403f38bc6",
+        "identityFingerprint": "302957e09977927d",
+        "expiresAt": "2027-05-19T00:00:00Z",
+        "reason": "authorization decision is pending"
+      },
+      "blockers": [
+        "authorization decision is pending",
+        "availability observation pending"
+      ]
+    },
+    {
+      "id": "play.oauth",
+      "kind": "play-oauth",
+      "owner": "release-operator",
+      "consumingPlan": "010",
+      "description": "Authorized OAuth token-exchange flow for disposable test accounts",
+      "required": true,
+      "status": "blocked",
+      "verification": "authorization-and-availability-evidence",
+      "probes": [],
+      "availability": {
+        "source": "evidence",
+        "status": "pending",
+        "evidenceSha256": "768f12b759f44fb75317f58701441c5c3e602ba06c5c508f3b21d309fa5b1c51",
+        "observedAt": "2026-11-20T00:00:00Z",
+        "expiresAt": "2027-05-19T00:00:00Z",
+        "reason": "availability observation pending"
+      },
+      "authorization": {
+        "required": true,
+        "status": "pending",
+        "reference": "AUTH-2026-11-20-play-oauth",
+        "evidenceSha256": "7b89c51ffe8e5a590e17bb882c04d1ebb59c638e24dfd5632c35f53af9e0222c",
+        "identityFingerprint": "54fefefc73f4e842",
+        "expiresAt": "2027-05-19T00:00:00Z",
+        "reason": "authorization decision is pending"
+      },
+      "blockers": [
+        "authorization decision is pending",
+        "availability observation pending"
+      ]
+    },
+    {
+      "id": "play.hosts",
+      "kind": "play-network-hosts",
+      "owner": "release-operator",
+      "consumingPlan": "010",
+      "description": "Approved Play endpoint and host-mapping evidence",
+      "required": true,
+      "status": "blocked",
+      "verification": "authorization-and-availability-evidence",
+      "probes": [],
+      "availability": {
+        "source": "evidence",
+        "status": "pending",
+        "evidenceSha256": "e04f99318ec4eab7dab701a90911cff0ede48e92b769f3c54d79d9f38567ac28",
+        "observedAt": "2026-11-20T00:00:00Z",
+        "expiresAt": "2027-05-19T00:00:00Z",
+        "reason": "availability observation pending"
+      },
+      "authorization": {
+        "required": true,
+        "status": "pending",
+        "reference": "AUTH-2026-11-20-play-hosts",
+        "evidenceSha256": "08a0453bca6b822f9453fba6707520b6d8f2d012382294d4f000ef896785a75a",
+        "identityFingerprint": "9d78fc64b0c1d72f",
+        "expiresAt": "2027-05-19T00:00:00Z",
+        "reason": "authorization decision is pending"
+      },
+      "blockers": [
+        "authorization decision is pending",
+        "availability observation pending"
+      ]
+    },
+    {
+      "id": "cloud.r2",
+      "kind": "cloud-storage",
+      "owner": "infra-operator",
+      "consumingPlan": "005",
+      "description": "Isolated R2 test bucket/prefix with fixture read/write scope",
+      "required": true,
+      "status": "blocked",
+      "verification": "authorization-and-availability-evidence",
+      "probes": [],
+      "availability": {
+        "source": "evidence",
+        "status": "pending",
+        "evidenceSha256": "34eb15728cce01a5647ca1a44f0197bde22abd25e6da5e2f6098c7f4794c146a",
+        "observedAt": "2026-11-20T00:00:00Z",
+        "expiresAt": "2027-05-19T00:00:00Z",
+        "reason": "availability observation pending"
+      },
+      "authorization": {
+        "required": true,
+        "status": "pending",
+        "reference": "AUTH-2026-11-20-r2-test",
+        "evidenceSha256": "1468659be957e1743b1ed7577f0abd8c8b8b03643c5aa6c7f077f59c0f2db9f0",
+        "identityFingerprint": "fa05a3cb349f18db",
+        "expiresAt": "2027-05-19T00:00:00Z",
+        "reason": "authorization decision is pending"
+      },
+      "blockers": [
+        "authorization decision is pending",
+        "availability observation pending"
+      ]
+    },
+    {
+      "id": "cloud.worker-callback",
+      "kind": "worker-endpoint",
+      "owner": "infra-operator",
+      "consumingPlan": "005",
+      "description": "Isolated test Worker callback endpoint and status secret scope",
+      "required": true,
+      "status": "blocked",
+      "verification": "authorization-and-availability-evidence",
+      "probes": [],
+      "availability": {
+        "source": "evidence",
+        "status": "pending",
+        "evidenceSha256": "a6df59e4a229a85f3694a546b0e1996bdafa0606455e15dc15d4c313dc06332f",
+        "observedAt": "2026-11-20T00:00:00Z",
+        "expiresAt": "2027-05-19T00:00:00Z",
+        "reason": "availability observation pending"
+      },
+      "authorization": {
+        "required": true,
+        "status": "pending",
+        "reference": "AUTH-2026-11-20-worker-test",
+        "evidenceSha256": "c95aaf3c1acc13d9666875b696ecfeb165f432d56f2f8cb995c18671f7716e49",
+        "identityFingerprint": "919a822bd584853c",
+        "expiresAt": "2027-05-19T00:00:00Z",
+        "reason": "authorization decision is pending"
+      },
+      "blockers": [
+        "authorization decision is pending",
+        "availability observation pending"
+      ]
+    },
+    {
+      "id": "ci.compatibility-workflow",
+      "kind": "ci-workflow",
+      "owner": "repo-admin",
+      "consumingPlan": "005",
+      "description": "Authorized test compatibility workflow and repository dispatch permissions",
+      "required": true,
+      "status": "blocked",
+      "verification": "authorization-and-availability-evidence",
+      "probes": [],
+      "availability": {
+        "source": "evidence",
+        "status": "pending",
+        "evidenceSha256": "93bb064be7eddcaf272e2197055691adc14df30101a83a9e36e8a2fd83c84769",
+        "observedAt": "2026-11-20T00:00:00Z",
+        "expiresAt": "2027-05-19T00:00:00Z",
+        "reason": "availability observation pending"
+      },
+      "authorization": {
+        "required": true,
+        "status": "pending",
+        "reference": "AUTH-2026-11-20-ci-test",
+        "evidenceSha256": "0c9a5c9c5e368f3b20f1e1a6062a9e2407a7294bcb6d0b932c84f5545349f5ab",
+        "identityFingerprint": "86d6476efc6fc7b6",
+        "expiresAt": "2027-05-19T00:00:00Z",
+        "reason": "authorization decision is pending"
+      },
+      "blockers": [
+        "authorization decision is pending",
+        "availability observation pending"
+      ]
+    }
+  ],
+  "blockers": [
+    {
+      "resourceId": "device.disposable",
+      "owner": "device-operator",
+      "reason": "authorization decision is pending"
+    },
+    {
+      "resourceId": "device.disposable",
+      "owner": "device-operator",
+      "reason": "availability observation pending"
+    },
+    {
+      "resourceId": "play.latest",
+      "owner": "release-operator",
+      "reason": "authorization decision is pending"
+    },
+    {
+      "resourceId": "play.latest",
+      "owner": "release-operator",
+      "reason": "availability observation pending"
+    },
+    {
+      "resourceId": "play.older",
+      "owner": "release-operator",
+      "reason": "authorization decision is pending"
+    },
+    {
+      "resourceId": "play.older",
+      "owner": "release-operator",
+      "reason": "availability observation pending"
+    },
+    {
+      "resourceId": "play.direct",
+      "owner": "release-operator",
+      "reason": "authorization decision is pending"
+    },
+    {
+      "resourceId": "play.direct",
+      "owner": "release-operator",
+      "reason": "availability observation pending"
+    },
+    {
+      "resourceId": "play.dispenser",
+      "owner": "release-operator",
+      "reason": "authorization decision is pending"
+    },
+    {
+      "resourceId": "play.dispenser",
+      "owner": "release-operator",
+      "reason": "availability observation pending"
+    },
+    {
+      "resourceId": "play.oauth",
+      "owner": "release-operator",
+      "reason": "authorization decision is pending"
+    },
+    {
+      "resourceId": "play.oauth",
+      "owner": "release-operator",
+      "reason": "availability observation pending"
+    },
+    {
+      "resourceId": "play.hosts",
+      "owner": "release-operator",
+      "reason": "authorization decision is pending"
+    },
+    {
+      "resourceId": "play.hosts",
+      "owner": "release-operator",
+      "reason": "availability observation pending"
+    },
+    {
+      "resourceId": "cloud.r2",
+      "owner": "infra-operator",
+      "reason": "authorization decision is pending"
+    },
+    {
+      "resourceId": "cloud.r2",
+      "owner": "infra-operator",
+      "reason": "availability observation pending"
+    },
+    {
+      "resourceId": "cloud.worker-callback",
+      "owner": "infra-operator",
+      "reason": "authorization decision is pending"
+    },
+    {
+      "resourceId": "cloud.worker-callback",
+      "owner": "infra-operator",
+      "reason": "availability observation pending"
+    },
+    {
+      "resourceId": "ci.compatibility-workflow",
+      "owner": "repo-admin",
+      "reason": "authorization decision is pending"
+    },
+    {
+      "resourceId": "ci.compatibility-workflow",
+      "owner": "repo-admin",
+      "reason": "availability observation pending"
+    }
+  ]
+}

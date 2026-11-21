@@ -1,0 +1,197 @@
+{
+  "schemaVersion": 1,
+  "kind": "apk-lab-migration-execution-checkpoint",
+  "status": "plan-001-complete",
+  "activePlan": "001",
+  "initialSourceRevision": "66ff5ed",
+  "currentSourceRevision": "295cde7abd498ac5c8905777a1eac043ce6b5899",
+  "sourceRevisionNote": "A concurrent user release commit (chore: Release v1.10.0-dev.1 [skip ci]) advanced HEAD during plan 001. The scoped migration tools/docs/workflow diff from the initial observation is empty. The actual Python report metadata reports patch bundle 1.10.0-dev.1, while the pinned MPP artifact remains the patches-1.9.3 file with SHA-256 c837d80450b29613219226bdacb6b6fd86de1bde8c04719bbb5af591fcaaeaf0; report versions are never inferred from filenames. The private baseline archive includes the root release metadata and separates executed-source identity from manifest/policy digests.",
+  "initialWorktreeDirty": false,
+  "currentWorktreeDirty": true,
+  "productionPythonChanged": true,
+  "productionPythonChangedNote": "The user explicitly approved the narrow fix_python correction on 2026-11-20. The change is limited to buffered-stdout shutdown-flush handling plus the single regression test tests/test_cli.py::test_main_closed_pipe_exits_success. No other Python behavior changed and no capture expectation was relaxed.",
+  "acceptedOracleCapture": true,
+  "oracleCaptureEvidence": {
+    "artifact": "docs/benchmarks/apk-lab/python-contracts.json",
+    "cases": 41,
+    "fixtures": 16,
+    "compiledCaptureExitCode": 0,
+    "selfVerifyExitCode": 0,
+    "secondCaptureDifferences": 0,
+    "note": "The public artifact is the record from the compiled capture path; a second compiled capture cross-compared against it exactly."
+  },
+  "timing": {
+    "state": "complete",
+    "artifact": "docs/benchmarks/apk-lab/baseline.json",
+    "privateRawArtifact": "ignored .apk-lab-migration/python-baseline.json",
+    "policy": "tools/apk-lab/migration/performance-policy.json",
+    "policySha256": "7f33adfeccf23363546584d082b94af061b5173c1dc7920d2386f379da0c77d0",
+    "engine": "pre-synced CPython 3.12.14, direct module execution, no uv install",
+    "workloadsMeasured": 17,
+    "localWorkloads": 15,
+    "localWarmups": 5,
+    "localSamples": 30,
+    "costlyWorkloads": 2,
+    "costlyWarmups": 2,
+    "costlySamples": 10,
+    "acceptance": {
+      "valid": true,
+      "reasons": []
+    },
+    "hostMetrics": {
+      "wall": "supported",
+      "cpu": "macos-ps sampled every 5ms; sum of per-process peak cumulative TIME at 10ms display resolution, not exact per-sample CPU",
+      "descendantRss": "macos-ps sampled every 5ms; maximum summed process-tree RSS, KiB converted to bytes",
+      "io": "unsupported on macOS without unsafe FFI; null with reason and a non-blocking, explanation-required limitation",
+      "policyDerived": "Only metrics whose pre-registered budget sets blockOnWorse (wall, CPU, RSS) gate acceptance; the non-blocking IO budget records a limitation instead."
+    },
+    "observedMedianWallMs": {
+      "startup.help": 217.263,
+      "inspect.small": 584.898,
+      "inspect.large": 658.657,
+      "splits.small": 835.517,
+      "splits.large": 2908.941,
+      "dex.small": 891.858,
+      "dex.large": 3718.652,
+      "unity.small": 237.74,
+      "unity.large": 242.49,
+      "il2cpp.small": 239.954,
+      "il2cpp.large": 432.076,
+      "resources.small": 887.305,
+      "resources.large": 3956.276,
+      "code.small": 1902.239,
+      "code.large": 6273.517,
+      "morphe.small": 47104.915,
+      "morphe.large": 142986.775
+    },
+    "comparisonStatus": "Python baseline only. No Rust candidate exists yet, so no improvement, regression, or ratio is claimed."
+  },
+  "provenanceCheck": {
+    "measuredCodeMatchesSourceArchive": true,
+    "method": "Every archived tools/apk-lab Rust, Python, test, manifest, and lock file was re-hashed against the worktree after the run; zero mismatches. Documentation edited after the archive was written is not part of the measured code path.",
+    "sourceArchiveDigest": "86c25dca84f7817119e81ad8cb892450ad9457afd97272ed0ced5ce4f498fc9d",
+    "archivedFiles": 73
+  },
+  "baselineMeasurementsCollected": true,
+  "performanceImprovementClaimed": false,
+  "completedPhaseCommitted": false,
+  "gates": [
+    {
+      "command": "uv run --project tools/apk-lab pytest -q",
+      "exitCode": 0,
+      "passedTests": 285
+    },
+    {
+      "command": "cargo test --locked --manifest-path tools/apk-lab/Cargo.toml",
+      "exitCode": 0,
+      "passedTests": 110,
+      "suites": 4
+    },
+    {
+      "command": "cargo clippy --locked --manifest-path tools/apk-lab/Cargo.toml --all-targets -- -D warnings",
+      "exitCode": 0
+    },
+    {
+      "command": "cargo build --release --locked --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab-migrate",
+      "exitCode": 0
+    },
+    {
+      "command": "apk-lab-migrate inventory --check",
+      "exitCode": 0,
+      "cliCommands": 28,
+      "ciCommands": 3,
+      "testFunctions": 277,
+      "testCases": 285,
+      "consumers": 16,
+      "wireSchemas": 19
+    },
+    {
+      "command": "apk-lab-migrate prerequisites --manifest <private> --out docs/benchmarks/apk-lab/prerequisites.json",
+      "exitCode": 0,
+      "acceptancePassed": false,
+      "readyResources": 11,
+      "blockedResources": 10,
+      "note": "Corpus rows are verified by content identity: the single APK probes as APK, the split corpus as APKM, with pinned hashes and sizes."
+    },
+    {
+      "command": "apk-lab-migrate prerequisites --check --manifest <private> --report <private>",
+      "exitCode": 2,
+      "diagnostic": "10 of 21 required resources are not ready"
+    },
+    {
+      "command": "apk-lab-migrate capture --engine python --profile offline --out <capture>",
+      "exitCode": 0,
+      "cases": 41,
+      "fixtures": 16
+    },
+    {
+      "command": "apk-lab-migrate verify --expected <capture-a> --actual <capture-b>",
+      "exitCode": 0,
+      "differences": 0
+    },
+    {
+      "command": "apk-lab-migrate bench --prepare --engine python --profile local --manifest <private>",
+      "exitCode": 0,
+      "preparedRows": 17,
+      "note": "Sixteen rows prepared from the full matrix; the byte-identical correctly suffixed copy prepared the remaining row in a second report."
+    },
+    {
+      "command": "apk-lab-migrate bench --engine python --profile local --manifest <private>",
+      "exitCode": 0,
+      "status": "complete",
+      "acceptanceValid": true,
+      "elapsedSeconds": 3128.86
+    },
+    {
+      "command": "apk-lab-migrate bench --sanitize --input <private-raw> --out docs/benchmarks/apk-lab/baseline.json",
+      "exitCode": 0
+    }
+  ],
+  "blockers": [
+    {
+      "id": "external-resource-authorization-and-availability",
+      "report": "prerequisites.json",
+      "owners": {
+        "device.disposable": "device-operator",
+        "play.latest": "release-operator",
+        "play.older": "release-operator",
+        "play.direct": "release-operator",
+        "play.dispenser": "release-operator",
+        "play.oauth": "release-operator",
+        "play.hosts": "release-operator",
+        "cloud.r2": "infra-operator",
+        "cloud.worker-callback": "infra-operator",
+        "ci.compatibility-workflow": "repo-admin"
+      },
+      "resolutionRequired": "Supply scoped authorization plus independently observed, fresh availability evidence in the ignored prerequisite manifest. A declared decision never passes acceptance, and no live operation is authorized by this checkpoint.",
+      "stops": ["002", "004-device-evidence", "005", "008", "009", "010"]
+    },
+    {
+      "id": "mislabeled-container-negative-control",
+      "observation": "mislabeled-container-observation.json",
+      "status": "preserved",
+      "detail": "AfterShip 5.25.8 content is an APKM with an .apk suffix; the real Python CLI failed all 12 Morphe cases with manifest-null errors. The observation is retained as a negative control and planned native parity case. The positive timed workload uses a byte-identical .apkm copy; no production compatibility behavior was changed or normalized away.",
+      "stops": []
+    },
+    {
+      "id": "oracle-parallel-morphe-flake",
+      "status": "avoided-in-baseline",
+      "detail": "One timed default-jobs sample failed a single Morphe case with 'Failed to find end record' inside Morphe's archive reader while two default-jobs reruns passed 12/12. The baseline workflows run Morphe with --jobs 1, which keeps every case, is deterministic, and reproduced identical prepared output hashes. The failed sample is retained in the ignored private baseline as evidence.",
+      "stops": []
+    }
+  ],
+  "pendingEvidence": [
+    "Native parity groups (plans 002-005)",
+    "Native Play delivery and icon pixel proofs (plans 010, 011)",
+    "Paired Python/Rust measurements, TO-RUST.md, and Python-generated charts (plan 008)",
+    "Consumer cutover and Python-free proof (plan 009)"
+  ],
+  "sideEffects": {
+    "deviceMutation": false,
+    "externalCloudMutation": false,
+    "credentialExchange": false,
+    "workflowDispatch": false,
+    "releaseOrPush": false,
+    "productionIconRefresh": false
+  }
+}

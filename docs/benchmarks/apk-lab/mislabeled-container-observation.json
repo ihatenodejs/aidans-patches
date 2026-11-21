@@ -1,0 +1,163 @@
+{
+  "schemaVersion": 1,
+  "kind": "apk-lab-mislabeled-container-observation",
+  "inputAlias": "corpus.morphe-small.mislabeled",
+  "inputContainerType": "APKM",
+  "inputSuffix": ".apk",
+  "containerTypeEvidence": {
+    "method": "ZIP member topology, then independent classifier",
+    "observedMembers": [
+      "base.apk",
+      "com.aftership.AfterShip.config.arm64_v8a.apk and further config splits"
+    ],
+    "rootAndroidManifest": false,
+    "classifiedAs": "APKM",
+    "note": "The file extension does not determine container type. The prerequisites checker requires a content match and classifies by member topology."
+  },
+  "observedExitCode": 1,
+  "rawReportSha256": "a92d1a031a1937cbb876e5d3313c24662417a38faf4305094248958c5f31b362",
+  "classification": "negative control, not an accepted positive benchmark",
+  "compatibilityHandlingChanged": false,
+  "correctlyLabeledCopy": {
+    "suffix": ".apkm",
+    "sameBytes": true,
+    "sha256": "22f940828fc5c599c7d4620037db154caa22ec82461eda29847f2bcca0ff877f",
+    "validation": "passed: the byte-identical .apkm copy completed output preparation with process exit 0 and compatible status"
+  },
+  "preserveForNativeParity": true,
+  "report": {
+    "artifactSha256": "22f940828fc5c599c7d4620037db154caa22ec82461eda29847f2bcca0ff877f",
+    "failedCases": 12,
+    "failureReason": "[Add Copy Tracking Number Option] Morphe reported failure: SEVERE: An unexpected error occurred: Cannot invoke \"com.reandroid.arsc.chunk.xml.AndroidManifestBlock.isExtractNativeLibs()\" because \"manifest\" is null \njava.lang.NullPointerException: Cannot invoke \"com.reandroid.arsc.chunk.xml.AndroidManifestBlock.isExtractNativeLibs()\" because \"manifest\" is null; [Bypass Native Signature Check] Morphe reported failure: SEVERE: An unexpected error occurred: Cannot invoke \"com.reandroid.arsc.chunk.xml.AndroidManifestBlock.isExtractNativeLibs()\" because \"manifest\" is null \njava.lang.NullPointerException: Cannot invoke \"com.reandroid.arsc.chunk.xml.AndroidManifestBlock.isExtractNativeLibs()\" because \"manifest\" is null; [Custom Google Maps API Key] Morphe reported failure: SEVERE: An unexpected error occurred: Cannot invoke \"com.reandroid.arsc.chunk.xml.AndroidManifestBlock.isExtractNativeLibs()\" because \"manifest\" is null \njava.lang.NullPointerException: Cannot invoke \"com.reandroid.arsc.chunk.xml.AndroidManifestBlock.isExtractNativeLibs()\" because \"manifest\" is null; [Full AMOLED Theme] Morphe reported failure: SEVERE: An unexpected error occurred: Cannot invoke \"com.reandroid.arsc.chunk.xml.AndroidManifestBlock.isExtractNativeLibs()\" because \"manifest\" is null \njava.lang.NullPointerException: Cannot invoke \"com.reandroid.arsc.chunk.xml.AndroidManifestBlock.isExtractNativeLibs()\" because \"manifest\" is null; [Hide Broken Tracking Map] Morphe reported failure: SEVERE: An unexpected error occurred: Cannot invoke \"com.reandroid.arsc.chunk.xml.AndroidManifestBlock.isExtractNativeLibs()\" because \"manifest\" is null \njava.lang.NullPointerException: Cannot invoke \"com.reandroid.arsc.chunk.xml.AndroidManifestBlock.isExtractNativeLibs()\" because \"manifest\" is null; [OpenStreetMap Drop-in Replacement] Morphe reported failure: SEVERE: An unexpected error occurred: Cannot invoke \"com.reandroid.arsc.chunk.xml.AndroidManifestBlock.isExtractNativeLibs()\" because \"manifest\" is null \njava.lang.NullPointerException: Cannot invoke \"com.reandroid.arsc.chunk.xml.AndroidManifestBlock.isExtractNativeLibs()\" because \"manifest\" is null; [OpenStreetMap Drop-in Replacement] Morphe reported failure: SEVERE: An unexpected error occurred: Cannot invoke \"com.reandroid.arsc.chunk.xml.AndroidManifestBlock.isExtractNativeLibs()\" because \"manifest\" is null \njava.lang.NullPointerException: Cannot invoke \"com.reandroid.arsc.chunk.xml.AndroidManifestBlock.isExtractNativeLibs()\" because \"manifest\" is null; [Remove Ads and Tracking] Morphe reported failure: SEVERE: An unexpected error occurred: Cannot invoke \"com.reandroid.arsc.chunk.xml.AndroidManifestBlock.isExtractNativeLibs()\" because \"manifest\" is null \njava.lang.NullPointerException: Cannot invoke \"com.reandroid.arsc.chunk.xml.AndroidManifestBlock.isExtractNativeLibs()\" because \"manifest\" is null; [Remove AfterShip Account Page Links] Morphe reported failure: SEVERE: An unexpected error occurred: Cannot invoke \"com.reandroid.arsc.chunk.xml.AndroidManifestBlock.isExtractNativeLibs()\" because \"manifest\" is null \njava.lang.NullPointerException: Cannot invoke \"com.reandroid.arsc.chunk.xml.AndroidManifestBlock.isExtractNativeLibs()\" because \"manifest\" is null; [Remove Feedback] Morphe reported failure: SEVERE: An unexpected error occurred: Cannot invoke \"com.reandroid.arsc.chunk.xml.AndroidManifestBlock.isExtractNativeLibs()\" because \"manifest\" is null \njava.lang.NullPointerException: Cannot invoke \"com.reandroid.arsc.chunk.xml.AndroidManifestBlock.isExtractNativeLibs()\" because \"manifest\" is null; [Remove Login] Morphe reported failure: SEVERE: An unexpected error occurred: Cannot invoke \"com.reandroid.arsc.chunk.xml.AndroidManifestBlock.isExtractNativeLibs()\" because \"manifest\" is null \njava.lang.NullPointerException: Cannot invoke \"com.reandroid.arsc.chunk.xml.AndroidManifestBlock.isExtractNativeLibs()\" because \"manifest\" is null; [Remove Shipment Sync] Morphe reported failure: SEVERE: An unexpected error occurred: Cannot invoke \"com.reandroid.arsc.chunk.xml.AndroidManifestBlock.isExtractNativeLibs()\" because \"manifest\" is null \njava.lang.NullPointerException: Cannot invoke \"com.reandroid.arsc.chunk.xml.AndroidManifestBlock.isExtractNativeLibs()\" because \"manifest\" is null",
+    "gitRevision": "295cde7abd498ac5c8905777a1eac043ce6b5899",
+    "overallStatus": "incompatible",
+    "packageName": "com.aftership.AfterShip",
+    "passedCases": 0,
+    "patchBundleVersion": "1.10.0-dev.1",
+    "testCases": [
+      {
+        "appliedPatches": [],
+        "durationSeconds": 0.62,
+        "errorMessage": "Morphe reported failure: SEVERE: An unexpected error occurred: Cannot invoke \"com.reandroid.arsc.chunk.xml.AndroidManifestBlock.isExtractNativeLibs()\" because \"manifest\" is null \njava.lang.NullPointerException: Cannot invoke \"com.reandroid.arsc.chunk.xml.AndroidManifestBlock.isExtractNativeLibs()\" because \"manifest\" is null",
+        "injectedClasses": [],
+        "options": {},
+        "patchName": "Add Copy Tracking Number Option",
+        "success": false
+      },
+      {
+        "appliedPatches": [],
+        "durationSeconds": 0.83,
+        "errorMessage": "Morphe reported failure: SEVERE: An unexpected error occurred: Cannot invoke \"com.reandroid.arsc.chunk.xml.AndroidManifestBlock.isExtractNativeLibs()\" because \"manifest\" is null \njava.lang.NullPointerException: Cannot invoke \"com.reandroid.arsc.chunk.xml.AndroidManifestBlock.isExtractNativeLibs()\" because \"manifest\" is null",
+        "injectedClasses": [],
+        "options": {},
+        "patchName": "Bypass Native Signature Check",
+        "success": false
+      },
+      {
+        "appliedPatches": [],
+        "durationSeconds": 1.03,
+        "errorMessage": "Morphe reported failure: SEVERE: An unexpected error occurred: Cannot invoke \"com.reandroid.arsc.chunk.xml.AndroidManifestBlock.isExtractNativeLibs()\" because \"manifest\" is null \njava.lang.NullPointerException: Cannot invoke \"com.reandroid.arsc.chunk.xml.AndroidManifestBlock.isExtractNativeLibs()\" because \"manifest\" is null",
+        "injectedClasses": [],
+        "options": {
+          "apiKey": ""
+        },
+        "patchName": "Custom Google Maps API Key",
+        "success": false
+      },
+      {
+        "appliedPatches": [],
+        "durationSeconds": 1.02,
+        "errorMessage": "Morphe reported failure: SEVERE: An unexpected error occurred: Cannot invoke \"com.reandroid.arsc.chunk.xml.AndroidManifestBlock.isExtractNativeLibs()\" because \"manifest\" is null \njava.lang.NullPointerException: Cannot invoke \"com.reandroid.arsc.chunk.xml.AndroidManifestBlock.isExtractNativeLibs()\" because \"manifest\" is null",
+        "injectedClasses": [],
+        "options": {},
+        "patchName": "Full AMOLED Theme",
+        "success": false
+      },
+      {
+        "appliedPatches": [],
+        "durationSeconds": 1.01,
+        "errorMessage": "Morphe reported failure: SEVERE: An unexpected error occurred: Cannot invoke \"com.reandroid.arsc.chunk.xml.AndroidManifestBlock.isExtractNativeLibs()\" because \"manifest\" is null \njava.lang.NullPointerException: Cannot invoke \"com.reandroid.arsc.chunk.xml.AndroidManifestBlock.isExtractNativeLibs()\" because \"manifest\" is null",
+        "injectedClasses": [],
+        "options": {},
+        "patchName": "Hide Broken Tracking Map",
+        "success": false
+      },
+      {
+        "appliedPatches": [],
+        "durationSeconds": 0.97,
+        "errorMessage": "Morphe reported failure: SEVERE: An unexpected error occurred: Cannot invoke \"com.reandroid.arsc.chunk.xml.AndroidManifestBlock.isExtractNativeLibs()\" because \"manifest\" is null \njava.lang.NullPointerException: Cannot invoke \"com.reandroid.arsc.chunk.xml.AndroidManifestBlock.isExtractNativeLibs()\" because \"manifest\" is null",
+        "injectedClasses": [],
+        "options": {
+          "addZoomButtons": false
+        },
+        "patchName": "OpenStreetMap Drop-in Replacement",
+        "success": false
+      },
+      {
+        "appliedPatches": [],
+        "durationSeconds": 1.08,
+        "errorMessage": "Morphe reported failure: SEVERE: An unexpected error occurred: Cannot invoke \"com.reandroid.arsc.chunk.xml.AndroidManifestBlock.isExtractNativeLibs()\" because \"manifest\" is null \njava.lang.NullPointerException: Cannot invoke \"com.reandroid.arsc.chunk.xml.AndroidManifestBlock.isExtractNativeLibs()\" because \"manifest\" is null",
+        "injectedClasses": [],
+        "options": {
+          "addZoomButtons": true
+        },
+        "patchName": "OpenStreetMap Drop-in Replacement",
+        "success": false
+      },
+      {
+        "appliedPatches": [],
+        "durationSeconds": 0.88,
+        "errorMessage": "Morphe reported failure: SEVERE: An unexpected error occurred: Cannot invoke \"com.reandroid.arsc.chunk.xml.AndroidManifestBlock.isExtractNativeLibs()\" because \"manifest\" is null \njava.lang.NullPointerException: Cannot invoke \"com.reandroid.arsc.chunk.xml.AndroidManifestBlock.isExtractNativeLibs()\" because \"manifest\" is null",
+        "injectedClasses": [],
+        "options": {},
+        "patchName": "Remove Ads and Tracking",
+        "success": false
+      },
+      {
+        "appliedPatches": [],
+        "durationSeconds": 0.87,
+        "errorMessage": "Morphe reported failure: SEVERE: An unexpected error occurred: Cannot invoke \"com.reandroid.arsc.chunk.xml.AndroidManifestBlock.isExtractNativeLibs()\" because \"manifest\" is null \njava.lang.NullPointerException: Cannot invoke \"com.reandroid.arsc.chunk.xml.AndroidManifestBlock.isExtractNativeLibs()\" because \"manifest\" is null",
+        "injectedClasses": [],
+        "options": {},
+        "patchName": "Remove AfterShip Account Page Links",
+        "success": false
+      },
+      {
+        "appliedPatches": [],
+        "durationSeconds": 0.72,
+        "errorMessage": "Morphe reported failure: SEVERE: An unexpected error occurred: Cannot invoke \"com.reandroid.arsc.chunk.xml.AndroidManifestBlock.isExtractNativeLibs()\" because \"manifest\" is null \njava.lang.NullPointerException: Cannot invoke \"com.reandroid.arsc.chunk.xml.AndroidManifestBlock.isExtractNativeLibs()\" because \"manifest\" is null",
+        "injectedClasses": [],
+        "options": {},
+        "patchName": "Remove Feedback",
+        "success": false
+      },
+      {
+        "appliedPatches": [],
+        "durationSeconds": 0.71,
+        "errorMessage": "Morphe reported failure: SEVERE: An unexpected error occurred: Cannot invoke \"com.reandroid.arsc.chunk.xml.AndroidManifestBlock.isExtractNativeLibs()\" because \"manifest\" is null \njava.lang.NullPointerException: Cannot invoke \"com.reandroid.arsc.chunk.xml.AndroidManifestBlock.isExtractNativeLibs()\" because \"manifest\" is null",
+        "injectedClasses": [],
+        "options": {},
+        "patchName": "Remove Login",
+        "success": false
+      },
+      {
+        "appliedPatches": [],
+        "durationSeconds": 0.7,
+        "errorMessage": "Morphe reported failure: SEVERE: An unexpected error occurred: Cannot invoke \"com.reandroid.arsc.chunk.xml.AndroidManifestBlock.isExtractNativeLibs()\" because \"manifest\" is null \njava.lang.NullPointerException: Cannot invoke \"com.reandroid.arsc.chunk.xml.AndroidManifestBlock.isExtractNativeLibs()\" because \"manifest\" is null",
+        "injectedClasses": [],
+        "options": {},
+        "patchName": "Remove Shipment Sync",
+        "success": false
+      }
+    ],
+    "toolVersions": {
+      "apktool": "3.0.3",
+      "baksmali": "3.0.10",
+      "jadx": "1.5.6",
+      "morphe": "1.18.0"
+    },
+    "totalCases": 12,
+    "versionCode": 52580,
+    "versionName": "5.25.8"
+  }
+}
