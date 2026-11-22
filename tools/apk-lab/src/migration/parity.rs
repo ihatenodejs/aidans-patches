@@ -12,6 +12,7 @@
 //! created inside an isolated temporary sandbox. No case touches the network,
 //! a device, Google Play, or the real tool cache.
 
+use crate::models::ExitCode;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::{BTreeMap, BTreeSet};
@@ -26,9 +27,11 @@ const SCHEMA_VERSION: u32 = 1;
 const REPORT_KIND: &str = "apk-lab-core-parity";
 const ANALYSIS_REPORT_KIND: &str = "apk-lab-analysis-parity";
 const PATCHING_DEVICE_REPORT_KIND: &str = "apk-lab-patching-device-parity";
+const ACQUISITION_CI_REPORT_KIND: &str = "apk-lab-acquisition-ci-parity";
 const CORE_GROUP: &str = "core";
 const ANALYSIS_GROUP: &str = "analysis";
 const PATCHING_DEVICE_GROUP: &str = "patching-device";
+const ACQUISITION_CI_GROUP: &str = "acquisition-ci";
 const SYNTHETIC_PROFILE: &str = "synthetic";
 const REAL_TOOLS_PROFILE: &str = "real-tools";
 const REAL_DEVICE_PROFILE: &str = "real-device";
@@ -44,6 +47,8 @@ const NORMALIZATION_RULES: &[&str] = &[
     "doctor host prerequisite/tool version, path and error details are replaced with <volatile>",
     "declared JSON fields are replaced with <path>/<version>/<pid>",
     "patching human output replaces per-case durations with <duration> and PIDs with <pid>",
+    "acquisition-ci scenario JSON compares structurally after path replacement; timestamps are not reported",
+    "acquisition-ci result JSON is written to a per-side file and compared structurally",
     "CRLF line endings are normalized to LF",
 ];
 
@@ -1108,6 +1113,180 @@ fn patching_device_case(id: &str) -> Option<&'static PatchingCase> {
 }
 
 // ---------------------------------------------------------------------------
+// Acquisition and CI scenario table
+// ---------------------------------------------------------------------------
+//
+// These cases execute library scenarios rather than the CLI directly. The
+// Python side runs a generated driver that imports `apk_lab` and injects fakes;
+// the native side runs the same scenario through the hidden
+// `acquisition-ci-scenario` subcommand. Both write a result document to a
+// side-specific file. Acquisition providers, S3, the Morphe checker and the
+// Worker poster are always fakes; no case touches Play, R2, the Worker, a
+// device, or the network.
+
+#[derive(Debug, Clone, Copy)]
+struct ScenarioCase {
+    spec: CaseSpec,
+    kind: ScenarioKind,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ScenarioKind {
+    /// Fake apkeep/Play/APKMirror providers, fake badger/inspector and temp APKs.
+    Acquisition,
+    /// Fixture-slot rotation over an in-memory S3 adapter.
+    Fixtures,
+    /// Matrix/start/run over fake S3, checker and poster.
+    Ci,
+}
+
+const ROTATION_ACCOUNTS: &str = r#"{"version":1,"accounts":[
+{"label":"first","email":"first@example.com","aasToken":"aas_et/first-token","device":"px_9a","locale":"en_US","timezone":"UTC","enabled":true},
+{"label":"second","email":"second@example.com","aasToken":"aas_et/second-token","device":"px_9a","locale":"en_US","timezone":"UTC","enabled":true}
+]}"#;
+
+const SINGLE_ACCOUNT: &str = r#"{"version":1,"accounts":[
+{"label":"only","email":"only@example.com","aasToken":"aas_et/only-token","device":"px_9a","locale":"en_US","timezone":"UTC","enabled":true}
+]}"#;
+
+const ACQUISITION_CI_CASES: &[ScenarioCase] = &[
+    ScenarioCase {
+        spec: CaseSpec {
+            id: "acquire-no-account",
+            argv: &["acquire", "com.example.parity"],
+            stream: StreamMode::Stdout,
+            json_stream: None,
+            volatile_json: &[],
+            text_rules: &[],
+        },
+        kind: ScenarioKind::Acquisition,
+    },
+    ScenarioCase {
+        spec: CaseSpec {
+            id: "acquire-account-rotation",
+            argv: &["acquire", "com.example.parity", "--version", "1.0.0"],
+            stream: StreamMode::Stdout,
+            json_stream: None,
+            volatile_json: &[],
+            text_rules: &[],
+        },
+        kind: ScenarioKind::Acquisition,
+    },
+    ScenarioCase {
+        spec: CaseSpec {
+            id: "acquire-wrong-version",
+            argv: &["acquire", "com.example.parity", "--version", "1.0.0"],
+            stream: StreamMode::Stdout,
+            json_stream: None,
+            volatile_json: &[],
+            text_rules: &[],
+        },
+        kind: ScenarioKind::Acquisition,
+    },
+    ScenarioCase {
+        spec: CaseSpec {
+            id: "acquire-normalization-manifest",
+            argv: &["acquire", "com.example.parity"],
+            stream: StreamMode::Stdout,
+            json_stream: None,
+            volatile_json: &[],
+            text_rules: &[],
+        },
+        kind: ScenarioKind::Acquisition,
+    },
+    ScenarioCase {
+        spec: CaseSpec {
+            id: "acquire-source-labels",
+            argv: &["acquire", "com.example.parity"],
+            stream: StreamMode::Stdout,
+            json_stream: None,
+            volatile_json: &[],
+            text_rules: &[],
+        },
+        kind: ScenarioKind::Acquisition,
+    },
+    ScenarioCase {
+        spec: CaseSpec {
+            id: "fixtures-key-metadata-rotation",
+            argv: &["fixtures", "seed", "--package", "com.example.parity"],
+            stream: StreamMode::Stdout,
+            json_stream: None,
+            volatile_json: &[],
+            text_rules: &[],
+        },
+        kind: ScenarioKind::Fixtures,
+    },
+    ScenarioCase {
+        spec: CaseSpec {
+            id: "ci-matrix-tie-break",
+            argv: &["ci", "matrix", "--output-file", "GITHUB_OUTPUT"],
+            stream: StreamMode::Stdout,
+            json_stream: None,
+            volatile_json: &[],
+            text_rules: &[],
+        },
+        kind: ScenarioKind::Ci,
+    },
+    ScenarioCase {
+        spec: CaseSpec {
+            id: "ci-start-payload",
+            argv: &[
+                "ci",
+                "start",
+                "--package",
+                "com.example.parity",
+                "--request-id",
+                "req-1",
+                "--git-revision",
+                "abc123",
+            ],
+            stream: StreamMode::Stdout,
+            json_stream: None,
+            volatile_json: &[],
+            text_rules: &[],
+        },
+        kind: ScenarioKind::Ci,
+    },
+    ScenarioCase {
+        spec: CaseSpec {
+            id: "ci-run-saved-before-post",
+            argv: &["ci", "run", "--package", "com.example.parity"],
+            stream: StreamMode::Stdout,
+            json_stream: None,
+            volatile_json: &[],
+            text_rules: &[],
+        },
+        kind: ScenarioKind::Ci,
+    },
+    ScenarioCase {
+        spec: CaseSpec {
+            id: "ci-run-2xx-marker",
+            argv: &["ci", "run", "--package", "com.example.parity"],
+            stream: StreamMode::Stdout,
+            json_stream: None,
+            volatile_json: &[],
+            text_rules: &[],
+        },
+        kind: ScenarioKind::Ci,
+    },
+    ScenarioCase {
+        spec: CaseSpec {
+            id: "ci-run-transport-failure",
+            argv: &["ci", "run", "--package", "com.example.parity"],
+            stream: StreamMode::Stdout,
+            json_stream: None,
+            volatile_json: &[],
+            text_rules: &[],
+        },
+        kind: ScenarioKind::Ci,
+    },
+];
+
+fn acquisition_ci_case(id: &str) -> Option<&'static ScenarioCase> {
+    ACQUISITION_CI_CASES.iter().find(|case| case.spec.id == id)
+}
+
+// ---------------------------------------------------------------------------
 // Options and entry point
 // ---------------------------------------------------------------------------
 
@@ -1134,8 +1313,9 @@ pub fn run(args: &[String]) -> Result<(), String> {
         CORE_GROUP => run_core(options),
         ANALYSIS_GROUP => run_analysis(options),
         PATCHING_DEVICE_GROUP => run_patching_device(options),
+        ACQUISITION_CI_GROUP => run_acquisition_ci(options),
         other => Err(format!(
-            "unsupported parity group '{other}' (available: '{CORE_GROUP}', '{ANALYSIS_GROUP}', '{PATCHING_DEVICE_GROUP}')"
+            "unsupported parity group '{other}' (available: '{CORE_GROUP}', '{ANALYSIS_GROUP}', '{PATCHING_DEVICE_GROUP}', '{ACQUISITION_CI_GROUP}')"
         )),
     }
 }
@@ -1312,6 +1492,74 @@ fn run_patching_device_real(
         PATCHING_DEVICE_APPROVED_CASES,
     )?;
     finish_patching_device(options.report.as_deref(), report, REAL_DEVICE_PROFILE)
+}
+
+fn run_acquisition_ci(options: Options) -> Result<(), String> {
+    if options.profile != SYNTHETIC_PROFILE {
+        return Err(format!(
+            "--profile {} is not supported with --group {ACQUISITION_CI_GROUP}; the offline group only runs fake scenarios",
+            options.profile
+        ));
+    }
+    if options.corpus.is_some() {
+        return Err(format!(
+            "--corpus is not supported with --group {ACQUISITION_CI_GROUP}"
+        ));
+    }
+
+    let selected = select_acquisition_ci_cases(&options.cases)?;
+    if options.list {
+        print_acquisition_ci_list(&selected);
+        return Ok(());
+    }
+
+    let (oracle, rust_bin) = resolve_tools(&options)?;
+    let sandbox = tempfile::Builder::new()
+        .prefix("apk-lab-acquisition-ci-parity-")
+        .tempdir()
+        .map_err(|error| format!("could not create parity sandbox: {error}"))?;
+    let report = execute_acquisition_ci(&selected, &oracle, &rust_bin, sandbox.path())?;
+
+    let rendered = render_report(&report)?;
+    write_report(options.report.as_deref(), &rendered)?;
+    if !report_passed(&report) {
+        return Err(format!(
+            "acquisition-ci parity failed: {} of {} case(s) did not pass",
+            report.summary.failed + report.summary.missing,
+            report.summary.total
+        ));
+    }
+    Ok(())
+}
+
+fn select_acquisition_ci_cases(requested: &[String]) -> Result<Vec<&'static ScenarioCase>, String> {
+    let mut wanted = BTreeSet::new();
+    for id in requested {
+        if acquisition_ci_case(id).is_none() {
+            return Err(format!(
+                "unknown acquisition-ci parity case '{id}' (run 'parity --group {ACQUISITION_CI_GROUP}' --list)"
+            ));
+        }
+        wanted.insert(id.as_str());
+    }
+    Ok(ACQUISITION_CI_CASES
+        .iter()
+        .filter(|case| wanted.is_empty() || wanted.contains(case.spec.id))
+        .collect())
+}
+
+fn print_acquisition_ci_list(cases: &[&ScenarioCase]) {
+    let mut text = String::new();
+    for case in cases {
+        text.push_str(case.spec.id);
+        text.push('\t');
+        text.push_str(case.spec.stream.as_str());
+        text.push('\t');
+        text.push_str(&case.spec.argv.join(" "));
+        text.push('\n');
+    }
+    let mut out = io::stdout().lock();
+    let _ = out.write_all(text.as_bytes());
 }
 
 fn finish_patching_device(
@@ -1996,6 +2244,1732 @@ fn execute_patching_device_synthetic(
         Some(SYNTHETIC_PROFILE),
         PATCHING_DEVICE_APPROVED_CASES,
     )
+}
+
+fn execute_acquisition_ci(
+    cases: &[&ScenarioCase],
+    oracle: &Oracle,
+    rust_bin: &Path,
+    sandbox: &Path,
+) -> Result<ParityReport, String> {
+    let run_root = sandbox.join("run");
+    let fake_sdk = sandbox.join("fake-sdk");
+    create_acquisition_ci_fixtures(&run_root, &fake_sdk)?;
+    for directory in [&sandbox.join("home"), &sandbox.join("tmp")] {
+        fs::create_dir_all(directory)
+            .map_err(|error| format!("could not create {}: {error}", directory.display()))?;
+    }
+
+    let driver = run_root.join("acquisition_ci_driver.py");
+    fs::write(&driver, ACQUISITION_CI_PYTHON_DRIVER)
+        .map_err(|error| format!("could not write acquisition-ci driver: {error}"))?;
+
+    let environment = Environment::for_sandbox(sandbox, python_project_path(oracle), &fake_sdk);
+    let normalizer = Normalizer::new(NormalizationContext::new(sandbox, &run_root));
+    // Prefer the migration binary built beside the requested native binary so
+    // `--rust-bin` selects the build under test; fall back to the running
+    // harness when the sibling is absent.
+    let sibling = rust_bin.with_file_name("apk-lab-migrate");
+    let native_harness = if sibling.is_file() {
+        sibling
+    } else {
+        std::env::current_exe()
+            .map_err(|error| format!("could not resolve parity executable: {error}"))?
+    };
+
+    let mut results = Vec::with_capacity(cases.len());
+    for case in cases {
+        let mut side_results: Vec<(ProcessResult, Option<Value>, Option<String>)> = Vec::new();
+        for side in ["python", "rust"] {
+            let result_name = format!("result-{side}.json");
+            let result_path = run_root.join(&result_name);
+            let _ = fs::remove_file(&result_path);
+
+            let case_environment = environment
+                .clone()
+                .with_variables(scenario_variables(case, side, &run_root))
+                .with_variables([
+                    ("PARITY_SIDE".to_string(), side.to_string()),
+                    ("PARITY_RESULT".to_string(), result_name.clone()),
+                ]);
+            for stale in [
+                format!("submission-{side}.json"),
+                format!("marker-{side}.txt"),
+                format!("matrix-{side}.txt"),
+            ] {
+                let _ = fs::remove_file(run_root.join(stale));
+            }
+
+            let outcome = if side == "python" {
+                run_python_scenario(
+                    oracle,
+                    &driver,
+                    case.spec.id,
+                    &result_name,
+                    &run_root,
+                    &case_environment,
+                )
+            } else {
+                run_binary(
+                    &native_harness,
+                    [
+                        "acquisition-ci-scenario".to_string(),
+                        case.spec.id.to_string(),
+                        "--result".to_string(),
+                        result_name.clone(),
+                        "--side".to_string(),
+                        side.to_string(),
+                    ],
+                    &run_root,
+                    &case_environment,
+                )
+            };
+
+            let (process, result, failure) = match outcome {
+                Ok(process) => match fs::read_to_string(&result_path) {
+                    Ok(text) => match serde_json::from_str::<Value>(&text) {
+                        Ok(value) => (process, Some(value), None),
+                        Err(error) => (
+                            process,
+                            None,
+                            Some(format!(
+                                "{side} result is not JSON ({error}): {}",
+                                compact(&text, 240)
+                            )),
+                        ),
+                    },
+                    Err(error) => (
+                        process,
+                        None,
+                        Some(format!("{side} did not write a result file: {error}")),
+                    ),
+                },
+                Err(error) => (
+                    ProcessResult::missing(),
+                    None,
+                    Some(format!("{side}: {error}")),
+                ),
+            };
+            side_results.push((process, result, failure));
+        }
+
+        let (python, python_result, python_failure) = &side_results[0];
+        let (rust, rust_result, rust_failure) = &side_results[1];
+        let mut differences = Vec::new();
+        if let Some(reason) = python_failure {
+            differences.push(reason.clone());
+        }
+        if let Some(reason) = rust_failure {
+            differences.push(reason.clone());
+        }
+        if python_failure.is_none() && rust_failure.is_none() {
+            differences.extend(compare_case(
+                &case.spec,
+                python,
+                rust,
+                &normalizer.at(&case.spec),
+            ));
+            if let (Some(python_json), Some(rust_json)) = (python_result, rust_result) {
+                compare_result_json(
+                    python_json,
+                    rust_json,
+                    &normalizer.context,
+                    &mut differences,
+                );
+            }
+        }
+
+        let result = if python_failure.is_some() || rust_failure.is_some() {
+            CaseResult {
+                id: case.spec.id.to_string(),
+                argv: case
+                    .spec
+                    .argv
+                    .iter()
+                    .map(|value| value.to_string())
+                    .collect(),
+                status: CaseStatus::Missing,
+                approved: false,
+                approval: None,
+                exit: ExitPair {
+                    python: python.exit,
+                    rust: rust.exit,
+                },
+                differences,
+            }
+        } else {
+            CaseResult {
+                id: case.spec.id.to_string(),
+                argv: case
+                    .spec
+                    .argv
+                    .iter()
+                    .map(|value| value.to_string())
+                    .collect(),
+                status: if differences.is_empty() {
+                    CaseStatus::Passed
+                } else {
+                    CaseStatus::Failed
+                },
+                approved: false,
+                approval: None,
+                exit: ExitPair {
+                    python: python.exit,
+                    rust: rust.exit,
+                },
+                differences,
+            }
+        };
+        results.push(result);
+    }
+
+    Ok(build_report_for(
+        results,
+        ACQUISITION_CI_REPORT_KIND,
+        Some(SYNTHETIC_PROFILE),
+    ))
+}
+
+fn compare_result_json(
+    python: &Value,
+    rust: &Value,
+    context: &NormalizationContext,
+    differences: &mut Vec<String>,
+) {
+    let mut python = python.clone();
+    let mut rust = rust.clone();
+    normalize_json_paths(&mut python, context);
+    normalize_json_paths(&mut rust, context);
+    let before = differences.len();
+    compare_json(&python, &rust, "result", differences);
+    for difference in &mut differences[before..] {
+        if !difference.starts_with("result/") {
+            *difference = format!("result {difference}");
+        }
+    }
+}
+
+fn run_python_scenario(
+    oracle: &Oracle,
+    driver: &Path,
+    scenario: &str,
+    result_name: &str,
+    cwd: &Path,
+    environment: &Environment,
+) -> Result<ProcessResult, String> {
+    let (python, prefix) = oracle_python_command(oracle)?;
+    let mut args = prefix;
+    args.push(driver.to_string_lossy().into_owned());
+    args.push(scenario.to_string());
+    args.push(result_name.to_string());
+    match environment
+        .variables
+        .iter()
+        .find(|(name, _)| name == "PARITY_SIDE")
+    {
+        Some((_, side)) => args.push(side.clone()),
+        None => args.push("python".to_string()),
+    }
+    run_binary(&python, args, cwd, environment)
+}
+
+fn oracle_python_command(oracle: &Oracle) -> Result<(PathBuf, Vec<String>), String> {
+    match oracle {
+        Oracle::Direct(entrypoint) => {
+            let python = entrypoint
+                .parent()
+                .map(|directory| directory.join("python"))
+                .filter(|candidate| is_executable(candidate))
+                .or_else(|| find_in_path("python3"))
+                .ok_or_else(|| {
+                    "could not find a Python interpreter beside the oracle entrypoint".to_string()
+                })?;
+            Ok((python, Vec::new()))
+        }
+        Oracle::Uv { uv, project } => Ok((
+            uv.clone(),
+            vec![
+                "run".to_string(),
+                "--project".to_string(),
+                project.to_string_lossy().into_owned(),
+                "python".to_string(),
+            ],
+        )),
+    }
+}
+
+fn scenario_variables(case: &ScenarioCase, side: &str, run_root: &Path) -> Vec<(String, String)> {
+    let mut variables: Vec<(String, String)> = Vec::new();
+    match case.spec.id {
+        "acquire-account-rotation" => {
+            variables.push(("APKEEP_ACCOUNTS".to_string(), ROTATION_ACCOUNTS.to_string()));
+        }
+        "acquire-wrong-version" => {
+            variables.push(("APKEEP_ACCOUNTS".to_string(), SINGLE_ACCOUNT.to_string()));
+        }
+        _ => {}
+    }
+    if case.kind == ScenarioKind::Ci {
+        let runner_temp = run_root.join("tmp");
+        let _ = fs::create_dir_all(&runner_temp);
+        let values = [
+            ("GITHUB_EVENT_NAME", "workflow_dispatch"),
+            ("GITHUB_SHA", "abc123"),
+            ("GITHUB_REPOSITORY", "example/parity"),
+            ("INPUT_PACKAGE_NAME", "all"),
+            ("RUNNER_TEMP", &runner_temp.to_string_lossy()),
+            ("COMPATIBILITY_STATUS_SECRET", "test-secret"),
+            ("WORKER_STATUS_URL", "https://worker.parity.invalid"),
+            ("DISPATCH_REQUEST_ID", "req-1"),
+        ];
+        for (name, value) in values {
+            variables.push((name.to_string(), value.to_string()));
+        }
+        let submission = run_root.join(format!("submission-{side}.json"));
+        let marker = run_root.join(format!("marker-{side}.txt"));
+        variables.push((
+            "COMPATIBILITY_SUBMISSION_PATH".to_string(),
+            submission.to_string_lossy().into_owned(),
+        ));
+        variables.push((
+            "COMPATIBILITY_CALLBACK_MARKER".to_string(),
+            marker.to_string_lossy().into_owned(),
+        ));
+    }
+    variables
+}
+
+fn create_acquisition_ci_fixtures(run_root: &Path, fake_sdk: &Path) -> Result<(), String> {
+    let fixtures = run_root.join("fixtures");
+    for directory in [&fixtures, &run_root.join("tmp"), fake_sdk] {
+        fs::create_dir_all(directory)
+            .map_err(|error| format!("could not create {}: {error}", directory.display()))?;
+    }
+    let patches = serde_json::json!({
+        "version": "9.9.9",
+        "patches": [
+            {
+                "name": "Parity Patch",
+                "description": "synthetic acquisition-ci patch",
+                "compatiblePackages": [{
+                    "name": "Parity App",
+                    "packageName": "com.example.parity",
+                    "targets": [
+                        {"version": "1.0.0"},
+                        {"version": "v1.0.0"},
+                        {"version": "1.0.0-beta"},
+                        {"version": "1.10.0"},
+                        {"version": "1.9.0"}
+                    ]
+                }]
+            },
+            {
+                "name": "Beta Patch",
+                "description": "second synthetic package",
+                "compatiblePackages": [{
+                    "name": "Beta App",
+                    "packageName": "com.example.beta",
+                    "targets": [{"version": "2.0.0"}]
+                }]
+            }
+        ]
+    });
+    fs::write(
+        fixtures.join("patches-list.json"),
+        format!(
+            "{}\n",
+            serde_json::to_string_pretty(&patches).map_err(|error| error.to_string())?
+        ),
+    )
+    .map_err(|error| format!("could not write patches-list fixture: {error}"))?;
+    fs::write(fixtures.join("payload.mpp"), b"synthetic-mpp")
+        .map_err(|error| format!("could not write MPP fixture: {error}"))?;
+    fs::write(fixtures.join("slot-artifact.apk"), b"slot-artifact-bytes")
+        .map_err(|error| format!("could not write slot artifact fixture: {error}"))?;
+    Ok(())
+}
+
+const ACQUISITION_CI_PYTHON_DRIVER: &str = r##"#!/usr/bin/env python3
+"""Deterministic acquisition/CI parity scenarios with injected fakes."""
+
+import hashlib
+import json
+import os
+import re
+import shutil
+import sys
+import zipfile
+from pathlib import Path
+from subprocess import CompletedProcess
+
+PACKAGE = "com.example.parity"
+SCENARIO = ""
+RESULT_PATH = ""
+SIDE = "python"
+APK_VERSION = "1.0.0"
+INSPECT_VERSION = "1.0.0"
+
+
+def sha256(data):
+    return hashlib.sha256(data).hexdigest()
+
+
+def artifact_manifest(rel, path):
+    path = Path(path)
+    members = []
+    with zipfile.ZipFile(path) as archive:
+        for info in archive.infolist():
+            data = archive.read(info.filename)
+            members.append(
+                {
+                    "name": info.filename,
+                    "size": len(data),
+                    "sha256": sha256(data),
+                    "dateTime": list(info.date_time),
+                    "mode": (info.external_attr >> 16) & 0o777,
+                }
+            )
+    return {"path": rel, "exists": True, "members": members}
+
+
+def fake_badging(apk):
+    from apk_lab.models import AndroidManifestInfo
+
+    name = Path(apk).name
+    split = None if name == "base.apk" else name[:-4]
+    return AndroidManifestInfo(
+        package_name=PACKAGE,
+        version_code=100,
+        version_name=APK_VERSION,
+        split_name=split,
+    )
+
+
+def fake_inspect(path):
+    from apk_lab.models import ArtifactInspection, ContainerType
+
+    path = Path(path)
+    return ArtifactInspection(
+        file_path=str(path),
+        container_type=ContainerType.APKM,
+        file_size=path.stat().st_size,
+        sha256=sha256(path.read_bytes()),
+        package_name=PACKAGE,
+        version_name=INSPECT_VERSION,
+        version_code=100,
+    )
+
+
+class FakeToolManager:
+    def __init__(self):
+        self.calls = []
+
+    def is_platform_supported(self, name):
+        return True
+
+    def is_tool_installed(self, name):
+        return True
+
+    def run_tool_cmd(self, name, cmd, **kwargs):
+        ini = Path(cmd[cmd.index("-i") + 1]).read_text(encoding="utf-8")
+        match = re.search(r"email = (.+)", ini)
+        email = match.group(1).strip() if match else "unknown@example.com"
+        self.calls.append(email)
+        attempt = Path(cmd[-1])
+        attempt.mkdir(parents=True, exist_ok=True)
+        if email == "first@example.com":
+            return CompletedProcess(cmd, 1, "", "first denial")
+        (attempt / "base.apk").write_bytes(b"base-apk-bytes")
+        return CompletedProcess(cmd, 0, "", "")
+
+
+def patch_acquisition():
+    import apk_lab.acquisition as acq
+
+    acq.parse_apk_badging = fake_badging
+    acq.inspect_artifact = fake_inspect
+
+    def goopdl(*args, **kwargs):
+        raise acq.AcquisitionError(
+            "dispenser unavailable", acq.ExitCode.INFRASTRUCTURE_FAILURE
+        )
+
+    def apkmirror(*args, **kwargs):
+        raise acq.AcquisitionError(
+            f"No APKMirror repository mapping configured for '{PACKAGE}'",
+            acq.ExitCode.INVALID_ARTIFACT,
+        )
+
+    acq.acquire_with_goopdl = goopdl
+    acq.acquire_with_apkmirror = apkmirror
+    return acq
+
+
+def scenario_acquire_no_account():
+    acq = patch_acquisition()
+    try:
+        acq.acquire_artifact(PACKAGE, Path("out"), None, None, tool_mgr=FakeToolManager())
+    except acq.AcquisitionError as error:
+        return error.exit_code.value, {"outcome": "error", "error": str(error)}
+    return 0, {"outcome": "success"}
+
+
+def scenario_acquire_account_rotation():
+    acq = patch_acquisition()
+    shutil.rmtree("out", ignore_errors=True)
+    tool = FakeToolManager()
+    path, source = acq.acquire_artifact(
+        PACKAGE, Path("out"), "1.0.0", 100, tool_mgr=tool
+    )
+    return 0, {
+        "outcome": "success",
+        "source": source.value,
+        "calls": tool.calls,
+        "artifact": artifact_manifest("out/com.example.parity.apkm", path),
+    }
+
+
+def scenario_acquire_wrong_version():
+    global INSPECT_VERSION
+    acq = patch_acquisition()
+    INSPECT_VERSION = "9.9.9"
+    shutil.rmtree("out", ignore_errors=True)
+    try:
+        acq.acquire_artifact(PACKAGE, Path("out"), "1.0.0", 100, tool_mgr=FakeToolManager())
+    except acq.AcquisitionError as error:
+        return error.exit_code.value, {
+            "outcome": "error",
+            "error": str(error),
+            "artifactPresent": (Path("out") / "com.example.parity.apkm").exists(),
+        }
+    return 0, {"outcome": "success"}
+
+
+def scenario_acquire_normalization_manifest():
+    acq = patch_acquisition()
+    shutil.rmtree("norm", ignore_errors=True)
+    Path("norm").mkdir()
+    files = []
+    for name, data in [
+        ("base.apk", b"BASE-APK"),
+        ("config.en.apk", b"EN-SPLIT"),
+        ("config.arm64.apk", b"ARM64-SPLIT"),
+    ]:
+        path = Path("norm") / name
+        path.write_bytes(data)
+        files.append(path)
+    path = acq.normalize_apks_to_apkm(files, Path("norm/out.apkm"))
+    return 0, {
+        "outcome": "success",
+        "artifact": artifact_manifest("norm/out.apkm", path),
+    }
+
+
+def scenario_acquire_source_labels():
+    from apk_lab.acquisition import AcquisitionSource
+
+    return 0, {"labels": [source.value for source in AcquisitionSource]}
+
+
+class FakeS3:
+    def __init__(self):
+        self.objects = {}
+
+    def head_object(self, Bucket, Key):
+        from botocore.exceptions import ClientError
+
+        if Key not in self.objects:
+            raise ClientError(
+                {"Error": {"Code": "404", "Message": "Not Found"}}, "HeadObject"
+            )
+        return {"Metadata": dict(self.objects[Key][1])}
+
+    def upload_file(self, Filename, Bucket, Key, ExtraArgs=None):
+        metadata = dict((ExtraArgs or {}).get("Metadata", {}))
+        self.objects[Key] = (Path(Filename).read_bytes(), metadata)
+
+    def download_file(self, Bucket, Key, Filename):
+        Path(Filename).write_bytes(self.objects[Key][0])
+
+    def copy_object(self, Bucket, CopySource, Key, Metadata=None, MetadataDirective=None):
+        data, old = self.objects[CopySource["Key"]]
+        self.objects[Key] = (data, dict(Metadata if Metadata is not None else old))
+
+    def delete_object(self, Bucket, Key):
+        self.objects.pop(Key, None)
+
+
+def fixture_inspect(path):
+    from apk_lab.models import ArtifactInspection, ContainerType
+
+    path = Path(path)
+    version = {"v1.apk": "1.0.0", "v2.apk": "2.0.0"}.get(path.name, "9.9.9")
+    return ArtifactInspection(
+        file_path=str(path),
+        container_type=ContainerType.APKM,
+        file_size=path.stat().st_size,
+        sha256="sha-" + version,
+        package_name=PACKAGE,
+        version_name=version,
+        version_code=100,
+    )
+
+
+def fixture_snapshot(manager, s3):
+    snapshot = {"keys": sorted(s3.objects)}
+    for role in ("latest", "target"):
+        meta = manager.get_slot_metadata(PACKAGE, role)
+        snapshot[role] = (
+            None
+            if meta is None
+            else {
+                "role": meta.role,
+                "packageName": meta.package_name,
+                "versionName": meta.version_name,
+                "versionCode": meta.version_code,
+                "containerType": meta.container_type,
+                "sha256": meta.sha256,
+                "signerSha256": meta.signer_sha256,
+                "sizeBytes": meta.size_bytes,
+                "acquisitionSource": meta.acquisition_source,
+            }
+        )
+    return snapshot
+
+
+def scenario_fixtures_key_metadata_rotation():
+    import apk_lab.fixtures as fixtures
+
+    fixtures.inspect_artifact = fixture_inspect
+    shutil.rmtree("fixture-artifacts", ignore_errors=True)
+    Path("fixture-artifacts").mkdir()
+    v1 = Path("fixture-artifacts/v1.apk")
+    v2 = Path("fixture-artifacts/v2.apk")
+    v1.write_bytes(b"fixture-v1")
+    v2.write_bytes(b"fixture-v2")
+
+    s3 = FakeS3()
+    manager = fixtures.R2FixtureManager(bucket_name="test-bucket", s3_client=s3)
+    snapshots = []
+    manager.seed_fixture(PACKAGE, "latest", v1)
+    snapshots.append(fixture_snapshot(manager, s3))
+    manager.rotate_slots_on_new_latest(PACKAGE, v2, "1.0.0", "apkeep")
+    snapshots.append(fixture_snapshot(manager, s3))
+    manager.rotate_slots_on_new_latest(PACKAGE, v1, "1.0.0", "apkeep")
+    snapshots.append(fixture_snapshot(manager, s3))
+    return 0, {"fixtures": snapshots}
+
+
+def scenario_ci_matrix_tie_break():
+    import apk_lab.compatibility_ci as ci
+
+    output = Path(f"matrix-{SIDE}.txt")
+    output.write_text("before\n", encoding="utf-8")
+    code = ci.main(
+        [
+            "matrix",
+            "--output-file",
+            str(output),
+            "--patches-list",
+            "fixtures/patches-list.json",
+        ]
+    )
+    data = json.loads(Path("fixtures/patches-list.json").read_text(encoding="utf-8"))
+    metadata = ci.get_package_run_metadata(data, PACKAGE)
+    return code, {
+        "outcome": "success" if code == 0 else "error",
+        "matrix": {"outputFile": output.read_text(encoding="utf-8"), "metadata": metadata},
+    }
+
+
+def scenario_ci_start_payload():
+    import apk_lab.compatibility_ci as ci
+
+    captured = {}
+
+    def fake_post(url, secret, payload):
+        captured.update({"url": url, "payload": payload, "status": 201})
+        return 201
+
+    ci.post_run_start = fake_post
+    code = ci.main(
+        [
+            "start",
+            "--package",
+            PACKAGE,
+            "--request-id",
+            "req-1",
+            "--git-revision",
+            "abc123",
+            "--patches-list",
+            "fixtures/patches-list.json",
+        ]
+    )
+    return code, {
+        "outcome": "success" if code == 0 else "error",
+        "post": captured,
+    }
+
+
+class FakeR2:
+    def __init__(self):
+        from apk_lab.fixtures import SlotMetadata
+
+        self.metadata = SlotMetadata(
+            role="latest",
+            package_name=PACKAGE,
+            version_name="1.10.0",
+            version_code=100,
+            container_type="APKM",
+            sha256="slot-sha",
+            signer_sha256=None,
+            size_bytes=19,
+            acquisition_source="manual",
+            timestamp="2026-01-01T00:00:00+00:00",
+        )
+
+    def get_slot_metadata(self, package, role):
+        return self.metadata if role == "latest" else None
+
+    def download_slot(self, package, role, destination):
+        Path(destination).write_bytes(b"slot-artifact-bytes")
+        return Path(destination)
+
+
+def fake_check(artifact, mpp, expected_package=None, all_patches=True):
+    from apk_lab.models import PatchCompatibilityReport
+
+    return (
+        PatchCompatibilityReport(
+            artifact_sha256="slot-sha",
+            package_name=PACKAGE,
+            version_name="1.10.0",
+            version_code=100,
+            patch_bundle_version="9.9.9",
+            git_revision="abc123",
+            tool_versions={},
+            overall_status="compatible",
+            total_cases=2,
+            passed_cases=2,
+            failed_cases=0,
+            test_cases=[],
+            failure_reason=None,
+        ),
+        0,
+    )
+
+
+def run_ci_run(status, fail):
+    import apk_lab.compatibility_ci as ci
+
+    captured = {}
+
+    def fake_post(url, secret, submission):
+        submission_path = os.environ.get("COMPATIBILITY_SUBMISSION_PATH")
+        captured["savedBeforePost"] = bool(
+            submission_path and Path(submission_path).is_file()
+        )
+        captured["payload"] = submission
+        captured["status"] = status
+        if fail:
+            raise OSError("connection refused")
+        return status
+
+    ci.R2FixtureManager = lambda *args, **kwargs: FakeR2()
+    ci.run_compatibility_check = fake_check
+    ci.post_compatibility_submission = fake_post
+    code = ci.main(
+        [
+            "run",
+            "--package",
+            PACKAGE,
+            "--mpp",
+            "fixtures/payload.mpp",
+            "--patches-list",
+            "fixtures/patches-list.json",
+        ]
+    )
+    submission_path = Path(os.environ["COMPATIBILITY_SUBMISSION_PATH"])
+    marker_path = Path(os.environ["COMPATIBILITY_CALLBACK_MARKER"])
+    submission = (
+        json.loads(submission_path.read_text(encoding="utf-8"))
+        if submission_path.is_file()
+        else None
+    )
+    marker = marker_path.read_text(encoding="utf-8") if marker_path.is_file() else None
+    return code, {
+        "outcome": "success" if code == 0 else "error",
+        "post": captured,
+        "files": {"submission": submission, "marker": marker},
+    }
+
+
+def scenario_ci_run_saved_before_post():
+    return run_ci_run(201, False)
+
+
+def scenario_ci_run_2xx_marker():
+    return run_ci_run(204, False)
+
+
+def scenario_ci_run_transport_failure():
+    return run_ci_run(0, True)
+
+
+def main():
+    global SCENARIO, RESULT_PATH, SIDE
+    if len(sys.argv) < 4:
+        print("usage: driver.py SCENARIO RESULT SIDE", file=sys.stderr)
+        return 2
+    SCENARIO, RESULT_PATH, SIDE = sys.argv[1], sys.argv[2], sys.argv[3]
+    try:
+        code, payload = globals()["scenario_" + SCENARIO.replace("-", "_")]()
+    except Exception as error:  # noqa: BLE001 - surfaced in the result document
+        code, payload = 70, {
+            "outcome": "driver-error",
+            "error": f"{type(error).__name__}: {error}",
+        }
+    result = {"scenario": SCENARIO, "exit": int(code)}
+    result.update(payload)
+    Path(RESULT_PATH).write_text(
+        json.dumps(result, sort_keys=True, indent=2) + "\n", encoding="utf-8"
+    )
+    return int(code)
+
+
+if __name__ == "__main__":
+    sys.exit(main())
+"##;
+
+/// Hidden entry point used by the parity harness to execute one scenario in a
+/// separate process. It writes the canonical result document and exits with
+/// the scenario's own status so the harness can compare real exit codes.
+pub(crate) fn run_acquisition_ci_scenario_cli(args: &[String]) -> Result<(), String> {
+    let Some(scenario) = args.first() else {
+        return Err("acquisition-ci-scenario requires a scenario id".to_string());
+    };
+    let mut result_path: Option<PathBuf> = None;
+    let mut index = 1;
+    while index < args.len() {
+        match args[index].as_str() {
+            "--result" => {
+                result_path = args.get(index + 1).map(PathBuf::from);
+                index += 2;
+            }
+            "--side" => {
+                index += 2;
+            }
+            other => return Err(format!("unrecognized scenario option '{other}'")),
+        }
+    }
+    let result_path =
+        result_path.ok_or("acquisition-ci-scenario requires --result PATH".to_string())?;
+    let (code, result) = execute_native_scenario(scenario)?;
+    fs::write(
+        &result_path,
+        format!(
+            "{}\n",
+            serde_json::to_string_pretty(&result)
+                .map_err(|error| format!("could not serialize scenario result: {error}"))?
+        ),
+    )
+    .map_err(|error| format!("could not write scenario result: {error}"))?;
+    let _ = io::stdout().flush();
+    let _ = io::stderr().flush();
+    std::process::exit(code);
+}
+
+fn execute_native_scenario(scenario: &str) -> Result<(i32, Value), String> {
+    let outcome = match scenario {
+        "acquire-no-account" => scenario_acquire_no_account(),
+        "acquire-account-rotation" => scenario_acquire_account_rotation(),
+        "acquire-wrong-version" => scenario_acquire_wrong_version(),
+        "acquire-normalization-manifest" => scenario_acquire_normalization_manifest(),
+        "acquire-source-labels" => scenario_acquire_source_labels(),
+        "fixtures-key-metadata-rotation" => scenario_fixtures_key_metadata_rotation(),
+        "ci-matrix-tie-break" => scenario_ci_matrix_tie_break(),
+        "ci-start-payload" => scenario_ci_start_payload(),
+        "ci-run-saved-before-post" => scenario_ci_run(201, false),
+        "ci-run-2xx-marker" => scenario_ci_run(204, false),
+        "ci-run-transport-failure" => scenario_ci_run(0, true),
+        other => Err(format!("unknown acquisition-ci scenario '{other}'")),
+    };
+    match outcome {
+        Ok((code, mut result)) => {
+            if let Value::Object(map) = &mut result {
+                map.entry("scenario".to_string())
+                    .or_insert_with(|| Value::String(scenario.to_string()));
+            }
+            Ok((code, result))
+        }
+        Err(error) => Ok((
+            70,
+            serde_json::json!({
+                "scenario": scenario,
+                "exit": 70,
+                "outcome": "driver-error",
+                "error": error,
+            }),
+        )),
+    }
+}
+
+fn scenario_result(code: ExitCode, payload: Value) -> (i32, Value) {
+    let exit = i32::from(code.as_u8());
+    let mut object = payload;
+    if let Value::Object(map) = &mut object {
+        map.insert(
+            "exit".to_string(),
+            Value::Number(serde_json::Number::from(exit)),
+        );
+    }
+    (exit, object)
+}
+
+fn scenario_manifest(rel: &str, path: &Path) -> Result<Value, String> {
+    let file = fs::File::open(path)
+        .map_err(|error| format!("could not open {}: {error}", path.display()))?;
+    let mut archive = zip::ZipArchive::new(file)
+        .map_err(|error| format!("could not read {}: {error}", path.display()))?;
+    let mut members = Vec::with_capacity(archive.len());
+    for index in 0..archive.len() {
+        let mut member = archive
+            .by_index(index)
+            .map_err(|error| format!("could not read member {index}: {error}"))?;
+        let name = member
+            .name()
+            .map_err(|error| format!("could not read member name: {error}"))?
+            .to_string();
+        let mut data = Vec::new();
+        io::Read::read_to_end(&mut member, &mut data)
+            .map_err(|error| format!("could not read member {name}: {error}"))?;
+        use sha2::Digest;
+        let mut hasher = sha2::Sha256::new();
+        hasher.update(&data);
+        let modified = member.last_modified();
+        let date_time = modified.map_or([0, 0, 0, 0, 0, 0], |value| {
+            [
+                i64::from(value.year()),
+                i64::from(value.month()),
+                i64::from(value.day()),
+                i64::from(value.hour()),
+                i64::from(value.minute()),
+                i64::from(value.second()),
+            ]
+        });
+        members.push(serde_json::json!({
+            "name": name,
+            "size": data.len(),
+            "sha256": format!("{:x}", hasher.finalize()),
+            "dateTime": date_time,
+            "mode": member.unix_mode().unwrap_or(0) & 0o777,
+        }));
+    }
+    Ok(serde_json::json!({
+        "path": rel,
+        "exists": true,
+        "members": members,
+    }))
+}
+
+struct ScenarioBadger {
+    version: &'static str,
+    code: u64,
+    split: bool,
+}
+
+impl crate::acquisition::ApkBadger for ScenarioBadger {
+    fn badging(&self, apk: &Path) -> Result<crate::models::AndroidManifestInfo, String> {
+        let name = apk.file_name().and_then(|name| name.to_str()).unwrap_or("");
+        let split_name = if self.split && name != "base.apk" {
+            Some(name.trim_end_matches(".apk").to_string())
+        } else {
+            None
+        };
+        Ok(crate::models::AndroidManifestInfo {
+            package_name: "com.example.parity".to_string(),
+            version_code: self.code,
+            version_name: self.version.to_string(),
+            min_sdk_version: None,
+            target_sdk_version: None,
+            permissions: Vec::new(),
+            components: Vec::new(),
+            split_name,
+        })
+    }
+}
+
+struct ScenarioInspector {
+    version: &'static str,
+    code: u64,
+}
+
+impl crate::acquisition::ArtifactInspector for ScenarioInspector {
+    fn version(&self, _artifact: &Path) -> Result<crate::acquisition::ArtifactVersion, String> {
+        Ok(crate::acquisition::ArtifactVersion {
+            version_name: self.version.to_string(),
+            version_code: self.code,
+        })
+    }
+}
+
+struct ScenarioApkeepTool;
+
+impl crate::acquisition::ApkeepTool for ScenarioApkeepTool {
+    fn command(&self) -> Result<(PathBuf, Vec<String>), crate::error::Error> {
+        Ok((PathBuf::from("apkeep"), Vec::new()))
+    }
+}
+
+struct ScenarioCommandRunner {
+    calls: std::cell::RefCell<Vec<String>>,
+    fail_first: bool,
+}
+
+impl crate::acquisition::CommandRunner for ScenarioCommandRunner {
+    fn run(
+        &self,
+        _program: &Path,
+        args: &[String],
+        _cwd: Option<&Path>,
+        _timeout: std::time::Duration,
+        _secrets: &[String],
+    ) -> Result<crate::acquisition::CommandOutcome, String> {
+        let ini_index = args
+            .iter()
+            .position(|arg| arg == "-i")
+            .ok_or("apkeep invocation has no credentials file")?;
+        let ini_path = Path::new(&args[ini_index + 1]);
+        let ini = fs::read_to_string(ini_path)
+            .map_err(|error| format!("could not read credentials: {error}"))?;
+        let email = ini
+            .lines()
+            .find_map(|line| line.strip_prefix("email = "))
+            .unwrap_or("unknown@example.com")
+            .trim()
+            .to_string();
+        self.calls.borrow_mut().push(email.clone());
+        if self.fail_first && email == "first@example.com" {
+            return Ok(crate::acquisition::CommandOutcome {
+                success: false,
+                exit_code: Some(1),
+                stdout: String::new(),
+                stderr: "first denial".to_string(),
+                timed_out: false,
+            });
+        }
+        let attempt = args
+            .last()
+            .ok_or("apkeep invocation has no output directory")?;
+        let attempt = Path::new(attempt);
+        fs::create_dir_all(attempt)
+            .map_err(|error| format!("could not create attempt directory: {error}"))?;
+        fs::write(attempt.join("base.apk"), b"base-apk-bytes")
+            .map_err(|error| format!("could not write fake APK: {error}"))?;
+        Ok(crate::acquisition::CommandOutcome {
+            success: true,
+            exit_code: Some(0),
+            stdout: String::new(),
+            stderr: String::new(),
+            timed_out: false,
+        })
+    }
+}
+
+struct FailingPlay(&'static str);
+
+impl crate::acquisition::PlayProvider for FailingPlay {
+    fn download(
+        &self,
+        _request: &crate::acquisition::ProviderRequest<'_>,
+        _auth: crate::acquisition::PlayAuth<'_>,
+    ) -> Result<PathBuf, crate::error::Error> {
+        Err(crate::error::Error::infrastructure(self.0))
+    }
+}
+
+struct FailingApkmirror(&'static str);
+
+impl crate::acquisition::ApkmirrorProvider for FailingApkmirror {
+    fn download(
+        &self,
+        _request: &crate::acquisition::ProviderRequest<'_>,
+    ) -> Result<PathBuf, crate::error::Error> {
+        Err(crate::error::Error::invalid_artifact(self.0))
+    }
+}
+
+fn load_scenario_accounts() -> (
+    Option<Vec<crate::acquisition::AccountConfig>>,
+    Option<String>,
+) {
+    let environment = crate::acquisition::AccountsEnvironment::from_process();
+    match crate::acquisition::load_accounts(&environment) {
+        Ok(accounts) => (accounts, None),
+        Err(error) => (
+            None,
+            Some(format!("Failed to load Google Play accounts: {error}")),
+        ),
+    }
+}
+
+fn run_scenario_acquirer(
+    accounts: Option<&[crate::acquisition::AccountConfig]>,
+    accounts_error: Option<&str>,
+    inspector_version: &'static str,
+    expected_version: Option<&str>,
+    expected_version_code: Option<u64>,
+    fail_first: bool,
+) -> (
+    Result<crate::acquisition::AcquiredArtifact, crate::error::Error>,
+    Vec<String>,
+) {
+    let commands = ScenarioCommandRunner {
+        calls: std::cell::RefCell::new(Vec::new()),
+        fail_first,
+    };
+    let badger = ScenarioBadger {
+        version: "1.0.0",
+        code: 100,
+        split: false,
+    };
+    let inspector = ScenarioInspector {
+        version: inspector_version,
+        code: 100,
+    };
+    let tool = ScenarioApkeepTool;
+    let apkeep = crate::acquisition::ApkeepAcquirer {
+        tool: &tool,
+        commands: &commands,
+        badger: &badger,
+        inspector: &inspector,
+        timeout: std::time::Duration::from_secs(30),
+    };
+    let play = FailingPlay("dispenser unavailable");
+    let apkmirror =
+        FailingApkmirror("No APKMirror repository mapping configured for 'com.example.parity'");
+    let out_dir = PathBuf::from("out");
+    let request = crate::acquisition::ProviderRequest {
+        package_name: "com.example.parity",
+        out_dir: &out_dir,
+        expected_version,
+        expected_version_code,
+    };
+    let acquirer = crate::acquisition::Acquirer {
+        apkeep: Some(&apkeep),
+        play: Some(&play),
+        apkmirror: Some(&apkmirror),
+        retry: crate::acquisition::RetryPolicy::default(),
+    };
+    let result = acquirer.acquire(&request, accounts, accounts_error);
+    (result, commands.calls.into_inner())
+}
+
+fn scenario_acquire_no_account() -> Result<(i32, Value), String> {
+    let (accounts, accounts_error) = load_scenario_accounts();
+    let (result, _) = run_scenario_acquirer(
+        accounts.as_deref(),
+        accounts_error.as_deref(),
+        "1.0.0",
+        None,
+        None,
+        false,
+    );
+    match result {
+        Ok(artifact) => Ok(scenario_result(
+            ExitCode::Success,
+            serde_json::json!({
+                "outcome": "success",
+                "source": artifact.source.label(),
+            }),
+        )),
+        Err(error) => Ok(scenario_result(
+            error.exit_code(),
+            serde_json::json!({"outcome": "error", "error": error.message()}),
+        )),
+    }
+}
+
+fn scenario_acquire_account_rotation() -> Result<(i32, Value), String> {
+    let (accounts, accounts_error) = load_scenario_accounts();
+    let _ = fs::remove_dir_all("out");
+    let (result, calls) = run_scenario_acquirer(
+        accounts.as_deref(),
+        accounts_error.as_deref(),
+        "1.0.0",
+        Some("1.0.0"),
+        Some(100),
+        true,
+    );
+    match result {
+        Ok(artifact) => Ok(scenario_result(
+            ExitCode::Success,
+            serde_json::json!({
+                "outcome": "success",
+                "source": artifact.source.label(),
+                "calls": calls,
+                "artifact": scenario_manifest("out/com.example.parity.apkm", &artifact.path)?,
+            }),
+        )),
+        Err(error) => Ok(scenario_result(
+            error.exit_code(),
+            serde_json::json!({"outcome": "error", "error": error.message(), "calls": calls}),
+        )),
+    }
+}
+
+fn scenario_acquire_wrong_version() -> Result<(i32, Value), String> {
+    let (accounts, accounts_error) = load_scenario_accounts();
+    let _ = fs::remove_dir_all("out");
+    let (result, _) = run_scenario_acquirer(
+        accounts.as_deref(),
+        accounts_error.as_deref(),
+        "9.9.9",
+        Some("1.0.0"),
+        Some(100),
+        false,
+    );
+    match result {
+        Ok(artifact) => Ok(scenario_result(
+            ExitCode::Success,
+            serde_json::json!({
+                "outcome": "success",
+                "artifact": scenario_manifest("out/com.example.parity.apkm", &artifact.path)?,
+            }),
+        )),
+        Err(error) => Ok(scenario_result(
+            error.exit_code(),
+            serde_json::json!({
+                "outcome": "error",
+                "error": error.message(),
+                "artifactPresent": Path::new("out/com.example.parity.apkm").exists(),
+            }),
+        )),
+    }
+}
+
+fn scenario_acquire_normalization_manifest() -> Result<(i32, Value), String> {
+    let _ = fs::remove_dir_all("norm");
+    fs::create_dir_all("norm").map_err(|error| format!("could not create norm: {error}"))?;
+    let mut apks = Vec::new();
+    for (name, data) in [
+        ("base.apk", b"BASE-APK" as &[u8]),
+        ("config.en.apk", b"EN-SPLIT" as &[u8]),
+        ("config.arm64.apk", b"ARM64-SPLIT" as &[u8]),
+    ] {
+        let path = PathBuf::from("norm").join(name);
+        fs::write(&path, data).map_err(|error| format!("could not write {name}: {error}"))?;
+        apks.push(path);
+    }
+    let badger = ScenarioBadger {
+        version: "1.0.0",
+        code: 100,
+        split: true,
+    };
+    let output =
+        crate::acquisition::normalize_apks_to_apkm(&apks, Path::new("norm/out.apkm"), &badger)
+            .map_err(|error| error.message())?;
+    Ok(scenario_result(
+        ExitCode::Success,
+        serde_json::json!({
+            "outcome": "success",
+            "artifact": scenario_manifest("norm/out.apkm", &output)?,
+        }),
+    ))
+}
+
+fn scenario_acquire_source_labels() -> Result<(i32, Value), String> {
+    Ok(scenario_result(
+        ExitCode::Success,
+        serde_json::json!({"labels": ["apkeep", "goopdl", "apkmirror", "manual"]}),
+    ))
+}
+
+// ---------------------------------------------------------------------------
+// Native fixture rotation scenario (in-memory S3)
+// ---------------------------------------------------------------------------
+
+#[derive(Clone, Default)]
+struct ScenarioStoredObject {
+    bytes: Vec<u8>,
+    metadata: BTreeMap<String, String>,
+}
+
+#[derive(Default)]
+struct ScenarioMemoryS3 {
+    objects: std::sync::Mutex<BTreeMap<String, ScenarioStoredObject>>,
+}
+
+impl ScenarioMemoryS3 {
+    fn insert(&self, key: &str, bytes: &[u8], metadata: BTreeMap<String, String>) {
+        self.objects.lock().unwrap().insert(
+            key.to_string(),
+            ScenarioStoredObject {
+                bytes: bytes.to_vec(),
+                metadata,
+            },
+        );
+    }
+
+    fn keys(&self) -> Vec<String> {
+        self.objects.lock().unwrap().keys().cloned().collect()
+    }
+}
+
+#[async_trait::async_trait]
+impl crate::fixtures::S3Adapter for ScenarioMemoryS3 {
+    async fn head_object(
+        &self,
+        _bucket: &str,
+        key: &str,
+    ) -> Result<Option<crate::fixtures::S3Object>, crate::fixtures::S3AdapterError> {
+        Ok(self
+            .objects
+            .lock()
+            .unwrap()
+            .get(key)
+            .map(|stored| crate::fixtures::S3Object {
+                metadata: stored.metadata.clone(),
+                content_type: Some("application/vnd.android.package-archive".to_string()),
+                content_length: Some(stored.bytes.len() as u64),
+            }))
+    }
+
+    async fn get_object_to_file(
+        &self,
+        _bucket: &str,
+        key: &str,
+        destination: &Path,
+    ) -> Result<(), crate::fixtures::S3AdapterError> {
+        let bytes = self
+            .objects
+            .lock()
+            .unwrap()
+            .get(key)
+            .map(|stored| stored.bytes.clone())
+            .ok_or_else(|| {
+                crate::fixtures::S3AdapterError::new(
+                    crate::fixtures::S3ErrorKind::NotFound,
+                    "object not found",
+                )
+            })?;
+        fs::write(destination, bytes).map_err(|error| {
+            crate::fixtures::S3AdapterError::new(
+                crate::fixtures::S3ErrorKind::Other,
+                error.to_string(),
+            )
+        })
+    }
+
+    async fn put_object_from_file(
+        &self,
+        _bucket: &str,
+        key: &str,
+        source: &Path,
+        metadata: &BTreeMap<String, String>,
+        _content_type: &str,
+    ) -> Result<(), crate::fixtures::S3AdapterError> {
+        let bytes = fs::read(source).map_err(|error| {
+            crate::fixtures::S3AdapterError::new(
+                crate::fixtures::S3ErrorKind::Other,
+                error.to_string(),
+            )
+        })?;
+        self.insert(key, &bytes, metadata.clone());
+        Ok(())
+    }
+
+    async fn delete_object(
+        &self,
+        _bucket: &str,
+        key: &str,
+    ) -> Result<(), crate::fixtures::S3AdapterError> {
+        self.objects.lock().unwrap().remove(key);
+        Ok(())
+    }
+}
+
+struct ScenarioFixtureInspector;
+
+impl crate::morphe::ArtifactInspector for ScenarioFixtureInspector {
+    fn inspect(
+        &self,
+        path: &Path,
+    ) -> Result<crate::models::ArtifactInspection, crate::error::Error> {
+        let name = path
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or("");
+        let version = match name {
+            "v1.apk" => "1.0.0",
+            "v2.apk" => "2.0.0",
+            other => other,
+        };
+        let size = fs::metadata(path).map(|meta| meta.len()).unwrap_or(0);
+        Ok(crate::models::ArtifactInspection {
+            file_path: path.to_string_lossy().into_owned(),
+            container_type: crate::models::ContainerType::Apkm,
+            file_size: size,
+            sha256: format!("sha-{version}"),
+            package_name: "com.example.parity".to_string(),
+            version_name: version.to_string(),
+            version_code: 100,
+            min_sdk: None,
+            target_sdk: None,
+            signing_certificate_sha256: None,
+            splits: Vec::new(),
+            dex_classes_count: 0,
+            dex_methods_count: 0,
+            dex_files: Vec::new(),
+            native_libraries: Vec::new(),
+            resources: Vec::new(),
+            assets: Vec::new(),
+            warnings: Vec::new(),
+        })
+    }
+}
+
+fn scenario_fixture_snapshot(
+    manager: &crate::fixtures::R2FixtureManager,
+    s3: &ScenarioMemoryS3,
+) -> Value {
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .expect("scenario runtime");
+    let mut snapshot = serde_json::json!({"keys": s3.keys()});
+    for role in ["latest", "target"] {
+        let metadata = runtime
+            .block_on(manager.get_slot_metadata("com.example.parity", role))
+            .ok()
+            .flatten()
+            .map(|meta| {
+                serde_json::json!({
+                    "role": meta.role,
+                    "packageName": meta.package_name,
+                    "versionName": meta.version_name,
+                    "versionCode": meta.version_code,
+                    "containerType": meta.container_type,
+                    "sha256": meta.sha256,
+                    "signerSha256": meta.signer_sha256,
+                    "sizeBytes": meta.size_bytes,
+                    "acquisitionSource": meta.acquisition_source,
+                })
+            })
+            .unwrap_or(Value::Null);
+        snapshot
+            .as_object_mut()
+            .expect("snapshot object")
+            .insert(role.to_string(), metadata);
+    }
+    snapshot
+}
+
+fn scenario_fixtures_key_metadata_rotation() -> Result<(i32, Value), String> {
+    let _ = fs::remove_dir_all("fixture-artifacts");
+    fs::create_dir_all("fixture-artifacts")
+        .map_err(|error| format!("could not create fixture artifacts: {error}"))?;
+    for (name, data) in [("v1.apk", b"fixture-v1"), ("v2.apk", b"fixture-v2")] {
+        fs::write(Path::new("fixture-artifacts").join(name), data)
+            .map_err(|error| format!("could not write {name}: {error}"))?;
+    }
+
+    let s3 = std::sync::Arc::new(ScenarioMemoryS3::default());
+    let manager = crate::fixtures::R2FixtureManager::with_adapter("test-bucket", s3.clone())
+        .with_inspector(std::sync::Arc::new(ScenarioFixtureInspector));
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .map_err(|error| format!("could not create scenario runtime: {error}"))?;
+
+    let mut snapshots = Vec::new();
+    runtime
+        .block_on(manager.seed_fixture(
+            "com.example.parity",
+            "latest",
+            Path::new("fixture-artifacts/v1.apk"),
+        ))
+        .map_err(|error| error.to_string())?;
+    snapshots.push(scenario_fixture_snapshot(&manager, &s3));
+    runtime
+        .block_on(manager.rotate_slots_on_new_latest(
+            "com.example.parity",
+            Path::new("fixture-artifacts/v2.apk"),
+            "1.0.0",
+            "apkeep",
+        ))
+        .map_err(|error| error.to_string())?;
+    snapshots.push(scenario_fixture_snapshot(&manager, &s3));
+    runtime
+        .block_on(manager.rotate_slots_on_new_latest(
+            "com.example.parity",
+            Path::new("fixture-artifacts/v1.apk"),
+            "1.0.0",
+            "apkeep",
+        ))
+        .map_err(|error| error.to_string())?;
+    snapshots.push(scenario_fixture_snapshot(&manager, &s3));
+
+    Ok(scenario_result(
+        ExitCode::Success,
+        serde_json::json!({"fixtures": snapshots}),
+    ))
+}
+
+// ---------------------------------------------------------------------------
+// Native CI scenarios
+// ---------------------------------------------------------------------------
+
+fn scenario_patches_data() -> Result<Value, String> {
+    let text = fs::read_to_string("fixtures/patches-list.json")
+        .map_err(|error| format!("could not read patches-list fixture: {error}"))?;
+    serde_json::from_str(&text).map_err(|error| format!("invalid patches-list fixture: {error}"))
+}
+
+fn environment_value(name: &str) -> Option<String> {
+    std::env::var(name).ok().filter(|value| !value.is_empty())
+}
+
+fn scenario_ci_matrix_tie_break() -> Result<(i32, Value), String> {
+    let data = scenario_patches_data()?;
+    let side = environment_value("PARITY_SIDE").unwrap_or_else(|| "rust".to_string());
+    let output = PathBuf::from(format!("matrix-{side}.txt"));
+    fs::write(&output, b"before\n")
+        .map_err(|error| format!("could not reset matrix output: {error}"))?;
+    let args: Vec<std::ffi::OsString> = vec![
+        "ci".into(),
+        "matrix".into(),
+        "--output-file".into(),
+        output.clone().into_os_string(),
+        "--patches-list".into(),
+        "fixtures/patches-list.json".into(),
+    ];
+    let code = match crate::cli::run(&args) {
+        Ok(code) => code,
+        Err(error) => error.exit_code(),
+    };
+    let metadata = crate::compatibility_ci::get_package_run_metadata(&data, "com.example.parity");
+    let output_text = fs::read_to_string(&output)
+        .map_err(|error| format!("could not read matrix output: {error}"))?;
+    Ok(scenario_result(
+        code,
+        serde_json::json!({
+            "outcome": if code == ExitCode::Success { "success" } else { "error" },
+            "matrix": {
+                "outputFile": output_text,
+                "metadata": {
+                    "packageName": metadata.package_name,
+                    "appName": metadata.app_name,
+                    "targetVersion": metadata.target_version,
+                    "supportedVersions": metadata.supported_versions,
+                }
+            }
+        }),
+    ))
+}
+
+struct ScenarioStartPoster {
+    payload: std::sync::Mutex<Option<Value>>,
+}
+
+impl crate::compatibility_ci::WorkerPoster for ScenarioStartPoster {
+    fn post_run_start(
+        &self,
+        _url: &str,
+        _secret: &str,
+        payload: &crate::compatibility_ci::RunStartPayload,
+    ) -> Result<u16, crate::compatibility_ci::PostError> {
+        *self.payload.lock().unwrap() = serde_json::to_value(payload).ok();
+        Ok(201)
+    }
+
+    fn post_submission(
+        &self,
+        _url: &str,
+        _secret: &str,
+        _submission: &crate::compatibility_ci::CompatibilitySubmission,
+    ) -> Result<u16, crate::compatibility_ci::PostError> {
+        Err(crate::compatibility_ci::PostError {
+            message: "unexpected submission".to_string(),
+        })
+    }
+}
+
+fn scenario_ci_start_payload() -> Result<(i32, Value), String> {
+    let poster = ScenarioStartPoster {
+        payload: std::sync::Mutex::new(None),
+    };
+    let args = vec![
+        "--package".to_string(),
+        "com.example.parity".to_string(),
+        "--request-id".to_string(),
+        "req-1".to_string(),
+        "--git-revision".to_string(),
+        "abc123".to_string(),
+        "--patches-list".to_string(),
+        "fixtures/patches-list.json".to_string(),
+    ];
+    let code = match crate::cli::run_ci_start_with(&args, &poster) {
+        Ok(code) => code,
+        Err(error) => error.exit_code(),
+    };
+    let payload = poster
+        .payload
+        .into_inner()
+        .unwrap_or(None)
+        .unwrap_or(Value::Null);
+    let url = environment_value("WORKER_STATUS_URL").unwrap_or_default();
+    Ok(scenario_result(
+        code,
+        serde_json::json!({
+            "outcome": if code == ExitCode::Success { "success" } else { "error" },
+            "post": {"url": url, "payload": payload, "status": 201}
+        }),
+    ))
+}
+
+struct ScenarioChecker;
+
+impl crate::compatibility_ci::CompatibilityChecker for ScenarioChecker {
+    fn check(
+        &self,
+        _artifact: &Path,
+        _mpp: &Path,
+        _expected_package: &str,
+    ) -> Result<(crate::morphe::PatchCompatibilityReport, ExitCode), crate::error::Error> {
+        Ok((
+            crate::morphe::PatchCompatibilityReport {
+                artifact_sha256: "slot-sha".to_string(),
+                package_name: "com.example.parity".to_string(),
+                version_name: "1.10.0".to_string(),
+                version_code: 100,
+                patch_bundle_version: "9.9.9".to_string(),
+                git_revision: "abc123".to_string(),
+                tool_versions: crate::morphe::ToolVersions::new(),
+                overall_status: "compatible".to_string(),
+                total_cases: 2,
+                passed_cases: 2,
+                failed_cases: 0,
+                test_cases: Vec::new(),
+                failure_reason: None,
+            },
+            ExitCode::Success,
+        ))
+    }
+}
+
+struct ScenarioSubmissionPoster {
+    status: u16,
+    fail: bool,
+    captured: std::sync::Mutex<Option<Value>>,
+}
+
+impl crate::compatibility_ci::WorkerPoster for ScenarioSubmissionPoster {
+    fn post_run_start(
+        &self,
+        _url: &str,
+        _secret: &str,
+        _payload: &crate::compatibility_ci::RunStartPayload,
+    ) -> Result<u16, crate::compatibility_ci::PostError> {
+        Ok(201)
+    }
+
+    fn post_submission(
+        &self,
+        _url: &str,
+        _secret: &str,
+        submission: &crate::compatibility_ci::CompatibilitySubmission,
+    ) -> Result<u16, crate::compatibility_ci::PostError> {
+        let saved_before_post = environment_value("COMPATIBILITY_SUBMISSION_PATH")
+            .map(|path| Path::new(&path).is_file())
+            .unwrap_or(false);
+        let payload = serde_json::to_value(submission).unwrap_or(Value::Null);
+        *self.captured.lock().unwrap() = Some(serde_json::json!({
+            "savedBeforePost": saved_before_post,
+            "payload": payload,
+            "status": self.status,
+        }));
+        if self.fail {
+            return Err(crate::compatibility_ci::PostError {
+                message: "connection refused".to_string(),
+            });
+        }
+        Ok(self.status)
+    }
+}
+
+fn scenario_ci_run(status: u16, fail: bool) -> Result<(i32, Value), String> {
+    let s3 = std::sync::Arc::new(ScenarioMemoryS3::default());
+    let metadata = crate::fixtures::SlotMetadata {
+        role: "latest".to_string(),
+        package_name: "com.example.parity".to_string(),
+        version_name: "1.10.0".to_string(),
+        version_code: 100,
+        container_type: "APKM".to_string(),
+        sha256: "slot-sha".to_string(),
+        signer_sha256: None,
+        size_bytes: 19,
+        acquisition_source: "manual".to_string(),
+        timestamp: "2026-01-01T00:00:00+00:00".to_string(),
+    };
+    s3.insert(
+        &crate::fixtures::R2FixtureManager::get_slot_key("com.example.parity", "latest"),
+        b"slot-artifact-bytes",
+        metadata.to_s3_metadata(),
+    );
+    let fixtures = crate::fixtures::R2FixtureManager::with_adapter("test-bucket", s3)
+        .with_inspector(std::sync::Arc::new(ScenarioFixtureInspector));
+    let checker = ScenarioChecker;
+    let poster = ScenarioSubmissionPoster {
+        status,
+        fail,
+        captured: std::sync::Mutex::new(None),
+    };
+    let inspector = ScenarioFixtureInspector;
+    let backends = crate::cli::CiRunBackends {
+        fixtures: &fixtures,
+        acquirer: None,
+        checker: &checker,
+        poster: &poster,
+        inspector: &inspector,
+    };
+    let args = vec![
+        "--package".to_string(),
+        "com.example.parity".to_string(),
+        "--mpp".to_string(),
+        "fixtures/payload.mpp".to_string(),
+        "--patches-list".to_string(),
+        "fixtures/patches-list.json".to_string(),
+    ];
+    let code = match crate::cli::run_ci_run_with(&args, Some(&backends)) {
+        Ok(code) => code,
+        Err(error) => error.exit_code(),
+    };
+    let submission_path = environment_value("COMPATIBILITY_SUBMISSION_PATH");
+    let marker_path = environment_value("COMPATIBILITY_CALLBACK_MARKER");
+    let submission = submission_path
+        .as_deref()
+        .and_then(|path| fs::read_to_string(path).ok())
+        .and_then(|text| serde_json::from_str::<Value>(&text).ok())
+        .unwrap_or(Value::Null);
+    let marker = marker_path
+        .as_deref()
+        .and_then(|path| fs::read_to_string(path).ok())
+        .map(Value::String)
+        .unwrap_or(Value::Null);
+    let captured = poster
+        .captured
+        .into_inner()
+        .unwrap_or(None)
+        .unwrap_or(Value::Null);
+    Ok(scenario_result(
+        code,
+        serde_json::json!({
+            "outcome": if code == ExitCode::Success { "success" } else { "error" },
+            "post": captured,
+            "files": {"submission": submission, "marker": marker}
+        }),
+    ))
 }
 
 fn resolve_fixture_value(run_root: &Path, value: &str) -> String {
@@ -4010,6 +5984,10 @@ fn print_help() {
          \x20                     --corpus FILE --python-project DIR --rust-bin PATH \\\n\
          \x20                     [--case ID ...] [--report PATH|-]\n\
          \x20 apk-lab-migrate parity --group patching-device --list [--case ID ...]\n\
+         \x20 apk-lab-migrate parity --group acquisition-ci \\\n\
+         \x20                     --python-project DIR --rust-bin PATH \\\n\
+         \x20                     [--case ID ...] [--report PATH|-]\n\
+         \x20 apk-lab-migrate parity --group acquisition-ci --list [--case ID ...]\n\
          \n\
          Runs the independent Python oracle and the native binary with identical\n\
          argv, cwd and environment, then compares exit status and output. JSON\n\
@@ -4062,8 +6040,16 @@ fn print_help() {
          \x20   ]\n\
          \x20 }}\n\
          \n\
+         The acquisition-ci group is entirely offline. It runs library scenarios\n\
+         with fake apkeep/Play/APKMirror providers, an in-memory S3 adapter, fake\n\
+         acquirer/checker/poster boundaries and temporary artifacts. It covers\n\
+         acquisition routing, account rotation, version rejection, deterministic\n\
+         APKM member manifests, source labels, fixture key/metadata/rotation, CI\n\
+         matrix output, run-start payloads and CI run submission/marker semantics.\n\
+         No case contacts Play, R2, the Worker, a device, or the network.\n\
+         \n\
          Options:\n\
-         \x20 --group NAME          Parity group (available: core, analysis, patching-device)\n\
+         \x20 --group NAME          Parity group (available: core, analysis, patching-device, acquisition-ci)\n\
          \x20 --profile NAME        Profile (synthetic, real-tools, real-device; default synthetic)\n\
          \x20 --corpus FILE         Validated corpus manifest (required for real-tools/real-device)\n\
          \x20 --python-project DIR  Python project containing the oracle (tools/apk-lab)\n\
@@ -4677,6 +6663,140 @@ mod tests {
         .expect("write corpus");
         let error = load_device_corpus(&corpus).expect_err("missing artifact must fail");
         assert!(error.contains("artifact cannot be resolved"), "{error}");
+    }
+
+    #[test]
+    fn acquisition_ci_case_selection_is_explicit_and_stable() {
+        let all = select_acquisition_ci_cases(&[]).expect("all acquisition-ci cases");
+        assert_eq!(all.len(), ACQUISITION_CI_CASES.len());
+        assert_eq!(all[0].spec.id, "acquire-no-account");
+        for required in [
+            "acquire-account-rotation",
+            "acquire-wrong-version",
+            "acquire-normalization-manifest",
+            "acquire-source-labels",
+            "fixtures-key-metadata-rotation",
+            "ci-matrix-tie-break",
+            "ci-start-payload",
+            "ci-run-saved-before-post",
+            "ci-run-2xx-marker",
+            "ci-run-transport-failure",
+        ] {
+            assert!(
+                all.iter().any(|case| case.spec.id == required),
+                "missing case {required}"
+            );
+        }
+
+        let selected = select_acquisition_ci_cases(&[
+            "ci-start-payload".to_string(),
+            "acquire-no-account".to_string(),
+        ])
+        .expect("filtered");
+        assert_eq!(
+            selected.iter().map(|case| case.spec.id).collect::<Vec<_>>(),
+            vec!["acquire-no-account", "ci-start-payload"]
+        );
+
+        let error = select_acquisition_ci_cases(&["not-a-case".to_string()])
+            .expect_err("unknown case must fail");
+        assert!(
+            error.contains("unknown acquisition-ci parity case"),
+            "{error}"
+        );
+    }
+
+    #[test]
+    fn acquisition_ci_rejects_non_synthetic_profiles_and_corpus() {
+        let error = run(&[
+            "--group".to_string(),
+            ACQUISITION_CI_GROUP.to_string(),
+            "--profile".to_string(),
+            REAL_TOOLS_PROFILE.to_string(),
+        ])
+        .expect_err("real-tools must be rejected");
+        assert!(error.contains("only runs fake scenarios"), "{error}");
+
+        let directory = tempfile::tempdir().expect("tempdir");
+        let error = run(&[
+            "--group".to_string(),
+            ACQUISITION_CI_GROUP.to_string(),
+            "--corpus".to_string(),
+            directory
+                .path()
+                .join("corpus.json")
+                .to_string_lossy()
+                .into_owned(),
+        ])
+        .expect_err("corpus must be rejected");
+        assert!(error.contains("--corpus is not supported"), "{error}");
+    }
+
+    #[test]
+    fn acquisition_ci_result_mismatch_is_reported() {
+        let context = NormalizationContext::for_test("/tmp/parity-acquisition-ci");
+        let mut differences = Vec::new();
+        compare_result_json(
+            &serde_json::json!({"outcome": "success", "source": "apkeep"}),
+            &serde_json::json!({"outcome": "success", "source": "goopdl"}),
+            &context,
+            &mut differences,
+        );
+        assert!(
+            differences
+                .iter()
+                .any(|line| line.contains("/source: python")),
+            "{differences:?}"
+        );
+    }
+
+    #[test]
+    fn acquisition_ci_report_is_deterministic_and_names_its_kind() {
+        let result = CaseResult {
+            id: "ci-run-2xx-marker".to_string(),
+            argv: vec!["ci".to_string(), "run".to_string()],
+            status: CaseStatus::Passed,
+            approved: false,
+            approval: None,
+            exit: ExitPair { python: 0, rust: 0 },
+            differences: Vec::new(),
+        };
+        let report = build_report_for(
+            vec![result],
+            ACQUISITION_CI_REPORT_KIND,
+            Some(SYNTHETIC_PROFILE),
+        );
+        let rendered = render_report(&report).expect("report renders");
+        assert!(rendered.contains("\"kind\": \"apk-lab-acquisition-ci-parity\""));
+        assert!(rendered.contains("\"profile\": \"synthetic\""));
+        assert!(report_passed(&report));
+        assert_eq!(render_report(&report).expect("renders again"), rendered);
+    }
+
+    #[test]
+    fn acquisition_ci_missing_scenario_is_reported_as_missing() {
+        let (code, result) = execute_native_scenario("not-a-scenario").expect("driver result");
+        assert_eq!(code, 70);
+        assert_eq!(result["outcome"], "driver-error");
+        let case = CaseResult {
+            id: "not-a-scenario".to_string(),
+            argv: vec!["not-a-scenario".to_string()],
+            status: CaseStatus::Missing,
+            approved: false,
+            approval: None,
+            exit: ExitPair {
+                python: -1,
+                rust: -1,
+            },
+            differences: vec!["missing result".to_string()],
+        };
+        let report = build_report_for(
+            vec![case],
+            ACQUISITION_CI_REPORT_KIND,
+            Some(SYNTHETIC_PROFILE),
+        );
+        assert!(!report_passed(&report));
+        assert_eq!(report.summary.missing, 1);
     }
 
     #[test]

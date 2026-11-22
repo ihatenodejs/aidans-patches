@@ -69,6 +69,9 @@ pub fn run(args: &[String]) -> Result<(), String> {
         "play" => play::run(rest),
         "capture" | "verify" => oracle::run(&args[0..]),
         "parity" => parity::run(rest),
+        // Internal process boundary for the acquisition-ci parity scenarios.
+        // It is intentionally absent from the public help text.
+        "acquisition-ci-scenario" => parity::run_acquisition_ci_scenario_cli(rest),
         "bench" => benchmark::run(rest),
         "-h" | "--help" | "help" => {
             print_usage();

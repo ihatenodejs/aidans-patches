@@ -552,6 +552,12 @@ The native binary never delegates missing commands to Python. Archive limits, Py
 compatible workspace markers, tool-cache layout, exit codes, and `--json` modes are
 kept in parity by the migration harness.
 
+The native binary also implements `acquire`, `play-accounts`, R2 `fixtures`, and the
+compatibility `ci matrix|start|run` entrypoints. `ci` preserves the Python request-ID,
+saved-submission, 2xx-only marker, and Worker payload semantics. Acquisition keeps the
+serialized `apkeep`/`goopdl`/`apkmirror`/`manual` source labels while using native
+delivery with no Python subprocess.
+
 ## 5. Temporary Rust Migration Harness
 
 `tools/apk-lab/src/bin/apk-lab-migrate.rs` is an auxiliary migration and benchmark
