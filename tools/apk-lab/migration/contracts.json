@@ -3881,15 +3881,6 @@
       "notes": "Documents tools/workspace imports."
     },
     {
-      "path": ".github/workflows/apk-compatibility.yml",
-      "interfaces": [
-        "apk_lab.compatibility_ci"
-      ],
-      "classification": "ci-entrypoint",
-      "supported": true,
-      "notes": "Runs python -m apk_lab.compatibility_ci matrix/start/run and apk-lab setup/doctor."
-    },
-    {
       "path": "AGENTS.md",
       "interfaces": [
         "apk_lab"
@@ -4087,6 +4078,51 @@
       "classification": "native-rust-port",
       "supported": true,
       "notes": "Native Morphe patch selection, command building and verification port."
+    },
+    {
+      "path": "tools/apk-lab/src/fixtures.rs",
+      "interfaces": [
+        "apk_lab.fixtures"
+      ],
+      "classification": "native-rust-port",
+      "supported": true,
+      "notes": "Native R2 fixture slot keys/metadata/rotation port with an injectable S3 adapter; rust-s3 provides the R2 endpoint, auto region and SigV4 signing."
+    },
+    {
+      "path": "tools/apk-lab/src/compatibility_ci.rs",
+      "interfaces": [
+        "apk_lab.compatibility_ci"
+      ],
+      "classification": "native-rust-port",
+      "supported": true,
+      "notes": "Native CI matrix, target ordering, fixture reconciliation, saved-before-post submission and 2xx-only callback marker port."
+    },
+    {
+      "path": "tools/apk-lab/src/acquisition.rs",
+      "interfaces": [
+        "apk_lab"
+      ],
+      "classification": "native-rust-port",
+      "supported": true,
+      "notes": "Native acquisition/provider orchestration and APKM normalization."
+    },
+    {
+      "path": "tools/apk-lab/src/accounts.rs",
+      "interfaces": [
+        "apk_lab.google_play_accounts"
+      ],
+      "classification": "native-rust-port",
+      "supported": true,
+      "notes": "Native account store."
+    },
+    {
+      "path": "tools/apk-lab/src/accounts_tui.rs",
+      "interfaces": [
+        "apk_lab.play_accounts_tui"
+      ],
+      "classification": "native-rust-port",
+      "supported": true,
+      "notes": "Native account TUI."
     }
   ],
   "wireSchemas": [

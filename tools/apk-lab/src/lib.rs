@@ -9,16 +9,21 @@
 //! default.
 #![recursion_limit = "256"]
 
+pub mod accounts;
+pub mod accounts_tui;
+pub mod acquisition;
 pub mod analysis;
 pub mod archives;
 pub mod asm;
 pub mod cli;
 pub mod code_inspection;
 pub mod comparison;
+pub mod compatibility_ci;
 pub mod deployment;
 pub mod device;
 pub mod dex_strings;
 pub mod error;
+pub mod fixtures;
 pub mod il2cpp;
 pub mod inspection;
 pub mod manifest;

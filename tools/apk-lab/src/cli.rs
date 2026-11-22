@@ -12,6 +12,8 @@
 //! Python parser. `setup`, `doctor`, `inspect` and `clean` keep the Python
 //! stdout/stderr and exit-code contracts.
 
+use crate::accounts_tui;
+use crate::acquisition::{self, AcquiredArtifact};
 use crate::analysis::{self, AnalyzeOptions};
 use crate::archives;
 use crate::asm;
@@ -19,16 +21,22 @@ use crate::code_inspection::{
     self, InspectCodeRequest, LiveArtifactInspector, NativeToolExecutor, ToolExecutor, ToolKind,
 };
 use crate::comparison;
+use crate::compatibility_ci::{
+    self, ArtifactAcquirer, CiDependencies, CiEnvironment, CiRunRequest, CompatibilityChecker,
+    RunStartPayload, UreqWorkerPoster, WorkerPoster,
+};
 use crate::deployment::{self, DeploymentTools, PatchBuildRequest, PatchEngine};
 use crate::device::{self, AdbClient, MonitorStream, RealClock};
 use crate::dex_strings;
 use crate::error::Error;
+use crate::fixtures::{R2FixtureManager, SlotMetadata};
 use crate::il2cpp;
 use crate::inspection;
 use crate::manifest;
 use crate::models::{ArtifactInspection, ContainerType, Envelope, ExitCode};
 use crate::morphe::{
-    self, CheckOptions, CheckRunner, DexDump, DexTool, MorpheTool, PatchCommandPaths, ToolVersions,
+    self, ArtifactInspector, CheckOptions, CheckRunner, DexDump, DexTool, MorpheTool,
+    NativeInspector, PatchCommandPaths, PatchCompatibilityReport, ToolVersions,
 };
 use crate::process::{self, ProcessSpec};
 use crate::resources;
@@ -60,6 +68,10 @@ Usage:
 Commands:
   setup         Download and verify pinned tools
   doctor        Verify host prerequisites and cached tools
+  acquire       Download and normalize an APK from Google Play
+  play-accounts Manage Google Play accounts for authenticated acquisition
+  fixtures      Manage R2 fixture slots
+  ci            Compatibility CI matrix, run start, and reconciliation
   inspect       Inspect an APK/APKM/XAPK/APKS artifact
   analyze       Extract and analyze an artifact into a managed run
   compare       Compare two APK artifacts
@@ -390,6 +402,126 @@ Options:
   -h, --help       Print help
 ";
 
+const ACQUIRE_HELP: &str = "\
+Usage: apk-lab acquire <package> [--version NAME] [--version-code CODE] [--out-dir DIR]
+
+Download and normalize an APK from Google Play.
+
+Options:
+  --version NAME       Expected version name
+  --version-code CODE  Expected version code
+  --out-dir DIR        Output directory (default: the system temp directory)
+  -h, --help           Print help
+";
+
+const PLAY_ACCOUNTS_HELP: &str = "\
+Usage: apk-lab play-accounts
+
+Manage Google Play accounts for authenticated acquisition and metadata.
+Cancelling any prompt exits successfully.
+
+Options:
+  -h, --help  Print help
+";
+
+const FIXTURES_HELP: &str = "\
+Usage: apk-lab fixtures <seed|info|download> [options]
+
+Manage R2 fixture slots.
+
+Commands:
+  seed      Seed a fixture slot from a local artifact
+  info      Inspect fixture slot metadata
+  download  Download a fixture slot
+
+Run 'apk-lab fixtures <command> --help' for command options.
+";
+
+const FIXTURES_SEED_HELP: &str = "\
+Usage: apk-lab fixtures seed --package NAME --role target|latest --artifact PATH
+
+Seed a fixture slot from a local artifact.
+
+Options:
+  --package NAME   Package name
+  --role ROLE      Slot role (target or latest)
+  --artifact PATH  Path to the artifact
+  -h, --help       Print help
+";
+
+const FIXTURES_INFO_HELP: &str = "\
+Usage: apk-lab fixtures info --package NAME [--role target|latest]
+
+Inspect fixture slot metadata.
+
+Options:
+  --package NAME  Package name
+  --role ROLE     Slot role (default: both latest and target)
+  -h, --help      Print help
+";
+
+const FIXTURES_DOWNLOAD_HELP: &str = "\
+Usage: apk-lab fixtures download --package NAME --role target|latest --out PATH
+
+Download a fixture slot.
+
+Options:
+  --package NAME  Package name
+  --role ROLE     Slot role (target or latest)
+  --out PATH      Destination file path
+  -h, --help      Print help
+";
+
+const CI_HELP: &str = "\
+Usage: apk-lab ci <matrix|start|run> [options]
+
+Compatibility CI orchestration.
+
+Commands:
+  matrix  Compute the package matrix
+  start   Post a run-start record to the Worker
+  run     Reconcile fixtures and run the compatibility check
+
+Run 'apk-lab ci <command> --help' for command options.
+";
+
+const CI_MATRIX_HELP: &str = "\
+Usage: apk-lab ci matrix [--output-file PATH] [--patches-list PATH] [--changed-files LIST]
+
+Compute the package matrix.
+
+Options:
+  --output-file PATH    Append the packages line to a GITHUB_OUTPUT file
+  --patches-list PATH   Path to patches-list.json
+  --changed-files LIST  Comma- or newline-separated changed files
+  -h, --help            Print help
+";
+
+const CI_START_HELP: &str = "\
+Usage: apk-lab ci start --package NAME --request-id ID --git-revision SHA [--patches-list PATH]
+
+Post a run-start record to the Worker.
+
+Options:
+  --package NAME       Package name
+  --request-id ID      Dispatch request ID
+  --git-revision SHA   Git revision
+  --patches-list PATH  Path to patches-list.json
+  -h, --help           Print help
+";
+
+const CI_RUN_HELP: &str = "\
+Usage: apk-lab ci run --package NAME [--mpp PATH] [--patches-list PATH]
+
+Reconcile fixtures and run the compatibility check for a package.
+
+Options:
+  --package NAME       Package name
+  --mpp PATH           Path to the .mpp patch bundle
+  --patches-list PATH  Path to patches-list.json
+  -h, --help           Print help
+";
+
 const USAGE: &str = "\
 Usage: apk-lab [--workspace-root DIR] <command> [options]
        apk-lab --help
@@ -441,6 +573,10 @@ pub fn run(raw_args: &[OsString]) -> Result<ExitCode, Error> {
         }
         "setup" => run_setup(rest),
         "doctor" => run_doctor(rest, &workspace_root),
+        "acquire" => run_acquire(rest),
+        "play-accounts" => run_play_accounts(rest),
+        "fixtures" => run_fixtures(rest),
+        "ci" => run_ci(rest),
         "inspect" => run_inspect(rest),
         "analyze" => run_analyze(rest, &workspace_root),
         "compare" => run_compare(rest),
@@ -778,6 +914,1080 @@ fn format_doctor_human(report: &DoctorReport) -> String {
         text.push_str("Status: PREREQUISITES OR TOOLS MISSING\n");
     }
     text
+}
+
+/// Acquisition boundary used by the `acquire` command.
+///
+/// The production implementation calls the native acquisition orchestrator;
+/// integration tests inject a deterministic backend.
+pub trait AcquireBackend {
+    fn acquire(
+        &self,
+        package: &str,
+        out_dir: &Path,
+        expected_version: Option<&str>,
+        expected_version_code: Option<u64>,
+    ) -> Result<AcquiredArtifact, Error>;
+}
+
+/// Native Google Play / APKMirror acquisition backend.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct NativeAcquireBackend;
+
+impl AcquireBackend for NativeAcquireBackend {
+    fn acquire(
+        &self,
+        package: &str,
+        out_dir: &Path,
+        expected_version: Option<&str>,
+        expected_version_code: Option<u64>,
+    ) -> Result<AcquiredArtifact, Error> {
+        acquisition::acquire_artifact(package, out_dir, expected_version, expected_version_code)
+    }
+}
+
+fn run_acquire(args: &[String]) -> Result<ExitCode, Error> {
+    run_acquire_with(args, &NativeAcquireBackend)
+}
+
+/// Runs `acquire` with an explicit acquisition backend.
+pub fn run_acquire_with(args: &[String], backend: &dyn AcquireBackend) -> Result<ExitCode, Error> {
+    let mut package: Option<String> = None;
+    let mut version: Option<String> = None;
+    let mut version_code: Option<u64> = None;
+    let mut out_dir: Option<PathBuf> = None;
+    let mut index = 0;
+
+    while index < args.len() {
+        let arg = args[index].as_str();
+        match arg {
+            "-h" | "--help" => {
+                write_stdout(ACQUIRE_HELP)?;
+                return Ok(ExitCode::Success);
+            }
+            "--version" => {
+                version = Some(require_value(args, index, "--version", ACQUIRE_HELP)?);
+                index += 2;
+            }
+            _ if arg.starts_with("--version=") => {
+                version = Some(non_empty_value(
+                    &arg["--version=".len()..],
+                    "--version",
+                    ACQUIRE_HELP,
+                )?);
+                index += 1;
+            }
+            "--version-code" => {
+                version_code = Some(parse_version_code(&require_value(
+                    args,
+                    index,
+                    "--version-code",
+                    ACQUIRE_HELP,
+                )?)?);
+                index += 2;
+            }
+            _ if arg.starts_with("--version-code=") => {
+                version_code = Some(parse_version_code(&non_empty_value(
+                    &arg["--version-code=".len()..],
+                    "--version-code",
+                    ACQUIRE_HELP,
+                )?)?);
+                index += 1;
+            }
+            "--out-dir" => {
+                out_dir = Some(PathBuf::from(require_value(
+                    args,
+                    index,
+                    "--out-dir",
+                    ACQUIRE_HELP,
+                )?));
+                index += 2;
+            }
+            _ if arg.starts_with("--out-dir=") => {
+                out_dir = Some(PathBuf::from(non_empty_value(
+                    &arg["--out-dir=".len()..],
+                    "--out-dir",
+                    ACQUIRE_HELP,
+                )?));
+                index += 1;
+            }
+            _ if arg.starts_with('-') => {
+                write_stderr(ACQUIRE_HELP);
+                return Err(Error::usage(format!("unrecognized option '{arg}'")));
+            }
+            _ if package.is_none() => {
+                package = Some(arg.to_string());
+                index += 1;
+            }
+            _ => {
+                write_stderr(ACQUIRE_HELP);
+                return Err(Error::usage(format!("unexpected argument '{arg}'")));
+            }
+        }
+    }
+
+    let Some(package) = package else {
+        write_stderr(ACQUIRE_HELP);
+        return Err(Error::usage(
+            "the following arguments are required: package",
+        ));
+    };
+    let out_dir = out_dir.unwrap_or_else(std::env::temp_dir);
+    let expected = version.as_deref().unwrap_or("latest");
+    write_stdout(&format!(
+        "Acquiring artifact for {package} (expected version: {expected})...\n"
+    ))?;
+    match backend.acquire(&package, &out_dir, version.as_deref(), version_code) {
+        Ok(artifact) => {
+            write_stdout(&format!(
+                "[OK] Acquired {package} via {}: {}\n",
+                artifact.source.label(),
+                artifact.path.display()
+            ))?;
+            Ok(ExitCode::Success)
+        }
+        Err(error) => {
+            write_stderr(&format!("Acquisition error: {}\n", error.message()));
+            Ok(ExitCode::InfrastructureFailure)
+        }
+    }
+}
+
+fn parse_version_code(value: &str) -> Result<u64, Error> {
+    let parsed: i64 = value.parse().map_err(|_| {
+        Error::usage(format!(
+            "argument --version-code: invalid int value: '{value}'"
+        ))
+    })?;
+    Ok(u64::try_from(parsed).unwrap_or(0))
+}
+
+fn run_play_accounts(args: &[String]) -> Result<ExitCode, Error> {
+    let mut ui = accounts_tui::TerminalUi;
+    let checker = accounts_tui::GpapiChecker;
+    run_play_accounts_with(args, &mut ui, &checker)
+}
+
+/// Runs `play-accounts` against an explicit prompt surface and checker.
+///
+/// Cancellation is not an error: `accounts_tui::run` reports it as `Ok(())`,
+/// which maps to exit 0 exactly like the Python handler.
+pub fn run_play_accounts_with<U: accounts_tui::Ui, C: accounts_tui::AccountChecker>(
+    args: &[String],
+    ui: &mut U,
+    checker: &C,
+) -> Result<ExitCode, Error> {
+    if let Some(arg) = args.first() {
+        match arg.as_str() {
+            "-h" | "--help" => {
+                write_stdout(PLAY_ACCOUNTS_HELP)?;
+                return Ok(ExitCode::Success);
+            }
+            _ => {
+                write_stderr(PLAY_ACCOUNTS_HELP);
+                return Err(Error::usage(format!("unrecognized option '{arg}'")));
+            }
+        }
+    }
+
+    match accounts_tui::run_play_accounts_tui(ui, checker) {
+        Ok(()) => Ok(ExitCode::Success),
+        Err(error) => {
+            write_stderr(&format!("Error: {error}\n"));
+            Ok(ExitCode::RuntimeFailure)
+        }
+    }
+}
+
+fn current_thread_runtime() -> Result<tokio::runtime::Runtime, Error> {
+    // The CI pipeline awaits S3/HTTP work and also calls the synchronous
+    // acquisition adapter. A multi-thread runtime lets that adapter use
+    // block_in_place instead of nesting a second runtime.
+    tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .map_err(|error| Error::infrastructure(format!("cannot start runtime: {error}")))
+}
+
+fn run_fixtures(args: &[String]) -> Result<ExitCode, Error> {
+    run_fixtures_dispatch(args, None)
+}
+
+/// Runs `fixtures` against an explicit manager, used by offline tests with an
+/// in-memory S3 adapter.
+pub fn run_fixtures_with(args: &[String], manager: &R2FixtureManager) -> Result<ExitCode, Error> {
+    run_fixtures_dispatch(args, Some(manager))
+}
+
+fn run_fixtures_dispatch(
+    args: &[String],
+    manager: Option<&R2FixtureManager>,
+) -> Result<ExitCode, Error> {
+    let Some((subcommand, rest)) = args.split_first() else {
+        write_stderr(FIXTURES_HELP);
+        return Err(Error::usage(
+            "the following arguments are required: fixtures command",
+        ));
+    };
+    match subcommand.as_str() {
+        "-h" | "--help" => {
+            write_stdout(FIXTURES_HELP)?;
+            Ok(ExitCode::Success)
+        }
+        "seed" => run_fixtures_seed(rest, manager),
+        "info" => run_fixtures_info(rest, manager),
+        "download" => run_fixtures_download(rest, manager),
+        other => {
+            write_stderr(FIXTURES_HELP);
+            Err(Error::usage(format!("unknown fixtures command '{other}'")))
+        }
+    }
+}
+
+fn fixture_manager<'a>(
+    manager: Option<&'a R2FixtureManager>,
+    owned: &'a mut Option<R2FixtureManager>,
+) -> Result<&'a R2FixtureManager, Error> {
+    if let Some(manager) = manager {
+        return Ok(manager);
+    }
+    *owned = Some(
+        R2FixtureManager::from_env().map_err(|error| Error::infrastructure(error.to_string()))?,
+    );
+    Ok(owned.as_ref().expect("fixture manager was initialized"))
+}
+
+fn fixture_role(value: &str, help: &str) -> Result<String, Error> {
+    match value {
+        "target" | "latest" => Ok(value.to_string()),
+        other => {
+            write_stderr(help);
+            Err(Error::usage(format!(
+                "argument --role: invalid choice: '{other}' (choose from 'target', 'latest')"
+            )))
+        }
+    }
+}
+
+fn fixture_failure(prefix: &str, error: &dyn std::fmt::Display) -> ExitCode {
+    write_stderr(&format!("{prefix}: {error}\n"));
+    ExitCode::InfrastructureFailure
+}
+
+fn run_fixtures_seed(
+    args: &[String],
+    manager: Option<&R2FixtureManager>,
+) -> Result<ExitCode, Error> {
+    let mut package: Option<String> = None;
+    let mut role: Option<String> = None;
+    let mut artifact: Option<String> = None;
+    let mut index = 0;
+    while index < args.len() {
+        let arg = args[index].as_str();
+        match arg {
+            "-h" | "--help" => {
+                write_stdout(FIXTURES_SEED_HELP)?;
+                return Ok(ExitCode::Success);
+            }
+            "--package" => {
+                package = Some(require_value(args, index, "--package", FIXTURES_SEED_HELP)?);
+                index += 2;
+            }
+            _ if arg.starts_with("--package=") => {
+                package = Some(non_empty_value(
+                    &arg["--package=".len()..],
+                    "--package",
+                    FIXTURES_SEED_HELP,
+                )?);
+                index += 1;
+            }
+            "--role" => {
+                role = Some(fixture_role(
+                    &require_value(args, index, "--role", FIXTURES_SEED_HELP)?,
+                    FIXTURES_SEED_HELP,
+                )?);
+                index += 2;
+            }
+            _ if arg.starts_with("--role=") => {
+                role = Some(fixture_role(
+                    &non_empty_value(&arg["--role=".len()..], "--role", FIXTURES_SEED_HELP)?,
+                    FIXTURES_SEED_HELP,
+                )?);
+                index += 1;
+            }
+            "--artifact" => {
+                artifact = Some(require_value(
+                    args,
+                    index,
+                    "--artifact",
+                    FIXTURES_SEED_HELP,
+                )?);
+                index += 2;
+            }
+            _ if arg.starts_with("--artifact=") => {
+                artifact = Some(non_empty_value(
+                    &arg["--artifact=".len()..],
+                    "--artifact",
+                    FIXTURES_SEED_HELP,
+                )?);
+                index += 1;
+            }
+            _ if arg.starts_with('-') => {
+                write_stderr(FIXTURES_SEED_HELP);
+                return Err(Error::usage(format!("unrecognized option '{arg}'")));
+            }
+            _ => {
+                write_stderr(FIXTURES_SEED_HELP);
+                return Err(Error::usage(format!("unexpected argument '{arg}'")));
+            }
+        }
+    }
+    let (Some(package), Some(role), Some(artifact)) = (package, role, artifact) else {
+        write_stderr(FIXTURES_SEED_HELP);
+        return Err(Error::usage(
+            "the following arguments are required: --package, --role, --artifact",
+        ));
+    };
+
+    let mut owned = None;
+    let manager = fixture_manager(manager, &mut owned)?;
+    write_stdout(&format!(
+        "Seeding fixture for {package} (role: {role})...\n"
+    ))?;
+    let runtime = current_thread_runtime()?;
+    match runtime.block_on(manager.seed_fixture(&package, &role, &artifact)) {
+        Ok(metadata) => {
+            let text = format!(
+                "[OK] Seeded {} v{} ({}) to slot {role}\n",
+                metadata.package_name, metadata.version_name, metadata.version_code
+            );
+            write_stdout(&text)?;
+            Ok(ExitCode::Success)
+        }
+        Err(error) => Ok(fixture_failure("Fixtures error", &error)),
+    }
+}
+
+fn format_slot(role: &str, metadata: Option<SlotMetadata>) -> String {
+    metadata.map_or_else(
+        || format!("Slot {role}: [EMPTY]\n"),
+        |metadata| {
+            let sha = metadata.sha256.get(..16).unwrap_or(&metadata.sha256);
+            format!(
+                "Slot {role}: {} ({}), SHA: {sha}..., src: {}\n",
+                metadata.version_name, metadata.version_code, metadata.acquisition_source
+            )
+        },
+    )
+}
+
+fn run_fixtures_info(
+    args: &[String],
+    manager: Option<&R2FixtureManager>,
+) -> Result<ExitCode, Error> {
+    let mut package: Option<String> = None;
+    let mut role: Option<String> = None;
+    let mut index = 0;
+    while index < args.len() {
+        let arg = args[index].as_str();
+        match arg {
+            "-h" | "--help" => {
+                write_stdout(FIXTURES_INFO_HELP)?;
+                return Ok(ExitCode::Success);
+            }
+            "--package" => {
+                package = Some(require_value(args, index, "--package", FIXTURES_INFO_HELP)?);
+                index += 2;
+            }
+            _ if arg.starts_with("--package=") => {
+                package = Some(non_empty_value(
+                    &arg["--package=".len()..],
+                    "--package",
+                    FIXTURES_INFO_HELP,
+                )?);
+                index += 1;
+            }
+            "--role" => {
+                role = Some(fixture_role(
+                    &require_value(args, index, "--role", FIXTURES_INFO_HELP)?,
+                    FIXTURES_INFO_HELP,
+                )?);
+                index += 2;
+            }
+            _ if arg.starts_with("--role=") => {
+                role = Some(fixture_role(
+                    &non_empty_value(&arg["--role=".len()..], "--role", FIXTURES_INFO_HELP)?,
+                    FIXTURES_INFO_HELP,
+                )?);
+                index += 1;
+            }
+            _ if arg.starts_with('-') => {
+                write_stderr(FIXTURES_INFO_HELP);
+                return Err(Error::usage(format!("unrecognized option '{arg}'")));
+            }
+            _ => {
+                write_stderr(FIXTURES_INFO_HELP);
+                return Err(Error::usage(format!("unexpected argument '{arg}'")));
+            }
+        }
+    }
+    let Some(package) = package else {
+        write_stderr(FIXTURES_INFO_HELP);
+        return Err(Error::usage(
+            "the following arguments are required: --package",
+        ));
+    };
+    let roles: Vec<String> = role
+        .map(|role| vec![role])
+        .unwrap_or_else(|| vec!["latest".to_string(), "target".to_string()]);
+
+    let mut owned = None;
+    let manager = fixture_manager(manager, &mut owned)?;
+    let runtime = current_thread_runtime()?;
+    let mut text = String::new();
+    for role in roles {
+        match runtime.block_on(manager.get_slot_metadata(&package, &role)) {
+            Ok(metadata) => text.push_str(&format_slot(&role, metadata)),
+            Err(error) => {
+                write_stdout(&text)?;
+                return Ok(fixture_failure("Fixtures info error", &error));
+            }
+        }
+    }
+    write_stdout(&text)?;
+    Ok(ExitCode::Success)
+}
+
+fn run_fixtures_download(
+    args: &[String],
+    manager: Option<&R2FixtureManager>,
+) -> Result<ExitCode, Error> {
+    let mut package: Option<String> = None;
+    let mut role: Option<String> = None;
+    let mut out: Option<String> = None;
+    let mut index = 0;
+    while index < args.len() {
+        let arg = args[index].as_str();
+        match arg {
+            "-h" | "--help" => {
+                write_stdout(FIXTURES_DOWNLOAD_HELP)?;
+                return Ok(ExitCode::Success);
+            }
+            "--package" => {
+                package = Some(require_value(
+                    args,
+                    index,
+                    "--package",
+                    FIXTURES_DOWNLOAD_HELP,
+                )?);
+                index += 2;
+            }
+            _ if arg.starts_with("--package=") => {
+                package = Some(non_empty_value(
+                    &arg["--package=".len()..],
+                    "--package",
+                    FIXTURES_DOWNLOAD_HELP,
+                )?);
+                index += 1;
+            }
+            "--role" => {
+                role = Some(fixture_role(
+                    &require_value(args, index, "--role", FIXTURES_DOWNLOAD_HELP)?,
+                    FIXTURES_DOWNLOAD_HELP,
+                )?);
+                index += 2;
+            }
+            _ if arg.starts_with("--role=") => {
+                role = Some(fixture_role(
+                    &non_empty_value(&arg["--role=".len()..], "--role", FIXTURES_DOWNLOAD_HELP)?,
+                    FIXTURES_DOWNLOAD_HELP,
+                )?);
+                index += 1;
+            }
+            "--out" => {
+                out = Some(require_value(args, index, "--out", FIXTURES_DOWNLOAD_HELP)?);
+                index += 2;
+            }
+            _ if arg.starts_with("--out=") => {
+                out = Some(non_empty_value(
+                    &arg["--out=".len()..],
+                    "--out",
+                    FIXTURES_DOWNLOAD_HELP,
+                )?);
+                index += 1;
+            }
+            _ if arg.starts_with('-') => {
+                write_stderr(FIXTURES_DOWNLOAD_HELP);
+                return Err(Error::usage(format!("unrecognized option '{arg}'")));
+            }
+            _ => {
+                write_stderr(FIXTURES_DOWNLOAD_HELP);
+                return Err(Error::usage(format!("unexpected argument '{arg}'")));
+            }
+        }
+    }
+    let (Some(package), Some(role), Some(out)) = (package, role, out) else {
+        write_stderr(FIXTURES_DOWNLOAD_HELP);
+        return Err(Error::usage(
+            "the following arguments are required: --package, --role, --out",
+        ));
+    };
+    let destination = std::path::absolute(&out).unwrap_or_else(|_| PathBuf::from(&out));
+
+    let mut owned = None;
+    let manager = fixture_manager(manager, &mut owned)?;
+    let runtime = current_thread_runtime()?;
+    match runtime.block_on(manager.download_slot(&package, &role, &destination)) {
+        Ok(downloaded) => {
+            write_stdout(&format!(
+                "[OK] Downloaded slot {role} to {}\n",
+                downloaded.display()
+            ))?;
+            Ok(ExitCode::Success)
+        }
+        Err(error) => Ok(fixture_failure("Fixtures download error", &error)),
+    }
+}
+
+fn run_ci(args: &[String]) -> Result<ExitCode, Error> {
+    let Some((subcommand, rest)) = args.split_first() else {
+        write_stderr(CI_HELP);
+        return Err(Error::usage(
+            "the following arguments are required: ci command",
+        ));
+    };
+    match subcommand.as_str() {
+        "-h" | "--help" => {
+            write_stdout(CI_HELP)?;
+            Ok(ExitCode::Success)
+        }
+        "matrix" => run_ci_matrix(rest),
+        "start" => run_ci_start(rest),
+        "run" => run_ci_run(rest),
+        other => {
+            write_stderr(CI_HELP);
+            Err(Error::usage(format!("unknown ci command '{other}'")))
+        }
+    }
+}
+
+fn ci_patches_path(patches_list: Option<PathBuf>) -> PathBuf {
+    patches_list.unwrap_or_else(|| tools::default_repo_root().join("patches-list.json"))
+}
+
+fn run_ci_matrix(args: &[String]) -> Result<ExitCode, Error> {
+    let mut output_file: Option<PathBuf> = None;
+    let mut patches_list: Option<PathBuf> = None;
+    let mut changed_files: Option<String> = None;
+    let mut index = 0;
+    while index < args.len() {
+        let arg = args[index].as_str();
+        match arg {
+            "-h" | "--help" => {
+                write_stdout(CI_MATRIX_HELP)?;
+                return Ok(ExitCode::Success);
+            }
+            "--output-file" => {
+                output_file = Some(PathBuf::from(require_value(
+                    args,
+                    index,
+                    "--output-file",
+                    CI_MATRIX_HELP,
+                )?));
+                index += 2;
+            }
+            _ if arg.starts_with("--output-file=") => {
+                output_file = Some(PathBuf::from(non_empty_value(
+                    &arg["--output-file=".len()..],
+                    "--output-file",
+                    CI_MATRIX_HELP,
+                )?));
+                index += 1;
+            }
+            "--patches-list" => {
+                patches_list = Some(PathBuf::from(require_value(
+                    args,
+                    index,
+                    "--patches-list",
+                    CI_MATRIX_HELP,
+                )?));
+                index += 2;
+            }
+            _ if arg.starts_with("--patches-list=") => {
+                patches_list = Some(PathBuf::from(non_empty_value(
+                    &arg["--patches-list=".len()..],
+                    "--patches-list",
+                    CI_MATRIX_HELP,
+                )?));
+                index += 1;
+            }
+            "--changed-files" => {
+                changed_files = Some(require_value(
+                    args,
+                    index,
+                    "--changed-files",
+                    CI_MATRIX_HELP,
+                )?);
+                index += 2;
+            }
+            _ if arg.starts_with("--changed-files=") => {
+                changed_files = Some(non_empty_value(
+                    &arg["--changed-files=".len()..],
+                    "--changed-files",
+                    CI_MATRIX_HELP,
+                )?);
+                index += 1;
+            }
+            _ if arg.starts_with('-') => {
+                write_stderr(CI_MATRIX_HELP);
+                return Err(Error::usage(format!("unrecognized option '{arg}'")));
+            }
+            _ => {
+                write_stderr(CI_MATRIX_HELP);
+                return Err(Error::usage(format!("unexpected argument '{arg}'")));
+            }
+        }
+    }
+
+    let patches_data = morphe::load_patches_list(ci_patches_path(patches_list))?;
+    let event_name =
+        std::env::var("GITHUB_EVENT_NAME").unwrap_or_else(|_| "workflow_dispatch".to_string());
+    let dispatch_package = std::env::var("DISPATCH_PACKAGE_NAME").ok();
+    let input_package = std::env::var("INPUT_PACKAGE_NAME").ok();
+
+    let changed_paths: Option<Vec<String>> = if let Some(changed_files) = changed_files {
+        Some(
+            changed_files
+                .split([',', '\n'])
+                .map(str::trim)
+                .filter(|path| !path.is_empty())
+                .map(str::to_string)
+                .collect(),
+        )
+    } else if event_name == "push" {
+        let before = std::env::var("BEFORE_SHA").ok();
+        let commit = std::env::var("COMMIT_SHA")
+            .ok()
+            .or_else(|| std::env::var("GITHUB_SHA").ok());
+        compatibility_ci::get_changed_patch_files(
+            before.as_deref(),
+            commit.as_deref(),
+            Path::new("."),
+        )
+    } else {
+        None
+    };
+
+    let selected = match compatibility_ci::resolve_matrix_packages(
+        &patches_data,
+        &event_name,
+        dispatch_package.as_deref(),
+        input_package.as_deref(),
+        changed_paths.as_deref(),
+        Path::new("patches"),
+    ) {
+        Ok(selected) => selected,
+        Err(error) => {
+            write_stderr(&format!("Matrix resolution error: {}\n", error.message()));
+            return Ok(ExitCode::UsageOrToolError);
+        }
+    };
+
+    let line = ci_packages_line(&selected);
+    write_stdout(&format!("{line}\n"))?;
+    if let Some(output_file) = output_file.as_deref() {
+        let mut file = fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(output_file)
+            .map_err(|error| {
+                Error::io(
+                    format!("open GITHUB_OUTPUT {}", output_file.display()),
+                    error,
+                )
+            })?;
+        writeln!(file, "{line}").map_err(|error| {
+            Error::io(
+                format!("append GITHUB_OUTPUT {}", output_file.display()),
+                error,
+            )
+        })?;
+    }
+    Ok(ExitCode::Success)
+}
+
+/// Python emits `json.dumps(list)` with the default `", "` separator.
+fn ci_packages_line(packages: &[String]) -> String {
+    let items: Vec<String> = packages
+        .iter()
+        .map(|package| {
+            let encoded = serde_json::to_string(package).expect("string serializes");
+            escape_non_ascii(&encoded)
+        })
+        .collect();
+    format!("packages=[{}]", items.join(", "))
+}
+
+fn run_ci_start(args: &[String]) -> Result<ExitCode, Error> {
+    let poster = UreqWorkerPoster;
+    run_ci_start_with(args, &poster)
+}
+
+/// Runs `ci start` with an explicit Worker poster.
+pub fn run_ci_start_with(args: &[String], poster: &dyn WorkerPoster) -> Result<ExitCode, Error> {
+    let mut package: Option<String> = None;
+    let mut request_id: Option<String> = None;
+    let mut git_revision: Option<String> = None;
+    let mut patches_list: Option<PathBuf> = None;
+    let mut index = 0;
+    while index < args.len() {
+        let arg = args[index].as_str();
+        match arg {
+            "-h" | "--help" => {
+                write_stdout(CI_START_HELP)?;
+                return Ok(ExitCode::Success);
+            }
+            "--package" => {
+                package = Some(require_value(args, index, "--package", CI_START_HELP)?);
+                index += 2;
+            }
+            _ if arg.starts_with("--package=") => {
+                package = Some(non_empty_value(
+                    &arg["--package=".len()..],
+                    "--package",
+                    CI_START_HELP,
+                )?);
+                index += 1;
+            }
+            "--request-id" => {
+                request_id = Some(require_value(args, index, "--request-id", CI_START_HELP)?);
+                index += 2;
+            }
+            _ if arg.starts_with("--request-id=") => {
+                request_id = Some(non_empty_value(
+                    &arg["--request-id=".len()..],
+                    "--request-id",
+                    CI_START_HELP,
+                )?);
+                index += 1;
+            }
+            "--git-revision" => {
+                git_revision = Some(require_value(args, index, "--git-revision", CI_START_HELP)?);
+                index += 2;
+            }
+            _ if arg.starts_with("--git-revision=") => {
+                git_revision = Some(non_empty_value(
+                    &arg["--git-revision=".len()..],
+                    "--git-revision",
+                    CI_START_HELP,
+                )?);
+                index += 1;
+            }
+            "--patches-list" => {
+                patches_list = Some(PathBuf::from(require_value(
+                    args,
+                    index,
+                    "--patches-list",
+                    CI_START_HELP,
+                )?));
+                index += 2;
+            }
+            _ if arg.starts_with("--patches-list=") => {
+                patches_list = Some(PathBuf::from(non_empty_value(
+                    &arg["--patches-list=".len()..],
+                    "--patches-list",
+                    CI_START_HELP,
+                )?));
+                index += 1;
+            }
+            _ if arg.starts_with('-') => {
+                write_stderr(CI_START_HELP);
+                return Err(Error::usage(format!("unrecognized option '{arg}'")));
+            }
+            _ => {
+                write_stderr(CI_START_HELP);
+                return Err(Error::usage(format!("unexpected argument '{arg}'")));
+            }
+        }
+    }
+    let (Some(package), Some(request_id), Some(git_revision)) = (package, request_id, git_revision)
+    else {
+        write_stderr(CI_START_HELP);
+        return Err(Error::usage(
+            "the following arguments are required: --package, --request-id, --git-revision",
+        ));
+    };
+
+    let patches_data = morphe::load_patches_list(ci_patches_path(patches_list))?;
+    let metadata = compatibility_ci::get_package_run_metadata(&patches_data, &package);
+    let Some(status_secret) = nonempty_environment("COMPATIBILITY_STATUS_SECRET") else {
+        write_stderr("Missing COMPATIBILITY_STATUS_SECRET; cannot post run start.\n");
+        return Ok(ExitCode::UsageOrToolError);
+    };
+    let worker_url = std::env::var("WORKER_STATUS_URL")
+        .unwrap_or_else(|_| compatibility_ci::DEFAULT_WORKER_STATUS_URL.to_string());
+    let payload = RunStartPayload {
+        request_id,
+        package_name: metadata.package_name,
+        app_name: metadata.app_name,
+        target_version: metadata.target_version,
+        supported_versions: metadata.supported_versions,
+        git_revision,
+    };
+
+    match poster.post_run_start(&worker_url, &status_secret, &payload) {
+        Ok(status) if (200..300).contains(&status) => {
+            write_stdout(&format!(
+                "Registered run start for {package}: HTTP {status}\n"
+            ))?;
+            Ok(ExitCode::Success)
+        }
+        Ok(status) => {
+            write_stderr(&format!("Worker rejected run start with HTTP {status}\n"));
+            Ok(ExitCode::InfrastructureFailure)
+        }
+        Err(error) => {
+            write_stderr(&format!("Failed to post run start to Worker: {error}\n"));
+            Ok(ExitCode::InfrastructureFailure)
+        }
+    }
+}
+
+fn nonempty_environment(name: &str) -> Option<String> {
+    std::env::var(name).ok().filter(|value| !value.is_empty())
+}
+
+/// Dependencies for `ci run`; injected by integration tests so no cloud or
+/// Morphe process is touched.
+pub struct CiRunBackends<'a> {
+    pub fixtures: &'a R2FixtureManager,
+    pub acquirer: Option<&'a dyn ArtifactAcquirer>,
+    pub checker: &'a dyn CompatibilityChecker,
+    pub poster: &'a dyn WorkerPoster,
+    pub inspector: &'a dyn ArtifactInspector,
+}
+
+/// Native acquisition adapter for `ci run`.
+struct NativeCiAcquirer;
+
+impl ArtifactAcquirer for NativeCiAcquirer {
+    fn acquire(
+        &self,
+        package: &str,
+        output_dir: &Path,
+        expected_version: &str,
+    ) -> Result<(PathBuf, String), Error> {
+        acquisition::acquire_artifact(package, output_dir, Some(expected_version), None)
+            .map(|artifact| (artifact.path, artifact.source.label().to_string()))
+    }
+}
+
+/// Native Morphe compatibility check adapter for `ci run`.
+struct NativeCiChecker {
+    workspace_root: PathBuf,
+}
+
+impl CompatibilityChecker for NativeCiChecker {
+    fn check(
+        &self,
+        artifact: &Path,
+        mpp: &Path,
+        expected_package: &str,
+    ) -> Result<(PatchCompatibilityReport, ExitCode), Error> {
+        let runner = CheckRunner::native(native_morphe_tool()?);
+        let mut options = CheckOptions::new(artifact, mpp);
+        options.expected_package = Some(expected_package.to_string());
+        options.all_patches = true;
+        options.workspace_root = self.workspace_root.clone();
+        options.tool_versions = collect_tool_versions();
+        options.git_revision = git_revision();
+        options.patches_list_path = Some(tools::default_repo_root().join("patches-list.json"));
+        runner.run(&options)
+    }
+}
+
+fn run_ci_run(args: &[String]) -> Result<ExitCode, Error> {
+    run_ci_run_with(args, None)
+}
+
+/// Runs `ci run` with optional injected dependencies.
+pub fn run_ci_run_with(
+    args: &[String],
+    backends: Option<&CiRunBackends<'_>>,
+) -> Result<ExitCode, Error> {
+    let mut package: Option<String> = None;
+    let mut mpp: Option<String> = None;
+    let mut patches_list: Option<PathBuf> = None;
+    let mut index = 0;
+    while index < args.len() {
+        let arg = args[index].as_str();
+        match arg {
+            "-h" | "--help" => {
+                write_stdout(CI_RUN_HELP)?;
+                return Ok(ExitCode::Success);
+            }
+            "--package" => {
+                package = Some(require_value(args, index, "--package", CI_RUN_HELP)?);
+                index += 2;
+            }
+            _ if arg.starts_with("--package=") => {
+                package = Some(non_empty_value(
+                    &arg["--package=".len()..],
+                    "--package",
+                    CI_RUN_HELP,
+                )?);
+                index += 1;
+            }
+            "--mpp" => {
+                mpp = Some(require_value(args, index, "--mpp", CI_RUN_HELP)?);
+                index += 2;
+            }
+            _ if arg.starts_with("--mpp=") => {
+                mpp = Some(non_empty_value(
+                    &arg["--mpp=".len()..],
+                    "--mpp",
+                    CI_RUN_HELP,
+                )?);
+                index += 1;
+            }
+            "--patches-list" => {
+                patches_list = Some(PathBuf::from(require_value(
+                    args,
+                    index,
+                    "--patches-list",
+                    CI_RUN_HELP,
+                )?));
+                index += 2;
+            }
+            _ if arg.starts_with("--patches-list=") => {
+                patches_list = Some(PathBuf::from(non_empty_value(
+                    &arg["--patches-list=".len()..],
+                    "--patches-list",
+                    CI_RUN_HELP,
+                )?));
+                index += 1;
+            }
+            _ if arg.starts_with('-') => {
+                write_stderr(CI_RUN_HELP);
+                return Err(Error::usage(format!("unrecognized option '{arg}'")));
+            }
+            _ => {
+                write_stderr(CI_RUN_HELP);
+                return Err(Error::usage(format!("unexpected argument '{arg}'")));
+            }
+        }
+    }
+    let Some(package) = package else {
+        write_stderr(CI_RUN_HELP);
+        return Err(Error::usage(
+            "the following arguments are required: --package",
+        ));
+    };
+
+    let mpp_path = match resolve_ci_mpp(mpp.as_deref()) {
+        Some(path) => path,
+        None => {
+            write_stderr("Error: No MPP bundle found in patches/build/libs/\n");
+            return Ok(ExitCode::UsageOrToolError);
+        }
+    };
+
+    let patches_data = morphe::load_patches_list(ci_patches_path(patches_list))?;
+    let runner_temp = std::env::var_os("RUNNER_TEMP")
+        .map(PathBuf::from)
+        .unwrap_or_else(std::env::temp_dir);
+    let event_name =
+        std::env::var("GITHUB_EVENT_NAME").unwrap_or_else(|_| "workflow_dispatch".to_string());
+    let raw_roles = std::env::var("DISPATCH_EXPECTED_ROLES").ok();
+    let requested_roles =
+        match compatibility_ci::parse_requested_roles(raw_roles.as_deref(), Some(&event_name)) {
+            Ok(roles) => roles,
+            Err(error) => {
+                write_stderr(&format!("Role parsing error: {}\n", error.message()));
+                return Ok(ExitCode::UsageOrToolError);
+            }
+        };
+    let mut environment = CiEnvironment::from_env();
+    // Python keeps an explicitly empty WORKER_STATUS_URL (which disables the
+    // callback) instead of substituting the default.
+    if std::env::var("WORKER_STATUS_URL").is_ok_and(|value| value.is_empty()) {
+        environment.worker_url = String::new();
+    }
+    let request = CiRunRequest {
+        package: &package,
+        mpp_path: &mpp_path,
+        runner_temp: &runner_temp,
+        patches_data: &patches_data,
+        environment,
+        requested_roles,
+    };
+
+    let runtime = current_thread_runtime()?;
+    match backends {
+        Some(backends) => {
+            let dependencies = CiDependencies {
+                r2: backends.fixtures,
+                acquirer: backends.acquirer,
+                checker: backends.checker,
+                poster: backends.poster,
+                inspector: backends.inspector,
+            };
+            runtime.block_on(compatibility_ci::run_ci_reconcile_and_test(
+                &request,
+                &dependencies,
+            ))
+        }
+        None => {
+            let fixtures = R2FixtureManager::from_env()
+                .map_err(|error| Error::infrastructure(error.to_string()))?;
+            let acquirer = NativeCiAcquirer;
+            let checker = NativeCiChecker {
+                workspace_root: PathBuf::from(DEFAULT_WORKSPACE_ROOT),
+            };
+            let poster = UreqWorkerPoster;
+            let inspector = NativeInspector;
+            let has_acquisition_credentials = request.environment.apkeep_accounts.is_some()
+                || request.environment.r2_access_key_id.is_some();
+            let dependencies = CiDependencies {
+                r2: &fixtures,
+                acquirer: if has_acquisition_credentials {
+                    Some(&acquirer as &dyn ArtifactAcquirer)
+                } else {
+                    None
+                },
+                checker: &checker,
+                poster: &poster,
+                inspector: &inspector,
+            };
+            runtime.block_on(compatibility_ci::run_ci_reconcile_and_test(
+                &request,
+                &dependencies,
+            ))
+        }
+    }
+}
+
+fn resolve_ci_mpp(mpp: Option<&str>) -> Option<PathBuf> {
+    let path = match mpp {
+        Some(mpp) => PathBuf::from(mpp),
+        None => {
+            let libs = Path::new("patches/build/libs");
+            let mut candidates: Vec<PathBuf> = fs::read_dir(libs)
+                .ok()?
+                .filter_map(Result::ok)
+                .map(|entry| entry.path())
+                .filter(|path| {
+                    path.file_name()
+                        .and_then(|name| name.to_str())
+                        .is_some_and(|name| name.starts_with("patches-") && name.ends_with(".mpp"))
+                })
+                .collect();
+            candidates.sort();
+            candidates.pop()?
+        }
+    };
+    let resolved = std::path::absolute(&path).unwrap_or(path);
+    resolved.is_file().then_some(resolved)
 }
 
 fn run_inspect(args: &[String]) -> Result<ExitCode, Error> {
