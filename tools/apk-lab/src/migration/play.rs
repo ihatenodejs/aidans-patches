@@ -33,29 +33,12 @@ const REDACTED: &str = "[REDACTED]";
 const READ_CHUNK: usize = 64 * 1024;
 const REPORT_KIND: &str = "apk-lab-play-delivery-probe";
 
-/// Fixed minimal Android profile sent to the Aurora dispenser.
+/// Fixed Android profile sent to the Aurora dispenser, compiled into the
+/// probe so runtime does not read another checkout or an account record.
 ///
-/// The profile is intentionally a constant in this file: it must not be loaded
-/// from another checkout or derived from an account record, and the probe must
-/// not depend on files outside its own source tree.
-const DISPENSER_PROFILE: &str = concat!(
-    "{",
-    "\"device\":\"px_9a\",",
-    "\"locale\":\"en_US\",",
-    "\"timezone\":\"UTC\",",
-    "\"gsfId\":0,",
-    "\"checkin\":{",
-    "\"build\":{",
-    "\"fingerprint\":\"google/redfin/redfin:11/RQ3A.211001.001/7641976:user/release-keys\",",
-    "\"model\":\"Pixel 5\",",
-    "\"product\":\"redfin\",",
-    "\"manufacturer\":\"Google\",",
-    "\"sdkVersion\":30",
-    "},",
-    "\"lastCheckinMs\":0",
-    "}",
-    "}"
-);
+/// The values are a pinned Pixel 4a property set; the dispenser rejects
+/// abbreviated profiles with HTTP 500.
+const DISPENSER_PROFILE: &str = include_str!("../../migration/fixtures/play/aurora-profile.json");
 
 type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + 'a>>;
 
@@ -240,9 +223,16 @@ impl PlayBackend for GpapiBackend {
                 }
             }
 
-            api.login()
-                .await
-                .map_err(|error| format!("Play login failed: {error}"))?;
+            if let Err(error) = api.login().await {
+                if auth.mode != Mode::Dispenser || !error.to_string().contains("Terms of Service") {
+                    return Err(format!("Play login failed: {error}"));
+                }
+                api.accept_tos()
+                    .await
+                    .map_err(|error| format!("Play Terms of Service acceptance failed: {error}"))?;
+                // gpapi documents accept_tos as making the API ready; a second
+                // login would request the same ToS token again.
+            }
 
             Ok(Box::new(GpapiSession { api }) as Box<dyn PlaySession + 'a>)
         })
