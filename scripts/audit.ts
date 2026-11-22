@@ -11,6 +11,7 @@ const RUST_CRATES = [
   ['Play Metadata', 'tools/play-metadata/Cargo.toml'],
   ['NHL AdBlock Native', 'extensions/nhl-adblock-native/Cargo.toml'],
   ['Asset Prep', 'tools/asset-prep/Cargo.toml'],
+  ['APK Lab', 'tools/apk-lab/Cargo.toml'],
 ] as const;
 
 // --- ANSI Styling ---

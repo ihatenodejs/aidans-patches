@@ -5,8 +5,12 @@
 use apk_lab::error::Error;
 use apk_lab::models::ExitCode;
 use apk_lab::process::{self, OutputMode, ProcessSpec};
-use serde_json::Value;
+use apk_lab::workspace::{RunRequest, WorkspaceManager};
+use serde_json::{json, Value};
+use std::collections::BTreeMap;
 use std::ffi::OsString;
+use std::fs;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
 use std::time::{Duration, Instant};
 
@@ -40,6 +44,9 @@ fn help_exits_zero_and_uses_stdout() {
         let text = String::from_utf8(output.stdout).expect("help is UTF-8");
         assert!(text.contains("Usage:"), "help must show usage");
         assert!(text.contains("selftest"), "help must list selftest");
+        for command in ["setup", "doctor", "inspect", "clean"] {
+            assert!(text.contains(command), "help must list {command}");
+        }
     }
 }
 
@@ -56,7 +63,7 @@ fn version_exits_zero_and_uses_stdout() {
 
 #[test]
 fn unknown_command_exits_two_without_success_output() {
-    let output = run_bin(&["inspect"]);
+    let output = run_bin(&["frobnicate"]);
     assert_eq!(output.status.code(), Some(2));
     assert!(
         output.stdout.is_empty(),
@@ -305,4 +312,175 @@ fn non_utf8_arguments_exit_two() {
         assert_eq!(output.status.code(), Some(2));
         assert!(output.stdout.is_empty());
     }
+}
+
+fn create_run(root: &Path, package: &str, version_code: u64, config: &Value) -> PathBuf {
+    let manager = WorkspaceManager::new(root);
+    let tools = BTreeMap::new();
+    let input_sha256 = "a".repeat(64);
+    let request = RunRequest {
+        package_name: package,
+        version_code,
+        input_sha256: &input_sha256,
+        input_path: Path::new("input.apk"),
+        command: "inspect",
+        config,
+        tool_versions: &tools,
+    };
+    manager.create_run_dir(&request).expect("create run")
+}
+
+fn run_clean(root: &Path, args: &[&str]) -> Output {
+    let mut command = Command::new(env!("CARGO_BIN_EXE_apk-lab"));
+    command
+        .arg("--workspace-root")
+        .arg(root)
+        .arg("clean")
+        .args(args)
+        .stdin(Stdio::null());
+    command.output().expect("run apk-lab clean")
+}
+
+#[test]
+fn clean_dry_run_validates_without_deleting() {
+    let directory = tempfile::tempdir().expect("tempdir");
+    let root = directory.path().join("workspace");
+    let run = create_run(&root, "com.example.app", 1, &json!({"kind": "contract"}));
+    let run_arg = run.to_string_lossy().into_owned();
+
+    let output = run_clean(&root, &["--run", &run_arg, "--dry-run"]);
+    assert_eq!(output.status.code(), Some(0));
+    let text = String::from_utf8_lossy(&output.stdout);
+    assert_eq!(text, format!("Would remove run: {run_arg}\n"));
+    assert!(output.stderr.is_empty());
+    assert!(run.is_dir(), "dry run must not delete");
+}
+
+#[test]
+fn clean_run_removes_a_validated_run() {
+    let directory = tempfile::tempdir().expect("tempdir");
+    let root = directory.path().join("workspace");
+    let run = create_run(&root, "com.example.app", 1, &json!({"kind": "contract"}));
+    let run_arg = run.to_string_lossy().into_owned();
+
+    let output = run_clean(&root, &["--run", &run_arg]);
+    assert_eq!(output.status.code(), Some(0));
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        format!("Removed run: {run_arg}\n")
+    );
+    assert!(!run.exists());
+}
+
+#[test]
+fn clean_package_removes_only_validated_runs() {
+    let directory = tempfile::tempdir().expect("tempdir");
+    let root = directory.path().join("workspace");
+    let first = create_run(&root, "com.example.app", 1, &json!({"kind": "one"}));
+    let second = create_run(&root, "com.example.app", 2, &json!({"kind": "two"}));
+    let unmarked = root
+        .join("com.example.app")
+        .join("9.9-deadbeef")
+        .join("cafebabecafe");
+    fs::create_dir_all(&unmarked).expect("unmarked dir");
+    fs::write(unmarked.join("scratch.bin"), b"keep").expect("scratch");
+
+    let output = run_clean(&root, &["--package", "com.example.app"]);
+    assert_eq!(output.status.code(), Some(0));
+    let text = String::from_utf8_lossy(&output.stdout);
+    assert!(text.contains("Removed 2 runs for package com.example.app"));
+    assert!(!first.exists());
+    assert!(!second.exists());
+    assert!(unmarked.is_dir(), "unmarked directories are never removed");
+}
+
+#[test]
+fn clean_unmarked_and_outside_runs_are_refused() {
+    let directory = tempfile::tempdir().expect("tempdir");
+    let root = directory.path().join("workspace");
+    let unmarked = root.join("com.example.app").join("1.0-abc").join("def");
+    fs::create_dir_all(&unmarked).expect("unmarked");
+    let unmarked_arg = unmarked.to_string_lossy().into_owned();
+    let output = run_clean(&root, &["--run", &unmarked_arg, "--dry-run"]);
+    assert_eq!(output.status.code(), Some(2));
+    assert!(
+        String::from_utf8_lossy(&output.stderr).contains("Workspace error"),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(unmarked.is_dir());
+
+    let outside = directory.path().join("outside");
+    fs::create_dir_all(&outside).expect("outside");
+    let outside_arg = outside.to_string_lossy().into_owned();
+    let output = run_clean(&root, &["--run", &outside_arg]);
+    assert_eq!(output.status.code(), Some(2));
+    assert!(outside.is_dir());
+}
+
+#[test]
+fn clean_package_traversal_is_refused() {
+    let directory = tempfile::tempdir().expect("tempdir");
+    let root = directory.path().join("workspace");
+    let output = run_clean(&root, &["--package", "../escape"]);
+    assert_eq!(output.status.code(), Some(2));
+    assert!(String::from_utf8_lossy(&output.stderr).contains("Workspace error"));
+}
+
+#[test]
+fn clean_requires_a_selector_and_rejects_unknown_flags() {
+    let directory = tempfile::tempdir().expect("tempdir");
+    let root = directory.path().join("workspace");
+    let output = run_clean(&root, &["--dry-run"]);
+    assert_eq!(output.status.code(), Some(2));
+    assert!(
+        String::from_utf8_lossy(&output.stderr).contains("Specify --run, --package, or --stale")
+    );
+
+    let output = run_clean(&root, &["--bogus"]);
+    assert_eq!(output.status.code(), Some(2));
+    assert!(String::from_utf8_lossy(&output.stderr).contains("unrecognized option"));
+}
+
+#[test]
+fn inspect_requires_an_artifact_and_rejects_unknown_flags() {
+    let output = run_bin(&["inspect"]);
+    assert_eq!(output.status.code(), Some(2));
+    assert!(String::from_utf8_lossy(&output.stderr).contains("artifact"));
+
+    let output = run_bin(&["inspect", "app.apk", "--bogus"]);
+    assert_eq!(output.status.code(), Some(2));
+    assert!(String::from_utf8_lossy(&output.stderr).contains("unrecognized option"));
+}
+
+#[test]
+fn inspect_missing_artifact_exits_two() {
+    let output = run_bin(&["inspect", "/definitely/missing/artifact.apk"]);
+    assert_eq!(output.status.code(), Some(2));
+    assert!(output.stdout.is_empty());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("Artifact not found"));
+}
+
+#[test]
+fn setup_invalid_profile_exits_two() {
+    let output = run_bin(&["setup", "--profile", "nope"]);
+    assert_eq!(output.status.code(), Some(2));
+    assert!(output.stdout.is_empty());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("invalid choice"));
+}
+
+#[test]
+fn doctor_unknown_flag_exits_two_before_touching_tools() {
+    let output = run_bin(&["doctor", "--bogus"]);
+    assert_eq!(output.status.code(), Some(2));
+    assert!(output.stdout.is_empty());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("unrecognized option"));
+}
+
+#[test]
+fn workspace_root_option_requires_a_value() {
+    let output = run_bin(&["--workspace-root"]);
+    assert_eq!(output.status.code(), Some(2));
+    assert!(output.stdout.is_empty());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("--workspace-root"));
 }

@@ -12,7 +12,9 @@
 pub mod archives;
 pub mod cli;
 pub mod error;
+pub mod inspection;
 pub mod migration;
 pub mod models;
 pub mod process;
+pub mod tools;
 pub mod workspace;

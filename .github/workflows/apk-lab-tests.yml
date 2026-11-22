@@ -75,6 +75,7 @@ jobs:
               - 'tools/play-metadata/**'
               - 'extensions/nhl-adblock-native/**'
               - 'tools/asset-prep/**'
+              - 'tools/apk-lab/**'
             native:
               - 'extensions/adobescan-pdf-native/**'
               - '.clang-format'
@@ -235,6 +236,7 @@ jobs:
             tools/play-metadata -> tools/play-metadata/target
             extensions/nhl-adblock-native -> extensions/nhl-adblock-native/target
             tools/asset-prep -> tools/asset-prep/target
+            tools/apk-lab -> tools/apk-lab/target
 
       - name: Audit rust domain
         run: bun scripts/audit.ts all --domain rust

@@ -252,6 +252,10 @@ export function collectInventory(
       lock: 'tools/asset-prep/Cargo.lock',
     },
     {
+      manifest: 'tools/apk-lab/Cargo.toml',
+      lock: 'tools/apk-lab/Cargo.lock',
+    },
+    {
       manifest: 'extensions/nhl-adblock-native/Cargo.toml',
       lock: 'extensions/nhl-adblock-native/Cargo.lock',
     },
