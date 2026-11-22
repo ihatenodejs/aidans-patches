@@ -13,6 +13,8 @@ use std::ffi::OsString;
 use std::io::{self, Read};
 use std::path::PathBuf;
 use std::process::{Command, ExitStatus, Stdio};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -49,12 +51,14 @@ impl BoundedOutput {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct ProcessSpec {
     pub program: OsString,
     pub args: Vec<String>,
     pub cwd: Option<PathBuf>,
     pub timeout: Option<Duration>,
+    /// Cooperative cancellation. A set flag kills and reaps the child.
+    pub cancel: Option<Arc<AtomicBool>>,
     pub stdin: StdinMode,
     pub stdout: OutputMode,
     pub stderr: OutputMode,
@@ -70,6 +74,7 @@ impl ProcessSpec {
             args: Vec::new(),
             cwd: None,
             timeout: None,
+            cancel: None,
             stdin: StdinMode::Null,
             stdout: OutputMode::Captured,
             stderr: OutputMode::Captured,
@@ -103,6 +108,12 @@ impl ProcessSpec {
     #[must_use]
     pub fn timeout(mut self, timeout: Duration) -> Self {
         self.timeout = Some(timeout);
+        self
+    }
+
+    #[must_use]
+    pub fn cancel(mut self, cancel: Arc<AtomicBool>) -> Self {
+        self.cancel = Some(cancel);
         self
     }
 
@@ -172,12 +183,14 @@ pub struct ProcessOutput {
     pub stderr: BoundedOutput,
     /// The child was killed because it exceeded the configured timeout.
     pub timed_out: bool,
+    /// The child was killed because a shared cancellation flag was set.
+    pub cancelled: bool,
 }
 
 impl ProcessOutput {
     #[must_use]
     pub fn success(&self) -> bool {
-        !self.timed_out && self.status.success()
+        !self.timed_out && !self.cancelled && self.status.success()
     }
 
     #[must_use]
@@ -222,6 +235,7 @@ pub fn run(spec: &ProcessSpec) -> Result<ProcessOutput, Error> {
 
     let started = Instant::now();
     let mut timed_out = false;
+    let mut cancelled = false;
     let status = loop {
         match child.try_wait() {
             Ok(Some(status)) => break status,
@@ -234,6 +248,21 @@ pub fn run(spec: &ProcessSpec) -> Result<ProcessOutput, Error> {
                     error,
                 ));
             }
+        }
+
+        if spec
+            .cancel
+            .as_ref()
+            .is_some_and(|flag| flag.load(Ordering::Relaxed))
+        {
+            cancelled = true;
+            let _ = child.kill();
+            break child.wait().map_err(|error| {
+                Error::io(
+                    format!("failed to reap cancelled '{}'", spec.describe_command()),
+                    error,
+                )
+            })?;
         }
 
         if let Some(limit) = spec.timeout {
@@ -260,6 +289,7 @@ pub fn run(spec: &ProcessSpec) -> Result<ProcessOutput, Error> {
         stdout,
         stderr,
         timed_out,
+        cancelled,
     })
 }
 

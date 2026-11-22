@@ -19,12 +19,18 @@ use crate::code_inspection::{
     self, InspectCodeRequest, LiveArtifactInspector, NativeToolExecutor, ToolExecutor, ToolKind,
 };
 use crate::comparison;
+use crate::deployment::{self, DeploymentTools, PatchBuildRequest, PatchEngine};
+use crate::device::{self, AdbClient, MonitorStream, RealClock};
 use crate::dex_strings;
 use crate::error::Error;
 use crate::il2cpp;
 use crate::inspection;
 use crate::manifest;
 use crate::models::{ArtifactInspection, ContainerType, Envelope, ExitCode};
+use crate::morphe::{
+    self, CheckOptions, CheckRunner, DexDump, DexTool, MorpheTool, PatchCommandPaths, ToolVersions,
+};
+use crate::process::{self, ProcessSpec};
 use crate::resources;
 use crate::smali::{self, SmaliAssemblerCommand};
 use crate::tools::{
@@ -35,10 +41,12 @@ use crate::unity;
 use crate::workspace::WorkspaceManager;
 use regex::RegexBuilder;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::ffi::OsString;
 use std::fs;
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 use zip::ZipArchive;
 
 const HELP: &str = "\
@@ -63,6 +71,12 @@ Commands:
   res           Inspect and query resources across split containers
   inspect-code  Disassemble/decompile a class or method and diff artifacts
   validate-smali  Validate a Smali snippet (alias: smali)
+  check         Apply and verify patches with Morphe
+  deploy        Apply patches, sign, and install to a device
+  dev           Build patches, locate an artifact, deploy, and launch
+  monitor       Monitor application process health, ANRs, and crashes
+  crash-trace   Harvest recent Java crash reports from logcat
+  ui            Device UI hierarchy inspection and click automation
   clean         Clean validated managed workspaces
   selftest      Validate native CLI, model, and exit-code contracts
 
@@ -253,6 +267,129 @@ Options:
   -h, --help              Print help
 ";
 
+const CHECK_HELP: &str = "\
+Usage: apk-lab [--workspace-root DIR] check artifact [--mpp MPP] [--package NAME] [--all] [--patch NAME] [--force] [--keep-workspace] [--json [FILE|-]] [-j JOBS]
+
+Apply and verify patches with Morphe, reporting every independent case.
+
+Options:
+  --mpp MPP          Path to compiled .mpp bundle (default: newest in patches/build/libs/)
+  --package NAME     Expected package name
+  --all              Test all compatible patches
+  --patch NAME       Specific patch name to test (repeatable)
+  --force            Force patch application regardless of version
+  --keep-workspace   Keep workspace directory after check
+  --json [FILE|-]    Emit the compatibility report as JSON
+  -j, --jobs JOBS    Concurrent test-case workers (default: min(CPU count, 8))
+  -h, --help         Print help
+";
+
+const DEPLOY_HELP: &str = "\
+Usage: apk-lab deploy artifact [--mpp MPP | --build] [--package NAME] [--all | -e NAME] [-O KEY=VALUE] [--device SERIAL] [--launch] [--reinstall | --clean-install] [--out APK] [--keystore KS] [--ks-alias ALIAS] [--ks-pass PASS] [--key-pass PASS]
+
+Apply patches, sign with a debug or custom key, and install to a device.
+
+Options:
+  --mpp MPP           Path to patches .mpp file
+  --build             Compile the newest .mpp bundle via Gradle
+  --package NAME      Expected package name (auto-detected if omitted)
+  --all               Apply all default-compatible patches
+  -e, --enable NAME   Explicit patch name to enable (repeatable)
+  -O, --option KEY=VALUE
+                      Patch option (repeatable)
+  --device SERIAL     Target ADB device serial
+  --launch            Launch main activity after installation
+  --reinstall         Reinstall preserving data (default)
+  --clean-install     Clean install by uninstalling first
+  --out APK           Path to write signed output APK
+  --keystore KS       Path to custom keystore for signing
+  --ks-alias ALIAS    Keystore key alias
+  --ks-pass PASS      Keystore password
+  --key-pass PASS     Key password
+  -h, --help          Print help
+";
+
+const DEV_HELP: &str = "\
+Usage: apk-lab dev [app] [--artifact APK] [--no-build] [--device SERIAL] [--launch] [--all] [--reinstall | --clean-install]
+
+Build patches, locate an artifact, deploy to a device, and launch.
+
+Options:
+  --artifact APK      Explicit artifact path (bypasses auto-search)
+  --no-build          Skip Gradle build and use the newest existing .mpp
+  --device SERIAL     Target ADB device serial
+  --launch            Launch main activity after installation (default)
+  --all               Apply all compatible patches (default)
+  --reinstall         Reinstall preserving data (default)
+  --clean-install     Clean install by uninstalling first
+  -h, --help          Print help
+";
+
+const MONITOR_HELP: &str = "\
+Usage: apk-lab monitor --package NAME [--device SERIAL] [--timeout SECONDS] [--dump-threads]
+
+Monitor application process health, ANRs, crashes, and high CPU spin.
+
+Options:
+  --package NAME      Package name to monitor
+  --device SERIAL     Target ADB device serial
+  --timeout SECONDS   Monitoring timeout in seconds
+  --dump-threads      Capture a thread dump on ANR or spin
+  -h, --help          Print help
+";
+
+const CRASH_TRACE_HELP: &str = "\
+Usage: apk-lab crash-trace --package NAME [--device SERIAL] [--lines N] [--json]
+
+Harvest recent Java crash reports from logcat.
+
+Options:
+  --package NAME     Package name to inspect
+  --device SERIAL    Target ADB device serial
+  --lines N          Recent logcat lines to inspect (default: 5000)
+  --json             Output crash reports as JSON
+  -h, --help         Print help
+";
+
+const UI_HELP: &str = "\
+Usage: apk-lab ui <dump|click> [options]
+
+Device UI hierarchy inspection and click automation.
+
+Commands:
+  dump    Dump and filter UI hierarchy nodes
+  click   Click first matching UI node or direct coordinates
+
+Run 'apk-lab ui <command> --help' for command options.
+";
+
+const UI_DUMP_HELP: &str = "\
+Usage: apk-lab ui dump [--device SERIAL] [--clickable] [--text TEXT] [--desc DESC] [--json]
+
+Dump and filter UI hierarchy nodes.
+
+Options:
+  --device SERIAL  Target ADB device serial
+  --clickable      Filter to clickable nodes only
+  --text TEXT      Filter by text substring
+  --desc DESC      Filter by content-description substring
+  --json           Output a JSON array of nodes
+  -h, --help       Print help
+";
+
+const UI_CLICK_HELP: &str = "\
+Usage: apk-lab ui click [--device SERIAL] [--text TEXT | --desc DESC | --coords X,Y]
+
+Click the first matching UI node or direct coordinates.
+
+Options:
+  --device SERIAL  Target ADB device serial
+  --text TEXT      Click first node matching text substring
+  --desc DESC      Click first node matching content-description substring
+  --coords X,Y     Direct X,Y click
+  -h, --help       Print help
+";
+
 const USAGE: &str = "\
 Usage: apk-lab [--workspace-root DIR] <command> [options]
        apk-lab --help
@@ -315,6 +452,12 @@ pub fn run(raw_args: &[OsString]) -> Result<ExitCode, Error> {
         "res" => run_res(rest),
         "inspect-code" => run_inspect_code(rest),
         "validate-smali" | "smali" => run_validate_smali(rest),
+        "check" => run_check(rest, &workspace_root),
+        "deploy" => run_deploy_command(rest),
+        "dev" => run_dev_command(rest),
+        "monitor" => run_monitor_command(rest),
+        "crash-trace" => run_crash_trace(rest, &workspace_root),
+        "ui" => run_ui(rest),
         "clean" => run_clean(rest, &workspace_root),
         "selftest" => run_selftest(rest),
         other if other.starts_with('-') => {
@@ -2224,6 +2367,1249 @@ fn write_python_json_unsorted<T: Serialize>(
             })
         }
     }
+}
+
+const NO_MPP_MESSAGE: &str =
+    "No compiled .mpp found in patches/build/libs/. Run ./gradlew :patches:buildAndroid first.";
+
+/// Production [`PatchEngine`]: applies a resolved selection set through the
+/// pinned Morphe tool and verifies the output exactly like the Python oracle.
+struct NativePatchEngine {
+    morphe: MorpheTool,
+    patches_list: Value,
+    dex: DexDump,
+}
+
+impl NativePatchEngine {
+    fn discover() -> Result<Self, Error> {
+        let manager = ToolManager::with_defaults().map_err(Error::from)?;
+        let environment = ToolEnvironment::from_process(&tools::default_repo_root());
+        let morphe = MorpheTool::pinned(&manager, environment.find_java())?;
+        let patches_list =
+            morphe::load_patches_list(tools::default_repo_root().join("patches-list.json"))?;
+        let dex = DexDump::from_environment(&environment);
+        Ok(Self {
+            morphe,
+            patches_list,
+            dex,
+        })
+    }
+}
+
+impl PatchEngine for NativePatchEngine {
+    fn apply(&self, request: &PatchBuildRequest<'_>) -> Result<Vec<String>, Error> {
+        let input = inspection::inspect_artifact(request.artifact)?;
+        if input.package_name != request.package_name {
+            return Err(Error::usage(format!(
+                "Artifact package '{}' does not match expected '{}'",
+                input.package_name, request.package_name
+            )));
+        }
+
+        let selections = morphe::resolve_patch_selections(
+            request.package_name,
+            Some(request.enabled_patches),
+            request.all_defaults,
+            Some(request.raw_options),
+            &self.patches_list,
+        )?;
+        if selections.is_empty() {
+            return Err(Error::usage(format!(
+                "No compatible patches selected for package '{}'. Use --all or specify valid -e patches.",
+                request.package_name
+            )));
+        }
+
+        fs::create_dir_all(request.scratch_dir).map_err(|error| {
+            Error::io(
+                format!("create scratch {}", request.scratch_dir.display()),
+                error,
+            )
+        })?;
+        let result_json = request.scratch_dir.join("result.json");
+        let paths = PatchCommandPaths::new(
+            request.mpp,
+            request.artifact,
+            request.output_apk,
+            &result_json,
+            request.scratch_dir,
+        );
+        let arguments = morphe::build_morphe_patch_set_cmd(&selections, &paths);
+        let spec = ProcessSpec::new(self.morphe.program.clone())
+            .args(self.morphe.prefix_args.iter().cloned())
+            .args(arguments)
+            .cwd(request.scratch_dir);
+        let output = process::run(&spec)?;
+
+        if !result_json.is_file() {
+            let detail = if output.stderr.bytes.is_empty() {
+                output.stdout.text_lossy()
+            } else {
+                output.stderr.text_lossy()
+            };
+            return Err(Error::infrastructure(format!(
+                "Morphe result.json was not generated (exit code {}): {}",
+                output.status.code().unwrap_or(-1),
+                truncate_chars(&detail, 500)
+            )));
+        }
+
+        let text = fs::read_to_string(&result_json).map_err(|error| {
+            Error::infrastructure(format!("Corrupt Morphe result JSON: {error}"))
+        })?;
+        let data: Value = serde_json::from_str(&text).map_err(|error| {
+            Error::infrastructure(format!("Corrupt Morphe result JSON: {error}"))
+        })?;
+
+        let failed: Vec<String> = data
+            .get("failedPatches")
+            .and_then(Value::as_array)
+            .map(|patches| {
+                patches
+                    .iter()
+                    .map(|patch| {
+                        format!(
+                            "{}: {}",
+                            patch.get("name").and_then(Value::as_str).unwrap_or(""),
+                            patch.get("reason").and_then(Value::as_str).unwrap_or("")
+                        )
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        if !output.status.success() || !failed.is_empty() {
+            let detail = if failed.is_empty() {
+                truncate_chars(&output.stderr.text_lossy(), 300)
+            } else {
+                failed.join("; ")
+            };
+            return Err(Error::infrastructure(format!(
+                "Morphe patching failed: {detail}"
+            )));
+        }
+
+        let applied: Vec<String> = data
+            .get("appliedPatches")
+            .and_then(Value::as_array)
+            .map(|patches| {
+                patches
+                    .iter()
+                    .filter_map(|patch| patch.get("name").and_then(Value::as_str))
+                    .map(str::to_string)
+                    .collect()
+            })
+            .unwrap_or_default();
+        for selection in &selections {
+            if !applied
+                .iter()
+                .any(|name| name == &selection.definition.name)
+            {
+                return Err(Error::infrastructure(format!(
+                    "Patch '{}' was not reported in applied patches: {}",
+                    selection.definition.name,
+                    python_string_list(&applied)
+                )));
+            }
+        }
+
+        if !request.output_apk.is_file() {
+            return Err(Error::infrastructure(
+                "Morphe reported success but output APK was not created",
+            ));
+        }
+        let output_inspection = inspection::inspect_artifact(request.output_apk)?;
+        if output_inspection.package_name != request.package_name {
+            return Err(Error::infrastructure(format!(
+                "Patched output package '{}' does not match expected '{}'",
+                output_inspection.package_name, request.package_name
+            )));
+        }
+        if output_inspection.version_code != input.version_code {
+            return Err(Error::infrastructure(format!(
+                "Patched output version code '{}' does not match input '{}'",
+                output_inspection.version_code, input.version_code
+            )));
+        }
+        self.dex.verify(request.output_apk).map_err(|error| {
+            Error::infrastructure(format!("Patched APK DEX verification failed: {error}"))
+        })?;
+
+        Ok(applied)
+    }
+}
+
+fn truncate_chars(text: &str, limit: usize) -> String {
+    let mut truncated: String = text.chars().take(limit).collect();
+    if text.chars().count() > limit {
+        truncated.push_str("...");
+    }
+    truncated
+}
+
+fn python_string_list(items: &[String]) -> String {
+    let quoted: Vec<String> = items
+        .iter()
+        .map(|item| format!("'{}'", item.replace('\\', "\\\\").replace('\'', "\\'")))
+        .collect();
+    format!("[{}]", quoted.join(", "))
+}
+
+fn python_string_repr(text: &str) -> String {
+    let mut escaped = String::with_capacity(text.len() + 2);
+    escaped.push('\'');
+    for character in text.chars() {
+        match character {
+            '\\' => escaped.push_str("\\\\"),
+            '\'' => escaped.push_str("\\'"),
+            '\n' => escaped.push_str("\\n"),
+            '\r' => escaped.push_str("\\r"),
+            '\t' => escaped.push_str("\\t"),
+            other => escaped.push(other),
+        }
+    }
+    escaped.push('\'');
+    escaped
+}
+
+fn python_value_repr(value: &Value) -> String {
+    match value {
+        Value::Null => "None".to_string(),
+        Value::Bool(flag) => {
+            if *flag {
+                "True".to_string()
+            } else {
+                "False".to_string()
+            }
+        }
+        Value::Number(number) => number.to_string(),
+        Value::String(text) => python_string_repr(text),
+        other => other.to_string(),
+    }
+}
+
+fn python_options_repr(options: &morphe::PatchOptions) -> String {
+    let entries: Vec<String> = options
+        .iter()
+        .map(|(key, value)| format!("{}: {}", python_string_repr(key), python_value_repr(value)))
+        .collect();
+    format!("{{{}}}", entries.join(", "))
+}
+
+fn python_float(value: f64) -> String {
+    if value.is_finite() && value.fract() == 0.0 {
+        format!("{value:.1}")
+    } else {
+        format!("{value}")
+    }
+}
+
+fn format_check_report(report: &morphe::PatchCompatibilityReport) -> String {
+    let separator = "=".repeat(60);
+    let mut text = String::new();
+    text.push_str(&separator);
+    text.push('\n');
+    text.push_str(&format!(
+        "PATCH COMPATIBILITY CHECK: {}\n",
+        report.package_name
+    ));
+    text.push_str(&separator);
+    text.push('\n');
+    text.push_str(&format!(
+        "Version:       {} ({})\n",
+        report.version_name, report.version_code
+    ));
+    text.push_str(&format!(
+        "Artifact SHA:  {}...\n",
+        report.artifact_sha256.chars().take(16).collect::<String>()
+    ));
+    text.push_str(&format!(
+        "Patch Bundle:  {} (rev: {})\n",
+        report.patch_bundle_version,
+        report.git_revision.chars().take(8).collect::<String>()
+    ));
+    text.push_str(&format!(
+        "Results:       {}/{} passed\n",
+        report.passed_cases, report.total_cases
+    ));
+    text.push_str(&format!("{}\n", "-".repeat(60)));
+    for test_case in &report.test_cases {
+        let status = if test_case.success {
+            "[PASS]"
+        } else {
+            "[FAIL]"
+        };
+        let options = if test_case.options.is_empty() {
+            String::new()
+        } else {
+            format!(" (opts: {})", python_options_repr(&test_case.options))
+        };
+        let injected = if test_case.injected_classes.is_empty() {
+            String::new()
+        } else {
+            format!(" [injected: {} classes]", test_case.injected_classes.len())
+        };
+        let duration = format!(" ({})", python_float(test_case.duration_seconds));
+        text.push_str(&format!(
+            "  {status} {}{options}{injected}{duration}\n",
+            test_case.patch_name
+        ));
+        if !test_case.success {
+            if let Some(reason) = &test_case.error_message {
+                text.push_str(&format!("         Reason: {reason}\n"));
+            }
+        }
+    }
+    text.push_str(&separator);
+    text.push('\n');
+    text.push_str(&format!(
+        "Overall Status: {}\n",
+        report.overall_status.to_uppercase()
+    ));
+    text
+}
+
+fn resolve_default_check_bundle() -> Result<PathBuf, Error> {
+    let cwd = std::env::current_dir().map_err(|error| Error::io("current directory", error))?;
+    let repo_root = deployment::find_repo_root(&cwd).map_err(|_| Error::usage(NO_MPP_MESSAGE))?;
+    let libs_dir = repo_root.join("patches").join("build").join("libs");
+    if !libs_dir.is_dir() {
+        return Err(Error::usage(NO_MPP_MESSAGE));
+    }
+    deployment::newest_bundle(&libs_dir).map_err(|_| Error::usage(NO_MPP_MESSAGE))
+}
+
+fn git_revision() -> Option<String> {
+    let spec = ProcessSpec::new("git").args(["rev-parse".to_string(), "HEAD".to_string()]);
+    match process::run(&spec) {
+        Ok(output) if output.status.success() => {
+            let revision = output.stdout.text_lossy().trim().to_string();
+            (!revision.is_empty()).then_some(revision)
+        }
+        _ => None,
+    }
+}
+
+fn collect_tool_versions() -> ToolVersions {
+    let mut versions = ToolVersions::new();
+    if let Ok(manager) = ToolManager::with_defaults() {
+        for name in ["morphe", "jadx", "apktool", "baksmali"] {
+            if let Ok(spec) = manager.spec(name) {
+                versions.insert(name, spec.version.clone());
+            }
+        }
+    }
+    versions
+}
+
+fn run_check(args: &[String], workspace_root: &Path) -> Result<ExitCode, Error> {
+    let mut artifact: Option<String> = None;
+    let mut mpp: Option<PathBuf> = None;
+    let mut package: Option<String> = None;
+    let mut all = false;
+    let mut patches: Vec<String> = Vec::new();
+    let mut force = false;
+    let mut keep_workspace = false;
+    let mut json_target: Option<JsonTarget> = None;
+    let mut jobs: Option<usize> = None;
+    let mut index = 0;
+
+    while index < args.len() {
+        let arg = args[index].as_str();
+        match arg {
+            "-h" | "--help" => {
+                write_stdout(CHECK_HELP)?;
+                return Ok(ExitCode::Success);
+            }
+            "--mpp" => {
+                mpp = Some(PathBuf::from(require_value(
+                    args, index, "--mpp", CHECK_HELP,
+                )?));
+                index += 2;
+            }
+            _ if arg.starts_with("--mpp=") => {
+                mpp = Some(PathBuf::from(non_empty_value(
+                    &arg["--mpp=".len()..],
+                    "--mpp",
+                    CHECK_HELP,
+                )?));
+                index += 1;
+            }
+            "--package" => {
+                package = Some(require_value(args, index, "--package", CHECK_HELP)?);
+                index += 2;
+            }
+            _ if arg.starts_with("--package=") => {
+                package = Some(non_empty_value(
+                    &arg["--package=".len()..],
+                    "--package",
+                    CHECK_HELP,
+                )?);
+                index += 1;
+            }
+            "--all" => {
+                all = true;
+                index += 1;
+            }
+            "--patch" => {
+                patches.push(require_value(args, index, "--patch", CHECK_HELP)?);
+                index += 2;
+            }
+            _ if arg.starts_with("--patch=") => {
+                patches.push(non_empty_value(
+                    &arg["--patch=".len()..],
+                    "--patch",
+                    CHECK_HELP,
+                )?);
+                index += 1;
+            }
+            "--force" => {
+                force = true;
+                index += 1;
+            }
+            "--keep-workspace" => {
+                keep_workspace = true;
+                index += 1;
+            }
+            _ if arg == "--json" || arg.starts_with("--json=") => {
+                index = parse_json_occurrence(args, index, &mut json_target, CHECK_HELP)?;
+            }
+            "-j" | "--jobs" => {
+                let value = require_value(args, index, "--jobs", CHECK_HELP)?;
+                jobs = Some(parse_jobs(&value)?);
+                index += 2;
+            }
+            _ if arg.starts_with("--jobs=") => {
+                jobs = Some(parse_jobs(&arg["--jobs=".len()..])?);
+                index += 1;
+            }
+            _ if arg.starts_with("-j") && arg.len() > 2 => {
+                jobs = Some(parse_jobs(&arg[2..])?);
+                index += 1;
+            }
+            _ if arg.starts_with('-') => {
+                write_stderr(CHECK_HELP);
+                return Err(Error::usage(format!("unrecognized option '{arg}'")));
+            }
+            _ if artifact.is_none() => {
+                artifact = Some(arg.to_string());
+                index += 1;
+            }
+            _ => {
+                write_stderr(CHECK_HELP);
+                return Err(Error::usage(format!("unexpected argument '{arg}'")));
+            }
+        }
+    }
+
+    let Some(artifact) = artifact else {
+        write_stderr(CHECK_HELP);
+        return Err(Error::usage(
+            "the following arguments are required: artifact",
+        ));
+    };
+
+    let result = (|| -> Result<(morphe::PatchCompatibilityReport, ExitCode), Error> {
+        let mpp = match mpp {
+            Some(mpp) => mpp,
+            None => resolve_default_check_bundle()?,
+        };
+        let mut options = CheckOptions::new(&artifact, &mpp);
+        options.expected_package = package;
+        options.requested_patches = patches;
+        options.all_patches = all;
+        options.force = force;
+        options.keep_workspace = keep_workspace;
+        options.workspace_root = workspace_root.to_path_buf();
+        options.jobs = jobs;
+        options.tool_versions = collect_tool_versions();
+        options.git_revision = git_revision();
+        options.patches_list_path = Some(tools::default_repo_root().join("patches-list.json"));
+        let runner = CheckRunner::native(native_morphe_tool()?);
+        runner.run(&options)
+    })();
+
+    match result {
+        Ok((report, code)) => {
+            if let Some(target) = &json_target {
+                write_sorted_json(&report, target)?;
+            } else {
+                write_stdout(&format_check_report(&report))?;
+            }
+            Ok(code)
+        }
+        Err(error) => {
+            let code = match &error {
+                Error::Usage(_) => ExitCode::UsageOrToolError,
+                _ => ExitCode::InfrastructureFailure,
+            };
+            let label = if code == ExitCode::UsageOrToolError {
+                "Check error"
+            } else {
+                "Check unexpected error"
+            };
+            write_stderr(&format!("{label}: {}\n", error.message()));
+            Ok(code)
+        }
+    }
+}
+
+fn parse_jobs(value: &str) -> Result<usize, Error> {
+    let parsed: i64 = value
+        .parse()
+        .map_err(|_| Error::usage(format!("argument -j/--jobs: invalid int value: '{value}'")))?;
+    Ok(usize::try_from(parsed.max(1)).unwrap_or(1))
+}
+
+fn native_morphe_tool() -> Result<MorpheTool, Error> {
+    let manager = ToolManager::with_defaults().map_err(Error::from)?;
+    let environment = ToolEnvironment::from_process(&tools::default_repo_root());
+    MorpheTool::pinned(&manager, environment.find_java())
+}
+
+fn run_deploy_command(args: &[String]) -> Result<ExitCode, Error> {
+    if args.iter().any(|arg| arg == "-h" || arg == "--help") {
+        write_stdout(DEPLOY_HELP)?;
+        return Ok(ExitCode::Success);
+    }
+    let parsed = deployment::parse_deploy_args(args).inspect_err(|_| {
+        write_stderr(DEPLOY_HELP);
+    })?;
+    if parsed.mpp.is_none() && !parsed.build {
+        write_stderr("Deployment error: Either --mpp or --build must be specified\n");
+        return Ok(ExitCode::UsageOrToolError);
+    }
+
+    match run_deploy_native(args) {
+        Ok(result) => {
+            write_stdout(&format!("{}\n", result.format_human()))?;
+            Ok(ExitCode::Success)
+        }
+        Err(error) => {
+            write_stderr(&format!("Deployment error: {}\n", error.message()));
+            Ok(deploy_error_code(&error))
+        }
+    }
+}
+
+fn run_deploy_native(args: &[String]) -> Result<deployment::DeployResult, Error> {
+    let tools = DeploymentTools::discover()?;
+    let engine = NativePatchEngine::discover()?;
+    deployment::run_deploy(args, &tools, &engine)
+}
+
+fn deploy_error_code(error: &Error) -> ExitCode {
+    match error {
+        Error::Usage(_) => ExitCode::UsageOrToolError,
+        _ => ExitCode::InfrastructureFailure,
+    }
+}
+
+fn run_dev_command(args: &[String]) -> Result<ExitCode, Error> {
+    if args.iter().any(|arg| arg == "-h" || arg == "--help") {
+        write_stdout(DEV_HELP)?;
+        return Ok(ExitCode::Success);
+    }
+    deployment::parse_dev_args(args).inspect_err(|_| {
+        write_stderr(DEV_HELP);
+    })?;
+
+    let cwd = std::env::current_dir().map_err(|error| Error::io("current directory", error))?;
+    let home = std::env::var_os("HOME")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| cwd.clone());
+    match run_dev_native(args, &cwd, &home) {
+        Ok(result) => {
+            write_stdout(&format!("{}\n", result.format_human()))?;
+            Ok(ExitCode::Success)
+        }
+        Err(error) => {
+            write_stderr(&format!("Dev iteration error: {}\n", error.message()));
+            Ok(deploy_error_code(&error))
+        }
+    }
+}
+
+fn run_dev_native(
+    args: &[String],
+    cwd: &Path,
+    home: &Path,
+) -> Result<deployment::DeployResult, Error> {
+    let command = deployment::parse_dev_args(args)?;
+    let repo_root = deployment::find_repo_root(cwd)?;
+    write_stdout(&format!("Repository root: {}\n", repo_root.display()))?;
+
+    let bundle = if command.no_build {
+        let libs_dir = repo_root.join("patches").join("build").join("libs");
+        if !libs_dir.is_dir() {
+            return Err(Error::infrastructure(format!(
+                "No .mpp bundle found in {}",
+                libs_dir.display()
+            )));
+        }
+        let bundle = deployment::newest_bundle(&libs_dir)?;
+        write_stdout(&format!("Using existing bundle: {}\n", bundle.display()))?;
+        bundle
+    } else {
+        write_stdout("Building patch bundle via Gradle...\n")?;
+        let bundle = deployment::build_patch_bundle(&repo_root)?;
+        write_stdout(&format!("Built bundle: {}\n", bundle.display()))?;
+        bundle
+    };
+
+    let artifact = deployment::resolve_dev_artifact(
+        command.artifact.as_deref(),
+        command.app.as_deref(),
+        &repo_root,
+        home,
+    )?;
+    write_stdout(&format!("Found artifact: {}\n", artifact.display()))?;
+    let inspection = inspection::inspect_artifact(&artifact)?;
+    let package_name = inspection.package_name.clone();
+    write_stdout(&format!("Resolved package: {package_name}\n"))?;
+
+    let tools = DeploymentTools::discover()?;
+    let engine = NativePatchEngine::discover()?;
+    let options = deployment::DeployOptions {
+        artifact,
+        mpp: Some(bundle),
+        build: false,
+        repo_start: repo_root,
+        package_name,
+        all_defaults: command.all,
+        enabled_patches: Vec::new(),
+        raw_options: Vec::new(),
+        device_serial: command.device,
+        launch: command.launch,
+        clean_install: command.clean_install,
+        out_apk: None,
+        keystore: None,
+        ks_alias: None,
+        ks_pass: None,
+        key_pass: None,
+    };
+    deployment::deploy_artifact(&options, &tools, &engine)
+}
+
+fn parse_non_negative_float(value: &str) -> Result<f64, Error> {
+    let parsed: f64 = value
+        .parse()
+        .map_err(|_| Error::usage(format!("Invalid float value: {value}")))?;
+    if parsed < 0.0 {
+        return Err(Error::usage(format!(
+            "Stale age must be non-negative, got {value}"
+        )));
+    }
+    Ok(parsed)
+}
+
+/// Python accepts any float, and `nan`/`inf`/overflowing deadlines simply
+/// never elapse. `None` represents "no deadline" in the native monitor.
+fn monitor_timeout(value: &str) -> Result<Option<Duration>, Error> {
+    let seconds = parse_non_negative_float(value)?;
+    Ok(Duration::try_from_secs_f64(seconds).ok())
+}
+
+fn run_monitor_command(args: &[String]) -> Result<ExitCode, Error> {
+    if args.iter().any(|arg| arg == "-h" || arg == "--help") {
+        write_stdout(MONITOR_HELP)?;
+        return Ok(ExitCode::Success);
+    }
+    let mut package: Option<String> = None;
+    let mut device: Option<String> = None;
+    let mut timeout: Option<Duration> = None;
+    let mut dump_threads = false;
+    let mut index = 0;
+    while index < args.len() {
+        let arg = args[index].as_str();
+        match arg {
+            "--package" => {
+                package = Some(require_value(args, index, "--package", MONITOR_HELP)?);
+                index += 2;
+            }
+            _ if arg.starts_with("--package=") => {
+                package = Some(non_empty_value(
+                    &arg["--package=".len()..],
+                    "--package",
+                    MONITOR_HELP,
+                )?);
+                index += 1;
+            }
+            "--device" => {
+                device = Some(require_value(args, index, "--device", MONITOR_HELP)?);
+                index += 2;
+            }
+            _ if arg.starts_with("--device=") => {
+                device = Some(non_empty_value(
+                    &arg["--device=".len()..],
+                    "--device",
+                    MONITOR_HELP,
+                )?);
+                index += 1;
+            }
+            "--timeout" => {
+                let value = require_value(args, index, "--timeout", MONITOR_HELP)?;
+                timeout = monitor_timeout(&value)?;
+                index += 2;
+            }
+            _ if arg.starts_with("--timeout=") => {
+                timeout = monitor_timeout(&arg["--timeout=".len()..])?;
+                index += 1;
+            }
+            "--dump-threads" => {
+                dump_threads = true;
+                index += 1;
+            }
+            _ if arg.starts_with('-') => {
+                write_stderr(MONITOR_HELP);
+                return Err(Error::usage(format!("unrecognized option '{arg}'")));
+            }
+            _ => {
+                write_stderr(MONITOR_HELP);
+                return Err(Error::usage(format!("unexpected argument '{arg}'")));
+            }
+        }
+    }
+    let Some(package) = package else {
+        write_stderr(MONITOR_HELP);
+        return Err(Error::usage(
+            "the following arguments are required: --package",
+        ));
+    };
+
+    let adb = match AdbClient::new() {
+        Ok(adb) => adb,
+        Err(error) => {
+            write_stderr(&format!("Monitor error: {}\n", error.message()));
+            return Ok(monitor_error_code(&error));
+        }
+    };
+    let serial = match device::resolve_device(&adb, device.as_deref()) {
+        Ok(serial) => serial,
+        Err(error) => {
+            write_stderr(&format!("Monitor error: {}\n", error.message()));
+            return Ok(monitor_error_code(&error));
+        }
+    };
+    let mut request = device::MonitorRequest::new(package);
+    request.serial = Some(serial);
+    request.timeout = timeout;
+    request.dump_threads = dump_threads;
+    let outcome = device::monitor_application(&adb, &RealClock::default(), &request);
+    for message in &outcome.messages {
+        match message.stream {
+            MonitorStream::Stdout => write_stdout(&format!("{}\n", message.text))?,
+            MonitorStream::Stderr => write_stderr(&format!("{}\n", message.text)),
+        }
+    }
+    Ok(outcome.exit_code)
+}
+
+fn monitor_error_code(error: &Error) -> ExitCode {
+    match error {
+        Error::Usage(_) => ExitCode::UsageOrToolError,
+        _ => ExitCode::InfrastructureFailure,
+    }
+}
+
+fn run_crash_trace(args: &[String], workspace_root: &Path) -> Result<ExitCode, Error> {
+    if args.iter().any(|arg| arg == "-h" || arg == "--help") {
+        write_stdout(CRASH_TRACE_HELP)?;
+        return Ok(ExitCode::Success);
+    }
+    let mut package: Option<String> = None;
+    let mut device: Option<String> = None;
+    let mut lines: usize = 5000;
+    let mut json = false;
+    let mut index = 0;
+    while index < args.len() {
+        let arg = args[index].as_str();
+        match arg {
+            "--package" => {
+                package = Some(require_value(args, index, "--package", CRASH_TRACE_HELP)?);
+                index += 2;
+            }
+            _ if arg.starts_with("--package=") => {
+                package = Some(non_empty_value(
+                    &arg["--package=".len()..],
+                    "--package",
+                    CRASH_TRACE_HELP,
+                )?);
+                index += 1;
+            }
+            "--device" => {
+                device = Some(require_value(args, index, "--device", CRASH_TRACE_HELP)?);
+                index += 2;
+            }
+            _ if arg.starts_with("--device=") => {
+                device = Some(non_empty_value(
+                    &arg["--device=".len()..],
+                    "--device",
+                    CRASH_TRACE_HELP,
+                )?);
+                index += 1;
+            }
+            "--lines" => {
+                let value = require_value(args, index, "--lines", CRASH_TRACE_HELP)?;
+                lines = parse_non_negative_int(&value)?;
+                index += 2;
+            }
+            _ if arg.starts_with("--lines=") => {
+                lines = parse_non_negative_int(&arg["--lines=".len()..])?;
+                index += 1;
+            }
+            "--json" => {
+                json = true;
+                index += 1;
+            }
+            _ if arg.starts_with('-') => {
+                write_stderr(CRASH_TRACE_HELP);
+                return Err(Error::usage(format!("unrecognized option '{arg}'")));
+            }
+            _ => {
+                write_stderr(CRASH_TRACE_HELP);
+                return Err(Error::usage(format!("unexpected argument '{arg}'")));
+            }
+        }
+    }
+    let Some(package) = package else {
+        write_stderr(CRASH_TRACE_HELP);
+        return Err(Error::usage(
+            "the following arguments are required: --package",
+        ));
+    };
+
+    let reports = match crash_trace_reports(&package, device.as_deref(), lines, workspace_root) {
+        Ok(reports) => reports,
+        Err(error) => {
+            write_stderr(&format!("Crash trace error: {}\n", error.message()));
+            return Ok(ExitCode::InfrastructureFailure);
+        }
+    };
+
+    if json {
+        write_python_json_unsorted(&reports, &JsonTarget::Stdout, false)?;
+        return Ok(ExitCode::Success);
+    }
+    if reports.is_empty() {
+        write_stdout(&format!(
+            "No recent crashes detected for package {package}\n"
+        ))?;
+        return Ok(ExitCode::Success);
+    }
+
+    let mut text = String::new();
+    for (index, report) in reports.iter().enumerate() {
+        if index > 0 {
+            text.push('\n');
+        }
+        text.push_str(&format!("Process: {}\n", report.process));
+        if let Some(pid) = report.pid {
+            text.push_str(&format!("PID: {pid}\n"));
+        }
+        if let Some(timestamp) = &report.timestamp {
+            text.push_str(&format!("Timestamp: {timestamp}\n"));
+        }
+        text.push_str(&format!("Exception: {}\n", report.exception_type));
+        text.push_str(&format!("Message: {}\n", report.message));
+        if !report.stack_trace.is_empty() {
+            text.push_str("Stack trace:\n");
+            let frames = report
+                .resolved_frames
+                .as_deref()
+                .filter(|frames| !frames.is_empty());
+            if let Some(frames) = frames {
+                for frame in frames {
+                    text.push_str(&frame.raw_frame);
+                    text.push('\n');
+                    if let Some(path) = &frame.smali_path {
+                        text.push_str(&format!("  -> Smali: {}\n", path.display()));
+                    }
+                    if let Some(signature) = &frame.method_signature {
+                        text.push_str(&format!("  -> Method: {signature}\n"));
+                    }
+                    if let Some(snippet) = &frame.code_snippet {
+                        for line in snippet {
+                            text.push_str(&format!("       {line}\n"));
+                        }
+                    }
+                }
+            } else {
+                text.push_str(&report.stack_trace.join("\n"));
+                text.push('\n');
+            }
+        }
+    }
+    write_stdout(&text)?;
+    Ok(ExitCode::Success)
+}
+
+fn crash_trace_reports(
+    package: &str,
+    device: Option<&str>,
+    lines: usize,
+    workspace_root: &Path,
+) -> Result<Vec<device::CrashReport>, Error> {
+    let adb = AdbClient::new()?;
+    let mut reports = device::harvest_recent_crashes(&adb, package, device, lines)?;
+    if let Some(smali_dir) = find_package_smali_dir(workspace_root, package) {
+        reports = reports
+            .into_iter()
+            .map(|report| device::resolve_crash_report(report, &smali_dir))
+            .collect();
+    }
+    Ok(reports)
+}
+
+fn find_package_smali_dir(workspace_root: &Path, package: &str) -> Option<PathBuf> {
+    let package_dir = workspace_root.join(package);
+    if !package_dir.is_dir() {
+        return None;
+    }
+    let mut smali_dirs = Vec::new();
+    collect_smali_dirs(&package_dir, &mut smali_dirs);
+    smali_dirs.into_iter().max_by_key(|path| {
+        fs::metadata(path)
+            .and_then(|metadata| metadata.modified())
+            .unwrap_or(std::time::UNIX_EPOCH)
+    })
+}
+
+fn collect_smali_dirs(directory: &Path, out: &mut Vec<PathBuf>) {
+    let Ok(entries) = fs::read_dir(directory) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        let Ok(file_type) = entry.file_type() else {
+            continue;
+        };
+        if !file_type.is_dir() {
+            continue;
+        }
+        if path.file_name().and_then(|name| name.to_str()) == Some("smali") {
+            out.push(path.clone());
+        }
+        collect_smali_dirs(&path, out);
+    }
+}
+
+fn run_ui(args: &[String]) -> Result<ExitCode, Error> {
+    let Some((subcommand, rest)) = args.split_first() else {
+        write_stderr(UI_HELP);
+        return Err(Error::usage(
+            "the following arguments are required: ui command",
+        ));
+    };
+    match subcommand.as_str() {
+        "-h" | "--help" => {
+            write_stdout(UI_HELP)?;
+            Ok(ExitCode::Success)
+        }
+        "dump" => run_ui_dump(rest),
+        "click" => run_ui_click(rest),
+        other => {
+            write_stderr(UI_HELP);
+            Err(Error::usage(format!("unknown ui command '{other}'")))
+        }
+    }
+}
+
+fn run_ui_dump(args: &[String]) -> Result<ExitCode, Error> {
+    let mut device: Option<String> = None;
+    let mut clickable = false;
+    let mut text: Option<String> = None;
+    let mut desc: Option<String> = None;
+    let mut json = false;
+    let mut index = 0;
+    while index < args.len() {
+        let arg = args[index].as_str();
+        match arg {
+            "-h" | "--help" => {
+                write_stdout(UI_DUMP_HELP)?;
+                return Ok(ExitCode::Success);
+            }
+            "--device" => {
+                device = Some(require_value(args, index, "--device", UI_DUMP_HELP)?);
+                index += 2;
+            }
+            _ if arg.starts_with("--device=") => {
+                device = Some(non_empty_value(
+                    &arg["--device=".len()..],
+                    "--device",
+                    UI_DUMP_HELP,
+                )?);
+                index += 1;
+            }
+            "--clickable" => {
+                clickable = true;
+                index += 1;
+            }
+            "--text" => {
+                text = Some(require_value(args, index, "--text", UI_DUMP_HELP)?);
+                index += 2;
+            }
+            _ if arg.starts_with("--text=") => {
+                text = Some(non_empty_value(
+                    &arg["--text=".len()..],
+                    "--text",
+                    UI_DUMP_HELP,
+                )?);
+                index += 1;
+            }
+            "--desc" => {
+                desc = Some(require_value(args, index, "--desc", UI_DUMP_HELP)?);
+                index += 2;
+            }
+            _ if arg.starts_with("--desc=") => {
+                desc = Some(non_empty_value(
+                    &arg["--desc=".len()..],
+                    "--desc",
+                    UI_DUMP_HELP,
+                )?);
+                index += 1;
+            }
+            "--json" => {
+                json = true;
+                index += 1;
+            }
+            _ if arg.starts_with('-') => {
+                write_stderr(UI_DUMP_HELP);
+                return Err(Error::usage(format!("unrecognized option '{arg}'")));
+            }
+            _ => {
+                write_stderr(UI_DUMP_HELP);
+                return Err(Error::usage(format!("unexpected argument '{arg}'")));
+            }
+        }
+    }
+
+    let matched = match dump_ui_nodes(
+        device.as_deref(),
+        text.as_deref(),
+        desc.as_deref(),
+        clickable,
+    ) {
+        Ok(nodes) => nodes,
+        Err(error) => {
+            write_stderr(&format!(
+                "Error dumping UI hierarchy: {}\n",
+                error.message()
+            ));
+            return Ok(ExitCode::UsageOrToolError);
+        }
+    };
+
+    if json {
+        write_python_json_unsorted(&matched, &JsonTarget::Stdout, false)?;
+    } else {
+        let mut text = String::new();
+        for node in &matched {
+            let (x, y) = node.center();
+            let (left, top, right, bottom) = node.bounds;
+            let text_part = if node.text.is_empty() {
+                String::new()
+            } else {
+                format!(" text=\"{}\"", node.text)
+            };
+            let desc_part = if node.content_desc.is_empty() {
+                String::new()
+            } else {
+                format!(" desc=\"{}\"", node.content_desc)
+            };
+            let id_part = if node.resource_id.is_empty() {
+                String::new()
+            } else {
+                format!(" id=\"{}\"", node.resource_id)
+            };
+            let clickable = if node.clickable { " [clickable]" } else { "" };
+            text.push_str(&format!(
+                "{} center=({x}, {y}) bounds=({left}, {top}, {right}, {bottom}){clickable}{text_part}{desc_part}{id_part}\n",
+                node.class_name
+            ));
+        }
+        write_stdout(&text)?;
+    }
+    Ok(ExitCode::Success)
+}
+
+fn dump_ui_nodes(
+    device: Option<&str>,
+    text: Option<&str>,
+    desc: Option<&str>,
+    clickable_only: bool,
+) -> Result<Vec<device::UiNode>, Error> {
+    let adb = AdbClient::new()?;
+    let nodes = device::dump_ui_hierarchy(&adb, device)?;
+    Ok(device::find_ui_nodes(
+        &nodes,
+        device::UiFilter {
+            text,
+            desc,
+            resource_id: None,
+            clickable_only,
+        },
+    ))
+}
+
+fn run_ui_click(args: &[String]) -> Result<ExitCode, Error> {
+    let mut device: Option<String> = None;
+    let mut text: Option<String> = None;
+    let mut desc: Option<String> = None;
+    let mut coords: Option<String> = None;
+    let mut index = 0;
+    while index < args.len() {
+        let arg = args[index].as_str();
+        match arg {
+            "-h" | "--help" => {
+                write_stdout(UI_CLICK_HELP)?;
+                return Ok(ExitCode::Success);
+            }
+            "--device" => {
+                device = Some(require_value(args, index, "--device", UI_CLICK_HELP)?);
+                index += 2;
+            }
+            _ if arg.starts_with("--device=") => {
+                device = Some(non_empty_value(
+                    &arg["--device=".len()..],
+                    "--device",
+                    UI_CLICK_HELP,
+                )?);
+                index += 1;
+            }
+            "--text" => {
+                text = Some(require_value(args, index, "--text", UI_CLICK_HELP)?);
+                index += 2;
+            }
+            _ if arg.starts_with("--text=") => {
+                text = Some(non_empty_value(
+                    &arg["--text=".len()..],
+                    "--text",
+                    UI_CLICK_HELP,
+                )?);
+                index += 1;
+            }
+            "--desc" => {
+                desc = Some(require_value(args, index, "--desc", UI_CLICK_HELP)?);
+                index += 2;
+            }
+            _ if arg.starts_with("--desc=") => {
+                desc = Some(non_empty_value(
+                    &arg["--desc=".len()..],
+                    "--desc",
+                    UI_CLICK_HELP,
+                )?);
+                index += 1;
+            }
+            "--coords" => {
+                coords = Some(require_value(args, index, "--coords", UI_CLICK_HELP)?);
+                index += 2;
+            }
+            _ if arg.starts_with("--coords=") => {
+                coords = Some(non_empty_value(
+                    &arg["--coords=".len()..],
+                    "--coords",
+                    UI_CLICK_HELP,
+                )?);
+                index += 1;
+            }
+            _ if arg.starts_with('-') => {
+                write_stderr(UI_CLICK_HELP);
+                return Err(Error::usage(format!("unrecognized option '{arg}'")));
+            }
+            _ => {
+                write_stderr(UI_CLICK_HELP);
+                return Err(Error::usage(format!("unexpected argument '{arg}'")));
+            }
+        }
+    }
+
+    if let Some(coords) = coords {
+        let Some((x, y)) = parse_coords(&coords) else {
+            write_stderr(&format!(
+                "Error: Invalid coords format '{coords}', expected 'X,Y'\n"
+            ));
+            return Ok(ExitCode::UsageOrToolError);
+        };
+        let adb = match AdbClient::new() {
+            Ok(adb) => adb,
+            Err(error) => {
+                write_stderr(&format!("Error clicking UI node: {}\n", error.message()));
+                return Ok(ExitCode::UsageOrToolError);
+            }
+        };
+        if let Err(error) = device::click_ui_coordinates(&adb, device.as_deref(), x, y) {
+            write_stderr(&format!("Error clicking UI node: {}\n", error.message()));
+            return Ok(ExitCode::UsageOrToolError);
+        }
+        write_stdout(&format!("Clicked coordinates: ({x}, {y})\n"))?;
+        return Ok(ExitCode::Success);
+    }
+
+    if text.is_none() && desc.is_none() {
+        write_stderr("Error: Must specify --text, --desc, or --coords for click\n");
+        return Ok(ExitCode::UsageOrToolError);
+    }
+
+    let matched = match dump_ui_nodes(device.as_deref(), text.as_deref(), desc.as_deref(), false) {
+        Ok(nodes) => nodes,
+        Err(error) => {
+            write_stderr(&format!("Error clicking UI node: {}\n", error.message()));
+            return Ok(ExitCode::UsageOrToolError);
+        }
+    };
+    let Some(node) = matched.first() else {
+        write_stderr(&format!(
+            "Error: No matching UI node found (text='{}', desc='{}')\n",
+            text.as_deref().unwrap_or("None"),
+            desc.as_deref().unwrap_or("None")
+        ));
+        return Ok(ExitCode::UsageOrToolError);
+    };
+
+    let adb = match AdbClient::new() {
+        Ok(adb) => adb,
+        Err(error) => {
+            write_stderr(&format!("Error clicking UI node: {}\n", error.message()));
+            return Ok(ExitCode::UsageOrToolError);
+        }
+    };
+    if let Err(error) = device::click_ui_node(&adb, device.as_deref(), node) {
+        write_stderr(&format!("Error clicking UI node: {}\n", error.message()));
+        return Ok(ExitCode::UsageOrToolError);
+    }
+    let (x, y) = node.center();
+    write_stdout(&format!(
+        "Clicked node at ({x}, {y}): {}\n",
+        python_ui_node_repr(node)
+    ))?;
+    Ok(ExitCode::Success)
+}
+
+fn parse_coords(text: &str) -> Option<(i32, i32)> {
+    let parts: Vec<&str> = text.split(',').map(str::trim).collect();
+    if parts.len() != 2 {
+        return None;
+    }
+    let parse = |part: &str| -> Option<i32> {
+        let digits = part.strip_prefix('-').unwrap_or(part);
+        if digits.is_empty() || !digits.chars().all(|character| character.is_ascii_digit()) {
+            return None;
+        }
+        part.parse().ok()
+    };
+    Some((parse(parts[0])?, parse(parts[1])?))
+}
+
+fn python_ui_node_repr(node: &device::UiNode) -> String {
+    let (left, top, right, bottom) = node.bounds;
+    format!(
+        "UiNode(text={}, content_desc={}, resource_id={}, class_name={}, clickable={}, bounds=({left}, {top}, {right}, {bottom}))",
+        python_string_repr(&node.text),
+        python_string_repr(&node.content_desc),
+        python_string_repr(&node.resource_id),
+        python_string_repr(&node.class_name),
+        if node.clickable { "True" } else { "False" }
+    )
 }
 
 fn run_clean(args: &[String], workspace_root: &Path) -> Result<ExitCode, Error> {

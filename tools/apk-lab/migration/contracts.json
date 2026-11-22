@@ -4069,6 +4069,24 @@
       "classification": "native-rust-port",
       "supported": true,
       "notes": "Native managed analysis orchestration port."
+    },
+    {
+      "path": "tools/apk-lab/src/deployment.rs",
+      "interfaces": [
+        "apk_lab.deployment"
+      ],
+      "classification": "native-rust-port",
+      "supported": true,
+      "notes": "Native transactional deployment, signing and developer-loop port."
+    },
+    {
+      "path": "tools/apk-lab/src/morphe.rs",
+      "interfaces": [
+        "apk_lab"
+      ],
+      "classification": "native-rust-port",
+      "supported": true,
+      "notes": "Native Morphe patch selection, command building and verification port."
     }
   ],
   "wireSchemas": [
