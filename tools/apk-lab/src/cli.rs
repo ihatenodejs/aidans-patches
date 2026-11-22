@@ -12,19 +12,34 @@
 //! Python parser. `setup`, `doctor`, `inspect` and `clean` keep the Python
 //! stdout/stderr and exit-code contracts.
 
+use crate::analysis::{self, AnalyzeOptions};
+use crate::archives;
+use crate::asm;
+use crate::code_inspection::{
+    self, InspectCodeRequest, LiveArtifactInspector, NativeToolExecutor, ToolExecutor, ToolKind,
+};
+use crate::comparison;
+use crate::dex_strings;
 use crate::error::Error;
+use crate::il2cpp;
 use crate::inspection;
-use crate::models::{ArtifactInspection, Envelope, ExitCode};
+use crate::manifest;
+use crate::models::{ArtifactInspection, ContainerType, Envelope, ExitCode};
+use crate::resources;
+use crate::smali::{self, SmaliAssemblerCommand};
 use crate::tools::{
     self, DoctorOptions, DoctorReport, Profile, ToolEnvironment, ToolManager,
     DEFAULT_WORKSPACE_ROOT,
 };
+use crate::unity;
 use crate::workspace::WorkspaceManager;
+use regex::RegexBuilder;
 use serde::{Deserialize, Serialize};
 use std::ffi::OsString;
 use std::fs;
-use std::io::{self, Write};
+use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
+use zip::ZipArchive;
 
 const HELP: &str = "\
 Native APK Lab host CLI.
@@ -35,11 +50,21 @@ Usage:
   apk-lab --version
 
 Commands:
-  setup       Download and verify pinned tools
-  doctor      Verify host prerequisites and cached tools
-  inspect     Inspect an APK/APKM/XAPK/APKS artifact
-  clean       Clean validated managed workspaces
-  selftest    Validate native CLI, model, and exit-code contracts
+  setup         Download and verify pinned tools
+  doctor        Verify host prerequisites and cached tools
+  inspect       Inspect an APK/APKM/XAPK/APKS artifact
+  analyze       Extract and analyze an artifact into a managed run
+  compare       Compare two APK artifacts
+  asm           Encode an ARM64 instruction and calculate relocations
+  strings       Search string literal pools across DEX files
+  unity         Inspect Unity assets and locate GameObject properties
+  il2cpp       Query Unity IL2CPP symbols from an artifact
+  manifest      Inspect AndroidManifest.xml components
+  res           Inspect and query resources across split containers
+  inspect-code  Disassemble/decompile a class or method and diff artifacts
+  validate-smali  Validate a Smali snippet (alias: smali)
+  clean         Clean validated managed workspaces
+  selftest      Validate native CLI, model, and exit-code contracts
 
 Options:
   -h, --help     Print help
@@ -103,6 +128,131 @@ Options:
   -h, --help       Print help
 ";
 
+const ASM_HELP: &str = "\
+Usage: apk-lab asm statement [--pc PC] [--target TARGET] [--format {hex,kotlin,int,bytes}]
+
+Encode an ARM64 instruction and calculate branch relocations.
+
+Options:
+  --pc PC                             Program counter (default: 0)
+  --target TARGET                     Target address override
+  --format {hex,kotlin,int,bytes}     Output format (default: hex)
+  -h, --help                          Print help
+";
+
+const STRINGS_HELP: &str = "\
+Usage: apk-lab strings artifact [-q QUERY] [--dex DEX] [-i | -s] [--json [FILE|-]]
+
+Search string literal pools across all DEX files in an artifact.
+
+Options:
+  -q, --query QUERY   Regex query to filter strings
+  --dex DEX           Filter by specific DEX filename
+  -i, --ignore-case   Case-insensitive regex (default)
+  -s, --case-sensitive
+                      Case-sensitive regex
+  --json [FILE|-]     Emit matches as JSON
+  -h, --help          Print help
+";
+
+const UNITY_HELP: &str = "\
+Usage: apk-lab unity artifact --gameobject NAME [--json [FILE|-]]
+
+Inspect Unity serialized assets and locate GameObject properties.
+
+Options:
+  -g, --gameobject NAME  Target GameObject name to search
+  --json [FILE|-]        Emit results as JSON
+  -h, --help             Print help
+";
+
+const IL2CPP_HELP: &str = "\
+Usage: apk-lab il2cpp artifact [-q QUERY] [--json [FILE|-]]
+
+Extract and query Unity IL2CPP symbols from an artifact.
+
+Options:
+  -q, --query QUERY  Filter symbol or type name (substring or regex)
+  --json [FILE|-]    Emit symbols as JSON
+  -h, --help         Print help
+";
+
+const MANIFEST_HELP: &str = "\
+Usage: apk-lab manifest artifact [--type {activity,service,receiver,provider}] [--filter REGEX] [--json [FILE|-]]
+
+Inspect AndroidManifest.xml components, providers, receivers, and permissions.
+
+Options:
+  --type TYPE      Filter by component type
+  --filter REGEX   Regex filter for component name
+  --json [FILE|-]  Emit components as JSON
+  -h, --help       Print help
+";
+
+const RES_HELP: &str = "\
+Usage: apk-lab res artifact [--query QUERY | --text TEXT] [--extract DIR]
+
+Inspect and query resources across split APK containers.
+
+Options:
+  -q, --query QUERY  Resource name, ID, path, or text: query
+  --text, --value TEXT
+                     Search resource string/text values
+  --extract DIR      Extract matched file resources into DIR
+  -h, --help         Print help
+";
+
+const INSPECT_CODE_HELP: &str = "\
+Usage: apk-lab inspect-code artifact --class FQCN [--method METHOD] [--format {smali,java}] [--compare ARTIFACT]
+
+Targeted class and method disassembly/decompilation and diff.
+
+Options:
+  --class FQCN      Fully qualified class name
+  --method METHOD   Method name or descriptor
+  --format FORMAT   Output format (default: smali)
+  --compare PATH    Unpatched artifact for a side-by-side diff
+  -h, --help        Print help
+";
+
+const COMPARE_HELP: &str = "\
+Usage: apk-lab compare old_artifact new_artifact [--class CLASS] [--json [FILE|-]]
+
+Compare two APK artifacts.
+
+Options:
+  --class CLASS    Decompile and diff a class (repeatable)
+  --json [FILE|-]  Emit the comparison as JSON
+  -h, --help       Print help
+";
+
+const ANALYZE_HELP: &str = "\
+Usage: apk-lab [--workspace-root DIR] analyze artifact [--jadx] [--apktool] [--smali] [--class CLASS]
+
+Extract and analyze an artifact into a managed run.
+
+Options:
+  --jadx          Run JADX decompiler
+  --apktool       Run Apktool decoder
+  --smali         Disassemble DEX with baksmali
+  --class CLASS   Filter analysis to a class pattern (repeatable)
+  -h, --help      Print help
+";
+
+const VALIDATE_SMALI_HELP: &str = "\
+Usage: apk-lab validate-smali --snippet SNIPPET --locals N [--params N] [--descriptor DESCRIPTOR] [--is-static]
+
+Validate Smali instruction registers, opcodes, and CFG.
+
+Options:
+  --snippet SNIPPET       Smali instruction snippet
+  --locals N              Number of locals (.locals N)
+  --params N              Single-width parameter count
+  --descriptor DESCRIPTOR Method descriptor defining exact parameter widths
+  --is-static             Whether the method is static
+  -h, --help              Print help
+";
+
 const USAGE: &str = "\
 Usage: apk-lab [--workspace-root DIR] <command> [options]
        apk-lab --help
@@ -155,6 +305,16 @@ pub fn run(raw_args: &[OsString]) -> Result<ExitCode, Error> {
         "setup" => run_setup(rest),
         "doctor" => run_doctor(rest, &workspace_root),
         "inspect" => run_inspect(rest),
+        "analyze" => run_analyze(rest, &workspace_root),
+        "compare" => run_compare(rest),
+        "asm" => run_asm(rest),
+        "strings" => run_strings(rest),
+        "unity" => run_unity(rest),
+        "il2cpp" => run_il2cpp(rest),
+        "manifest" => run_manifest(rest),
+        "res" => run_res(rest),
+        "inspect-code" => run_inspect_code(rest),
+        "validate-smali" | "smali" => run_validate_smali(rest),
         "clean" => run_clean(rest, &workspace_root),
         "selftest" => run_selftest(rest),
         other if other.starts_with('-') => {
@@ -615,6 +775,1455 @@ fn format_thousands(value: u64) -> String {
         output.push(character);
     }
     output
+}
+
+fn parse_auto_int(value: &str) -> Result<i64, Error> {
+    match asm::parse_base0(value) {
+        Ok(asm::ParsedInteger::Value(number)) => i64::try_from(number)
+            .map_err(|_| Error::usage(format!("Invalid integer or hex value: {value}"))),
+        Ok(asm::ParsedInteger::Overflow) => Err(Error::usage(format!(
+            "Invalid integer or hex value: {value}"
+        ))),
+        Err(()) => Err(Error::usage(format!(
+            "Invalid integer or hex value: {value}"
+        ))),
+    }
+}
+
+fn parse_non_negative_int(value: &str) -> Result<usize, Error> {
+    let number = match asm::parse_base0(value) {
+        Ok(asm::ParsedInteger::Value(number)) => number,
+        Ok(asm::ParsedInteger::Overflow) => {
+            return Err(Error::usage(format!("Invalid integer value: {value}")))
+        }
+        Err(()) => return Err(Error::usage(format!("Invalid integer value: {value}"))),
+    };
+    if number < 0 {
+        return Err(Error::usage(format!(
+            "Value must be non-negative, got {value}"
+        )));
+    }
+    usize::try_from(number).map_err(|_| Error::usage(format!("Invalid integer value: {value}")))
+}
+
+fn run_asm(args: &[String]) -> Result<ExitCode, Error> {
+    let mut statement: Option<String> = None;
+    let mut pc: i64 = 0;
+    let mut target: Option<i64> = None;
+    let mut format = "hex".to_string();
+    let mut index = 0;
+
+    while index < args.len() {
+        let arg = args[index].as_str();
+        match arg {
+            "-h" | "--help" => {
+                write_stdout(ASM_HELP)?;
+                return Ok(ExitCode::Success);
+            }
+            "--pc" => {
+                let value = require_value(args, index, "--pc", ASM_HELP)?;
+                pc = parse_auto_int(&value)?;
+                index += 2;
+            }
+            _ if arg.starts_with("--pc=") => {
+                pc = parse_auto_int(&arg["--pc=".len()..])?;
+                index += 1;
+            }
+            "--target" => {
+                let value = require_value(args, index, "--target", ASM_HELP)?;
+                target = Some(parse_auto_int(&value)?);
+                index += 2;
+            }
+            _ if arg.starts_with("--target=") => {
+                target = Some(parse_auto_int(&arg["--target=".len()..])?);
+                index += 1;
+            }
+            "--format" => {
+                let value = require_value(args, index, "--format", ASM_HELP)?;
+                format = parse_asm_format(&value)?;
+                index += 2;
+            }
+            _ if arg.starts_with("--format=") => {
+                format = parse_asm_format(&arg["--format=".len()..])?;
+                index += 1;
+            }
+            _ if arg.starts_with('-') => {
+                write_stderr(ASM_HELP);
+                return Err(Error::usage(format!("unrecognized option '{arg}'")));
+            }
+            _ if statement.is_none() => {
+                statement = Some(arg.to_string());
+                index += 1;
+            }
+            _ => {
+                write_stderr(ASM_HELP);
+                return Err(Error::usage(format!("unexpected argument '{arg}'")));
+            }
+        }
+    }
+
+    let Some(statement) = statement else {
+        write_stderr(ASM_HELP);
+        return Err(Error::usage(
+            "the following arguments are required: statement",
+        ));
+    };
+
+    match asm::assemble_statement(&statement, pc, target)
+        .and_then(|opcode| asm::format_instruction(opcode, &format))
+    {
+        Ok(formatted) => {
+            write_stdout(&format!("{formatted}\n"))?;
+            Ok(ExitCode::Success)
+        }
+        Err(error) => {
+            write_stderr(&format!("Assembly error: {error}\n"));
+            Ok(error.exit_code())
+        }
+    }
+}
+
+fn parse_asm_format(value: &str) -> Result<String, Error> {
+    match value {
+        "hex" | "kotlin" | "int" | "bytes" => Ok(value.to_string()),
+        _ => {
+            write_stderr(ASM_HELP);
+            Err(Error::usage(format!(
+                "argument --format: invalid choice: '{value}' (choose from 'hex', 'kotlin', 'int', 'bytes')"
+            )))
+        }
+    }
+}
+
+#[derive(Serialize)]
+struct StringMatchRow {
+    split: String,
+    dex: String,
+    string: String,
+}
+
+fn run_strings(args: &[String]) -> Result<ExitCode, Error> {
+    let mut artifact: Option<String> = None;
+    let mut query: Option<String> = None;
+    let mut dex_filter: Option<String> = None;
+    let mut ignore_case = true;
+    let mut json_target: Option<JsonTarget> = None;
+    let mut index = 0;
+
+    while index < args.len() {
+        let arg = args[index].as_str();
+        match arg {
+            "-h" | "--help" => {
+                write_stdout(STRINGS_HELP)?;
+                return Ok(ExitCode::Success);
+            }
+            "-q" | "--query" => {
+                query = Some(require_value(args, index, "--query", STRINGS_HELP)?);
+                index += 2;
+            }
+            _ if arg.starts_with("--query=") => {
+                query = Some(non_empty_value(
+                    &arg["--query=".len()..],
+                    "--query",
+                    STRINGS_HELP,
+                )?);
+                index += 1;
+            }
+            _ if arg.starts_with("-q") && arg.len() > 2 => {
+                query = Some(arg["-q".len()..].to_string());
+                index += 1;
+            }
+            "--dex" => {
+                dex_filter = Some(require_value(args, index, "--dex", STRINGS_HELP)?);
+                index += 2;
+            }
+            _ if arg.starts_with("--dex=") => {
+                dex_filter = Some(non_empty_value(
+                    &arg["--dex=".len()..],
+                    "--dex",
+                    STRINGS_HELP,
+                )?);
+                index += 1;
+            }
+            "-i" | "--ignore-case" => {
+                ignore_case = true;
+                index += 1;
+            }
+            "-s" | "--case-sensitive" => {
+                ignore_case = false;
+                index += 1;
+            }
+            _ if arg == "--json" || arg.starts_with("--json=") => {
+                index = parse_json_occurrence(args, index, &mut json_target, STRINGS_HELP)?;
+            }
+            _ if arg.starts_with('-') => {
+                write_stderr(STRINGS_HELP);
+                return Err(Error::usage(format!("unrecognized option '{arg}'")));
+            }
+            _ if artifact.is_none() => {
+                artifact = Some(arg.to_string());
+                index += 1;
+            }
+            _ => {
+                write_stderr(STRINGS_HELP);
+                return Err(Error::usage(format!("unexpected argument '{arg}'")));
+            }
+        }
+    }
+
+    let Some(artifact) = artifact else {
+        write_stderr(STRINGS_HELP);
+        return Err(Error::usage(
+            "the following arguments are required: artifact",
+        ));
+    };
+
+    let pattern = match query.as_deref().filter(|value| !value.is_empty()) {
+        Some(query) => match RegexBuilder::new(query)
+            .case_insensitive(ignore_case)
+            .build()
+        {
+            Ok(pattern) => Some(pattern),
+            Err(error) => {
+                write_stderr(&format!("Strings search error: {error}\n"));
+                return Ok(ExitCode::InfrastructureFailure);
+            }
+        },
+        None => None,
+    };
+
+    let matches = match collect_artifact_strings(&artifact, pattern.as_ref(), dex_filter.as_deref())
+    {
+        Ok(matches) => matches,
+        Err(error) => {
+            write_stderr(&format!("Strings search error: {error}\n"));
+            return Ok(ExitCode::InfrastructureFailure);
+        }
+    };
+
+    if let Some(target) = &json_target {
+        write_python_json_unsorted(&matches, target, false)?;
+    } else {
+        let mut text = String::new();
+        for row in &matches {
+            text.push_str(&format!("[{}:{}] {}\n", row.split, row.dex, row.string));
+        }
+        write_stdout(&text)?;
+    }
+
+    Ok(ExitCode::Success)
+}
+
+fn collect_artifact_strings(
+    artifact: &str,
+    pattern: Option<&regex::Regex>,
+    dex_filter: Option<&str>,
+) -> Result<Vec<StringMatchRow>, Error> {
+    let inspection = inspection::inspect_artifact(artifact)?;
+    let materialized = archives::materialize_artifact_apks(
+        artifact,
+        &inspection.splits,
+        inspection.container_type == ContainerType::Apk,
+    )
+    .map_err(Error::from)?;
+
+    let mut matches = Vec::new();
+    for apk in materialized.as_slice() {
+        let archive = open_zip(&apk.path)?;
+        let mut archive = archive;
+        let mut names: Vec<String> = zip_member_names(&mut archive)?;
+        names.sort();
+        for name in names {
+            if !name.ends_with(".dex") {
+                continue;
+            }
+            if let Some(filter) = dex_filter {
+                if !name.contains(filter) {
+                    continue;
+                }
+            }
+            let bytes = read_zip_member(&mut archive, &name)?;
+            for string in dex_strings::extract_strings_from_dex_bytes(&bytes) {
+                if pattern.is_none_or(|pattern| pattern.is_match(&string)) {
+                    matches.push(StringMatchRow {
+                        split: apk.split_name.clone(),
+                        dex: name.clone(),
+                        string,
+                    });
+                }
+            }
+        }
+    }
+    Ok(matches)
+}
+
+#[derive(Serialize)]
+struct UnityRow {
+    member: String,
+    name: String,
+    path_id: i64,
+    file_offset: usize,
+    is_active_offset: usize,
+    is_active_offset_hex: String,
+    is_active_value: u8,
+}
+
+fn run_unity(args: &[String]) -> Result<ExitCode, Error> {
+    let mut artifact: Option<String> = None;
+    let mut gameobject: Option<String> = None;
+    let mut json_target: Option<JsonTarget> = None;
+    let mut index = 0;
+
+    while index < args.len() {
+        let arg = args[index].as_str();
+        match arg {
+            "-h" | "--help" => {
+                write_stdout(UNITY_HELP)?;
+                return Ok(ExitCode::Success);
+            }
+            "-g" | "--gameobject" => {
+                gameobject = Some(require_value(args, index, "--gameobject", UNITY_HELP)?);
+                index += 2;
+            }
+            _ if arg.starts_with("--gameobject=") => {
+                gameobject = Some(non_empty_value(
+                    &arg["--gameobject=".len()..],
+                    "--gameobject",
+                    UNITY_HELP,
+                )?);
+                index += 1;
+            }
+            _ if arg.starts_with("-g") && arg.len() > 2 => {
+                gameobject = Some(arg["-g".len()..].to_string());
+                index += 1;
+            }
+            _ if arg == "--json" || arg.starts_with("--json=") => {
+                index = parse_json_occurrence(args, index, &mut json_target, UNITY_HELP)?;
+            }
+            _ if arg.starts_with('-') => {
+                write_stderr(UNITY_HELP);
+                return Err(Error::usage(format!("unrecognized option '{arg}'")));
+            }
+            _ if artifact.is_none() => {
+                artifact = Some(arg.to_string());
+                index += 1;
+            }
+            _ => {
+                write_stderr(UNITY_HELP);
+                return Err(Error::usage(format!("unexpected argument '{arg}'")));
+            }
+        }
+    }
+
+    let Some(artifact) = artifact else {
+        write_stderr(UNITY_HELP);
+        return Err(Error::usage(
+            "the following arguments are required: artifact",
+        ));
+    };
+    let Some(gameobject) = gameobject else {
+        write_stderr(UNITY_HELP);
+        return Err(Error::usage(
+            "the following arguments are required: --gameobject/-g",
+        ));
+    };
+
+    let rows = match collect_unity_rows(&artifact, &gameobject) {
+        Ok(rows) => rows,
+        Err(error) => {
+            if let Error::Usage(message) = &error {
+                write_stderr(&format!("Error: {message}\n"));
+                return Ok(ExitCode::UsageOrToolError);
+            }
+            write_stderr(&format!("Unity asset inspection error: {error}\n"));
+            return Ok(ExitCode::InfrastructureFailure);
+        }
+    };
+
+    if let Some(target) = &json_target {
+        write_sorted_json(&rows, target)?;
+    } else if rows.is_empty() {
+        write_stdout("No matching Unity GameObjects found.\n")?;
+    } else {
+        let mut text = format!("Found {} matching Unity GameObjects:\n", rows.len());
+        text.push_str(&format!(
+            "{:<45} {:<30} {:<10} {:<15} {:<6}\n",
+            "Member", "Name", "Offset", "Active Offset", "Active"
+        ));
+        text.push_str(&format!("{}\n", "-".repeat(110)));
+        for row in rows.iter().take(100) {
+            text.push_str(&format!(
+                "{:<45} {:<30} 0x{:x}     {:<15} {:<6}\n",
+                row.member,
+                row.name,
+                row.file_offset,
+                row.is_active_offset_hex,
+                row.is_active_value
+            ));
+        }
+        if rows.len() > 100 {
+            text.push_str(&format!(
+                "... and {} more (use --json to see all)\n",
+                rows.len() - 100
+            ));
+        }
+        write_stdout(&text)?;
+    }
+
+    Ok(ExitCode::Success)
+}
+
+fn collect_unity_rows(artifact: &str, gameobject: &str) -> Result<Vec<UnityRow>, Error> {
+    let path = Path::new(artifact);
+    if !path.is_file() {
+        return Err(Error::usage(format!(
+            "Artifact file not found: {}",
+            path.display()
+        )));
+    }
+    let mut archive = open_zip(path)?;
+    let names: Vec<String> = zip_member_names(&mut archive)?;
+    let direct_assets: Vec<String> = names
+        .iter()
+        .filter(|name| unity::is_unity_asset_path(name))
+        .cloned()
+        .collect();
+
+    if !direct_assets.is_empty() {
+        let mut sorted = direct_assets;
+        sorted.sort();
+        let mut rows = Vec::new();
+        for member in sorted {
+            let data = read_zip_member(&mut archive, &member)?;
+            append_unity_rows(&mut rows, &member, &data, Some(gameobject));
+        }
+        return Ok(rows);
+    }
+
+    let mut rows = Vec::new();
+    for apk_member in names.iter().filter(|name| name.ends_with(".apk")) {
+        let inner_bytes = read_zip_member(&mut archive, apk_member)?;
+        let mut inner = ZipArchive::new(io::Cursor::new(inner_bytes)).map_err(|error| {
+            Error::infrastructure(format!("cannot read inner APK {apk_member}: {error}"))
+        })?;
+        let mut inner_assets: Vec<String> = zip_member_names(&mut inner)?
+            .into_iter()
+            .filter(|name| unity::is_unity_asset_path(name))
+            .collect();
+        inner_assets.sort();
+        for member in inner_assets {
+            let data = read_zip_member(&mut inner, &member)?;
+            append_unity_rows(&mut rows, &member, &data, Some(gameobject));
+        }
+    }
+    Ok(rows)
+}
+
+fn append_unity_rows(
+    rows: &mut Vec<UnityRow>,
+    member: &str,
+    data: &[u8],
+    gameobject: Option<&str>,
+) {
+    for record in unity::find_game_objects(data, gameobject) {
+        rows.push(UnityRow {
+            member: member.to_string(),
+            name: record.name,
+            path_id: record.path_id,
+            file_offset: record.file_offset,
+            is_active_offset: record.is_active_offset,
+            is_active_offset_hex: format!("0x{:x}", record.is_active_offset),
+            is_active_value: record.is_active_value,
+        });
+    }
+}
+
+fn run_il2cpp(args: &[String]) -> Result<ExitCode, Error> {
+    let mut artifact: Option<String> = None;
+    let mut query: Option<String> = None;
+    let mut json_target: Option<JsonTarget> = None;
+    let mut index = 0;
+
+    while index < args.len() {
+        let arg = args[index].as_str();
+        match arg {
+            "-h" | "--help" => {
+                write_stdout(IL2CPP_HELP)?;
+                return Ok(ExitCode::Success);
+            }
+            "-q" | "--query" => {
+                query = Some(require_value(args, index, "--query", IL2CPP_HELP)?);
+                index += 2;
+            }
+            _ if arg.starts_with("--query=") => {
+                query = Some(non_empty_value(
+                    &arg["--query=".len()..],
+                    "--query",
+                    IL2CPP_HELP,
+                )?);
+                index += 1;
+            }
+            _ if arg.starts_with("-q") && arg.len() > 2 => {
+                query = Some(arg["-q".len()..].to_string());
+                index += 1;
+            }
+            _ if arg == "--json" || arg.starts_with("--json=") => {
+                index = parse_json_occurrence(args, index, &mut json_target, IL2CPP_HELP)?;
+            }
+            _ if arg.starts_with('-') => {
+                write_stderr(IL2CPP_HELP);
+                return Err(Error::usage(format!("unrecognized option '{arg}'")));
+            }
+            _ if artifact.is_none() => {
+                artifact = Some(arg.to_string());
+                index += 1;
+            }
+            _ => {
+                write_stderr(IL2CPP_HELP);
+                return Err(Error::usage(format!("unexpected argument '{arg}'")));
+            }
+        }
+    }
+
+    let Some(artifact) = artifact else {
+        write_stderr(IL2CPP_HELP);
+        return Err(Error::usage(
+            "the following arguments are required: artifact",
+        ));
+    };
+
+    let records = match collect_il2cpp_records(&artifact, query.as_deref()) {
+        Ok(records) => records,
+        Err(error) => match error {
+            Error::Usage(message)
+                if message.starts_with("Artifact file not found")
+                    || message.starts_with("global-metadata.dat not found") =>
+            {
+                write_stderr(&format!("Error: {message}\n"));
+                return Ok(ExitCode::UsageOrToolError);
+            }
+            Error::Usage(message) => {
+                write_stderr(&format!("IL2CPP metadata error: {message}\n"));
+                return Ok(ExitCode::UsageOrToolError);
+            }
+            other => {
+                write_stderr(&format!("IL2CPP analysis error: {other}\n"));
+                return Ok(ExitCode::InfrastructureFailure);
+            }
+        },
+    };
+
+    if let Some(target) = &json_target {
+        write_sorted_json(&records, target)?;
+    } else if records.is_empty() {
+        write_stdout("No matching IL2CPP symbols found.\n")?;
+    } else {
+        let mut text = format!("Found {} matching IL2CPP symbols:\n", records.len());
+        text.push_str(&format!(
+            "{:<25} {:<35} {:<35} {:<6}\n",
+            "Namespace", "Type", "Method", "Params"
+        ));
+        text.push_str(&format!("{}\n", "-".repeat(105)));
+        for record in records.iter().take(100) {
+            let namespace = if record.namespace.is_empty() {
+                "<global>"
+            } else {
+                &record.namespace
+            };
+            text.push_str(&format!(
+                "{:<25} {:<35} {:<35} {:<6}\n",
+                namespace, record.type_name, record.method, record.parameters_count
+            ));
+        }
+        if records.len() > 100 {
+            text.push_str(&format!(
+                "... and {} more (use --json to see all)\n",
+                records.len() - 100
+            ));
+        }
+        write_stdout(&text)?;
+    }
+
+    Ok(ExitCode::Success)
+}
+
+fn collect_il2cpp_records(
+    artifact: &str,
+    query: Option<&str>,
+) -> Result<Vec<il2cpp::Il2CppAnalysisRecord>, Error> {
+    const METADATA_PATH: &str = "assets/bin/Data/Managed/Metadata/global-metadata.dat";
+    let path = Path::new(artifact);
+    if !path.is_file() {
+        return Err(Error::usage(format!(
+            "Artifact file not found: {}",
+            path.display()
+        )));
+    }
+    let mut archive = open_zip(path)?;
+    let names: Vec<String> = zip_member_names(&mut archive)?;
+    let mut metadata: Option<Vec<u8>> = None;
+
+    if names.iter().any(|name| name == METADATA_PATH) {
+        metadata = Some(read_zip_member(&mut archive, METADATA_PATH)?);
+    } else {
+        for apk_member in names.iter().filter(|name| name.ends_with(".apk")) {
+            let inner_bytes = read_zip_member(&mut archive, apk_member)?;
+            let mut inner = ZipArchive::new(io::Cursor::new(inner_bytes)).map_err(|error| {
+                Error::infrastructure(format!("cannot read inner APK {apk_member}: {error}"))
+            })?;
+            if zip_member_names(&mut inner)?
+                .iter()
+                .any(|name| name == METADATA_PATH)
+            {
+                metadata = Some(read_zip_member(&mut inner, METADATA_PATH)?);
+            }
+        }
+    }
+
+    let Some(metadata) = metadata else {
+        return Err(Error::usage("global-metadata.dat not found in artifact"));
+    };
+    il2cpp::analyze_metadata(&metadata, query)
+}
+
+fn run_manifest(args: &[String]) -> Result<ExitCode, Error> {
+    let mut artifact: Option<String> = None;
+    let mut component_type: Option<String> = None;
+    let mut filter: Option<String> = None;
+    let mut json_target: Option<JsonTarget> = None;
+    let mut index = 0;
+
+    while index < args.len() {
+        let arg = args[index].as_str();
+        match arg {
+            "-h" | "--help" => {
+                write_stdout(MANIFEST_HELP)?;
+                return Ok(ExitCode::Success);
+            }
+            "--type" => {
+                let value = require_value(args, index, "--type", MANIFEST_HELP)?;
+                component_type = Some(parse_component_type(&value)?);
+                index += 2;
+            }
+            _ if arg.starts_with("--type=") => {
+                component_type = Some(parse_component_type(&arg["--type=".len()..])?);
+                index += 1;
+            }
+            "--filter" => {
+                filter = Some(require_value(args, index, "--filter", MANIFEST_HELP)?);
+                index += 2;
+            }
+            _ if arg.starts_with("--filter=") => {
+                filter = Some(non_empty_value(
+                    &arg["--filter=".len()..],
+                    "--filter",
+                    MANIFEST_HELP,
+                )?);
+                index += 1;
+            }
+            _ if arg == "--json" || arg.starts_with("--json=") => {
+                index = parse_json_occurrence(args, index, &mut json_target, MANIFEST_HELP)?;
+            }
+            _ if arg.starts_with('-') => {
+                write_stderr(MANIFEST_HELP);
+                return Err(Error::usage(format!("unrecognized option '{arg}'")));
+            }
+            _ if artifact.is_none() => {
+                artifact = Some(arg.to_string());
+                index += 1;
+            }
+            _ => {
+                write_stderr(MANIFEST_HELP);
+                return Err(Error::usage(format!("unexpected argument '{arg}'")));
+            }
+        }
+    }
+
+    let Some(artifact) = artifact else {
+        write_stderr(MANIFEST_HELP);
+        return Err(Error::usage(
+            "the following arguments are required: artifact",
+        ));
+    };
+
+    let result = manifest::inspect_artifact_components(&artifact, component_type.as_deref());
+    let components = match result {
+        Ok(components) => components,
+        Err(error) => {
+            write_stderr(&format!("Manifest inspection error: {error}\n"));
+            return Ok(ExitCode::InfrastructureFailure);
+        }
+    };
+
+    let components = if let Some(filter) = &filter {
+        let pattern = match RegexBuilder::new(filter).case_insensitive(true).build() {
+            Ok(pattern) => pattern,
+            Err(error) => {
+                write_stderr(&format!("Manifest inspection error: {error}\n"));
+                return Ok(ExitCode::InfrastructureFailure);
+            }
+        };
+        components
+            .into_iter()
+            .filter(|component| pattern.is_match(&component.name))
+            .collect()
+    } else {
+        components
+    };
+
+    if let Some(target) = &json_target {
+        write_python_json_unsorted(&components, target, false)?;
+    } else {
+        let mut text = String::new();
+        for component in &components {
+            let exported = component
+                .exported
+                .map(|value| format!(" [exported={value}]"))
+                .unwrap_or_default();
+            let actions = if component.intent_actions.is_empty() {
+                String::new()
+            } else {
+                format!(" (actions: {})", component.intent_actions.join(", "))
+            };
+            text.push_str(&format!(
+                "[{}] {}{exported}{actions}\n",
+                component.component_type.to_uppercase(),
+                component.name
+            ));
+        }
+        write_stdout(&text)?;
+    }
+
+    Ok(ExitCode::Success)
+}
+
+fn parse_component_type(value: &str) -> Result<String, Error> {
+    match value {
+        "activity" | "service" | "receiver" | "provider" => Ok(value.to_string()),
+        _ => {
+            write_stderr(MANIFEST_HELP);
+            Err(Error::usage(format!(
+                "argument --type: invalid choice: '{value}' (choose from 'activity', 'service', 'receiver', 'provider')"
+            )))
+        }
+    }
+}
+
+fn run_res(args: &[String]) -> Result<ExitCode, Error> {
+    let mut artifact: Option<String> = None;
+    let mut query: Option<String> = None;
+    let mut text: Option<String> = None;
+    let mut extract: Option<String> = None;
+    let mut index = 0;
+
+    while index < args.len() {
+        let arg = args[index].as_str();
+        match arg {
+            "-h" | "--help" => {
+                write_stdout(RES_HELP)?;
+                return Ok(ExitCode::Success);
+            }
+            "-q" | "--query" => {
+                query = Some(require_value(args, index, "--query", RES_HELP)?);
+                index += 2;
+            }
+            _ if arg.starts_with("--query=") => {
+                query = Some(non_empty_value(
+                    &arg["--query=".len()..],
+                    "--query",
+                    RES_HELP,
+                )?);
+                index += 1;
+            }
+            _ if arg.starts_with("-q") && arg.len() > 2 => {
+                query = Some(arg["-q".len()..].to_string());
+                index += 1;
+            }
+            "--text" | "--value" => {
+                text = Some(require_value(args, index, "--text", RES_HELP)?);
+                index += 2;
+            }
+            _ if arg.starts_with("--text=") => {
+                text = Some(non_empty_value(
+                    &arg["--text=".len()..],
+                    "--text",
+                    RES_HELP,
+                )?);
+                index += 1;
+            }
+            _ if arg.starts_with("--value=") => {
+                text = Some(non_empty_value(
+                    &arg["--value=".len()..],
+                    "--value",
+                    RES_HELP,
+                )?);
+                index += 1;
+            }
+            "--extract" => {
+                extract = Some(require_value(args, index, "--extract", RES_HELP)?);
+                index += 2;
+            }
+            _ if arg.starts_with("--extract=") => {
+                extract = Some(non_empty_value(
+                    &arg["--extract=".len()..],
+                    "--extract",
+                    RES_HELP,
+                )?);
+                index += 1;
+            }
+            _ if arg == "--json" || arg.starts_with("--json=") => {
+                write_stderr(RES_HELP);
+                return Err(Error::usage("unrecognized option '--json'"));
+            }
+            _ if arg.starts_with('-') => {
+                write_stderr(RES_HELP);
+                return Err(Error::usage(format!("unrecognized option '{arg}'")));
+            }
+            _ if artifact.is_none() => {
+                artifact = Some(arg.to_string());
+                index += 1;
+            }
+            _ => {
+                write_stderr(RES_HELP);
+                return Err(Error::usage(format!("unexpected argument '{arg}'")));
+            }
+        }
+    }
+
+    let Some(artifact) = artifact else {
+        write_stderr(RES_HELP);
+        return Err(Error::usage(
+            "the following arguments are required: artifact",
+        ));
+    };
+
+    let query = match (
+        query.filter(|value| !value.is_empty()),
+        text.filter(|value| !value.is_empty()),
+    ) {
+        (Some(query), _) => query,
+        (None, Some(text)) => format!("text:{text}"),
+        (None, None) => {
+            write_stderr(
+                "Resource inspection error: either --query or --text/--value is required\n",
+            );
+            return Ok(ExitCode::UsageOrToolError);
+        }
+    };
+
+    match resources::inspect_resources(&artifact, &query, extract.as_deref().map(Path::new)) {
+        Ok(report) => {
+            write_stdout(&format!("{}\n", report.format_human()))?;
+            Ok(ExitCode::Success)
+        }
+        Err(error) => match error {
+            Error::Usage(message) if message.starts_with("Artifact not found") => {
+                write_stderr(&format!("Inspection error: {message}\n"));
+                Ok(ExitCode::UsageOrToolError)
+            }
+            Error::Usage(message) => {
+                write_stderr(&format!("Resource inspection error: {message}\n"));
+                Ok(ExitCode::UsageOrToolError)
+            }
+            Error::InvalidArtifact(message) => {
+                write_stderr(&format!("Inspection error: {message}\n"));
+                Ok(ExitCode::InvalidArtifact)
+            }
+            other => {
+                write_stderr(&format!("Resource inspection error: {other}\n"));
+                Ok(ExitCode::InfrastructureFailure)
+            }
+        },
+    }
+}
+
+fn run_inspect_code(args: &[String]) -> Result<ExitCode, Error> {
+    let mut artifact: Option<String> = None;
+    let mut class_name: Option<String> = None;
+    let mut method: Option<String> = None;
+    let mut format = "smali".to_string();
+    let mut compare: Option<String> = None;
+    let mut index = 0;
+
+    while index < args.len() {
+        let arg = args[index].as_str();
+        match arg {
+            "-h" | "--help" => {
+                write_stdout(INSPECT_CODE_HELP)?;
+                return Ok(ExitCode::Success);
+            }
+            "--class" => {
+                class_name = Some(require_value(args, index, "--class", INSPECT_CODE_HELP)?);
+                index += 2;
+            }
+            _ if arg.starts_with("--class=") => {
+                class_name = Some(non_empty_value(
+                    &arg["--class=".len()..],
+                    "--class",
+                    INSPECT_CODE_HELP,
+                )?);
+                index += 1;
+            }
+            "--method" => {
+                method = Some(require_value(args, index, "--method", INSPECT_CODE_HELP)?);
+                index += 2;
+            }
+            _ if arg.starts_with("--method=") => {
+                method = Some(non_empty_value(
+                    &arg["--method=".len()..],
+                    "--method",
+                    INSPECT_CODE_HELP,
+                )?);
+                index += 1;
+            }
+            "--format" => {
+                let value = require_value(args, index, "--format", INSPECT_CODE_HELP)?;
+                format = parse_code_format(&value)?;
+                index += 2;
+            }
+            _ if arg.starts_with("--format=") => {
+                format = parse_code_format(&arg["--format=".len()..])?;
+                index += 1;
+            }
+            "--compare" => {
+                compare = Some(require_value(args, index, "--compare", INSPECT_CODE_HELP)?);
+                index += 2;
+            }
+            _ if arg.starts_with("--compare=") => {
+                compare = Some(non_empty_value(
+                    &arg["--compare=".len()..],
+                    "--compare",
+                    INSPECT_CODE_HELP,
+                )?);
+                index += 1;
+            }
+            _ if arg.starts_with('-') => {
+                write_stderr(INSPECT_CODE_HELP);
+                return Err(Error::usage(format!("unrecognized option '{arg}'")));
+            }
+            _ if artifact.is_none() => {
+                artifact = Some(arg.to_string());
+                index += 1;
+            }
+            _ => {
+                write_stderr(INSPECT_CODE_HELP);
+                return Err(Error::usage(format!("unexpected argument '{arg}'")));
+            }
+        }
+    }
+
+    let Some(artifact) = artifact else {
+        write_stderr(INSPECT_CODE_HELP);
+        return Err(Error::usage(
+            "the following arguments are required: artifact",
+        ));
+    };
+    let Some(class_name) = class_name else {
+        write_stderr(INSPECT_CODE_HELP);
+        return Err(Error::usage(
+            "the following arguments are required: --class",
+        ));
+    };
+    let _ = class_name;
+
+    let executor = match NativeToolExecutor::from_defaults() {
+        Ok(executor) => executor,
+        Err(error) => {
+            write_stderr(&format!("Code inspection error: {error}\n"));
+            return Ok(ExitCode::InfrastructureFailure);
+        }
+    };
+    let request = InspectCodeRequest {
+        artifact: PathBuf::from(&artifact),
+        fqcn: class_name,
+        method,
+        format,
+        compare_artifact: compare.map(PathBuf::from),
+        use_color: code_inspection::stdout_is_tty(),
+    };
+
+    match code_inspection::inspect_or_compare_code(&request, &executor, &LiveArtifactInspector) {
+        Ok(output) => {
+            write_stdout(&output.text)?;
+            Ok(ExitCode::Success)
+        }
+        Err(error) => {
+            let (prefix, code) = match &error {
+                Error::Usage(message) if message.starts_with("Artifact not found") => {
+                    ("Inspection error", ExitCode::UsageOrToolError)
+                }
+                Error::Usage(_) => ("Code inspection error", ExitCode::UsageOrToolError),
+                Error::InvalidArtifact(_) => ("Inspection error", ExitCode::InvalidArtifact),
+                _ => ("Code inspection error", ExitCode::InfrastructureFailure),
+            };
+            write_stderr(&format!("{prefix}: {error}\n"));
+            Ok(code)
+        }
+    }
+}
+
+fn parse_code_format(value: &str) -> Result<String, Error> {
+    match value {
+        "smali" | "java" => Ok(value.to_string()),
+        _ => {
+            write_stderr(INSPECT_CODE_HELP);
+            Err(Error::usage(format!(
+                "argument --format: invalid choice: '{value}' (choose from 'smali', 'java')"
+            )))
+        }
+    }
+}
+
+fn run_compare(args: &[String]) -> Result<ExitCode, Error> {
+    let mut old_artifact: Option<String> = None;
+    let mut new_artifact: Option<String> = None;
+    let mut classes: Vec<String> = Vec::new();
+    let mut json_target: Option<JsonTarget> = None;
+    let mut index = 0;
+
+    while index < args.len() {
+        let arg = args[index].as_str();
+        match arg {
+            "-h" | "--help" => {
+                write_stdout(COMPARE_HELP)?;
+                return Ok(ExitCode::Success);
+            }
+            "--class" => {
+                classes.push(require_value(args, index, "--class", COMPARE_HELP)?);
+                index += 2;
+            }
+            _ if arg.starts_with("--class=") => {
+                classes.push(non_empty_value(
+                    &arg["--class=".len()..],
+                    "--class",
+                    COMPARE_HELP,
+                )?);
+                index += 1;
+            }
+            _ if arg == "--json" || arg.starts_with("--json=") => {
+                index = parse_json_occurrence(args, index, &mut json_target, COMPARE_HELP)?;
+            }
+            _ if arg.starts_with('-') => {
+                write_stderr(COMPARE_HELP);
+                return Err(Error::usage(format!("unrecognized option '{arg}'")));
+            }
+            _ if old_artifact.is_none() => {
+                old_artifact = Some(arg.to_string());
+                index += 1;
+            }
+            _ if new_artifact.is_none() => {
+                new_artifact = Some(arg.to_string());
+                index += 1;
+            }
+            _ => {
+                write_stderr(COMPARE_HELP);
+                return Err(Error::usage(format!("unexpected argument '{arg}'")));
+            }
+        }
+    }
+
+    let (Some(old_artifact), Some(new_artifact)) = (old_artifact, new_artifact) else {
+        write_stderr(COMPARE_HELP);
+        return Err(Error::usage(
+            "the following arguments are required: old_artifact, new_artifact",
+        ));
+    };
+
+    let executor = match NativeToolExecutor::from_defaults() {
+        Ok(executor) => executor,
+        Err(error) => {
+            write_stderr(&format!("Unexpected error: {error}\n"));
+            return Ok(ExitCode::InfrastructureFailure);
+        }
+    };
+
+    let comparison = match comparison::compare_artifacts(
+        Path::new(&old_artifact),
+        Path::new(&new_artifact),
+        &classes,
+        &executor,
+        &LiveArtifactInspector,
+    ) {
+        Ok(comparison) => comparison,
+        Err(Error::Usage(message)) => {
+            write_stderr(&format!("Comparison inspection error: {message}\n"));
+            return Ok(ExitCode::UsageOrToolError);
+        }
+        Err(Error::InvalidArtifact(message)) => {
+            write_stderr(&format!("Comparison inspection error: {message}\n"));
+            return Ok(ExitCode::InvalidArtifact);
+        }
+        Err(other) => {
+            write_stderr(&format!("Unexpected error: {other}\n"));
+            return Ok(ExitCode::InfrastructureFailure);
+        }
+    };
+
+    if let Some(target) = &json_target {
+        write_sorted_json(&comparison, target)?;
+    } else {
+        write_stdout(&format!(
+            "{}\n",
+            comparison::format_comparison_summary(&comparison)
+        ))?;
+    }
+
+    if !classes.is_empty()
+        && comparison
+            .classes_diff
+            .iter()
+            .any(|(_, diff)| diff.status == "error" || diff.status == "tool_unavailable")
+    {
+        return Ok(ExitCode::UsageOrToolError);
+    }
+    Ok(ExitCode::Success)
+}
+
+fn run_analyze(args: &[String], workspace_root: &Path) -> Result<ExitCode, Error> {
+    let mut artifact: Option<String> = None;
+    let mut jadx = false;
+    let mut apktool = false;
+    let mut smali = false;
+    let mut classes: Vec<String> = Vec::new();
+    let mut index = 0;
+
+    while index < args.len() {
+        let arg = args[index].as_str();
+        match arg {
+            "-h" | "--help" => {
+                write_stdout(ANALYZE_HELP)?;
+                return Ok(ExitCode::Success);
+            }
+            "--jadx" => {
+                jadx = true;
+                index += 1;
+            }
+            "--apktool" => {
+                apktool = true;
+                index += 1;
+            }
+            "--smali" => {
+                smali = true;
+                index += 1;
+            }
+            "--class" => {
+                classes.push(require_value(args, index, "--class", ANALYZE_HELP)?);
+                index += 2;
+            }
+            _ if arg.starts_with("--class=") => {
+                classes.push(non_empty_value(
+                    &arg["--class=".len()..],
+                    "--class",
+                    ANALYZE_HELP,
+                )?);
+                index += 1;
+            }
+            _ if arg.starts_with('-') => {
+                write_stderr(ANALYZE_HELP);
+                return Err(Error::usage(format!("unrecognized option '{arg}'")));
+            }
+            _ if artifact.is_none() => {
+                artifact = Some(arg.to_string());
+                index += 1;
+            }
+            _ => {
+                write_stderr(ANALYZE_HELP);
+                return Err(Error::usage(format!("unexpected argument '{arg}'")));
+            }
+        }
+    }
+
+    let Some(artifact) = artifact else {
+        write_stderr(ANALYZE_HELP);
+        return Err(Error::usage(
+            "the following arguments are required: artifact",
+        ));
+    };
+
+    let executor = match NativeToolExecutor::from_defaults() {
+        Ok(executor) => executor,
+        Err(error) => {
+            write_stderr(&format!("Analysis error: {error}\n"));
+            return Ok(ExitCode::InfrastructureFailure);
+        }
+    };
+    let options = AnalyzeOptions {
+        workspace_root: workspace_root.to_path_buf(),
+        jadx,
+        apktool,
+        smali,
+        classes,
+    };
+
+    match analysis::analyze_artifact(
+        Path::new(&artifact),
+        &options,
+        &executor,
+        &LiveArtifactInspector,
+    ) {
+        Ok(report) => {
+            write_stdout(&report.render())?;
+            Ok(ExitCode::Success)
+        }
+        Err(error) => match error {
+            Error::InvalidArtifact(message) => {
+                write_stderr(&format!("Inspection error: {message}\n"));
+                Ok(ExitCode::InvalidArtifact)
+            }
+            Error::Usage(message) if message.starts_with("Artifact not found") => {
+                write_stderr(&format!("Inspection error: {message}\n"));
+                Ok(ExitCode::UsageOrToolError)
+            }
+            Error::Usage(message) => {
+                write_stderr(&format!("Analysis error: {message}\n"));
+                Ok(ExitCode::UsageOrToolError)
+            }
+            other => {
+                write_stderr(&format!("Analysis error: {other}\n"));
+                Ok(ExitCode::InfrastructureFailure)
+            }
+        },
+    }
+}
+
+fn run_validate_smali(args: &[String]) -> Result<ExitCode, Error> {
+    let mut snippet: Option<String> = None;
+    let mut locals: Option<usize> = None;
+    let mut params: Option<usize> = None;
+    let mut descriptor: Option<String> = None;
+    let mut is_static = false;
+    let mut index = 0;
+
+    while index < args.len() {
+        let arg = args[index].as_str();
+        match arg {
+            "-h" | "--help" => {
+                write_stdout(VALIDATE_SMALI_HELP)?;
+                return Ok(ExitCode::Success);
+            }
+            "--snippet" => {
+                snippet = Some(require_value(
+                    args,
+                    index,
+                    "--snippet",
+                    VALIDATE_SMALI_HELP,
+                )?);
+                index += 2;
+            }
+            _ if arg.starts_with("--snippet=") => {
+                snippet = Some(non_empty_value(
+                    &arg["--snippet=".len()..],
+                    "--snippet",
+                    VALIDATE_SMALI_HELP,
+                )?);
+                index += 1;
+            }
+            "--locals" => {
+                let value = require_value(args, index, "--locals", VALIDATE_SMALI_HELP)?;
+                locals = Some(parse_non_negative_int(&value)?);
+                index += 2;
+            }
+            _ if arg.starts_with("--locals=") => {
+                locals = Some(parse_non_negative_int(&arg["--locals=".len()..])?);
+                index += 1;
+            }
+            "--params" => {
+                let value = require_value(args, index, "--params", VALIDATE_SMALI_HELP)?;
+                params = Some(parse_non_negative_int(&value)?);
+                index += 2;
+            }
+            _ if arg.starts_with("--params=") => {
+                params = Some(parse_non_negative_int(&arg["--params=".len()..])?);
+                index += 1;
+            }
+            "--descriptor" => {
+                descriptor = Some(require_value(
+                    args,
+                    index,
+                    "--descriptor",
+                    VALIDATE_SMALI_HELP,
+                )?);
+                index += 2;
+            }
+            _ if arg.starts_with("--descriptor=") => {
+                descriptor = Some(non_empty_value(
+                    &arg["--descriptor=".len()..],
+                    "--descriptor",
+                    VALIDATE_SMALI_HELP,
+                )?);
+                index += 1;
+            }
+            "--is-static" => {
+                is_static = true;
+                index += 1;
+            }
+            _ if arg.starts_with('-') => {
+                write_stderr(VALIDATE_SMALI_HELP);
+                return Err(Error::usage(format!("unrecognized option '{arg}'")));
+            }
+            _ => {
+                write_stderr(VALIDATE_SMALI_HELP);
+                return Err(Error::usage(format!("unexpected argument '{arg}'")));
+            }
+        }
+    }
+
+    let Some(snippet) = snippet else {
+        write_stderr(VALIDATE_SMALI_HELP);
+        return Err(Error::usage(
+            "the following arguments are required: --snippet",
+        ));
+    };
+    let Some(locals) = locals else {
+        write_stderr(VALIDATE_SMALI_HELP);
+        return Err(Error::usage(
+            "the following arguments are required: --locals",
+        ));
+    };
+
+    let mut report = match smali::validate_smali_snippet(
+        &snippet,
+        locals,
+        params,
+        is_static,
+        descriptor.as_deref(),
+    ) {
+        Ok(report) => report,
+        Err(error) => {
+            write_stderr(&format!("Smali validation error: {error}\n"));
+            return Ok(error.exit_code());
+        }
+    };
+
+    if report.is_valid() {
+        let executor = match NativeToolExecutor::from_defaults() {
+            Ok(executor) => executor,
+            Err(error) => {
+                write_stderr(&format!("Smali validation error: {error}\n"));
+                return Ok(ExitCode::InfrastructureFailure);
+            }
+        };
+        if executor.is_available(ToolKind::Smali) {
+            if let Err(error) = run_smali_assembler(&mut report, &executor) {
+                write_stderr(&format!("Smali validation error: {error}\n"));
+                return Ok(ExitCode::InfrastructureFailure);
+            }
+        }
+    }
+
+    write_stdout(&format!("{}\n", report.format_human()))?;
+    Ok(if report.is_valid() {
+        ExitCode::Success
+    } else {
+        ExitCode::UsageOrToolError
+    })
+}
+
+fn run_smali_assembler(
+    report: &mut smali::SmaliValidationReport,
+    executor: &NativeToolExecutor,
+) -> Result<(), Error> {
+    let temp = tempfile::TempDir::new()
+        .map_err(|error| Error::io("create Smali validation directory", error))?;
+    let source_path = temp.path().join("Synthetic.smali");
+    let dex_path = temp.path().join("classes.dex");
+    let command = SmaliAssemblerCommand::new(
+        &report.snippet,
+        report.locals_count,
+        &report.parameter_types,
+        report.is_static,
+        &source_path,
+        &dex_path,
+    );
+    fs::write(&source_path, &command.source)
+        .map_err(|error| Error::io(format!("write {}", source_path.display()), error))?;
+    let result = executor.execute(ToolKind::Smali, &command.args)?;
+    if result.exit_code != Some(0) {
+        report.diagnostics.extend(command.diagnostics(
+            &result.stderr,
+            &result.stdout,
+            result.exit_code,
+        ));
+    }
+    Ok(())
+}
+
+fn open_zip(path: &Path) -> Result<ZipArchive<fs::File>, Error> {
+    let file = fs::File::open(path)
+        .map_err(|error| Error::io(format!("open {}", path.display()), error))?;
+    ZipArchive::new(file)
+        .map_err(|error| Error::infrastructure(format!("cannot read {}: {error}", path.display())))
+}
+
+fn zip_member_names<R: Read + io::Seek>(archive: &mut ZipArchive<R>) -> Result<Vec<String>, Error> {
+    let mut names = Vec::with_capacity(archive.len());
+    for index in 0..archive.len() {
+        let entry = archive.by_index(index).map_err(|error| {
+            Error::invalid_artifact(format!("cannot read archive member: {error}"))
+        })?;
+        let name = entry
+            .name()
+            .map_err(|error| {
+                Error::invalid_artifact(format!("cannot read archive member name: {error}"))
+            })?
+            .into_owned();
+        names.push(name);
+    }
+    Ok(names)
+}
+
+fn read_zip_member<R: Read + io::Seek>(
+    archive: &mut ZipArchive<R>,
+    name: &str,
+) -> Result<Vec<u8>, Error> {
+    let mut entry = archive
+        .by_name(name)
+        .map_err(|error| Error::invalid_artifact(format!("cannot read {name}: {error}")))?;
+    let mut bytes = Vec::new();
+    entry
+        .read_to_end(&mut bytes)
+        .map_err(|error| Error::io(format!("read {name}"), error))?;
+    Ok(bytes)
+}
+
+fn write_python_json_unsorted<T: Serialize>(
+    value: &T,
+    target: &JsonTarget,
+    create_parent: bool,
+) -> Result<(), Error> {
+    let text = serde_json::to_string_pretty(value)
+        .map_err(|error| Error::runtime(format!("cannot serialize JSON: {error}")))?;
+    let escaped = escape_non_ascii(&text);
+    match target {
+        JsonTarget::Stdout => {
+            let mut stdout = io::stdout().lock();
+            stdout
+                .write_all(escaped.as_bytes())
+                .and_then(|()| stdout.write_all(b"\n"))
+                .and_then(|()| stdout.flush())
+                .map_err(|error| Error::io("failed to write JSON to stdout", error))
+        }
+        JsonTarget::File(path) => {
+            if create_parent {
+                if let Some(parent) = path.parent() {
+                    if !parent.as_os_str().is_empty() {
+                        fs::create_dir_all(parent).map_err(|error| {
+                            Error::io(
+                                format!("cannot create directory '{}'", parent.display()),
+                                error,
+                            )
+                        })?;
+                    }
+                }
+            }
+            fs::write(path, escaped.as_bytes()).map_err(|error| {
+                Error::io(
+                    format!("cannot write JSON file '{}'", path.display()),
+                    error,
+                )
+            })
+        }
+    }
 }
 
 fn run_clean(args: &[String], workspace_root: &Path) -> Result<ExitCode, Error> {

@@ -129,7 +129,9 @@
     "subcommandsRequired": true,
     "options": [
       {
-        "names": ["--workspace-root"],
+        "names": [
+          "--workspace-root"
+        ],
         "positional": null,
         "positionals": [],
         "dest": null,
@@ -150,7 +152,9 @@
     {
       "id": "setup",
       "entry": "apk-lab",
-      "path": ["setup"],
+      "path": [
+        "setup"
+      ],
       "handler": "handle_setup",
       "aliases": null,
       "required": null,
@@ -158,12 +162,17 @@
       "subcommandsRequired": null,
       "options": [
         {
-          "names": ["--profile"],
+          "names": [
+            "--profile"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
           "action": "store",
-          "choices": ["analysis", "ci"],
+          "choices": [
+            "analysis",
+            "ci"
+          ],
           "default": "analysis",
           "required": null,
           "nargs": null,
@@ -180,21 +189,37 @@
           "  [FAILED] <name>: <error>"
         ],
         "stderr": [],
-        "exitCodes": [0, 2],
-        "environment": ["HOME", "PATH", "ANDROID_HOME", "ANDROID_SDK_ROOT"],
-        "filesystem": ["<cache-root>/aidans-patches/apk-lab/tools"],
+        "exitCodes": [
+          0,
+          2
+        ],
+        "environment": [
+          "HOME",
+          "PATH",
+          "ANDROID_HOME",
+          "ANDROID_SDK_ROOT"
+        ],
+        "filesystem": [
+          "<cache-root>/aidans-patches/apk-lab/tools"
+        ],
         "sideEffects": [
           "downloads, verifies, and caches pinned tools from tools.lock.json"
         ],
-        "ordering": ["tools processed in lock-file order"],
+        "ordering": [
+          "tools processed in lock-file order"
+        ],
         "wire": [],
-        "tests": ["test_tools.py"]
+        "tests": [
+          "test_tools.py"
+        ]
       }
     },
     {
       "id": "doctor",
       "entry": "apk-lab",
-      "path": ["doctor"],
+      "path": [
+        "doctor"
+      ],
       "handler": "handle_doctor",
       "aliases": null,
       "required": null,
@@ -202,7 +227,9 @@
       "subcommandsRequired": null,
       "options": [
         {
-          "names": ["--ci"],
+          "names": [
+            "--ci"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
@@ -216,12 +243,17 @@
           "mutex": null
         },
         {
-          "names": ["--profile"],
+          "names": [
+            "--profile"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
           "action": "store",
-          "choices": ["analysis", "ci"],
+          "choices": [
+            "analysis",
+            "ci"
+          ],
           "default": null,
           "required": null,
           "nargs": null,
@@ -230,7 +262,9 @@
           "mutex": null
         },
         {
-          "names": ["--json"],
+          "names": [
+            "--json"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
@@ -255,7 +289,10 @@
           "Status: ALL READY|PREREQUISITES OR TOOLS MISSING"
         ],
         "stderr": [],
-        "exitCodes": [0, 2],
+        "exitCodes": [
+          0,
+          2
+        ],
         "environment": [
           "PATH",
           "ANDROID_HOME",
@@ -266,19 +303,30 @@
           "R2_SECRET_ACCESS_KEY",
           "COMPATIBILITY_STATUS_SECRET"
         ],
-        "filesystem": ["<workspace-root> write probe"],
-        "sideEffects": ["non-destructive writability probe"],
+        "filesystem": [
+          "<workspace-root> write probe"
+        ],
+        "sideEffects": [
+          "non-destructive writability probe"
+        ],
         "ordering": [
           "prerequisites and tools in check order; credentials sorted"
         ],
-        "wire": ["models.DoctorReport"],
-        "tests": ["test_tools.py", "test_cli.py"]
+        "wire": [
+          "models.DoctorReport"
+        ],
+        "tests": [
+          "test_tools.py",
+          "test_cli.py"
+        ]
       }
     },
     {
       "id": "inspect",
       "entry": "apk-lab",
-      "path": ["inspect"],
+      "path": [
+        "inspect"
+      ],
       "handler": "handle_inspect",
       "aliases": null,
       "required": null,
@@ -288,7 +336,9 @@
         {
           "names": [],
           "positional": "artifact",
-          "positionals": ["artifact"],
+          "positionals": [
+            "artifact"
+          ],
           "dest": null,
           "action": "store",
           "choices": null,
@@ -300,7 +350,9 @@
           "mutex": null
         },
         {
-          "names": ["--json"],
+          "names": [
+            "--json"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
@@ -327,21 +379,41 @@
           "Archive security error: <detail>",
           "Unexpected error: <detail>"
         ],
-        "exitCodes": [0, 3, 4],
-        "environment": ["PATH", "ANDROID_HOME", "ANDROID_SDK_ROOT"],
+        "exitCodes": [
+          0,
+          3,
+          4
+        ],
+        "environment": [
+          "PATH",
+          "ANDROID_HOME",
+          "ANDROID_SDK_ROOT"
+        ],
         "filesystem": [
           "reads artifact; writes --json file when path given; no persistent workspace"
         ],
-        "sideEffects": ["none for inspect"],
-        "ordering": ["fixed label order; splits in container order"],
-        "wire": ["models.ArtifactInspection"],
-        "tests": ["test_inspection.py", "test_archives.py", "test_cli.py"]
+        "sideEffects": [
+          "none for inspect"
+        ],
+        "ordering": [
+          "fixed label order; splits in container order"
+        ],
+        "wire": [
+          "models.ArtifactInspection"
+        ],
+        "tests": [
+          "test_inspection.py",
+          "test_archives.py",
+          "test_cli.py"
+        ]
       }
     },
     {
       "id": "analyze",
       "entry": "apk-lab",
-      "path": ["analyze"],
+      "path": [
+        "analyze"
+      ],
       "handler": "handle_analyze",
       "aliases": null,
       "required": null,
@@ -351,7 +423,9 @@
         {
           "names": [],
           "positional": "artifact",
-          "positionals": ["artifact"],
+          "positionals": [
+            "artifact"
+          ],
           "dest": null,
           "action": "store",
           "choices": null,
@@ -363,7 +437,9 @@
           "mutex": null
         },
         {
-          "names": ["--jadx"],
+          "names": [
+            "--jadx"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
@@ -377,7 +453,9 @@
           "mutex": null
         },
         {
-          "names": ["--apktool"],
+          "names": [
+            "--apktool"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
@@ -391,7 +469,9 @@
           "mutex": null
         },
         {
-          "names": ["--smali"],
+          "names": [
+            "--smali"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
@@ -405,7 +485,9 @@
           "mutex": null
         },
         {
-          "names": ["--class"],
+          "names": [
+            "--class"
+          ],
           "positional": null,
           "positionals": [],
           "dest": "classes",
@@ -432,24 +514,40 @@
           "Inspection error: <detail>",
           "Analysis error: <detail>"
         ],
-        "exitCodes": [0, 3, 4],
-        "environment": ["PATH", "ANDROID_HOME", "ANDROID_SDK_ROOT"],
+        "exitCodes": [
+          0,
+          3,
+          4
+        ],
+        "environment": [
+          "PATH",
+          "ANDROID_HOME",
+          "ANDROID_SDK_ROOT"
+        ],
         "filesystem": [
           "<workspace-root>/<package>/runs/<schema-1-id>",
           "apks/, lib/, smali/, jadx/, apktool/"
         ],
-        "sideEffects": ["creates managed workspace and extracts/decompiles"],
+        "sideEffects": [
+          "creates managed workspace and extracts/decompiles"
+        ],
         "ordering": [
           "workspace created before extraction; smali default unless --jadx/--apktool"
         ],
         "wire": [],
-        "tests": ["test_cli.py", "test_workspace.py", "test_archives.py"]
+        "tests": [
+          "test_cli.py",
+          "test_workspace.py",
+          "test_archives.py"
+        ]
       }
     },
     {
       "id": "compare",
       "entry": "apk-lab",
-      "path": ["compare"],
+      "path": [
+        "compare"
+      ],
       "handler": "handle_compare",
       "aliases": null,
       "required": null,
@@ -459,7 +557,9 @@
         {
           "names": [],
           "positional": "old_artifact",
-          "positionals": ["old_artifact"],
+          "positionals": [
+            "old_artifact"
+          ],
           "dest": null,
           "action": "store",
           "choices": null,
@@ -473,7 +573,9 @@
         {
           "names": [],
           "positional": "new_artifact",
-          "positionals": ["new_artifact"],
+          "positionals": [
+            "new_artifact"
+          ],
           "dest": null,
           "action": "store",
           "choices": null,
@@ -485,7 +587,9 @@
           "mutex": null
         },
         {
-          "names": ["--class"],
+          "names": [
+            "--class"
+          ],
           "positional": null,
           "positionals": [],
           "dest": "classes",
@@ -499,7 +603,9 @@
           "mutex": null
         },
         {
-          "names": ["--json"],
+          "names": [
+            "--json"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
@@ -515,26 +621,49 @@
       ],
       "mutexGroups": [],
       "behavior": {
-        "stdout": ["human comparison summary", "or JSON when --json"],
+        "stdout": [
+          "human comparison summary",
+          "or JSON when --json"
+        ],
         "stderr": [
           "Comparison inspection error: <detail>",
           "Unexpected error: <detail>"
         ],
-        "exitCodes": [0, 2, 3, 4],
-        "environment": ["PATH", "ANDROID_HOME", "ANDROID_SDK_ROOT"],
-        "filesystem": ["reads both artifacts and optional class sources"],
-        "sideEffects": ["may create temporary extraction for class diff"],
+        "exitCodes": [
+          0,
+          2,
+          3,
+          4
+        ],
+        "environment": [
+          "PATH",
+          "ANDROID_HOME",
+          "ANDROID_SDK_ROOT"
+        ],
+        "filesystem": [
+          "reads both artifacts and optional class sources"
+        ],
+        "sideEffects": [
+          "may create temporary extraction for class diff"
+        ],
         "ordering": [
           "added/removed/modified lists sorted by source inspection"
         ],
-        "wire": ["models.ArtifactComparison"],
-        "tests": ["test_comparison.py", "test_cli.py"]
+        "wire": [
+          "models.ArtifactComparison"
+        ],
+        "tests": [
+          "test_comparison.py",
+          "test_cli.py"
+        ]
       }
     },
     {
       "id": "clean",
       "entry": "apk-lab",
-      "path": ["clean"],
+      "path": [
+        "clean"
+      ],
       "handler": "handle_clean",
       "aliases": null,
       "required": null,
@@ -542,7 +671,9 @@
       "subcommandsRequired": null,
       "options": [
         {
-          "names": ["--run"],
+          "names": [
+            "--run"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
@@ -556,7 +687,9 @@
           "mutex": null
         },
         {
-          "names": ["--package"],
+          "names": [
+            "--package"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
@@ -570,7 +703,9 @@
           "mutex": null
         },
         {
-          "names": ["--stale"],
+          "names": [
+            "--stale"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
@@ -584,7 +719,9 @@
           "mutex": null
         },
         {
-          "names": ["--dry-run"],
+          "names": [
+            "--dry-run"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
@@ -609,9 +746,14 @@
           "Error: Specify --run, --package, or --stale",
           "Workspace error: <detail>"
         ],
-        "exitCodes": [0, 2],
+        "exitCodes": [
+          0,
+          2
+        ],
         "environment": [],
-        "filesystem": ["<workspace-root>"],
+        "filesystem": [
+          "<workspace-root>"
+        ],
         "sideEffects": [
           "deletes only marker-validated contained workspace runs; --dry-run avoids deletion"
         ],
@@ -619,13 +761,18 @@
           "run, then package, then stale; candidates printed in discovery order"
         ],
         "wire": [],
-        "tests": ["test_workspace.py", "test_cli.py"]
+        "tests": [
+          "test_workspace.py",
+          "test_cli.py"
+        ]
       }
     },
     {
       "id": "check",
       "entry": "apk-lab",
-      "path": ["check"],
+      "path": [
+        "check"
+      ],
       "handler": "handle_check",
       "aliases": null,
       "required": null,
@@ -635,7 +782,9 @@
         {
           "names": [],
           "positional": "artifact",
-          "positionals": ["artifact"],
+          "positionals": [
+            "artifact"
+          ],
           "dest": null,
           "action": "store",
           "choices": null,
@@ -647,7 +796,9 @@
           "mutex": null
         },
         {
-          "names": ["--mpp"],
+          "names": [
+            "--mpp"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
@@ -661,7 +812,9 @@
           "mutex": null
         },
         {
-          "names": ["--package"],
+          "names": [
+            "--package"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
@@ -675,7 +828,9 @@
           "mutex": null
         },
         {
-          "names": ["--all"],
+          "names": [
+            "--all"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
@@ -689,7 +844,9 @@
           "mutex": null
         },
         {
-          "names": ["--patch"],
+          "names": [
+            "--patch"
+          ],
           "positional": null,
           "positionals": [],
           "dest": "patches",
@@ -703,7 +860,9 @@
           "mutex": null
         },
         {
-          "names": ["--force"],
+          "names": [
+            "--force"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
@@ -717,7 +876,9 @@
           "mutex": null
         },
         {
-          "names": ["--keep-workspace"],
+          "names": [
+            "--keep-workspace"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
@@ -731,7 +892,9 @@
           "mutex": null
         },
         {
-          "names": ["--json"],
+          "names": [
+            "--json"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
@@ -745,7 +908,10 @@
           "mutex": null
         },
         {
-          "names": ["-j", "--jobs"],
+          "names": [
+            "-j",
+            "--jobs"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
@@ -767,8 +933,16 @@
           "[PASS]|[FAIL] per case with options/injected count/duration",
           "Overall Status: COMPATIBLE|INCOMPATIBLE|ERROR"
         ],
-        "stderr": ["Check error: <detail>", "Check unexpected error: <detail>"],
-        "exitCodes": [0, 1, 2, 4],
+        "stderr": [
+          "Check error: <detail>",
+          "Check unexpected error: <detail>"
+        ],
+        "exitCodes": [
+          0,
+          1,
+          2,
+          4
+        ],
         "environment": [
           "PATH",
           "ANDROID_HOME",
@@ -789,13 +963,19 @@
           "models.PatchCompatibilityReport",
           "models.PatchTestCaseResult"
         ],
-        "tests": ["test_morphe.py", "test_cli.py", "test_deployment.py"]
+        "tests": [
+          "test_morphe.py",
+          "test_cli.py",
+          "test_deployment.py"
+        ]
       }
     },
     {
       "id": "fixtures",
       "entry": "apk-lab",
-      "path": ["fixtures"],
+      "path": [
+        "fixtures"
+      ],
       "handler": null,
       "aliases": null,
       "required": null,
@@ -806,19 +986,31 @@
       "behavior": {
         "stdout": [],
         "stderr": [],
-        "exitCodes": [0, 2],
+        "exitCodes": [
+          0,
+          2
+        ],
         "environment": [],
         "filesystem": [],
-        "sideEffects": ["delegates to seed/info/download; subcommand required"],
-        "ordering": ["subcommand dispatch only"],
+        "sideEffects": [
+          "delegates to seed/info/download; subcommand required"
+        ],
+        "ordering": [
+          "subcommand dispatch only"
+        ],
         "wire": [],
-        "tests": ["test_fixtures.py"]
+        "tests": [
+          "test_fixtures.py"
+        ]
       }
     },
     {
       "id": "fixtures seed",
       "entry": "apk-lab",
-      "path": ["fixtures", "seed"],
+      "path": [
+        "fixtures",
+        "seed"
+      ],
       "handler": "handle_fixtures_seed",
       "aliases": null,
       "required": null,
@@ -826,7 +1018,9 @@
       "subcommandsRequired": null,
       "options": [
         {
-          "names": ["--package"],
+          "names": [
+            "--package"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
@@ -840,12 +1034,17 @@
           "mutex": null
         },
         {
-          "names": ["--role"],
+          "names": [
+            "--role"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
           "action": "store",
-          "choices": ["target", "latest"],
+          "choices": [
+            "target",
+            "latest"
+          ],
           "default": null,
           "required": true,
           "nargs": null,
@@ -854,7 +1053,9 @@
           "mutex": null
         },
         {
-          "names": ["--artifact"],
+          "names": [
+            "--artifact"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
@@ -874,25 +1075,42 @@
           "Seeding fixture for <pkg> (role: <role>)...",
           "[OK] Seeded <pkg> v<version> (<code>) to slot <role>"
         ],
-        "stderr": ["Fixtures error: <detail>"],
-        "exitCodes": [0, 4],
+        "stderr": [
+          "Fixtures error: <detail>"
+        ],
+        "exitCodes": [
+          0,
+          4
+        ],
         "environment": [
           "R2_ACCOUNT_ID",
           "R2_ACCESS_KEY_ID",
           "R2_SECRET_ACCESS_KEY",
           "R2_BUCKET_NAME"
         ],
-        "filesystem": ["reads --artifact"],
-        "sideEffects": ["uploads fixture object and metadata to R2 slot"],
-        "ordering": ["upload then metadata write"],
+        "filesystem": [
+          "reads --artifact"
+        ],
+        "sideEffects": [
+          "uploads fixture object and metadata to R2 slot"
+        ],
+        "ordering": [
+          "upload then metadata write"
+        ],
         "wire": [],
-        "tests": ["test_fixtures.py", "test_compatibility_ci.py"]
+        "tests": [
+          "test_fixtures.py",
+          "test_compatibility_ci.py"
+        ]
       }
     },
     {
       "id": "fixtures info",
       "entry": "apk-lab",
-      "path": ["fixtures", "info"],
+      "path": [
+        "fixtures",
+        "info"
+      ],
       "handler": "handle_fixtures_info",
       "aliases": null,
       "required": null,
@@ -900,7 +1118,9 @@
       "subcommandsRequired": null,
       "options": [
         {
-          "names": ["--package"],
+          "names": [
+            "--package"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
@@ -914,12 +1134,17 @@
           "mutex": null
         },
         {
-          "names": ["--role"],
+          "names": [
+            "--role"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
           "action": "store",
-          "choices": ["target", "latest"],
+          "choices": [
+            "target",
+            "latest"
+          ],
           "default": null,
           "required": null,
           "nargs": null,
@@ -934,8 +1159,13 @@
           "Slot <role>: <version> (<code>), SHA: <12 chars>..., src: <source>",
           "Slot <role>: [EMPTY]"
         ],
-        "stderr": ["Fixtures info error: <detail>"],
-        "exitCodes": [0, 4],
+        "stderr": [
+          "Fixtures info error: <detail>"
+        ],
+        "exitCodes": [
+          0,
+          4
+        ],
         "environment": [
           "R2_ACCOUNT_ID",
           "R2_ACCESS_KEY_ID",
@@ -943,16 +1173,25 @@
           "R2_BUCKET_NAME"
         ],
         "filesystem": [],
-        "sideEffects": ["read-only R2 metadata access"],
-        "ordering": ["requested role or latest then target"],
+        "sideEffects": [
+          "read-only R2 metadata access"
+        ],
+        "ordering": [
+          "requested role or latest then target"
+        ],
         "wire": [],
-        "tests": ["test_fixtures.py"]
+        "tests": [
+          "test_fixtures.py"
+        ]
       }
     },
     {
       "id": "fixtures download",
       "entry": "apk-lab",
-      "path": ["fixtures", "download"],
+      "path": [
+        "fixtures",
+        "download"
+      ],
       "handler": "handle_fixtures_download",
       "aliases": null,
       "required": null,
@@ -960,7 +1199,9 @@
       "subcommandsRequired": null,
       "options": [
         {
-          "names": ["--package"],
+          "names": [
+            "--package"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
@@ -974,12 +1215,17 @@
           "mutex": null
         },
         {
-          "names": ["--role"],
+          "names": [
+            "--role"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
           "action": "store",
-          "choices": ["target", "latest"],
+          "choices": [
+            "target",
+            "latest"
+          ],
           "default": null,
           "required": true,
           "nargs": null,
@@ -988,7 +1234,9 @@
           "mutex": null
         },
         {
-          "names": ["--out"],
+          "names": [
+            "--out"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
@@ -1004,26 +1252,43 @@
       ],
       "mutexGroups": [],
       "behavior": {
-        "stdout": ["[OK] Downloaded slot <role> to <path>"],
-        "stderr": ["Fixtures download error: <detail>"],
-        "exitCodes": [0, 4],
+        "stdout": [
+          "[OK] Downloaded slot <role> to <path>"
+        ],
+        "stderr": [
+          "Fixtures download error: <detail>"
+        ],
+        "exitCodes": [
+          0,
+          4
+        ],
         "environment": [
           "R2_ACCOUNT_ID",
           "R2_ACCESS_KEY_ID",
           "R2_SECRET_ACCESS_KEY",
           "R2_BUCKET_NAME"
         ],
-        "filesystem": ["writes --out"],
-        "sideEffects": ["downloads artifact bytes from R2"],
-        "ordering": ["single object download"],
+        "filesystem": [
+          "writes --out"
+        ],
+        "sideEffects": [
+          "downloads artifact bytes from R2"
+        ],
+        "ordering": [
+          "single object download"
+        ],
         "wire": [],
-        "tests": ["test_fixtures.py"]
+        "tests": [
+          "test_fixtures.py"
+        ]
       }
     },
     {
       "id": "acquire",
       "entry": "apk-lab",
-      "path": ["acquire"],
+      "path": [
+        "acquire"
+      ],
       "handler": "handle_acquire",
       "aliases": null,
       "required": null,
@@ -1033,7 +1298,9 @@
         {
           "names": [],
           "positional": "package",
-          "positionals": ["package"],
+          "positionals": [
+            "package"
+          ],
           "dest": null,
           "action": "store",
           "choices": null,
@@ -1045,7 +1312,9 @@
           "mutex": null
         },
         {
-          "names": ["--version"],
+          "names": [
+            "--version"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
@@ -1059,7 +1328,9 @@
           "mutex": null
         },
         {
-          "names": ["--out-dir"],
+          "names": [
+            "--out-dir"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
@@ -1073,7 +1344,9 @@
           "mutex": null
         },
         {
-          "names": ["--version-code"],
+          "names": [
+            "--version-code"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
@@ -1093,8 +1366,13 @@
           "Acquiring artifact for <pkg> (expected version: <version|latest>)...",
           "[OK] Acquired <pkg> via <apkeep|goopdl|apkmirror|manual>: <path>"
         ],
-        "stderr": ["Acquisition error: <detail>"],
-        "exitCodes": [0, 4],
+        "stderr": [
+          "Acquisition error: <detail>"
+        ],
+        "exitCodes": [
+          0,
+          4
+        ],
         "environment": [
           "APKEEP_ACCOUNTS",
           "APKEEP_ACCOUNTS_FILE",
@@ -1109,18 +1387,25 @@
           "isolated per-attempt temp dirs",
           "apkeep accounts at XDG config path"
         ],
-        "sideEffects": ["network acquisition, normalization, temporary files"],
+        "sideEffects": [
+          "network acquisition, normalization, temporary files"
+        ],
         "ordering": [
           "accounts in file order; apkeep, then goopdl direct/fallback, then apkmirror"
         ],
         "wire": [],
-        "tests": ["test_acquisition.py", "test_google_play_accounts.py"]
+        "tests": [
+          "test_acquisition.py",
+          "test_google_play_accounts.py"
+        ]
       }
     },
     {
       "id": "asm",
       "entry": "apk-lab",
-      "path": ["asm"],
+      "path": [
+        "asm"
+      ],
       "handler": "handle_asm",
       "aliases": null,
       "required": null,
@@ -1130,7 +1415,9 @@
         {
           "names": [],
           "positional": "statement",
-          "positionals": ["statement"],
+          "positionals": [
+            "statement"
+          ],
           "dest": null,
           "action": "store",
           "choices": null,
@@ -1142,7 +1429,9 @@
           "mutex": null
         },
         {
-          "names": ["--pc"],
+          "names": [
+            "--pc"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
@@ -1156,7 +1445,9 @@
           "mutex": null
         },
         {
-          "names": ["--target"],
+          "names": [
+            "--target"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
@@ -1170,12 +1461,19 @@
           "mutex": null
         },
         {
-          "names": ["--format"],
+          "names": [
+            "--format"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
           "action": "store",
-          "choices": ["hex", "kotlin", "int", "bytes"],
+          "choices": [
+            "hex",
+            "kotlin",
+            "int",
+            "bytes"
+          ],
           "default": "hex",
           "required": null,
           "nargs": null,
@@ -1186,21 +1484,37 @@
       ],
       "mutexGroups": [],
       "behavior": {
-        "stdout": ["formatted instruction in requested format"],
-        "stderr": ["Assembly error: <detail>"],
-        "exitCodes": [0, 2, 4],
+        "stdout": [
+          "formatted instruction in requested format"
+        ],
+        "stderr": [
+          "Assembly error: <detail>"
+        ],
+        "exitCodes": [
+          0,
+          2,
+          4
+        ],
         "environment": [],
         "filesystem": [],
-        "sideEffects": ["none"],
-        "ordering": ["single result"],
+        "sideEffects": [
+          "none"
+        ],
+        "ordering": [
+          "single result"
+        ],
         "wire": [],
-        "tests": ["test_asm.py"]
+        "tests": [
+          "test_asm.py"
+        ]
       }
     },
     {
       "id": "il2cpp",
       "entry": "apk-lab",
-      "path": ["il2cpp"],
+      "path": [
+        "il2cpp"
+      ],
       "handler": "handle_il2cpp",
       "aliases": null,
       "required": null,
@@ -1210,7 +1524,9 @@
         {
           "names": [],
           "positional": "artifact",
-          "positionals": ["artifact"],
+          "positionals": [
+            "artifact"
+          ],
           "dest": null,
           "action": "store",
           "choices": null,
@@ -1222,7 +1538,10 @@
           "mutex": null
         },
         {
-          "names": ["--query", "-q"],
+          "names": [
+            "--query",
+            "-q"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
@@ -1236,7 +1555,9 @@
           "mutex": null
         },
         {
-          "names": ["--json"],
+          "names": [
+            "--json"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
@@ -1262,19 +1583,36 @@
           "IL2CPP metadata error: <detail>",
           "IL2CPP analysis error: <detail>"
         ],
-        "exitCodes": [0, 2, 4],
-        "environment": ["PATH", "ANDROID_HOME"],
-        "filesystem": ["reads artifact; may materialize split APKs"],
-        "sideEffects": ["extracts metadata/global-metadata.dat as needed"],
-        "ordering": ["records in metadata table order; capped human output"],
+        "exitCodes": [
+          0,
+          2,
+          4
+        ],
+        "environment": [
+          "PATH",
+          "ANDROID_HOME"
+        ],
+        "filesystem": [
+          "reads artifact; may materialize split APKs"
+        ],
+        "sideEffects": [
+          "extracts metadata/global-metadata.dat as needed"
+        ],
+        "ordering": [
+          "records in metadata table order; capped human output"
+        ],
         "wire": [],
-        "tests": ["test_il2cpp.py"]
+        "tests": [
+          "test_il2cpp.py"
+        ]
       }
     },
     {
       "id": "unity",
       "entry": "apk-lab",
-      "path": ["unity"],
+      "path": [
+        "unity"
+      ],
       "handler": "handle_unity",
       "aliases": null,
       "required": null,
@@ -1284,7 +1622,9 @@
         {
           "names": [],
           "positional": "artifact",
-          "positionals": ["artifact"],
+          "positionals": [
+            "artifact"
+          ],
           "dest": null,
           "action": "store",
           "choices": null,
@@ -1296,7 +1636,10 @@
           "mutex": null
         },
         {
-          "names": ["--gameobject", "-g"],
+          "names": [
+            "--gameobject",
+            "-g"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
@@ -1310,7 +1653,9 @@
           "mutex": null
         },
         {
-          "names": ["--json"],
+          "names": [
+            "--json"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
@@ -1335,19 +1680,36 @@
           "Unity asset error: <detail>",
           "Unity asset inspection error: <detail>"
         ],
-        "exitCodes": [0, 2, 4],
-        "environment": ["PATH", "ANDROID_HOME"],
-        "filesystem": ["reads artifact; may materialize splits"],
-        "sideEffects": ["read-only asset scanning"],
-        "ordering": ["records in asset scan order; capped human output"],
+        "exitCodes": [
+          0,
+          2,
+          4
+        ],
+        "environment": [
+          "PATH",
+          "ANDROID_HOME"
+        ],
+        "filesystem": [
+          "reads artifact; may materialize splits"
+        ],
+        "sideEffects": [
+          "read-only asset scanning"
+        ],
+        "ordering": [
+          "records in asset scan order; capped human output"
+        ],
         "wire": [],
-        "tests": ["test_unity.py"]
+        "tests": [
+          "test_unity.py"
+        ]
       }
     },
     {
       "id": "deploy",
       "entry": "apk-lab",
-      "path": ["deploy"],
+      "path": [
+        "deploy"
+      ],
       "handler": "handle_deploy",
       "aliases": null,
       "required": null,
@@ -1357,7 +1719,9 @@
         {
           "names": [],
           "positional": "artifact",
-          "positionals": ["artifact"],
+          "positionals": [
+            "artifact"
+          ],
           "dest": null,
           "action": "store",
           "choices": null,
@@ -1369,7 +1733,9 @@
           "mutex": null
         },
         {
-          "names": ["--mpp"],
+          "names": [
+            "--mpp"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
@@ -1383,7 +1749,9 @@
           "mutex": null
         },
         {
-          "names": ["--build"],
+          "names": [
+            "--build"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
@@ -1397,7 +1765,9 @@
           "mutex": null
         },
         {
-          "names": ["--package"],
+          "names": [
+            "--package"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
@@ -1411,7 +1781,9 @@
           "mutex": null
         },
         {
-          "names": ["--all"],
+          "names": [
+            "--all"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
@@ -1425,7 +1797,10 @@
           "mutex": "g1"
         },
         {
-          "names": ["-e", "--enable"],
+          "names": [
+            "-e",
+            "--enable"
+          ],
           "positional": null,
           "positionals": [],
           "dest": "enable",
@@ -1439,7 +1814,10 @@
           "mutex": "g1"
         },
         {
-          "names": ["-O", "--option"],
+          "names": [
+            "-O",
+            "--option"
+          ],
           "positional": null,
           "positionals": [],
           "dest": "options",
@@ -1453,7 +1831,9 @@
           "mutex": null
         },
         {
-          "names": ["--device"],
+          "names": [
+            "--device"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
@@ -1467,7 +1847,9 @@
           "mutex": null
         },
         {
-          "names": ["--launch"],
+          "names": [
+            "--launch"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
@@ -1481,21 +1863,9 @@
           "mutex": null
         },
         {
-          "names": ["--reinstall"],
-          "positional": null,
-          "positionals": [],
-          "dest": null,
-          "action": "store_true",
-          "choices": null,
-          "default": null,
-          "required": null,
-          "nargs": null,
-          "const": null,
-          "type": null,
-          "mutex": "g2"
-        },
-        {
-          "names": ["--clean-install"],
+          "names": [
+            "--reinstall"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
@@ -1509,7 +1879,25 @@
           "mutex": "g2"
         },
         {
-          "names": ["--out"],
+          "names": [
+            "--clean-install"
+          ],
+          "positional": null,
+          "positionals": [],
+          "dest": null,
+          "action": "store_true",
+          "choices": null,
+          "default": null,
+          "required": null,
+          "nargs": null,
+          "const": null,
+          "type": null,
+          "mutex": "g2"
+        },
+        {
+          "names": [
+            "--out"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
@@ -1523,7 +1911,9 @@
           "mutex": null
         },
         {
-          "names": ["--keystore"],
+          "names": [
+            "--keystore"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
@@ -1537,7 +1927,9 @@
           "mutex": null
         },
         {
-          "names": ["--ks-alias"],
+          "names": [
+            "--ks-alias"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
@@ -1551,7 +1943,9 @@
           "mutex": null
         },
         {
-          "names": ["--ks-pass"],
+          "names": [
+            "--ks-pass"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
@@ -1565,7 +1959,9 @@
           "mutex": null
         },
         {
-          "names": ["--key-pass"],
+          "names": [
+            "--key-pass"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
@@ -1593,8 +1989,14 @@
         "stdout": [
           "DeployResult.format_human(): Output APK, Package, Device, Install mode, Applied patches, Launched"
         ],
-        "stderr": ["Deployment error: <detail>"],
-        "exitCodes": [0, 2, 4],
+        "stderr": [
+          "Deployment error: <detail>"
+        ],
+        "exitCodes": [
+          0,
+          2,
+          4
+        ],
         "environment": [
           "PATH",
           "ANDROID_HOME",
@@ -1613,14 +2015,22 @@
         "ordering": [
           "patch selection resolved before signing; reinstall vs clean-install mutually exclusive"
         ],
-        "wire": ["models.DeployResult"],
-        "tests": ["test_deployment.py", "test_cli.py", "test_device.py"]
+        "wire": [
+          "models.DeployResult"
+        ],
+        "tests": [
+          "test_deployment.py",
+          "test_cli.py",
+          "test_device.py"
+        ]
       }
     },
     {
       "id": "dev",
       "entry": "apk-lab",
-      "path": ["dev"],
+      "path": [
+        "dev"
+      ],
       "handler": "handle_dev",
       "aliases": null,
       "required": null,
@@ -1630,7 +2040,9 @@
         {
           "names": [],
           "positional": "app",
-          "positionals": ["app"],
+          "positionals": [
+            "app"
+          ],
           "dest": null,
           "action": "store",
           "choices": null,
@@ -1642,7 +2054,9 @@
           "mutex": null
         },
         {
-          "names": ["--artifact"],
+          "names": [
+            "--artifact"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
@@ -1656,7 +2070,9 @@
           "mutex": null
         },
         {
-          "names": ["--no-build"],
+          "names": [
+            "--no-build"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
@@ -1670,7 +2086,9 @@
           "mutex": null
         },
         {
-          "names": ["--device"],
+          "names": [
+            "--device"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
@@ -1684,7 +2102,9 @@
           "mutex": null
         },
         {
-          "names": ["--launch"],
+          "names": [
+            "--launch"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
@@ -1698,7 +2118,9 @@
           "mutex": null
         },
         {
-          "names": ["--all"],
+          "names": [
+            "--all"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
@@ -1712,7 +2134,9 @@
           "mutex": null
         },
         {
-          "names": ["--reinstall"],
+          "names": [
+            "--reinstall"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
@@ -1726,7 +2150,9 @@
           "mutex": "g1"
         },
         {
-          "names": ["--clean-install"],
+          "names": [
+            "--clean-install"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
@@ -1760,7 +2186,11 @@
           "Error: Either app or --artifact must be specified",
           "Dev iteration error: <detail>"
         ],
-        "exitCodes": [0, 2, 4],
+        "exitCodes": [
+          0,
+          2,
+          4
+        ],
         "environment": [
           "PATH",
           "ANDROID_HOME",
@@ -1780,14 +2210,21 @@
         "ordering": [
           "build/locate bundle, locate artifact, inspect package, deploy"
         ],
-        "wire": ["models.DeployResult"],
-        "tests": ["test_cli.py", "test_deployment.py"]
+        "wire": [
+          "models.DeployResult"
+        ],
+        "tests": [
+          "test_cli.py",
+          "test_deployment.py"
+        ]
       }
     },
     {
       "id": "monitor",
       "entry": "apk-lab",
-      "path": ["monitor"],
+      "path": [
+        "monitor"
+      ],
       "handler": "handle_monitor",
       "aliases": null,
       "required": null,
@@ -1795,7 +2232,9 @@
       "subcommandsRequired": null,
       "options": [
         {
-          "names": ["--package"],
+          "names": [
+            "--package"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
@@ -1809,7 +2248,9 @@
           "mutex": null
         },
         {
-          "names": ["--device"],
+          "names": [
+            "--device"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
@@ -1823,7 +2264,9 @@
           "mutex": null
         },
         {
-          "names": ["--timeout"],
+          "names": [
+            "--timeout"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
@@ -1837,7 +2280,9 @@
           "mutex": null
         },
         {
-          "names": ["--dump-threads"],
+          "names": [
+            "--dump-threads"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
@@ -1853,26 +2298,45 @@
       ],
       "mutexGroups": [],
       "behavior": {
-        "stdout": ["runtime health report from device.run_monitor"],
-        "stderr": ["Monitor error: <detail>"],
-        "exitCodes": [0, 2, 4, 5],
+        "stdout": [
+          "runtime health report from device.run_monitor"
+        ],
+        "stderr": [
+          "Monitor error: <detail>"
+        ],
+        "exitCodes": [
+          0,
+          2,
+          4,
+          5
+        ],
         "environment": [
           "ANDROID_HOME",
           "ANDROID_SDK_ROOT",
           "ANDROID_SERIAL",
           "PATH"
         ],
-        "filesystem": ["temporary thread dump/log files when requested"],
-        "sideEffects": ["read-only adb polling; optional thread dumps"],
-        "ordering": ["samples chronological; timeout terminates monitoring"],
+        "filesystem": [
+          "temporary thread dump/log files when requested"
+        ],
+        "sideEffects": [
+          "read-only adb polling; optional thread dumps"
+        ],
+        "ordering": [
+          "samples chronological; timeout terminates monitoring"
+        ],
         "wire": [],
-        "tests": ["test_device.py"]
+        "tests": [
+          "test_device.py"
+        ]
       }
     },
     {
       "id": "crash-trace",
       "entry": "apk-lab",
-      "path": ["crash-trace"],
+      "path": [
+        "crash-trace"
+      ],
       "handler": "handle_crash_trace",
       "aliases": null,
       "required": null,
@@ -1880,7 +2344,9 @@
       "subcommandsRequired": null,
       "options": [
         {
-          "names": ["--package"],
+          "names": [
+            "--package"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
@@ -1894,7 +2360,9 @@
           "mutex": null
         },
         {
-          "names": ["--device"],
+          "names": [
+            "--device"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
@@ -1908,7 +2376,9 @@
           "mutex": null
         },
         {
-          "names": ["--lines"],
+          "names": [
+            "--lines"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
@@ -1922,7 +2392,9 @@
           "mutex": null
         },
         {
-          "names": ["--json"],
+          "names": [
+            "--json"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
@@ -1943,27 +2415,43 @@
           "Process/PID/Timestamp/Exception/Message/Stack trace blocks",
           "JSON array when --json"
         ],
-        "stderr": ["Crash trace error: <detail>"],
-        "exitCodes": [0, 4],
+        "stderr": [
+          "Crash trace error: <detail>"
+        ],
+        "exitCodes": [
+          0,
+          4
+        ],
         "environment": [
           "ANDROID_HOME",
           "ANDROID_SDK_ROOT",
           "ANDROID_SERIAL",
           "PATH"
         ],
-        "filesystem": ["reads workspace smali dirs for resolution"],
-        "sideEffects": ["read-only logcat/dumpsys access"],
+        "filesystem": [
+          "reads workspace smali dirs for resolution"
+        ],
+        "sideEffects": [
+          "read-only logcat/dumpsys access"
+        ],
         "ordering": [
           "reports newest-last in logcat order; frames in stack order"
         ],
-        "wire": ["device.CrashReport", "device.ResolvedFrame"],
-        "tests": ["test_device.py"]
+        "wire": [
+          "device.CrashReport",
+          "device.ResolvedFrame"
+        ],
+        "tests": [
+          "test_device.py"
+        ]
       }
     },
     {
       "id": "inspect-code",
       "entry": "apk-lab",
-      "path": ["inspect-code"],
+      "path": [
+        "inspect-code"
+      ],
       "handler": "handle_inspect_code",
       "aliases": null,
       "required": null,
@@ -1973,7 +2461,9 @@
         {
           "names": [],
           "positional": "artifact",
-          "positionals": ["artifact"],
+          "positionals": [
+            "artifact"
+          ],
           "dest": null,
           "action": "store",
           "choices": null,
@@ -1985,7 +2475,9 @@
           "mutex": null
         },
         {
-          "names": ["--class"],
+          "names": [
+            "--class"
+          ],
           "positional": null,
           "positionals": [],
           "dest": "class_name",
@@ -1999,7 +2491,9 @@
           "mutex": null
         },
         {
-          "names": ["--method"],
+          "names": [
+            "--method"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
@@ -2013,12 +2507,17 @@
           "mutex": null
         },
         {
-          "names": ["--format"],
+          "names": [
+            "--format"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
           "action": "store",
-          "choices": ["smali", "java"],
+          "choices": [
+            "smali",
+            "java"
+          ],
           "default": "smali",
           "required": null,
           "nargs": null,
@@ -2027,7 +2526,9 @@
           "mutex": null
         },
         {
-          "names": ["--compare"],
+          "names": [
+            "--compare"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
@@ -2052,21 +2553,39 @@
           "Inspection error: <detail>",
           "Archive security error: <detail>"
         ],
-        "exitCodes": [0, 2, 3, 4],
-        "environment": ["PATH", "ANDROID_HOME", "ANDROID_SDK_ROOT"],
-        "filesystem": ["temporary extraction of class sources"],
-        "sideEffects": ["decompiles with JADX/baksmali as needed"],
+        "exitCodes": [
+          0,
+          2,
+          3,
+          4
+        ],
+        "environment": [
+          "PATH",
+          "ANDROID_HOME",
+          "ANDROID_SDK_ROOT"
+        ],
+        "filesystem": [
+          "temporary extraction of class sources"
+        ],
+        "sideEffects": [
+          "decompiles with JADX/baksmali as needed"
+        ],
         "ordering": [
           "methods in declaration order; diff hunks ordered by source"
         ],
         "wire": [],
-        "tests": ["test_code_inspection.py", "test_cli.py"]
+        "tests": [
+          "test_code_inspection.py",
+          "test_cli.py"
+        ]
       }
     },
     {
       "id": "validate-smali",
       "entry": "apk-lab",
-      "path": ["validate-smali"],
+      "path": [
+        "validate-smali"
+      ],
       "handler": "handle_validate_smali",
       "aliases": null,
       "required": null,
@@ -2074,7 +2593,9 @@
       "subcommandsRequired": null,
       "options": [
         {
-          "names": ["--snippet"],
+          "names": [
+            "--snippet"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
@@ -2088,7 +2609,9 @@
           "mutex": null
         },
         {
-          "names": ["--locals"],
+          "names": [
+            "--locals"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
@@ -2102,7 +2625,9 @@
           "mutex": null
         },
         {
-          "names": ["--params"],
+          "names": [
+            "--params"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
@@ -2116,7 +2641,9 @@
           "mutex": null
         },
         {
-          "names": ["--descriptor"],
+          "names": [
+            "--descriptor"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
@@ -2130,7 +2657,9 @@
           "mutex": null
         },
         {
-          "names": ["--is-static"],
+          "names": [
+            "--is-static"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
@@ -2146,21 +2675,41 @@
       ],
       "mutexGroups": [],
       "behavior": {
-        "stdout": ["validation report: errors/warnings/info and exit status"],
-        "stderr": ["Smali validation error: <detail>"],
-        "exitCodes": [0, 2, 4],
-        "environment": ["PATH"],
-        "filesystem": ["temporary snippet files"],
-        "sideEffects": ["runs assembler oracle when available"],
-        "ordering": ["diagnostics ordered by source line"],
+        "stdout": [
+          "validation report: errors/warnings/info and exit status"
+        ],
+        "stderr": [
+          "Smali validation error: <detail>"
+        ],
+        "exitCodes": [
+          0,
+          2,
+          4
+        ],
+        "environment": [
+          "PATH"
+        ],
+        "filesystem": [
+          "temporary snippet files"
+        ],
+        "sideEffects": [
+          "runs assembler oracle when available"
+        ],
+        "ordering": [
+          "diagnostics ordered by source line"
+        ],
         "wire": [],
-        "tests": ["test_smali.py"]
+        "tests": [
+          "test_smali.py"
+        ]
       }
     },
     {
       "id": "res",
       "entry": "apk-lab",
-      "path": ["res"],
+      "path": [
+        "res"
+      ],
       "handler": "handle_res",
       "aliases": null,
       "required": null,
@@ -2170,7 +2719,9 @@
         {
           "names": [],
           "positional": "artifact",
-          "positionals": ["artifact"],
+          "positionals": [
+            "artifact"
+          ],
           "dest": null,
           "action": "store",
           "choices": null,
@@ -2182,7 +2733,10 @@
           "mutex": null
         },
         {
-          "names": ["--query", "-q"],
+          "names": [
+            "--query",
+            "-q"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
@@ -2196,7 +2750,10 @@
           "mutex": null
         },
         {
-          "names": ["--text", "--value"],
+          "names": [
+            "--text",
+            "--value"
+          ],
           "positional": null,
           "positionals": [],
           "dest": "text",
@@ -2210,7 +2767,9 @@
           "mutex": null
         },
         {
-          "names": ["--extract"],
+          "names": [
+            "--extract"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
@@ -2238,21 +2797,43 @@
           "Inspection error: <detail>",
           "Archive security error: <detail>"
         ],
-        "exitCodes": [0, 2, 3, 4],
-        "environment": ["PATH", "ANDROID_HOME", "ANDROID_SDK_ROOT"],
-        "filesystem": ["--extract output dir", "temporary aapt2/arsc work"],
-        "sideEffects": ["extracts matched files when requested"],
+        "exitCodes": [
+          0,
+          2,
+          3,
+          4
+        ],
+        "environment": [
+          "PATH",
+          "ANDROID_HOME",
+          "ANDROID_SDK_ROOT"
+        ],
+        "filesystem": [
+          "--extract output dir",
+          "temporary aapt2/arsc work"
+        ],
+        "sideEffects": [
+          "extracts matched files when requested"
+        ],
         "ordering": [
           "matches in split/resource dump order; duplicate status per match"
         ],
-        "wire": ["models.ResourceQueryReport", "models.ResourceMatch"],
-        "tests": ["test_resources.py", "test_cli.py"]
+        "wire": [
+          "models.ResourceQueryReport",
+          "models.ResourceMatch"
+        ],
+        "tests": [
+          "test_resources.py",
+          "test_cli.py"
+        ]
       }
     },
     {
       "id": "play-accounts",
       "entry": "apk-lab",
-      "path": ["play-accounts"],
+      "path": [
+        "play-accounts"
+      ],
       "handler": "run_play_accounts_tui",
       "aliases": null,
       "required": null,
@@ -2261,9 +2842,17 @@
       "options": [],
       "mutexGroups": [],
       "behavior": {
-        "stdout": ["interactive TUI; redacted account rows and confirmations"],
-        "stderr": ["account/TUI errors with redacted emails/tokens"],
-        "exitCodes": [0, 2, 4],
+        "stdout": [
+          "interactive TUI; redacted account rows and confirmations"
+        ],
+        "stderr": [
+          "account/TUI errors with redacted emails/tokens"
+        ],
+        "exitCodes": [
+          0,
+          2,
+          4
+        ],
         "environment": [
           "APKEEP_ACCOUNTS",
           "APKEEP_ACCOUNTS_FILE",
@@ -2278,15 +2867,22 @@
         "sideEffects": [
           "may save accounts, sync GitHub secret, exchange OAuth for AAS token"
         ],
-        "ordering": ["accounts in stored order; interactive navigation"],
+        "ordering": [
+          "accounts in stored order; interactive navigation"
+        ],
         "wire": [],
-        "tests": ["test_play_accounts_tui.py", "test_google_play_accounts.py"]
+        "tests": [
+          "test_play_accounts_tui.py",
+          "test_google_play_accounts.py"
+        ]
       }
     },
     {
       "id": "strings",
       "entry": "apk-lab",
-      "path": ["strings"],
+      "path": [
+        "strings"
+      ],
       "handler": "handle_strings",
       "aliases": null,
       "required": null,
@@ -2296,7 +2892,9 @@
         {
           "names": [],
           "positional": "artifact",
-          "positionals": ["artifact"],
+          "positionals": [
+            "artifact"
+          ],
           "dest": null,
           "action": "store",
           "choices": null,
@@ -2308,7 +2906,10 @@
           "mutex": null
         },
         {
-          "names": ["-q", "--query"],
+          "names": [
+            "-q",
+            "--query"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
@@ -2322,7 +2923,9 @@
           "mutex": null
         },
         {
-          "names": ["--dex"],
+          "names": [
+            "--dex"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
@@ -2336,7 +2939,10 @@
           "mutex": null
         },
         {
-          "names": ["-i", "--ignore-case"],
+          "names": [
+            "-i",
+            "--ignore-case"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
@@ -2350,7 +2956,10 @@
           "mutex": null
         },
         {
-          "names": ["-s", "--case-sensitive"],
+          "names": [
+            "-s",
+            "--case-sensitive"
+          ],
           "positional": null,
           "positionals": [],
           "dest": "ignore_case",
@@ -2364,7 +2973,9 @@
           "mutex": null
         },
         {
-          "names": ["--json"],
+          "names": [
+            "--json"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
@@ -2380,26 +2991,45 @@
       ],
       "mutexGroups": [],
       "behavior": {
-        "stdout": ["[<split>:<dex>] <string>", "JSON array when --json"],
-        "stderr": ["Strings search error: <detail>"],
-        "exitCodes": [0, 4],
-        "environment": ["PATH", "ANDROID_HOME"],
+        "stdout": [
+          "[<split>:<dex>] <string>",
+          "JSON array when --json"
+        ],
+        "stderr": [
+          "Strings search error: <detail>"
+        ],
+        "exitCodes": [
+          0,
+          4
+        ],
+        "environment": [
+          "PATH",
+          "ANDROID_HOME"
+        ],
         "filesystem": [
           "reads artifact; writes --json file",
           "may materialize splits"
         ],
-        "sideEffects": ["read-only DEX extraction"],
+        "sideEffects": [
+          "read-only DEX extraction"
+        ],
         "ordering": [
           "split order, DEX order, string pool order; regex filter preserves order"
         ],
-        "wire": ["cli.handle_strings"],
-        "tests": ["test_dex_strings.py"]
+        "wire": [
+          "cli.handle_strings"
+        ],
+        "tests": [
+          "test_dex_strings.py"
+        ]
       }
     },
     {
       "id": "manifest",
       "entry": "apk-lab",
-      "path": ["manifest"],
+      "path": [
+        "manifest"
+      ],
       "handler": "handle_manifest",
       "aliases": null,
       "required": null,
@@ -2409,7 +3039,9 @@
         {
           "names": [],
           "positional": "artifact",
-          "positionals": ["artifact"],
+          "positionals": [
+            "artifact"
+          ],
           "dest": null,
           "action": "store",
           "choices": null,
@@ -2421,12 +3053,19 @@
           "mutex": null
         },
         {
-          "names": ["--type"],
+          "names": [
+            "--type"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
           "action": "store",
-          "choices": ["activity", "service", "receiver", "provider"],
+          "choices": [
+            "activity",
+            "service",
+            "receiver",
+            "provider"
+          ],
           "default": null,
           "required": null,
           "nargs": null,
@@ -2435,7 +3074,9 @@
           "mutex": null
         },
         {
-          "names": ["--filter"],
+          "names": [
+            "--filter"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
@@ -2449,7 +3090,9 @@
           "mutex": null
         },
         {
-          "names": ["--json"],
+          "names": [
+            "--json"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
@@ -2469,23 +3112,42 @@
           "[ACTIVITY|SERVICE|RECEIVER|PROVIDER] <name>[ [exported=...]][ (actions: ...)]",
           "JSON array when --json"
         ],
-        "stderr": ["Manifest inspection error: <detail>"],
-        "exitCodes": [0, 4],
-        "environment": ["PATH", "ANDROID_HOME", "ANDROID_SDK_ROOT"],
-        "filesystem": ["reads artifact; writes --json file"],
-        "sideEffects": ["read-only manifest extraction"],
-        "ordering": ["components in manifest declaration order"],
+        "stderr": [
+          "Manifest inspection error: <detail>"
+        ],
+        "exitCodes": [
+          0,
+          4
+        ],
+        "environment": [
+          "PATH",
+          "ANDROID_HOME",
+          "ANDROID_SDK_ROOT"
+        ],
+        "filesystem": [
+          "reads artifact; writes --json file"
+        ],
+        "sideEffects": [
+          "read-only manifest extraction"
+        ],
+        "ordering": [
+          "components in manifest declaration order"
+        ],
         "wire": [
           "cli.handle_manifest",
           "manifest_inspection.ManifestComponent"
         ],
-        "tests": ["test_manifest_inspection.py"]
+        "tests": [
+          "test_manifest_inspection.py"
+        ]
       }
     },
     {
       "id": "ui",
       "entry": "apk-lab",
-      "path": ["ui"],
+      "path": [
+        "ui"
+      ],
       "handler": null,
       "aliases": null,
       "required": null,
@@ -2496,19 +3158,31 @@
       "behavior": {
         "stdout": [],
         "stderr": [],
-        "exitCodes": [0, 2],
+        "exitCodes": [
+          0,
+          2
+        ],
         "environment": [],
         "filesystem": [],
-        "sideEffects": ["delegates to dump/click; subcommand required"],
-        "ordering": ["subcommand dispatch only"],
+        "sideEffects": [
+          "delegates to dump/click; subcommand required"
+        ],
+        "ordering": [
+          "subcommand dispatch only"
+        ],
         "wire": [],
-        "tests": ["test_device.py"]
+        "tests": [
+          "test_device.py"
+        ]
       }
     },
     {
       "id": "ui dump",
       "entry": "apk-lab",
-      "path": ["ui", "dump"],
+      "path": [
+        "ui",
+        "dump"
+      ],
       "handler": "handle_ui_dump",
       "aliases": null,
       "required": null,
@@ -2516,7 +3190,9 @@
       "subcommandsRequired": null,
       "options": [
         {
-          "names": ["--device"],
+          "names": [
+            "--device"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
@@ -2530,7 +3206,9 @@
           "mutex": null
         },
         {
-          "names": ["--clickable"],
+          "names": [
+            "--clickable"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
@@ -2544,7 +3222,9 @@
           "mutex": null
         },
         {
-          "names": ["--text"],
+          "names": [
+            "--text"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
@@ -2558,7 +3238,9 @@
           "mutex": null
         },
         {
-          "names": ["--desc"],
+          "names": [
+            "--desc"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
@@ -2572,7 +3254,9 @@
           "mutex": null
         },
         {
-          "names": ["--json"],
+          "names": [
+            "--json"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
@@ -2592,25 +3276,43 @@
           "<class> center=(x, y) bounds=(l, t, r, b)[ [clickable]] text/desc/id attributes",
           "JSON array when --json"
         ],
-        "stderr": ["Error dumping UI hierarchy: <detail>"],
-        "exitCodes": [0, 2],
+        "stderr": [
+          "Error dumping UI hierarchy: <detail>"
+        ],
+        "exitCodes": [
+          0,
+          2
+        ],
         "environment": [
           "ANDROID_HOME",
           "ANDROID_SDK_ROOT",
           "ANDROID_SERIAL",
           "PATH"
         ],
-        "filesystem": ["reads uiautomator dump through adb"],
-        "sideEffects": ["read-only device UI dump"],
-        "ordering": ["node traversal order from uiautomator XML"],
-        "wire": ["models.UiNode"],
-        "tests": ["test_device.py"]
+        "filesystem": [
+          "reads uiautomator dump through adb"
+        ],
+        "sideEffects": [
+          "read-only device UI dump"
+        ],
+        "ordering": [
+          "node traversal order from uiautomator XML"
+        ],
+        "wire": [
+          "models.UiNode"
+        ],
+        "tests": [
+          "test_device.py"
+        ]
       }
     },
     {
       "id": "ui click",
       "entry": "apk-lab",
-      "path": ["ui", "click"],
+      "path": [
+        "ui",
+        "click"
+      ],
       "handler": "handle_ui_click",
       "aliases": null,
       "required": null,
@@ -2618,7 +3320,9 @@
       "subcommandsRequired": null,
       "options": [
         {
-          "names": ["--device"],
+          "names": [
+            "--device"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
@@ -2632,7 +3336,9 @@
           "mutex": null
         },
         {
-          "names": ["--text"],
+          "names": [
+            "--text"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
@@ -2646,7 +3352,9 @@
           "mutex": null
         },
         {
-          "names": ["--desc"],
+          "names": [
+            "--desc"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
@@ -2660,7 +3368,9 @@
           "mutex": null
         },
         {
-          "names": ["--coords"],
+          "names": [
+            "--coords"
+          ],
           "positional": null,
           "positionals": [],
           "dest": null,
@@ -2686,20 +3396,29 @@
           "Error: No matching UI node found ...",
           "Error clicking UI node: <detail>"
         ],
-        "exitCodes": [0, 2],
+        "exitCodes": [
+          0,
+          2
+        ],
         "environment": [
           "ANDROID_HOME",
           "ANDROID_SDK_ROOT",
           "ANDROID_SERIAL",
           "PATH"
         ],
-        "filesystem": ["reads UI dump"],
-        "sideEffects": ["adb shell input tap; exactly one tap"],
+        "filesystem": [
+          "reads UI dump"
+        ],
+        "sideEffects": [
+          "adb shell input tap; exactly one tap"
+        ],
         "ordering": [
           "coords branch before text/desc; first matching node clicked"
         ],
         "wire": [],
-        "tests": ["test_device.py"]
+        "tests": [
+          "test_device.py"
+        ]
       }
     }
   ],
@@ -2721,7 +3440,9 @@
       {
         "id": "matrix",
         "entry": "compatibility_ci",
-        "path": ["matrix"],
+        "path": [
+          "matrix"
+        ],
         "handler": null,
         "aliases": null,
         "required": null,
@@ -2729,7 +3450,9 @@
         "subcommandsRequired": null,
         "options": [
           {
-            "names": ["--output-file"],
+            "names": [
+              "--output-file"
+            ],
             "positional": null,
             "positionals": [],
             "dest": null,
@@ -2743,7 +3466,9 @@
             "mutex": null
           },
           {
-            "names": ["--patches-list"],
+            "names": [
+              "--patches-list"
+            ],
             "positional": null,
             "positionals": [],
             "dest": null,
@@ -2757,7 +3482,9 @@
             "mutex": null
           },
           {
-            "names": ["--changed-files"],
+            "names": [
+              "--changed-files"
+            ],
             "positional": null,
             "positionals": [],
             "dest": null,
@@ -2773,9 +3500,16 @@
         ],
         "mutexGroups": [],
         "behavior": {
-          "stdout": ["packages=<json array>"],
-          "stderr": ["Matrix resolution error: <detail>"],
-          "exitCodes": [0, 2],
+          "stdout": [
+            "packages=<json array>"
+          ],
+          "stderr": [
+            "Matrix resolution error: <detail>"
+          ],
+          "exitCodes": [
+            0,
+            2
+          ],
           "environment": [
             "GITHUB_EVENT_NAME",
             "DISPATCH_PACKAGE_NAME",
@@ -2791,15 +3525,21 @@
           "sideEffects": [
             "reads git history; appends GITHUB_OUTPUT when --output-file"
           ],
-          "ordering": ["packages sorted unique"],
+          "ordering": [
+            "packages sorted unique"
+          ],
           "wire": [],
-          "tests": ["test_compatibility_ci.py"]
+          "tests": [
+            "test_compatibility_ci.py"
+          ]
         }
       },
       {
         "id": "start",
         "entry": "compatibility_ci",
-        "path": ["start"],
+        "path": [
+          "start"
+        ],
         "handler": null,
         "aliases": null,
         "required": null,
@@ -2807,7 +3547,9 @@
         "subcommandsRequired": null,
         "options": [
           {
-            "names": ["--package"],
+            "names": [
+              "--package"
+            ],
             "positional": null,
             "positionals": [],
             "dest": null,
@@ -2821,7 +3563,9 @@
             "mutex": null
           },
           {
-            "names": ["--request-id"],
+            "names": [
+              "--request-id"
+            ],
             "positional": null,
             "positionals": [],
             "dest": null,
@@ -2835,7 +3579,9 @@
             "mutex": null
           },
           {
-            "names": ["--git-revision"],
+            "names": [
+              "--git-revision"
+            ],
             "positional": null,
             "positionals": [],
             "dest": null,
@@ -2849,7 +3595,9 @@
             "mutex": null
           },
           {
-            "names": ["--patches-list"],
+            "names": [
+              "--patches-list"
+            ],
             "positional": null,
             "positionals": [],
             "dest": null,
@@ -2865,13 +3613,19 @@
         ],
         "mutexGroups": [],
         "behavior": {
-          "stdout": ["Registered run start for <pkg>: HTTP <code>"],
+          "stdout": [
+            "Registered run start for <pkg>: HTTP <code>"
+          ],
           "stderr": [
             "Missing COMPATIBILITY_STATUS_SECRET; cannot post run start.",
             "Worker rejected run start with HTTP <code>",
             "Failed to post run start to Worker: <detail>"
           ],
-          "exitCodes": [0, 2, 4],
+          "exitCodes": [
+            0,
+            2,
+            4
+          ],
           "environment": [
             "COMPATIBILITY_STATUS_SECRET",
             "WORKER_STATUS_URL",
@@ -2879,17 +3633,29 @@
             "GITHUB_REPOSITORY",
             "GITHUB_RUN_ID"
           ],
-          "filesystem": ["--patches-list"],
-          "sideEffects": ["POST /api/compatibility-runs (network write)"],
-          "ordering": ["auth check before network"],
-          "wire": ["compatibility_ci.main"],
-          "tests": ["test_compatibility_ci.py"]
+          "filesystem": [
+            "--patches-list"
+          ],
+          "sideEffects": [
+            "POST /api/compatibility-runs (network write)"
+          ],
+          "ordering": [
+            "auth check before network"
+          ],
+          "wire": [
+            "compatibility_ci.main"
+          ],
+          "tests": [
+            "test_compatibility_ci.py"
+          ]
         }
       },
       {
         "id": "run",
         "entry": "compatibility_ci",
-        "path": ["run"],
+        "path": [
+          "run"
+        ],
         "handler": null,
         "aliases": null,
         "required": null,
@@ -2897,7 +3663,9 @@
         "subcommandsRequired": null,
         "options": [
           {
-            "names": ["--package"],
+            "names": [
+              "--package"
+            ],
             "positional": null,
             "positionals": [],
             "dest": null,
@@ -2911,7 +3679,9 @@
             "mutex": null
           },
           {
-            "names": ["--mpp"],
+            "names": [
+              "--mpp"
+            ],
             "positional": null,
             "positionals": [],
             "dest": null,
@@ -2925,7 +3695,9 @@
             "mutex": null
           },
           {
-            "names": ["--patches-list"],
+            "names": [
+              "--patches-list"
+            ],
             "positional": null,
             "positionals": [],
             "dest": null,
@@ -2952,7 +3724,13 @@
             "R2/acquisition/compatibility error lines",
             "Failed to post results to worker: <detail>"
           ],
-          "exitCodes": [0, 1, 2, 3, 4],
+          "exitCodes": [
+            0,
+            1,
+            2,
+            3,
+            4
+          ],
           "environment": [
             "GITHUB_EVENT_NAME",
             "DISPATCH_EXPECTED_ROLES",
@@ -2984,7 +3762,9 @@
             "compatibility_ci.build_result_item",
             "compatibility_ci.build_error_result"
           ],
-          "tests": ["test_compatibility_ci.py"]
+          "tests": [
+            "test_compatibility_ci.py"
+          ]
         }
       }
     ]
@@ -3012,7 +3792,9 @@
   "consumers": [
     {
       "path": ".agents/skills/apk-lab/SKILL.md",
-      "interfaces": ["apk_lab"],
+      "interfaces": [
+        "apk_lab"
+      ],
       "classification": "documented-python-api",
       "supported": true,
       "notes": "Skill instructions reference apk-lab CLI and module usage."
@@ -3032,14 +3814,21 @@
     },
     {
       "path": ".agents/skills/apk-lab/references/device-testing.md",
-      "interfaces": ["apk_lab.deployment", "apk_lab.device", "apk_lab.tools"],
+      "interfaces": [
+        "apk_lab.deployment",
+        "apk_lab.device",
+        "apk_lab.tools"
+      ],
       "classification": "documented-python-api",
       "supported": true,
       "notes": "Documents device/deployment imports."
     },
     {
       "path": ".agents/skills/apk-lab/references/fixtures-acquisition.md",
-      "interfaces": ["apk_lab.acquisition", "apk_lab.fixtures"],
+      "interfaces": [
+        "apk_lab.acquisition",
+        "apk_lab.fixtures"
+      ],
       "classification": "documented-python-api",
       "supported": true,
       "notes": "Documents acquisition/fixture imports."
@@ -3083,87 +3872,203 @@
     },
     {
       "path": ".agents/skills/apk-lab/references/toolchain.md",
-      "interfaces": ["apk_lab.tools", "apk_lab.workspace"],
+      "interfaces": [
+        "apk_lab.tools",
+        "apk_lab.workspace"
+      ],
       "classification": "documented-python-api",
       "supported": true,
       "notes": "Documents tools/workspace imports."
     },
     {
       "path": ".github/workflows/apk-compatibility.yml",
-      "interfaces": ["apk_lab.compatibility_ci"],
+      "interfaces": [
+        "apk_lab.compatibility_ci"
+      ],
       "classification": "ci-entrypoint",
       "supported": true,
       "notes": "Runs python -m apk_lab.compatibility_ci matrix/start/run and apk-lab setup/doctor."
     },
     {
       "path": "AGENTS.md",
-      "interfaces": ["apk_lab"],
+      "interfaces": [
+        "apk_lab"
+      ],
       "classification": "repository-documentation",
       "supported": true,
       "notes": "Repository guide maps the CLI/source layout."
     },
     {
       "path": "docs/benchmarks/apk-lab/provenance.requirements.json",
-      "interfaces": ["apk_lab"],
+      "interfaces": [
+        "apk_lab"
+      ],
       "classification": "benchmark-schema",
       "supported": true,
       "notes": "Benchmark provenance requirements describe the pinned Python oracle revision and environment."
     },
     {
       "path": "docs/benchmarks/apk-lab/schema.manifest.v1.json",
-      "interfaces": ["apk_lab.cli"],
+      "interfaces": [
+        "apk_lab.cli"
+      ],
       "classification": "benchmark-schema",
       "supported": true,
       "notes": "Benchmark workload manifest schema permits executing the Python oracle via python -B -m apk_lab.cli."
     },
     {
       "path": "scripts/audit.ts",
-      "interfaces": ["apk_lab"],
+      "interfaces": [
+        "apk_lab"
+      ],
       "classification": "repo-tooling-path",
       "supported": false,
       "notes": "Audit tooling excludes the package directory; path coupling only."
     },
     {
       "path": "scripts/dependencies/inventory.ts",
-      "interfaces": ["apk_lab"],
+      "interfaces": [
+        "apk_lab"
+      ],
       "classification": "repo-tooling-path",
       "supported": false,
       "notes": "Dependency inventory reads tools/apk-lab/apk_lab/inspection.py; path coupling only."
     },
     {
       "path": "tools/apk-lab/AGENTS.md",
-      "interfaces": ["apk_lab"],
+      "interfaces": [
+        "apk_lab"
+      ],
       "classification": "repository-documentation",
       "supported": true,
       "notes": "Package architecture/commands/testing guidance."
     },
     {
       "path": "tools/apk-lab/Cargo.toml",
-      "interfaces": ["apk_lab"],
+      "interfaces": [
+        "apk_lab"
+      ],
       "classification": "native-host-crate",
       "supported": true,
       "notes": "Declares the native apk_lab library target; references the Rust crate, not the Python package."
     },
     {
       "path": "tools/apk-lab/src/bin/apk-lab-migrate.rs",
-      "interfaces": ["apk_lab"],
+      "interfaces": [
+        "apk_lab"
+      ],
       "classification": "native-host-crate",
       "supported": true,
       "notes": "Migration binary calls the native apk_lab library; not a Python API consumer."
     },
     {
       "path": "tools/apk-lab/src/bin/apk-lab.rs",
-      "interfaces": ["apk_lab"],
+      "interfaces": [
+        "apk_lab"
+      ],
       "classification": "native-host-crate",
       "supported": true,
       "notes": "Native CLI binary calls the native apk_lab library; not a Python API consumer."
     },
     {
       "path": "tools/apk-lab/pyproject.toml",
-      "interfaces": ["apk_lab", "apk_lab.cli"],
+      "interfaces": [
+        "apk_lab",
+        "apk_lab.cli"
+      ],
       "classification": "packaging-entrypoint",
       "supported": true,
       "notes": "Declares console script apk-lab = apk_lab.cli:main."
+    },
+    {
+      "path": "tools/apk-lab/src/asm.rs",
+      "interfaces": [
+        "apk_lab.asm"
+      ],
+      "classification": "native-rust-port",
+      "supported": true,
+      "notes": "Native ARM64 branch/immediate assembly port."
+    },
+    {
+      "path": "tools/apk-lab/src/dex_strings.rs",
+      "interfaces": [
+        "apk_lab.dex_strings.extract_strings_from_dex_bytes"
+      ],
+      "classification": "native-rust-port",
+      "supported": true,
+      "notes": "Native DEX string-table port."
+    },
+    {
+      "path": "tools/apk-lab/src/unity.rs",
+      "interfaces": [
+        "apk_lab.unity"
+      ],
+      "classification": "native-rust-port",
+      "supported": true,
+      "notes": "Native Unity target-name scanner port."
+    },
+    {
+      "path": "tools/apk-lab/src/il2cpp.rs",
+      "interfaces": [
+        "apk_lab.il2cpp"
+      ],
+      "classification": "native-rust-port",
+      "supported": true,
+      "notes": "Native IL2CPP metadata query port."
+    },
+    {
+      "path": "tools/apk-lab/src/smali.rs",
+      "interfaces": [
+        "apk_lab.smali"
+      ],
+      "classification": "native-rust-port",
+      "supported": true,
+      "notes": "Native static Smali validation port."
+    },
+    {
+      "path": "tools/apk-lab/src/resources.rs",
+      "interfaces": [
+        "apk_lab.resources"
+      ],
+      "classification": "native-rust-port",
+      "supported": true,
+      "notes": "Native resource query/extraction port."
+    },
+    {
+      "path": "tools/apk-lab/src/manifest.rs",
+      "interfaces": [
+        "apk_lab.manifest_inspection"
+      ],
+      "classification": "native-rust-port",
+      "supported": true,
+      "notes": "Native manifest component query port."
+    },
+    {
+      "path": "tools/apk-lab/src/comparison.rs",
+      "interfaces": [
+        "apk_lab.comparison"
+      ],
+      "classification": "native-rust-port",
+      "supported": true,
+      "notes": "Native artifact comparison port."
+    },
+    {
+      "path": "tools/apk-lab/src/code_inspection.rs",
+      "interfaces": [
+        "apk_lab.code_inspection"
+      ],
+      "classification": "native-rust-port",
+      "supported": true,
+      "notes": "Native code inspection/diff port."
+    },
+    {
+      "path": "tools/apk-lab/src/analysis.rs",
+      "interfaces": [
+        "apk_lab.cli.analyze"
+      ],
+      "classification": "native-rust-port",
+      "supported": true,
+      "notes": "Native managed analysis orchestration port."
     }
   ],
   "wireSchemas": [
@@ -3365,7 +4270,12 @@
       "id": "models.ResourceQueryReport",
       "source": "tools/apk-lab/apk_lab/models.py",
       "kind": "to_dict",
-      "fields": ["query", "matches", "extractedPaths", "warnings"],
+      "fields": [
+        "query",
+        "matches",
+        "extractedPaths",
+        "warnings"
+      ],
       "serialization": {
         "indent": 2,
         "sortKeys": true,
@@ -3399,7 +4309,11 @@
       "id": "cli.handle_strings",
       "source": "tools/apk-lab/apk_lab/cli.py",
       "kind": "string_keys",
-      "fields": ["split", "dex", "string"],
+      "fields": [
+        "split",
+        "dex",
+        "string"
+      ],
       "serialization": {
         "indent": 2,
         "sortKeys": false,
@@ -3580,7 +4494,11 @@
       "id": "dex_strings.DexStringMatch",
       "source": "tools/apk-lab/apk_lab/dex_strings.py",
       "kind": "dataclass_fields",
-      "fields": ["split", "dex_name", "string"],
+      "fields": [
+        "split",
+        "dex_name",
+        "string"
+      ],
       "serialization": {
         "indent": 2,
         "sortKeys": false,
@@ -3596,7 +4514,10 @@
       "function": "get_installed_package_signature",
       "op": "search",
       "pattern": "(?:signatures\\s*=|signatures:|PackageSignatures).*?(?=\\n\\s*[A-Za-z0-9_-]+[:=]|\\Z)",
-      "pythonOnlyFeatures": ["lookahead", "end-of-string-Z"],
+      "pythonOnlyFeatures": [
+        "lookahead",
+        "end-of-string-Z"
+      ],
       "behavior": "Python lookahead and end-of-string anchor \\Z. Rust regex crate rejects both; the candidate must emulate the section split without lookaround or use a compatible engine.",
       "destination": "device package-signature parsing used by deploy/check"
     },
@@ -3605,7 +4526,9 @@
       "function": "parse_exit_info_records",
       "op": "split",
       "pattern": "(?=ApplicationExitInfo\\s+#\\d+:)",
-      "pythonOnlyFeatures": ["lookahead"],
+      "pythonOnlyFeatures": [
+        "lookahead"
+      ],
       "behavior": "Python lookahead split. Rust regex split without lookaround yields different delimiters; candidate must scan block starts explicitly.",
       "destination": "device ApplicationExitInfo parsing"
     }
@@ -3627,21 +4550,31 @@
       "id": "user-regex-il2cpp",
       "surface": "il2cpp --query",
       "source": "tools/apk-lab/apk_lab/il2cpp.py",
-      "pythonOnlySemantics": ["lookaround", "backreference", "inline flags"],
+      "pythonOnlySemantics": [
+        "lookaround",
+        "backreference",
+        "inline flags"
+      ],
       "behavior": "Falls back from regex to literal substring when compilation or matching fails."
     },
     {
       "id": "user-regex-manifest-filter",
       "surface": "manifest --filter",
       "source": "tools/apk-lab/apk_lab/cli.py",
-      "pythonOnlySemantics": ["lookaround", "backreference", "inline flags"],
+      "pythonOnlySemantics": [
+        "lookaround",
+        "backreference",
+        "inline flags"
+      ],
       "behavior": "re.compile with re.IGNORECASE; invalid regex surfaces as Manifest inspection error."
     },
     {
       "id": "dynamic-package-guard",
       "surface": "monitor package frame matching",
       "source": "tools/apk-lab/apk_lab/device.py",
-      "pythonOnlySemantics": ["negative-lookbehind"],
+      "pythonOnlySemantics": [
+        "negative-lookbehind"
+      ],
       "behavior": "rf pattern wraps re.escape(package) in (?<![A-Za-z0-9_.]) ... (?![A-Za-z0-9_.]); dynamic pattern is intentionally excluded from static discovery."
     }
   ],
@@ -3707,7 +4640,10 @@
           "docs/benchmarks/apk-lab/preflight-icons-linux.json"
         ],
         "casesPerHost": 37,
-        "hosts": ["macos/aarch64", "linux/x86_64 (local OrbStack container)"],
+        "hosts": [
+          "macos/aarch64",
+          "linux/x86_64 (local OrbStack container)"
+        ],
         "differingRgbaBytes": 0,
         "nativeImageTests": 16,
         "noOpTests": [
@@ -3725,7 +4661,9 @@
       "baselineRewrite": false,
       "sourcePlan": "plans/001-freeze-contracts-and-benchmarks.md",
       "scope": "Focused Python correction to stdout shutdown-flush handling so a consumer-closed stdout pipe yields real process exit 0 while preserving the existing BrokenPipeError-to-SUCCESS behavior. No other Python behavior, output, or contract is relaxed, and capture still requires expected processExit 0.",
-      "appliesTo": ["001-freeze-contracts-and-benchmarks"],
+      "appliesTo": [
+        "001-freeze-contracts-and-benchmarks"
+      ],
       "approval": "User explicitly approved option fix_python on 2026-11-20: apply the narrow Python correction and a regression test so the real process exits 0, then resume plan 001. Contract revision to accept exit 120 was not approved.",
       "preCorrectionEvidence": {
         "case": "broken-pipe-success",
@@ -3866,7 +4804,10 @@
       },
       {
         "path": "tests/test_archives.py",
-        "interfaces": ["apk_lab.archives", "apk_lab.models"],
+        "interfaces": [
+          "apk_lab.archives",
+          "apk_lab.models"
+        ],
         "tests": [
           {
             "name": "test_compute_zip_member_sha256_by_name",
@@ -3968,7 +4909,11 @@
       },
       {
         "path": "tests/test_asm.py",
-        "interfaces": ["apk_lab.asm", "apk_lab.cli", "apk_lab.models"],
+        "interfaces": [
+          "apk_lab.asm",
+          "apk_lab.cli",
+          "apk_lab.models"
+        ],
         "tests": [
           {
             "name": "test_encode_branch_forward_and_backward",
@@ -4898,7 +5843,9 @@
       },
       {
         "path": "tests/test_google_play_accounts.py",
-        "interfaces": ["apk_lab.google_play_accounts"],
+        "interfaces": [
+          "apk_lab.google_play_accounts"
+        ],
         "tests": [
           {
             "name": "test_valid_schema_and_ordering",
@@ -4970,7 +5917,11 @@
       },
       {
         "path": "tests/test_il2cpp.py",
-        "interfaces": ["apk_lab.cli", "apk_lab.il2cpp", "apk_lab.models"],
+        "interfaces": [
+          "apk_lab.cli",
+          "apk_lab.il2cpp",
+          "apk_lab.models"
+        ],
         "tests": [
           {
             "name": "test_il2cpp_metadata_parsing_v29",
@@ -5354,7 +6305,10 @@
       },
       {
         "path": "tests/test_smali.py",
-        "interfaces": ["apk_lab.smali", "apk_lab.tools"],
+        "interfaces": [
+          "apk_lab.smali",
+          "apk_lab.tools"
+        ],
         "tests": [
           {
             "name": "test_register_mapping_instance_vs_static",
@@ -5575,7 +6529,11 @@
       },
       {
         "path": "tests/test_unity.py",
-        "interfaces": ["apk_lab.cli", "apk_lab.models", "apk_lab.unity"],
+        "interfaces": [
+          "apk_lab.cli",
+          "apk_lab.models",
+          "apk_lab.unity"
+        ],
         "tests": [
           {
             "name": "test_find_game_objects_exact_offset",
@@ -5611,7 +6569,9 @@
       },
       {
         "path": "tests/test_workspace.py",
-        "interfaces": ["apk_lab.workspace"],
+        "interfaces": [
+          "apk_lab.workspace"
+        ],
         "tests": [
           {
             "name": "test_deterministic_workspace_ids",

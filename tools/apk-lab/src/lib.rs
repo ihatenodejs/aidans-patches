@@ -9,12 +9,22 @@
 //! default.
 #![recursion_limit = "256"]
 
+pub mod analysis;
 pub mod archives;
+pub mod asm;
 pub mod cli;
+pub mod code_inspection;
+pub mod comparison;
+pub mod dex_strings;
 pub mod error;
+pub mod il2cpp;
 pub mod inspection;
+pub mod manifest;
 pub mod migration;
 pub mod models;
 pub mod process;
+pub mod resources;
+pub mod smali;
 pub mod tools;
+pub mod unity;
 pub mod workspace;
