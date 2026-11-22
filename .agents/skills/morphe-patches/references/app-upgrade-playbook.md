@@ -140,7 +140,7 @@ uv run --project tools/apk-lab apk-lab check \
   --all
 ```
 
-`apk-lab check` generates one default case per selected patch plus one independent inversion per boolean option. It does not test every combination of multiple options and does not exercise string/int options unless supplied.
+`apk-lab check` generates one default case per selected patch plus one independent inversion per boolean option. It does not test every combination of multiple options and does not exercise string/int options unless supplied. Cases run concurrently by default; if a case fails with an archive-level error such as `Failed to find end record`, rerun that case alone and/or with `-j 1` before treating it as a patch regression.
 
 | Stage | Establishes | Does not establish |
 |---|---|---|
