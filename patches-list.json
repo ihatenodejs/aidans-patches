@@ -252,10 +252,10 @@
       ],
       "targets": [
         {
-          "version": "10.21.0",
+          "version": "10.24.0",
           "versionCodes": null,
           "isExperimental": false,
-          "minSdk": 29,
+          "minSdk": 31,
           "description": null
         }
       ],
@@ -271,9 +271,9 @@
         "Unlock Templates"
       ],
       "supportedVersions": [
-        "10.21.0"
+        "10.24.0"
       ],
-      "latestSupportedVersion": "10.21.0"
+      "latestSupportedVersion": "10.24.0"
     },
     {
       "packageName": "com.instructure.candroid",
@@ -1227,10 +1227,10 @@
           ],
           "targets": [
             {
-              "version": "10.21.0",
+              "version": "10.24.0",
               "versionCodes": null,
               "isExperimental": false,
-              "minSdk": 29,
+              "minSdk": 31,
               "description": null
             }
           ]
@@ -1244,15 +1244,6 @@
           "required": false,
           "type": "kotlin.Boolean",
           "default": true,
-          "values": null
-        },
-        {
-          "key": "enableAchievementDebugTap",
-          "title": "Enable Achievement Debug Tap",
-          "description": "Enables the internal Debug.TEST_AWARD tap handler in AchievementActivity to test confetti and cycle achievement states.",
-          "required": false,
-          "type": "kotlin.Boolean",
-          "default": false,
           "values": null
         },
         {
@@ -1283,27 +1274,9 @@
           "values": null
         },
         {
-          "key": "enableCacheDetailsRedesign",
-          "title": "Enable Cache Details Redesign",
-          "description": "Enables the redesigned Geocache Details layout (cache-details-rework).",
-          "required": false,
-          "type": "kotlin.Boolean",
-          "default": true,
-          "values": null
-        },
-        {
-          "key": "showTotalLogCount",
-          "title": "Show Total Log Count",
-          "description": "Shows the total log count in geocache activity and details (show-total-log-count).",
-          "required": false,
-          "type": "kotlin.Boolean",
-          "default": true,
-          "values": null
-        },
-        {
           "key": "enableShareablesInApp",
           "title": "Enable Shareables",
-          "description": "Enables in-app Shareables, filter, and FTUE (show-shareables-in-app, mobile-shareables-filter, mobile-shareables-ftue).",
+          "description": "Enables in-app Shareables and the Shareables filter (show-shareables, mobile-shareables-filter).",
           "required": false,
           "type": "kotlin.Boolean",
           "default": false,
@@ -1312,7 +1285,7 @@
         {
           "key": "enableCollaborativeLists",
           "title": "Enable Collaborative Lists",
-          "description": "Enables the collaborative lists feature in Listhub (collaborative-lists).",
+          "description": "Enables the collaborative lists feature in Listhub (collab-list-release).",
           "required": false,
           "type": "kotlin.Boolean",
           "default": false,
@@ -1321,7 +1294,7 @@
         {
           "key": "enableLodestones",
           "title": "Enable Lodestones",
-          "description": "Enables Lodestone features across the app (show-lodestones-mobile).",
+          "description": "Enables Lodestone features across the app (show-lodestones-mobile, show-lodestone-mobile-finders).",
           "required": false,
           "type": "kotlin.Boolean",
           "default": false,
@@ -1337,36 +1310,9 @@
           "values": null
         },
         {
-          "key": "enableBetterEventsFilter",
-          "title": "Enable Better Events Filter",
-          "description": "Enables Better Events filter, map, and AR attribute (better-events-filter, better-events-map, show-ar-attribute-in-filter).",
-          "required": false,
-          "type": "kotlin.Boolean",
-          "default": false,
-          "values": null
-        },
-        {
-          "key": "enableSelectCacheTypes",
-          "title": "Enable Select Cache Types",
-          "description": "Enables select cache types and filter settings saving (select-cache-types, save-filter-settings).",
-          "required": false,
-          "type": "kotlin.Boolean",
-          "default": false,
-          "values": null
-        },
-        {
-          "key": "enableDiagnosticFlags",
-          "title": "Enable Diagnostic Flags",
-          "description": "Enables diagnostic info, FCM token display, ANR data prompt, API regions, and map timeout.",
-          "required": false,
-          "type": "kotlin.Boolean",
-          "default": false,
-          "values": null
-        },
-        {
           "key": "forceMapTrayEnabled",
           "title": "Force Map Tray Enabled",
-          "description": "Forces the map tray feature enabled (RemoteConfig.MAP_TRAY).",
+          "description": "Forces the map tray feature enabled (mapTray).",
           "required": false,
           "type": "kotlin.Boolean",
           "default": false,
@@ -1375,7 +1321,7 @@
         {
           "key": "forceHideLastLogCount",
           "title": "Force Hide Last Log DNF",
-          "description": "Forces hiding the last log DNF count (RemoteConfig.HIDE_LAST_LOG_DNF).",
+          "description": "Forces hiding the last log DNF count (hideLastLogDNF).",
           "required": false,
           "type": "kotlin.Boolean",
           "default": false,
@@ -1384,34 +1330,7 @@
         {
           "key": "forceShowDowntimeBanner",
           "title": "Force Show Downtime Banner",
-          "description": "Forces the downtime maintenance banner visible (RemoteConfig.SHOW_DOWNTIME_BANNER).",
-          "required": false,
-          "type": "kotlin.Boolean",
-          "default": false,
-          "values": null
-        },
-        {
-          "key": "forceDisableMapAutoUpdate",
-          "title": "Force Disable Map Auto Update",
-          "description": "Disables automatic map updating when panning/zooming (RemoteConfig.MAP_AUTO_UPDATE_DISABLED).",
-          "required": false,
-          "type": "kotlin.Boolean",
-          "default": false,
-          "values": null
-        },
-        {
-          "key": "forceSendDiagnosticLogs",
-          "title": "Force Send Diagnostic Logs",
-          "description": "Forces sending diagnostic logs with bug reports (RemoteConfig.SEND_DIAGNOSTIC_INFO_LOGS).",
-          "required": false,
-          "type": "kotlin.Boolean",
-          "default": false,
-          "values": null
-        },
-        {
-          "key": "forceLinearCalloutsEnabled",
-          "title": "Force Linear Callouts Enabled",
-          "description": "Forces linear callout views enabled (RemoteConfig.LINEAR_CALLOUTS_ENABLED).",
+          "description": "Forces the downtime maintenance banner visible (showMobileDowntimeBanner).",
           "required": false,
           "type": "kotlin.Boolean",
           "default": false,
@@ -1685,10 +1604,10 @@
           ],
           "targets": [
             {
-              "version": "10.21.0",
+              "version": "10.24.0",
               "versionCodes": null,
               "isExperimental": false,
-              "minSdk": 29,
+              "minSdk": 31,
               "description": null
             }
           ]
@@ -1698,7 +1617,7 @@
         {
           "key": "showLocalPremiumWarnings",
           "title": "Show Local Premium Warnings",
-          "description": "Shows an informational warning banner on Premium Member Only caches indicating that complete cache data is restricted by the server for basic accounts.",
+          "description": "Shows an informational notice when opening a Premium Member Only cache, indicating that complete cache data is restricted by the server for basic accounts.",
           "required": false,
           "type": "kotlin.Boolean",
           "default": true,
@@ -1764,10 +1683,10 @@
           ],
           "targets": [
             {
-              "version": "10.21.0",
+              "version": "10.24.0",
               "versionCodes": null,
               "isExperimental": false,
-              "minSdk": 29,
+              "minSdk": 31,
               "description": null
             }
           ]
@@ -2374,10 +2293,10 @@
           ],
           "targets": [
             {
-              "version": "10.21.0",
+              "version": "10.24.0",
               "versionCodes": null,
               "isExperimental": false,
-              "minSdk": 29,
+              "minSdk": 31,
               "description": null
             }
           ]
@@ -2711,10 +2630,10 @@
           ],
           "targets": [
             {
-              "version": "10.21.0",
+              "version": "10.24.0",
               "versionCodes": null,
               "isExperimental": false,
-              "minSdk": 29,
+              "minSdk": 31,
               "description": null
             }
           ]
@@ -3246,7 +3165,7 @@
     },
     {
       "name": "Remove Tracking and Analytics",
-      "description": "Neutralizes first-party analytics (AnalyticsRepo), Google Analytics / Firebase (Analytics, Crashlytics, Performance, In-App Messaging), Facebook App Events, Iterable marketing telemetry, Usercentrics consent collection, and zeros the Google Play Advertising ID (AAID).",
+      "description": "Neutralizes first-party analytics (AnalyticsRepo), Google Analytics / Firebase (Analytics, Crashlytics, Performance, In-App Messaging), Facebook App Events dispatch, Iterable marketing telemetry, Usercentrics consent collection, and zeros the Google Play Advertising ID (AAID).",
       "default": true,
       "category": "Privacy",
       "dependencies": [],
@@ -3263,10 +3182,10 @@
           ],
           "targets": [
             {
-              "version": "10.21.0",
+              "version": "10.24.0",
               "versionCodes": null,
               "isExperimental": false,
-              "minSdk": 29,
+              "minSdk": 31,
               "description": null
             }
           ]
@@ -3780,10 +3699,10 @@
           ],
           "targets": [
             {
-              "version": "10.21.0",
+              "version": "10.24.0",
               "versionCodes": null,
               "isExperimental": false,
-              "minSdk": 29,
+              "minSdk": 31,
               "description": null
             }
           ]
@@ -3921,10 +3840,10 @@
           ],
           "targets": [
             {
-              "version": "10.21.0",
+              "version": "10.24.0",
               "versionCodes": null,
               "isExperimental": false,
-              "minSdk": 29,
+              "minSdk": 31,
               "description": null
             }
           ]
@@ -4142,10 +4061,10 @@
           ],
           "targets": [
             {
-              "version": "10.21.0",
+              "version": "10.24.0",
               "versionCodes": null,
               "isExperimental": false,
-              "minSdk": 29,
+              "minSdk": 31,
               "description": null
             }
           ]
