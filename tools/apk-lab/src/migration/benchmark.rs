@@ -49,6 +49,18 @@
 //! workloads and leaves the report incomplete. Public results contain tool
 //! aliases, versions, and digests, never the private source path.
 //!
+//! # Staged asset inputs
+//!
+//! Asset-generation workloads (`font`, `ocr`, `pdfbox`, icon conversion) read
+//! large private originals from a verified cache and must never write to it.
+//! Such a workload may declare `stagedFiles` entries: each names an already
+//! declared, hash-pinned `inputs` role and a fixed relative destination. The
+//! declared source is verified and copied into the sample workspace before the
+//! process is spawned. After it exits, both the source and the copy are
+//! re-hashed; any mutation invalidates the sample. No hard links are used and
+//! the user cache is never modified. Workloads without `stagedFiles` keep the
+//! original behavior exactly.
+//!
 //! # Failure diagnostics
 //!
 //! A row that actually ran but failed semantic validation keeps bounded
@@ -72,6 +84,10 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{mpsc, Arc};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+
+mod assets;
+
+use assets::{stage_declared_inputs, validate_staged_files, verify_staged_inputs, StagedFile};
 
 const RESULT_SCHEMA_VERSION: u32 = 1;
 const MANIFEST_SCHEMA_VERSION: u32 = 1;
@@ -255,6 +271,10 @@ struct WorkloadSpec {
     /// Pinned APK Lab tool names this workload needs. Requires `toolCache`.
     #[serde(default)]
     required_tools: Vec<String>,
+    /// Declared inputs copied into the per-sample workspace before timing.
+    /// Defaults to empty, preserving every pre-existing manifest.
+    #[serde(default)]
+    staged_files: Vec<StagedFile>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -1413,6 +1433,7 @@ fn validate_manifest(
                 workload.id
             ));
         }
+        validate_staged_files(&workload.id, &workload.inputs, &workload.staged_files)?;
         for tool in &workload.required_tools {
             if tool.trim().is_empty() {
                 return Err(format!(
@@ -1877,6 +1898,7 @@ fn execute_benchmark(
             "environmentVariableKeys": base_env.keys().cloned().collect::<Vec<_>>(),
             "environmentIsolation": "Each sample runs with HOME, XDG_*, TMPDIR/TMP/TEMP, and PYTHONPYCACHEPREFIX inside its own temp root; only a fixed safe allowlist of parent variables is inherited; credential-like manifest keys are rejected.",
             "toolCachePreparation": "Only workload-required tools are copied once from the explicitly configured private cache into an owned staging directory before any timed sample. Each sample HOME receives a link at the tools.py cache path (.cache/aidans-patches/apk-lab/tools); the source cache is never modified and nothing is downloaded or installed during the run.",
+            "stagedInputs": "Workloads may declare stagedFiles entries naming a declared, hash-verified input role and a fixed relative destination. Every sample verifies the source and copies it into the per-sample workspace before spawn (fs::copy, never a hard link); after exit the source and copy are re-hashed and any mutation invalidates the sample. The private source cache is read-only. Workloads without stagedFiles execute unchanged.",
             "outputNormalization": "Morphe workloads only: replace the numeric value span at $.testCases[*].durationSeconds with null, from the end; every other stdout byte, including options.durationSeconds, order, Unicode escapes, nulls, counts, statuses, and errors, is preserved. Raw stdout/stderr hashes are retained separately.",
             "safeInheritedEnvironmentKeys": SAFE_INHERITED_ENV_KEYS,
         }),
@@ -2526,6 +2548,15 @@ fn run_one(
     if let Some(cache_root) = tool_cache_root {
         install_sample_tool_cache(&temp.path.join("home"), cache_root)?;
     }
+    // Copy declared, hash-verified originals into the sample workspace before
+    // the process exists. The user's cache is only read, never linked or
+    // written. Workloads without stagedFiles take the untouched path.
+    let staged_inputs = stage_declared_inputs(
+        repo_root,
+        &workload.inputs,
+        &workload.staged_files,
+        &workspace,
+    )?;
 
     let mut argv: Vec<String> = Vec::with_capacity(workload.argv.len() + 2);
     let uses_workspace_placeholder = workload.argv.iter().any(|arg| arg.contains("{workspace}"));
@@ -2553,7 +2584,8 @@ fn run_one(
     let raw_stderr_sha256 = sha256_bytes(&outcome.stderr);
     let mut stdout_text = normalise(&String::from_utf8_lossy(&outcome.stdout), &normalizers);
     let stderr_text = normalise(&String::from_utf8_lossy(&outcome.stderr), &normalizers);
-    let mut hard_errors = Vec::new();
+    // A workload must not mutate its private source or its own staged copy.
+    let mut hard_errors = verify_staged_inputs(&staged_inputs);
     let mut duration_replacements = 0usize;
     let mut duration_applied = false;
     let mut duration_error: Option<String> = None;
@@ -4027,14 +4059,39 @@ const ANCILLARY_SOURCE_PATHS: &[&str] = &[
     "package-lock.json",
     "site/package.json",
     "site/bun.lock",
+];
+
+/// Source files that plan 001 archived for plan-008 reconstruction but that
+/// this harness never invokes and that their owners may already have deleted.
+/// They are collected only when still present; an absent path is expected and
+/// is reported explicitly in the archive manifest. The frozen plan-001 archive
+/// remains authoritative for reconstructing them.
+const HISTORICAL_SOURCE_PATHS: &[&str] = &[
+    ".github/scripts/generate_patches_readme.py",
     "extensions/adobescan-pdf-native/tests/fixtures/generate_fixtures.py",
 ];
 
+/// True for a path in either the active ancillary set or the historical
+/// provenance set. Historical entries do not imply an active consumer.
+fn is_ancillary_source_path(relative: &str) -> bool {
+    ANCILLARY_SOURCE_PATHS
+        .iter()
+        .chain(HISTORICAL_SOURCE_PATHS.iter())
+        .any(|candidate| {
+            relative == *candidate
+                || relative
+                    .strip_prefix(candidate)
+                    .is_some_and(|rest| rest.starts_with('/'))
+        })
+}
+
 /// Changed/untracked detection covers the whole oracle tree plus the ancillary
-/// generators and their invocation inputs.
+/// generators and their invocation inputs. A missing historical path is normal
+/// after its owner removes it; git reports nothing for an absent pathspec.
 fn source_git_paths() -> Vec<&'static str> {
     let mut paths = vec!["tools/apk-lab"];
     paths.extend_from_slice(ANCILLARY_SOURCE_PATHS);
+    paths.extend_from_slice(HISTORICAL_SOURCE_PATHS);
     paths
 }
 
@@ -4114,19 +4171,12 @@ fn archive_source(
     private_root: &Path,
     source: &SourceSnapshot,
 ) -> Result<SourceArchiveInfo, String> {
-    let mut entries: Vec<(String, PathBuf)> = Vec::new();
+    let mut entries: BTreeMap<String, PathBuf> = BTreeMap::new();
     let mut source_paths: Vec<&str> = Vec::new();
     source_paths.extend_from_slice(ORACLE_SOURCE_PATHS);
     source_paths.extend_from_slice(ANCILLARY_SOURCE_PATHS);
-    for relative in source_paths {
-        let path = repo_root.join(relative);
-        if path.is_dir() {
-            collect_source_entries(repo_root, &path, &mut entries)?;
-        } else if path.is_file() {
-            entries.push((relative.to_string(), path));
-        }
-    }
-    entries.sort_by_key(|entry| entry.0.clone());
+    source_paths.extend_from_slice(HISTORICAL_SOURCE_PATHS);
+    collect_archive_entries(repo_root, &source_paths, &mut entries)?;
     if entries.is_empty() {
         return Err("no baseline source files were found to archive".to_string());
     }
@@ -4212,6 +4262,11 @@ fn archive_source(
         .iter()
         .filter(|(path, _, _)| is_ancillary_source_path(path))
         .count();
+    let absent_historical: Vec<&str> = HISTORICAL_SOURCE_PATHS
+        .iter()
+        .copied()
+        .filter(|relative| !repo_root.join(relative).exists())
+        .collect();
     let manifest = json!({
         "schemaVersion": 1,
         "kind": "apk-lab-baseline-source-archive",
@@ -4222,7 +4277,9 @@ fn archive_source(
         "files": files,
         "ancillarySourcePaths": ANCILLARY_SOURCE_PATHS,
         "ancillaryFileCount": ancillary_file_count,
-        "reconstruction": "The archived files are the exact executed working tree, including the legacy Python asset/README generators and their active invocation/config/lock inputs. Verify every file sha256; dirty.patch is provenance evidence of the difference from the revision and must not be applied on top of the archive. This archive intentionally contains no APK/APKM/APKS bytes, credentials, caches, or local env/config files.",
+        "historicalSourcePaths": HISTORICAL_SOURCE_PATHS,
+        "absentHistoricalSourcePaths": absent_historical,
+        "reconstruction": "The archived files are the exact executed working tree, including the legacy Python asset/README generators and their active invocation/config/lock inputs that still existed when archived. Historical-only paths are never invoked by this harness; when their owners already removed them they are listed in absentHistoricalSourcePaths and the earlier frozen plan-001 archive remains authoritative for reconstruction. Verify every file sha256; dirty.patch is provenance evidence of the difference from the revision and must not be applied on top of the archive. This archive intentionally contains no APK/APKM/APKS bytes, credentials, caches, or local env/config files.",
     });
     fs::write(
         &manifest_path,
@@ -4238,10 +4295,32 @@ fn archive_source(
     })
 }
 
+/// Collect every existing path from `source_paths`.
+///
+/// A listed path that no longer exists is expected for historical provenance
+/// entries (plan 001 kept them for plan 008, while plan 006/007 owners delete
+/// the files). Absence is therefore not an error; the archive manifest records
+/// which historical paths were absent.
+fn collect_archive_entries(
+    repo_root: &Path,
+    source_paths: &[&str],
+    entries: &mut BTreeMap<String, PathBuf>,
+) -> Result<(), String> {
+    for relative in source_paths {
+        let path = repo_root.join(relative);
+        if path.is_dir() {
+            collect_source_entries(repo_root, &path, entries)?;
+        } else if path.is_file() {
+            entries.insert((*relative).to_string(), path);
+        }
+    }
+    Ok(())
+}
+
 fn collect_source_entries(
     repo_root: &Path,
     directory: &Path,
-    entries: &mut Vec<(String, PathBuf)>,
+    entries: &mut BTreeMap<String, PathBuf>,
 ) -> Result<(), String> {
     let mut children: Vec<PathBuf> = fs::read_dir(directory)
         .map_err(|e| format!("cannot read a source directory for archiving: {e}"))?
@@ -4272,7 +4351,7 @@ fn collect_source_entries(
                 .map_err(|_| "source file is outside the repository".to_string())?
                 .to_string_lossy()
                 .replace('\\', "/");
-            entries.push((relative, child));
+            entries.insert(relative, child);
         }
     }
     Ok(())
@@ -5407,6 +5486,35 @@ mod tests {
         ] {
             assert!(!is_ancillary_source_path(excluded), "{excluded}");
         }
+    }
+
+    #[test]
+    fn archive_entry_collection_tolerates_absent_historical_paths() {
+        let directory = test_directory("archive-absent");
+        fs::create_dir_all(directory.join(".github/scripts")).unwrap();
+        fs::write(directory.join(".github/scripts/present.py"), b"print('x')\n").unwrap();
+        fs::write(directory.join("patches-list.json"), b"{}").unwrap();
+
+        let mut entries = BTreeMap::new();
+        collect_archive_entries(
+            &directory,
+            &[
+                ".github/scripts",
+                "patches-list.json",
+                ".github/scripts/generate_patches_readme.py",
+                "extensions/adobescan-pdf-native/tests/fixtures/generate_fixtures.py",
+            ],
+            &mut entries,
+        )
+        .expect("absent historical provenance paths must not abort archiving");
+
+        assert!(entries.contains_key(".github/scripts/present.py"));
+        assert!(entries.contains_key("patches-list.json"));
+        assert!(!entries.contains_key(".github/scripts/generate_patches_readme.py"));
+        assert!(!entries.contains_key(
+            "extensions/adobescan-pdf-native/tests/fixtures/generate_fixtures.py"
+        ));
+        let _ = fs::remove_dir_all(&directory);
     }
 
     #[test]

@@ -7,6 +7,12 @@ import * as path from 'node:path';
 const KTLINT_VERSION = '1.5.0';
 const KTLINT_SHA256 =
   'a16be01dcc480aab2f55f444b620142152f66e31564b3b9376506d624c28a2ad';
+const RUST_CRATES = [
+  ['Play Metadata', 'tools/play-metadata/Cargo.toml'],
+  ['NHL AdBlock Native', 'extensions/nhl-adblock-native/Cargo.toml'],
+  ['Asset Prep', 'tools/asset-prep/Cargo.toml'],
+] as const;
+
 // --- ANSI Styling ---
 const c = {
   reset: '\x1b[0m',
@@ -407,8 +413,8 @@ async function runFormat(
     process.stdout.write(`  ${sym.arrow} Formatting Python sources (Ruff)... `);
     const ruff = resolveRuffCommand();
     const ruffArgs = checkOnly
-      ? ['format', '--check', 'tools/apk-lab', '.github/scripts', 'extensions']
-      : ['format', 'tools/apk-lab', '.github/scripts', 'extensions'];
+      ? ['format', '--check', 'tools/apk-lab', 'extensions']
+      : ['format', 'tools/apk-lab', 'extensions'];
     const rRes = await execCommand(ruff.cmd, [...ruff.baseArgs, ...ruffArgs]);
     const rPassed = rRes.code === 0;
     const rSummary = checkOnly
@@ -467,76 +473,33 @@ async function runFormat(
     });
   }
 
-  // 4. Rust (play-metadata cargo fmt)
+  // Rust host crates.
   if (shouldRunDomain(domain, 'rust')) {
-    process.stdout.write(
-      `  ${sym.arrow} Formatting Rust play-metadata sources (cargo fmt)... `,
-    );
-    const rustFmtArgs = [
-      'fmt',
-      '--manifest-path',
-      'tools/play-metadata/Cargo.toml',
-    ];
-    if (checkOnly) rustFmtArgs.push('--check');
-    const rustFmtRes = await execCommand('cargo', rustFmtArgs);
-    const rustFmtPassed = rustFmtRes.code === 0;
-    const rustFmtMissing =
-      rustFmtRes.code !== 0 && rustFmtRes.stderr.includes('ENOENT');
-    const rustFmtSummary = rustFmtMissing
-      ? 'cargo not found in PATH; install Rust toolchain (rustup.rs)'
-      : checkOnly
-        ? rustFmtPassed
-          ? 'All Rust files formatted'
-          : 'Rust files need formatting'
-        : 'Formatted Rust sources';
-    console.log(rustFmtPassed ? sym.ok : sym.err);
-    if (!rustFmtPassed) {
-      printRawCommandOutput(rustFmtRes.stdout, rustFmtRes.stderr);
+    for (const [name, manifest] of RUST_CRATES) {
+      process.stdout.write(
+        `  ${sym.arrow} Formatting Rust ${name} sources (cargo fmt)... `,
+      );
+      const args = ['fmt', '--manifest-path', manifest];
+      if (checkOnly) args.push('--check');
+      const result = await execCommand('cargo', args);
+      const passed = result.code === 0;
+      console.log(passed ? sym.ok : sym.err);
+      if (!passed) printRawCommandOutput(result.stdout, result.stderr);
+      results.push({
+        title: `Rust ${name} (cargo fmt)`,
+        tool: 'cargo fmt',
+        domain: 'rust',
+        success: passed,
+        durationMs: result.durationMs,
+        summary: result.stderr.includes('ENOENT')
+          ? 'cargo not found in PATH; install Rust toolchain (rustup.rs)'
+          : checkOnly
+            ? passed
+              ? 'All Rust files formatted'
+              : 'Rust files need formatting'
+            : 'Formatted Rust sources',
+      });
     }
-    results.push({
-      title: 'Rust Play Metadata (cargo fmt)',
-      tool: 'cargo fmt',
-      domain: 'rust',
-      success: rustFmtPassed,
-      durationMs: rustFmtRes.durationMs,
-      summary: rustFmtSummary,
-    });
-  }
-
-  // 5. Rust (nhl-adblock-native cargo fmt)
-  if (shouldRunDomain(domain, 'rust')) {
-    process.stdout.write(
-      `  ${sym.arrow} Formatting Rust nhl-adblock-native sources (cargo fmt)... `,
-    );
-    const nhlFmtArgs = [
-      'fmt',
-      '--manifest-path',
-      'extensions/nhl-adblock-native/Cargo.toml',
-    ];
-    if (checkOnly) nhlFmtArgs.push('--check');
-    const nhlFmtRes = await execCommand('cargo', nhlFmtArgs);
-    const nhlFmtPassed = nhlFmtRes.code === 0;
-    const nhlFmtMissing =
-      nhlFmtRes.code !== 0 && nhlFmtRes.stderr.includes('ENOENT');
-    const nhlFmtSummary = nhlFmtMissing
-      ? 'cargo not found in PATH; install Rust toolchain (rustup.rs)'
-      : checkOnly
-        ? nhlFmtPassed
-          ? 'All Rust files formatted'
-          : 'Rust files need formatting'
-        : 'Formatted Rust sources';
-    console.log(nhlFmtPassed ? sym.ok : sym.err);
-    if (!nhlFmtPassed) {
-      printRawCommandOutput(nhlFmtRes.stdout, nhlFmtRes.stderr);
-    }
-    results.push({
-      title: 'Rust NHL AdBlock Native (cargo fmt)',
-      tool: 'cargo fmt',
-      domain: 'rust',
-      success: nhlFmtPassed,
-      durationMs: nhlFmtRes.durationMs,
-      summary: nhlFmtSummary,
-    });
   }
 
   // 6. C++ (clang-format)
@@ -659,7 +622,7 @@ async function runLint(
     const ruff = resolveRuffCommand();
     const ruffArgs = ['check', '--output-format', 'json'];
     if (autoFix) ruffArgs.push('--fix');
-    ruffArgs.push('tools/apk-lab', '.github/scripts', 'extensions');
+    ruffArgs.push('tools/apk-lab', 'extensions');
 
     const rRes = await execCommand(ruff.cmd, [...ruff.baseArgs, ...ruffArgs]);
     const rDiags: Diagnostic[] = [];
@@ -785,80 +748,39 @@ async function runLint(
     });
   }
 
-  // 5. Rust (play-metadata clippy)
+  // Rust host crates.
   if (shouldRunDomain(domain, 'rust')) {
-    process.stdout.write(
-      `  ${sym.arrow} Linting Rust play-metadata sources (clippy)... `,
-    );
-    const clippyArgs = [
-      'clippy',
-      '--locked',
-      '--manifest-path',
-      'tools/play-metadata/Cargo.toml',
-      '--all-targets',
-      ...(autoFix ? ['--fix', '--allow-dirty', '--allow-staged'] : []),
-      '--',
-      '-D',
-      'warnings',
-    ];
-    const clippyRes = await execCommand('cargo', clippyArgs);
-    const clippyPassed = clippyRes.code === 0;
-    const clippyMissing =
-      clippyRes.code !== 0 && clippyRes.stderr.includes('ENOENT');
-    console.log(clippyPassed ? sym.ok : sym.err);
-    if (!clippyPassed) {
-      printRawCommandOutput(clippyRes.stdout, clippyRes.stderr);
+    for (const [name, manifest] of RUST_CRATES) {
+      process.stdout.write(
+        `  ${sym.arrow} Linting Rust ${name} sources (clippy)... `,
+      );
+      const result = await execCommand('cargo', [
+        'clippy',
+        '--locked',
+        '--manifest-path',
+        manifest,
+        '--all-targets',
+        ...(autoFix ? ['--fix', '--allow-dirty', '--allow-staged'] : []),
+        '--',
+        '-D',
+        'warnings',
+      ]);
+      const passed = result.code === 0;
+      console.log(passed ? sym.ok : sym.err);
+      if (!passed) printRawCommandOutput(result.stdout, result.stderr);
+      results.push({
+        title: `Rust ${name} (clippy)`,
+        tool: 'clippy',
+        domain: 'rust',
+        success: passed,
+        durationMs: result.durationMs,
+        summary: result.stderr.includes('ENOENT')
+          ? 'cargo not found in PATH; install Rust toolchain (rustup.rs)'
+          : passed
+            ? 'No issues'
+            : 'Clippy warnings/errors detected',
+      });
     }
-    results.push({
-      title: 'Rust Play Metadata (clippy)',
-      tool: 'clippy',
-      domain: 'rust',
-      success: clippyPassed,
-      durationMs: clippyRes.durationMs,
-      summary: clippyMissing
-        ? 'cargo not found in PATH; install Rust toolchain (rustup.rs)'
-        : clippyPassed
-          ? 'No issues'
-          : 'Clippy warnings/errors detected',
-    });
-  }
-
-  // 5. Rust (nhl-adblock-native clippy)
-  if (shouldRunDomain(domain, 'rust')) {
-    process.stdout.write(
-      `  ${sym.arrow} Linting Rust nhl-adblock-native sources (clippy)... `,
-    );
-    const nhlClippyArgs = [
-      'clippy',
-      '--locked',
-      '--manifest-path',
-      'extensions/nhl-adblock-native/Cargo.toml',
-      '--all-targets',
-      ...(autoFix ? ['--fix', '--allow-dirty', '--allow-staged'] : []),
-      '--',
-      '-D',
-      'warnings',
-    ];
-    const nhlClippyRes = await execCommand('cargo', nhlClippyArgs);
-    const nhlClippyPassed = nhlClippyRes.code === 0;
-    const nhlClippyMissing =
-      nhlClippyRes.code !== 0 && nhlClippyRes.stderr.includes('ENOENT');
-    console.log(nhlClippyPassed ? sym.ok : sym.err);
-    if (!nhlClippyPassed) {
-      printRawCommandOutput(nhlClippyRes.stdout, nhlClippyRes.stderr);
-    }
-    results.push({
-      title: 'Rust NHL AdBlock Native (clippy)',
-      tool: 'clippy',
-      domain: 'rust',
-      success: nhlClippyPassed,
-      durationMs: nhlClippyRes.durationMs,
-      summary: nhlClippyMissing
-        ? 'cargo not found in PATH; install Rust toolchain (rustup.rs)'
-        : nhlClippyPassed
-          ? 'No issues'
-          : 'Clippy warnings/errors detected',
-    });
   }
 
   // 6. C++ (CMake host build with -Wall -Wextra -Werror)
@@ -1038,72 +960,35 @@ async function runTypecheck(domain: AuditDomain = 'all'): Promise<PhaseResult> {
     });
   }
 
-  // 5. Rust (play-metadata cargo check)
+  // Rust host crates.
   if (shouldRunDomain(domain, 'rust')) {
-    process.stdout.write(
-      `  ${sym.arrow} Checking Rust play-metadata types (cargo check)... `,
-    );
-    const rustCheckArgs = [
-      'check',
-      '--locked',
-      '--manifest-path',
-      'tools/play-metadata/Cargo.toml',
-      '--all-targets',
-    ];
-    const rustCheckRes = await execCommand('cargo', rustCheckArgs);
-    const rustCheckPassed = rustCheckRes.code === 0;
-    const rustCheckMissing =
-      rustCheckRes.code !== 0 && rustCheckRes.stderr.includes('ENOENT');
-    console.log(rustCheckPassed ? sym.ok : sym.err);
-    if (!rustCheckPassed) {
-      printRawCommandOutput(rustCheckRes.stdout, rustCheckRes.stderr);
+    for (const [name, manifest] of RUST_CRATES) {
+      process.stdout.write(
+        `  ${sym.arrow} Checking Rust ${name} types (cargo check)... `,
+      );
+      const result = await execCommand('cargo', [
+        'check',
+        '--locked',
+        '--manifest-path',
+        manifest,
+        '--all-targets',
+      ]);
+      const passed = result.code === 0;
+      console.log(passed ? sym.ok : sym.err);
+      if (!passed) printRawCommandOutput(result.stdout, result.stderr);
+      results.push({
+        title: `Rust ${name} (cargo check)`,
+        tool: 'cargo check',
+        domain: 'rust',
+        success: passed,
+        durationMs: result.durationMs,
+        summary: result.stderr.includes('ENOENT')
+          ? 'cargo not found in PATH; install Rust toolchain (rustup.rs)'
+          : passed
+            ? 'All targets checked clean'
+            : 'Cargo check errors detected',
+      });
     }
-    results.push({
-      title: 'Rust Play Metadata (cargo check)',
-      tool: 'cargo check',
-      domain: 'rust',
-      success: rustCheckPassed,
-      durationMs: rustCheckRes.durationMs,
-      summary: rustCheckMissing
-        ? 'cargo not found in PATH; install Rust toolchain (rustup.rs)'
-        : rustCheckPassed
-          ? 'All targets checked clean'
-          : 'Cargo check errors detected',
-    });
-  }
-
-  // 6. Rust (nhl-adblock-native cargo check)
-  if (shouldRunDomain(domain, 'rust')) {
-    process.stdout.write(
-      `  ${sym.arrow} Checking Rust nhl-adblock-native types (cargo check)... `,
-    );
-    const nhlCheckArgs = [
-      'check',
-      '--locked',
-      '--manifest-path',
-      'extensions/nhl-adblock-native/Cargo.toml',
-      '--all-targets',
-    ];
-    const nhlCheckRes = await execCommand('cargo', nhlCheckArgs);
-    const nhlCheckPassed = nhlCheckRes.code === 0;
-    const nhlCheckMissing =
-      nhlCheckRes.code !== 0 && nhlCheckRes.stderr.includes('ENOENT');
-    console.log(nhlCheckPassed ? sym.ok : sym.err);
-    if (!nhlCheckPassed) {
-      printRawCommandOutput(nhlCheckRes.stdout, nhlCheckRes.stderr);
-    }
-    results.push({
-      title: 'Rust NHL AdBlock Native (cargo check)',
-      tool: 'cargo check',
-      domain: 'rust',
-      success: nhlCheckPassed,
-      durationMs: nhlCheckRes.durationMs,
-      summary: nhlCheckMissing
-        ? 'cargo not found in PATH; install Rust toolchain (rustup.rs)'
-        : nhlCheckPassed
-          ? 'All targets checked clean'
-          : 'Cargo check errors detected',
-    });
   }
 
   // 7. C++ (CMake host target compilation)
@@ -1258,80 +1143,38 @@ async function runTest(domain: AuditDomain = 'all'): Promise<PhaseResult> {
     });
   }
 
-  // 4. Rust Play Metadata test suite (cargo test)
+  // Rust host crates.
   if (shouldRunDomain(domain, 'rust')) {
-    process.stdout.write(
-      `  ${sym.arrow} Running Rust Play Metadata tests (cargo test)... `,
-    );
-    const cargoTestRes = await execCommand('cargo', [
-      'test',
-      '--locked',
-      '--manifest-path',
-      'tools/play-metadata/Cargo.toml',
-    ]);
-    const cargoTestPassed = cargoTestRes.code === 0;
-    const cargoTestMissing =
-      cargoTestRes.code !== 0 && cargoTestRes.stderr.includes('ENOENT');
-    const cargoSummaryMatch = cargoTestRes.stdout.match(
-      /test result: ok\.\s+([0-9]+ passed[^\n]*)/,
-    );
-    const cargoSummary = cargoTestMissing
-      ? 'cargo not found in PATH; install Rust toolchain (rustup.rs)'
-      : cargoSummaryMatch
-        ? cargoSummaryMatch[1].trim()
-        : cargoTestPassed
-          ? 'All tests passed'
-          : 'Tests failed';
-    console.log(cargoTestPassed ? sym.ok : sym.err);
-    if (!cargoTestPassed) {
-      printRawCommandOutput(cargoTestRes.stdout, cargoTestRes.stderr);
+    for (const [name, manifest] of RUST_CRATES) {
+      process.stdout.write(
+        `  ${sym.arrow} Running Rust ${name} tests (cargo test)... `,
+      );
+      const result = await execCommand('cargo', [
+        'test',
+        '--locked',
+        '--manifest-path',
+        manifest,
+      ]);
+      const passed = result.code === 0;
+      const counts = [
+        ...result.stdout.matchAll(/test result: ok\.\s+([0-9]+) passed/g),
+      ];
+      const count = counts.reduce((sum, match) => sum + Number(match[1]), 0);
+      console.log(passed ? sym.ok : sym.err);
+      if (!passed) printRawCommandOutput(result.stdout, result.stderr);
+      results.push({
+        title: `Rust ${name} (cargo test)`,
+        tool: 'cargo test',
+        domain: 'rust',
+        success: passed,
+        durationMs: result.durationMs,
+        summary: result.stderr.includes('ENOENT')
+          ? 'cargo not found in PATH; install Rust toolchain (rustup.rs)'
+          : passed
+            ? `${count} passed`
+            : 'Tests failed',
+      });
     }
-    results.push({
-      title: 'Rust Play Metadata (cargo test)',
-      tool: 'cargo test',
-      domain: 'rust',
-      success: cargoTestPassed,
-      durationMs: cargoTestRes.durationMs,
-      summary: cargoSummary,
-    });
-  }
-
-  // 5. Rust NHL AdBlock Native test suite (cargo test)
-  if (shouldRunDomain(domain, 'rust')) {
-    process.stdout.write(
-      `  ${sym.arrow} Running Rust NHL AdBlock Native tests (cargo test)... `,
-    );
-    const nhlTestRes = await execCommand('cargo', [
-      'test',
-      '--locked',
-      '--manifest-path',
-      'extensions/nhl-adblock-native/Cargo.toml',
-    ]);
-    const nhlTestPassed = nhlTestRes.code === 0;
-    const nhlTestMissing =
-      nhlTestRes.code !== 0 && nhlTestRes.stderr.includes('ENOENT');
-    const nhlSummaryMatch = nhlTestRes.stdout.match(
-      /test result: ok\.\s+([0-9]+ passed[^\n]*)/,
-    );
-    const nhlSummary = nhlTestMissing
-      ? 'cargo not found in PATH; install Rust toolchain (rustup.rs)'
-      : nhlSummaryMatch
-        ? nhlSummaryMatch[1].trim()
-        : nhlTestPassed
-          ? 'All tests passed'
-          : 'Tests failed';
-    console.log(nhlTestPassed ? sym.ok : sym.err);
-    if (!nhlTestPassed) {
-      printRawCommandOutput(nhlTestRes.stdout, nhlTestRes.stderr);
-    }
-    results.push({
-      title: 'Rust NHL AdBlock Native (cargo test)',
-      tool: 'cargo test',
-      domain: 'rust',
-      success: nhlTestPassed,
-      durationMs: nhlTestRes.durationMs,
-      summary: nhlSummary,
-    });
   }
 
   // 6. Adobe Scan Native PDF Engine test suite (ctest)
@@ -1436,12 +1279,13 @@ async function runTest(domain: AuditDomain = 'all'): Promise<PhaseResult> {
   }
 
   // 8. Target Application Icons Check
-  if (shouldRunDomain(domain, 'python')) {
+  if (shouldRunDomain(domain, 'rust')) {
     process.stdout.write(
       `  ${sym.arrow} Verifying application icon assets... `,
     );
-    const iconRes = await execCommand('python3', [
-      '.github/scripts/sync_app_icons.py',
+    const iconRes = await execCommand('bun', [
+      'scripts/asset-prep.ts',
+      'icons',
       '--check-only',
     ]);
     const iconPassed = iconRes.code === 0;
@@ -1451,8 +1295,8 @@ async function runTest(domain: AuditDomain = 'all'): Promise<PhaseResult> {
     }
     results.push({
       title: 'App Icons Verification',
-      tool: 'python3',
-      domain: 'python',
+      tool: 'asset-prep',
+      domain: 'rust',
       success: iconPassed,
       durationMs: iconRes.durationMs,
       summary: iconPassed ? iconRes.stdout.trim() : 'Missing application icons',

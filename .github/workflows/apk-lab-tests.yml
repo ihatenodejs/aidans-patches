@@ -60,7 +60,6 @@ jobs:
               - '.markdownlint-cli2.jsonc'
             python:
               - 'tools/apk-lab/**'
-              - '.github/scripts/**'
               - 'extensions/**/*.py'
             android:
               - 'patches/**'
@@ -71,10 +70,11 @@ jobs:
               - 'gradle.properties'
               - 'extensions/adobescan-pdf-native/**'
               - 'extensions/nhl-adblock-native/**'
-              - '.github/scripts/**'
+              - 'tools/asset-prep/**'
             rust:
               - 'tools/play-metadata/**'
               - 'extensions/nhl-adblock-native/**'
+              - 'tools/asset-prep/**'
             native:
               - 'extensions/adobescan-pdf-native/**'
               - '.clang-format'
@@ -178,7 +178,7 @@ jobs:
         uses: actions/cache@v6
         with:
           path: ~/.gradle/caches/aidans-patches/fonts
-          key: emoji-font-${{ hashFiles('.github/scripts/prepare_emoji_font.py') }}
+          key: emoji-font-e37c7af6-${{ hashFiles('tools/asset-prep/Cargo.toml', 'tools/asset-prep/Cargo.lock', 'tools/asset-prep/src/**', 'tools/asset-prep/vendor/**') }}
           restore-keys: |
             emoji-font-
 
@@ -234,6 +234,7 @@ jobs:
           workspaces: |
             tools/play-metadata -> tools/play-metadata/target
             extensions/nhl-adblock-native -> extensions/nhl-adblock-native/target
+            tools/asset-prep -> tools/asset-prep/target
 
       - name: Audit rust domain
         run: bun scripts/audit.ts all --domain rust

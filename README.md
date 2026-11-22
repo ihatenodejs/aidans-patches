@@ -333,6 +333,7 @@ My [Morphe](https://morphe.software) patches
 - Android SDK (set `sdk.dir` in `local.properties` or export `ANDROID_HOME`)
 - Android NDK (matching `REQUIRED_NDK_VERSION = "28.2.13676358"` [r28c] in `patches/build.gradle.kts`; set `ndk.dir` in `local.properties`, export `ANDROID_NDK_HOME`, or install under `$ANDROID_HOME/ndk/`)
 - CMake 3.24+ and Ninja
+- Rust 1.89+ and a C compiler (CI uses Rust 1.97.1)
 
 ### Build Command
 
@@ -347,6 +348,35 @@ To update `patches-list.json`:
 ```bash
 ./gradlew generatePatchesList
 ```
+
+### Native Build Assets
+
+Gradle's `buildAssetPrep` task builds `tools/asset-prep` for the host reported by
+`rustc -vV`, explicitly overriding an inherited Android Cargo target. Font, OCR
+and PDFBox preparation keep their generated resource paths and verified Gradle
+caches. The host binary lives under `tools/asset-prep/target/<host>/release/`, or
+`CARGO_TARGET_DIR/<host>/release/`; relative overrides resolve from the repository
+root. Manifests, lockfile, Rust sources and the pinned codec wrapper invalidate the
+build task.
+
+The Bun launcher uses the same host-target/bootstrap rules for automation:
+
+```bash
+bun scripts/asset-prep.ts --help
+bun run --cwd site check:icons
+```
+
+Icon discovery remains offline and nonfatal when files are missing. Mutating
+`icons --download-missing` / `icons --sync-all` modes contact Play; equal decoded
+pixels preserve existing PNG bytes and mtime. Native transformations never invoke
+Python. Exact reference proof remains separate migration-only tooling.
+
+The first native codec build downloads SHA-256-pinned libjpeg-turbo 3.1.1;
+subsequent builds verify its cached source. ZIP uses Rust Deflate/Bzip2/LZMA
+decoders to preserve the legacy AAR reader formats. HTTP is blocking `ureq`
+(MIT/Apache-2.0); ZIP is `zip` (MIT). Cargo lockfiles own resolved versions.
+Pillow-compatible resampling attribution is in
+[`PILLOW-LICENSE.txt`](tools/asset-prep/PILLOW-LICENSE.txt).
 
 ### Analysis & Compatibility Testing (`apk-lab`)
 

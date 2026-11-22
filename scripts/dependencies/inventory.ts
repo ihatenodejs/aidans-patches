@@ -241,11 +241,15 @@ export function collectInventory(
     }
   }
 
-  // 3. Rust manifests (tools/play-metadata/Cargo.toml, extensions/nhl-adblock-native/Cargo.toml)
+  // 3. Standalone Rust manifests
   const cargoManifests = [
     {
       manifest: 'tools/play-metadata/Cargo.toml',
       lock: 'tools/play-metadata/Cargo.lock',
+    },
+    {
+      manifest: 'tools/asset-prep/Cargo.toml',
+      lock: 'tools/asset-prep/Cargo.lock',
     },
     {
       manifest: 'extensions/nhl-adblock-native/Cargo.toml',
@@ -808,23 +812,6 @@ export function collectInventory(
       resolved: leafletVer,
       latest: null,
       status: 'current',
-    });
-  }
-
-  // 11. Workflow moving package installs
-  const syncIconsRel = '.github/workflows/sync-app-icons.yml';
-  if (fs.existsSync(path.resolve(repoRoot, syncIconsRel))) {
-    registerInput(syncIconsRel);
-    items.push({
-      id: `pypi:${syncIconsRel}#pip/Pillow`,
-      ecosystem: 'pypi',
-      name: 'Pillow',
-      locations: [`${syncIconsRel}:50`],
-      declared: 'latest',
-      resolved: 'latest',
-      latest: null,
-      status: 'moving',
-      reason: 'Unversioned pip install in sync-app-icons workflow',
     });
   }
 

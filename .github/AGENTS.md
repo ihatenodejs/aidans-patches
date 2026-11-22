@@ -18,8 +18,8 @@ Use pinned actions and least-privilege `permissions`. Preserve path filters and 
 ## Generator Scripts
 
 - `../scripts/generate-patches-readme.ts`: generates the README patch block and template repository/add-source URLs using Bun and installed Prettier. Rejects malformed boundaries and formats before publishing; release callers use this entrypoint.
-- `scripts/sync_app_icons.py`: check or synchronize `site/public/icons/<package>.png` from patch metadata/Play images.
-- `scripts/prepare_emoji_font.py`: downloads a pinned source, verifies SHA-256, transforms/checks the font, and writes a generated build resource/cache.
+- `../scripts/asset-prep.ts`: bootstraps the native `tools/asset-prep` host binary for icon checks/synchronization; no Pillow runtime. Preserve offline discovery exit/output semantics and pixel-equal existing-file no-ops.
+- `tools/asset-prep` (`font`, `ocr`, `pdfbox`): Gradle builds the host tool with declared Cargo/source inputs and prepares pinned resources in the original paths/caches. Release font cache identities include Rust sources/lockfile and upstream identity.
 
 ## Dependency Automation (Dependabot)
 
