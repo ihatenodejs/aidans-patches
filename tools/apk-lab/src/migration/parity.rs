@@ -1,4 +1,5 @@
-//! Differential parity harness for the native `apk-lab` core.
+//! Differential parity harness for the native `apk-lab` core, analysis and
+//! patching/device commands.
 //!
 //! The Python implementation is executed as an independent oracle process and
 //! the native candidate is executed with identical argv and working directory.
@@ -24,19 +25,25 @@ use zip::{CompressionMethod, ZipWriter};
 const SCHEMA_VERSION: u32 = 1;
 const REPORT_KIND: &str = "apk-lab-core-parity";
 const ANALYSIS_REPORT_KIND: &str = "apk-lab-analysis-parity";
+const PATCHING_DEVICE_REPORT_KIND: &str = "apk-lab-patching-device-parity";
 const CORE_GROUP: &str = "core";
 const ANALYSIS_GROUP: &str = "analysis";
+const PATCHING_DEVICE_GROUP: &str = "patching-device";
 const SYNTHETIC_PROFILE: &str = "synthetic";
 const REAL_TOOLS_PROFILE: &str = "real-tools";
+const REAL_DEVICE_PROFILE: &str = "real-device";
 const CORPUS_KIND: &str = "apk-lab-analysis-corpus";
 const CORPUS_VERSION: u32 = 1;
+const DEVICE_CORPUS_KIND: &str = "apk-lab-patching-device-corpus";
+const DEVICE_CORPUS_VERSION: u32 = 1;
 
 /// The only normalizations the core group applies. Anything not listed here is
 /// a substantive difference and fails the case.
 const NORMALIZATION_RULES: &[&str] = &[
     "absolute cwd/sandbox/home/temp roots are replaced with <cwd>/<sandbox>/<home>/<temp>",
     "doctor host prerequisite/tool version, path and error details are replaced with <volatile>",
-    "declared JSON fields are replaced with <path>/<version>",
+    "declared JSON fields are replaced with <path>/<version>/<pid>",
+    "patching human output replaces per-case durations with <duration> and PIDs with <pid>",
     "CRLF line endings are normalized to LF",
 ];
 
@@ -63,6 +70,7 @@ impl StreamMode {
 enum VolatileKind {
     Path,
     Version,
+    Pid,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -75,6 +83,8 @@ struct JsonVolatile {
 enum TextRule {
     /// Doctor output embeds host-specific tool versions, paths and error text.
     HostToolDetails,
+    /// Patching/device output embeds wall-clock durations and process IDs.
+    PatchingDetails,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -158,6 +168,14 @@ fn approved_reason_in(
 const ANALYSIS_APPROVED_CASES: &[(&str, &str)] = &[(
     "res-no-json",
     "both reject --json with exit 2; Python argparse prints global usage, native prints RES_HELP",
+)];
+
+/// The native deployment path reports the exact post-replacement state after a
+/// failed install/launch; the Python oracle only prints the raw ADB failure.
+/// Both preserve the signed output, exit 4, and write the same leading text.
+const PATCHING_DEVICE_APPROVED_CASES: &[(&str, &str)] = &[(
+    "deploy-install-failure",
+    "native names the replaced output path and says it was not installed; Python reports only the ADB failure",
 )];
 
 const CORE_CASES: &[CaseSpec] = &[
@@ -608,6 +626,488 @@ fn analysis_case(id: &str) -> Option<&'static AnalysisCase> {
 }
 
 // ---------------------------------------------------------------------------
+// Patching/device case table
+// ---------------------------------------------------------------------------
+
+/// A filesystem result the harness checks immediately after each side runs.
+/// These cover transactional boundaries that stdout alone cannot prove, such
+/// as "a failed signature never replaces the existing output".
+#[derive(Debug, Clone)]
+enum Postcondition {
+    FileExists(&'static str),
+    FileUnchanged(&'static str, &'static [u8]),
+}
+
+#[derive(Debug, Clone, Copy)]
+struct PatchingCase {
+    spec: CaseSpec,
+    /// Extra environment for this case. Values beginning with `@` are fixture
+    /// paths resolved inside the run root before execution.
+    env: &'static [(&'static str, &'static str)],
+    postconditions: &'static [Postcondition],
+}
+
+const PATCHING_PACKAGE: &str = "com.avinside";
+const PATCHING_SERIAL: &str = "emulator-5554";
+const PATCHING_ARTIFACT: &str = "fixtures/artifact.apk";
+const PATCHING_MPP: &str = "fixtures/patches.mpp";
+const PATCHING_KEYSTORE: &str = "fixtures/custom.keystore";
+const PATCHING_JSON_DURATION: &[JsonVolatile] = &[JsonVolatile {
+    pointer: "/testCases/*/durationSeconds",
+    kind: VolatileKind::Version,
+}];
+const CRASH_JSON_VOLATILE: &[JsonVolatile] = &[JsonVolatile {
+    pointer: "/0/pid",
+    kind: VolatileKind::Pid,
+}];
+
+const PATCHING_DEVICE_CASES: &[PatchingCase] = &[
+    PatchingCase {
+        spec: CaseSpec {
+            id: "check-default-json",
+            argv: &[
+                "check",
+                PATCHING_ARTIFACT,
+                "--mpp",
+                PATCHING_MPP,
+                "--package",
+                PATCHING_PACKAGE,
+                "--jobs",
+                "1",
+                "--json",
+            ],
+            stream: StreamMode::Stdout,
+            json_stream: Some(StreamMode::Stdout),
+            volatile_json: PATCHING_JSON_DURATION,
+            text_rules: &[],
+        },
+        env: &[],
+        postconditions: &[],
+    },
+    PatchingCase {
+        spec: CaseSpec {
+            id: "check-all-json",
+            argv: &[
+                "check",
+                PATCHING_ARTIFACT,
+                "--mpp",
+                PATCHING_MPP,
+                "--package",
+                PATCHING_PACKAGE,
+                "--all",
+                "--force",
+                "--jobs",
+                "1",
+                "--json",
+            ],
+            stream: StreamMode::Stdout,
+            json_stream: Some(StreamMode::Stdout),
+            volatile_json: PATCHING_JSON_DURATION,
+            text_rules: &[],
+        },
+        env: &[],
+        postconditions: &[],
+    },
+    PatchingCase {
+        spec: CaseSpec {
+            id: "check-incompatible",
+            argv: &[
+                "check",
+                PATCHING_ARTIFACT,
+                "--mpp",
+                PATCHING_MPP,
+                "--package",
+                PATCHING_PACKAGE,
+                "--all",
+                "--jobs",
+                "1",
+                "--json",
+            ],
+            stream: StreamMode::Stdout,
+            json_stream: Some(StreamMode::Stdout),
+            volatile_json: PATCHING_JSON_DURATION,
+            text_rules: &[],
+        },
+        env: &[("FAKE_PATCHED_APK", "@missing.apk")],
+        postconditions: &[],
+    },
+    PatchingCase {
+        spec: CaseSpec {
+            id: "check-human-durations",
+            argv: &[
+                "check",
+                PATCHING_ARTIFACT,
+                "--mpp",
+                PATCHING_MPP,
+                "--package",
+                PATCHING_PACKAGE,
+                "--patch",
+                "Remove Ads",
+                "--jobs",
+                "1",
+            ],
+            stream: StreamMode::Stdout,
+            json_stream: None,
+            volatile_json: &[],
+            text_rules: &[TextRule::PatchingDetails],
+        },
+        env: &[],
+        postconditions: &[],
+    },
+    PatchingCase {
+        spec: CaseSpec {
+            id: "check-missing-mpp",
+            argv: &[
+                "check",
+                PATCHING_ARTIFACT,
+                "--package",
+                PATCHING_PACKAGE,
+                "--jobs",
+                "1",
+            ],
+            stream: StreamMode::Stderr,
+            json_stream: None,
+            volatile_json: &[],
+            text_rules: &[],
+        },
+        env: &[],
+        postconditions: &[],
+    },
+    PatchingCase {
+        spec: CaseSpec {
+            id: "deploy-default",
+            argv: &[
+                "deploy",
+                PATCHING_ARTIFACT,
+                "--mpp",
+                PATCHING_MPP,
+                "--package",
+                PATCHING_PACKAGE,
+                "--device",
+                PATCHING_SERIAL,
+                "--keystore",
+                PATCHING_KEYSTORE,
+                "--out",
+                "out/deploy-default.apk",
+            ],
+            stream: StreamMode::Stdout,
+            json_stream: None,
+            volatile_json: &[],
+            text_rules: &[TextRule::PatchingDetails],
+        },
+        env: &[],
+        postconditions: &[Postcondition::FileExists("out/deploy-default.apk")],
+    },
+    PatchingCase {
+        spec: CaseSpec {
+            id: "deploy-two-option-groups",
+            argv: &[
+                "deploy",
+                PATCHING_ARTIFACT,
+                "--mpp",
+                PATCHING_MPP,
+                "--package",
+                PATCHING_PACKAGE,
+                "--device",
+                PATCHING_SERIAL,
+                "--keystore",
+                PATCHING_KEYSTORE,
+                "-e",
+                "Remove Ads",
+                "-O",
+                "removeReviewPrompts=false",
+                "-e",
+                "Unlock Developer Tools",
+                "-O",
+                "startWithDebugMessages=true",
+                "--launch",
+                "--out",
+                "out/deploy-options.apk",
+            ],
+            stream: StreamMode::Stdout,
+            json_stream: None,
+            volatile_json: &[],
+            text_rules: &[TextRule::PatchingDetails],
+        },
+        env: &[],
+        postconditions: &[Postcondition::FileExists("out/deploy-options.apk")],
+    },
+    PatchingCase {
+        spec: CaseSpec {
+            id: "deploy-missing-bundle",
+            argv: &[
+                "deploy",
+                PATCHING_ARTIFACT,
+                "--package",
+                PATCHING_PACKAGE,
+                "--device",
+                PATCHING_SERIAL,
+            ],
+            stream: StreamMode::Stderr,
+            json_stream: None,
+            volatile_json: &[],
+            text_rules: &[],
+        },
+        env: &[],
+        postconditions: &[],
+    },
+    PatchingCase {
+        spec: CaseSpec {
+            id: "deploy-alias-rejected",
+            argv: &[
+                "deploy",
+                PATCHING_ARTIFACT,
+                "--mpp",
+                PATCHING_MPP,
+                "--package",
+                PATCHING_PACKAGE,
+                "--device",
+                PATCHING_SERIAL,
+                "--keystore",
+                PATCHING_KEYSTORE,
+                "--out",
+                PATCHING_ARTIFACT,
+            ],
+            stream: StreamMode::Stderr,
+            json_stream: None,
+            volatile_json: &[],
+            text_rules: &[],
+        },
+        env: &[],
+        postconditions: &[Postcondition::FileExists(PATCHING_ARTIFACT)],
+    },
+    PatchingCase {
+        spec: CaseSpec {
+            id: "deploy-signing-failure",
+            argv: &[
+                "deploy",
+                PATCHING_ARTIFACT,
+                "--mpp",
+                PATCHING_MPP,
+                "--package",
+                PATCHING_PACKAGE,
+                "--device",
+                PATCHING_SERIAL,
+                "--keystore",
+                PATCHING_KEYSTORE,
+                "--out",
+                "out/preserved.apk",
+            ],
+            stream: StreamMode::Stderr,
+            json_stream: None,
+            volatile_json: &[],
+            text_rules: &[TextRule::PatchingDetails],
+        },
+        env: &[("FAKE_SIGN_FAIL", "1")],
+        postconditions: &[Postcondition::FileUnchanged(
+            "out/preserved.apk",
+            b"original output\n",
+        )],
+    },
+    PatchingCase {
+        spec: CaseSpec {
+            id: "deploy-install-failure",
+            argv: &[
+                "deploy",
+                PATCHING_ARTIFACT,
+                "--mpp",
+                PATCHING_MPP,
+                "--package",
+                PATCHING_PACKAGE,
+                "--device",
+                PATCHING_SERIAL,
+                "--keystore",
+                PATCHING_KEYSTORE,
+                "--out",
+                "out/install-failure.apk",
+            ],
+            stream: StreamMode::Stderr,
+            json_stream: None,
+            volatile_json: &[],
+            text_rules: &[],
+        },
+        env: &[("FAKE_ADB_INSTALL_FAIL", "1")],
+        postconditions: &[Postcondition::FileExists("out/install-failure.apk")],
+    },
+    PatchingCase {
+        spec: CaseSpec {
+            id: "monitor-healthy",
+            argv: &[
+                "monitor",
+                "--package",
+                PATCHING_PACKAGE,
+                "--device",
+                PATCHING_SERIAL,
+                "--timeout",
+                "0",
+            ],
+            stream: StreamMode::Stdout,
+            json_stream: None,
+            volatile_json: &[],
+            text_rules: &[TextRule::PatchingDetails],
+        },
+        env: &[],
+        postconditions: &[],
+    },
+    PatchingCase {
+        spec: CaseSpec {
+            id: "monitor-crash",
+            argv: &[
+                "monitor",
+                "--package",
+                PATCHING_PACKAGE,
+                "--device",
+                PATCHING_SERIAL,
+                "--timeout",
+                "3",
+            ],
+            stream: StreamMode::Stderr,
+            json_stream: None,
+            volatile_json: &[],
+            text_rules: &[TextRule::PatchingDetails],
+        },
+        env: &[("FAKE_LIVE_LOG", "@crash.log")],
+        postconditions: &[],
+    },
+    PatchingCase {
+        spec: CaseSpec {
+            id: "crash-trace-json",
+            argv: &[
+                "crash-trace",
+                "--package",
+                PATCHING_PACKAGE,
+                "--device",
+                PATCHING_SERIAL,
+                "--json",
+            ],
+            stream: StreamMode::Stdout,
+            json_stream: Some(StreamMode::Stdout),
+            volatile_json: CRASH_JSON_VOLATILE,
+            text_rules: &[],
+        },
+        env: &[],
+        postconditions: &[],
+    },
+    PatchingCase {
+        spec: CaseSpec {
+            id: "ui-dump-clickable",
+            argv: &["ui", "dump", "--device", PATCHING_SERIAL, "--clickable"],
+            stream: StreamMode::Stdout,
+            json_stream: None,
+            volatile_json: &[],
+            text_rules: &[],
+        },
+        env: &[],
+        postconditions: &[],
+    },
+    PatchingCase {
+        spec: CaseSpec {
+            id: "ui-dump-filter-json",
+            argv: &[
+                "ui",
+                "dump",
+                "--device",
+                PATCHING_SERIAL,
+                "--text",
+                "save",
+                "--json",
+            ],
+            stream: StreamMode::Stdout,
+            json_stream: Some(StreamMode::Stdout),
+            volatile_json: &[],
+            text_rules: &[],
+        },
+        env: &[],
+        postconditions: &[],
+    },
+    PatchingCase {
+        spec: CaseSpec {
+            id: "ui-dump-desc",
+            argv: &["ui", "dump", "--device", PATCHING_SERIAL, "--desc", "media"],
+            stream: StreamMode::Stdout,
+            json_stream: None,
+            volatile_json: &[],
+            text_rules: &[],
+        },
+        env: &[],
+        postconditions: &[],
+    },
+    PatchingCase {
+        spec: CaseSpec {
+            id: "ui-click-text",
+            argv: &["ui", "click", "--device", PATCHING_SERIAL, "--text", "save"],
+            stream: StreamMode::Stdout,
+            json_stream: None,
+            volatile_json: &[],
+            text_rules: &[],
+        },
+        env: &[],
+        postconditions: &[],
+    },
+    PatchingCase {
+        spec: CaseSpec {
+            id: "ui-click-desc",
+            argv: &[
+                "ui",
+                "click",
+                "--device",
+                PATCHING_SERIAL,
+                "--desc",
+                "media",
+            ],
+            stream: StreamMode::Stdout,
+            json_stream: None,
+            volatile_json: &[],
+            text_rules: &[],
+        },
+        env: &[],
+        postconditions: &[],
+    },
+    PatchingCase {
+        spec: CaseSpec {
+            id: "ui-click-missing",
+            argv: &[
+                "ui",
+                "click",
+                "--device",
+                PATCHING_SERIAL,
+                "--text",
+                "absent",
+            ],
+            stream: StreamMode::Stderr,
+            json_stream: None,
+            volatile_json: &[],
+            text_rules: &[],
+        },
+        env: &[],
+        postconditions: &[],
+    },
+    PatchingCase {
+        spec: CaseSpec {
+            id: "ui-click-invalid-coords",
+            argv: &[
+                "ui",
+                "click",
+                "--device",
+                PATCHING_SERIAL,
+                "--coords",
+                "nope",
+            ],
+            stream: StreamMode::Stderr,
+            json_stream: None,
+            volatile_json: &[],
+            text_rules: &[],
+        },
+        env: &[],
+        postconditions: &[],
+    },
+];
+
+fn patching_device_case(id: &str) -> Option<&'static PatchingCase> {
+    PATCHING_DEVICE_CASES.iter().find(|case| case.spec.id == id)
+}
+
+// ---------------------------------------------------------------------------
 // Options and entry point
 // ---------------------------------------------------------------------------
 
@@ -633,8 +1133,9 @@ pub fn run(args: &[String]) -> Result<(), String> {
     match options.group.as_str() {
         CORE_GROUP => run_core(options),
         ANALYSIS_GROUP => run_analysis(options),
+        PATCHING_DEVICE_GROUP => run_patching_device(options),
         other => Err(format!(
-            "unsupported parity group '{other}' (available: '{CORE_GROUP}', '{ANALYSIS_GROUP}')"
+            "unsupported parity group '{other}' (available: '{CORE_GROUP}', '{ANALYSIS_GROUP}', '{PATCHING_DEVICE_GROUP}')"
         )),
     }
 }
@@ -642,7 +1143,8 @@ pub fn run(args: &[String]) -> Result<(), String> {
 fn run_core(options: Options) -> Result<(), String> {
     if options.profile != SYNTHETIC_PROFILE {
         return Err(format!(
-            "--profile {REAL_TOOLS_PROFILE} is only supported with --group {ANALYSIS_GROUP}"
+            "--profile {} is only supported with --group {ANALYSIS_GROUP} or {PATCHING_DEVICE_GROUP}",
+            options.profile
         ));
     }
     if options.corpus.is_some() {
@@ -688,6 +1190,9 @@ fn run_analysis(options: Options) -> Result<(), String> {
     match options.profile.as_str() {
         SYNTHETIC_PROFILE => run_analysis_synthetic(options, &specs),
         REAL_TOOLS_PROFILE => run_analysis_real_tools(options, &specs),
+        REAL_DEVICE_PROFILE => Err(format!(
+            "--profile {REAL_DEVICE_PROFILE} is only supported with --group {PATCHING_DEVICE_GROUP}"
+        )),
         other => Err(format!(
             "unsupported parity profile '{other}' (available: '{SYNTHETIC_PROFILE}', '{REAL_TOOLS_PROFILE}')"
         )),
@@ -741,6 +1246,89 @@ fn run_analysis_real_tools(options: Options, specs: &[&'static CaseSpec]) -> Res
     )?;
 
     finish_analysis(options.report.as_deref(), report, REAL_TOOLS_PROFILE)
+}
+
+fn run_patching_device(options: Options) -> Result<(), String> {
+    let specs = select_patching_device_cases(&options.cases)?;
+    if options.list {
+        print_patching_device_list(&specs);
+        return Ok(());
+    }
+
+    match options.profile.as_str() {
+        SYNTHETIC_PROFILE => run_patching_device_synthetic(options, &specs),
+        REAL_DEVICE_PROFILE => run_patching_device_real(options, &specs),
+        other => Err(format!(
+            "unsupported patching-device profile '{other}' (available: '{SYNTHETIC_PROFILE}', '{REAL_DEVICE_PROFILE}')"
+        )),
+    }
+}
+
+fn run_patching_device_synthetic(
+    options: Options,
+    specs: &[&'static PatchingCase],
+) -> Result<(), String> {
+    if options.corpus.is_some() {
+        return Err(format!(
+            "--corpus requires --profile {REAL_DEVICE_PROFILE}; the {SYNTHETIC_PROFILE} profile generates its own fixtures"
+        ));
+    }
+    let (oracle, rust_bin) = resolve_tools(&options)?;
+    let sandbox = tempfile::Builder::new()
+        .prefix("apk-lab-patching-device-parity-")
+        .tempdir()
+        .map_err(|error| format!("could not create parity sandbox: {error}"))?;
+    let prepared = execute_patching_device_synthetic(specs, &oracle, &rust_bin, sandbox.path())?;
+    finish_patching_device(options.report.as_deref(), prepared, SYNTHETIC_PROFILE)
+}
+
+fn run_patching_device_real(
+    options: Options,
+    specs: &[&'static PatchingCase],
+) -> Result<(), String> {
+    let corpus_path = options
+        .corpus
+        .as_deref()
+        .ok_or("--corpus is required with --profile real-device")?;
+    let corpus = load_device_corpus(corpus_path)?;
+    let (oracle, rust_bin) = resolve_tools(&options)?;
+    let cwd = corpus
+        .root
+        .parent()
+        .map(Path::to_path_buf)
+        .unwrap_or_else(|| corpus.root.clone());
+    let environment = Environment::for_real_host();
+    let normalizer = Normalizer::new(NormalizationContext::new(Path::new("/nonexistent"), &cwd));
+    let prepared = prepare_real_patching_cases(specs, &corpus);
+    let report = execute_prepared(
+        prepared,
+        &oracle,
+        &rust_bin,
+        &cwd,
+        &environment,
+        &normalizer,
+        PATCHING_DEVICE_REPORT_KIND,
+        Some(REAL_DEVICE_PROFILE),
+        PATCHING_DEVICE_APPROVED_CASES,
+    )?;
+    finish_patching_device(options.report.as_deref(), report, REAL_DEVICE_PROFILE)
+}
+
+fn finish_patching_device(
+    report_path: Option<&str>,
+    report: ParityReport,
+    profile: &'static str,
+) -> Result<(), String> {
+    let rendered = render_report(&report)?;
+    write_report(report_path, &rendered)?;
+    if !report_passed(&report) {
+        return Err(format!(
+            "patching-device parity ({profile}) failed: {} of {} case(s) did not pass",
+            report.summary.failed + report.summary.missing,
+            report.summary.total
+        ));
+    }
+    Ok(())
 }
 
 fn finish_analysis(
@@ -869,14 +1457,14 @@ fn parse_args(args: &[String]) -> Result<Option<Options>, String> {
     }
 
     let group = group.ok_or(format!(
-        "--group is required (available: '{CORE_GROUP}', '{ANALYSIS_GROUP}')"
+        "--group is required (available: '{CORE_GROUP}', '{ANALYSIS_GROUP}', '{PATCHING_DEVICE_GROUP}')"
     ))?;
     let profile = profile.unwrap_or_else(|| SYNTHETIC_PROFILE.to_string());
     match profile.as_str() {
-        SYNTHETIC_PROFILE | REAL_TOOLS_PROFILE => {}
+        SYNTHETIC_PROFILE | REAL_TOOLS_PROFILE | REAL_DEVICE_PROFILE => {}
         other => {
             return Err(format!(
-                "unsupported parity profile '{other}' (available: '{SYNTHETIC_PROFILE}', '{REAL_TOOLS_PROFILE}')"
+                "unsupported parity profile '{other}' (available: '{SYNTHETIC_PROFILE}', '{REAL_TOOLS_PROFILE}', '{REAL_DEVICE_PROFILE}')"
             ))
         }
     }
@@ -942,6 +1530,38 @@ fn select_analysis_specs(requested: &[String]) -> Result<Vec<&'static CaseSpec>,
         .map(|case| &case.spec)
         .filter(|spec| wanted.is_empty() || wanted.contains(spec.id))
         .collect())
+}
+
+fn select_patching_device_cases(
+    requested: &[String],
+) -> Result<Vec<&'static PatchingCase>, String> {
+    let mut wanted = BTreeSet::new();
+    for id in requested {
+        if patching_device_case(id).is_none() {
+            return Err(format!(
+                "unknown patching-device parity case '{id}' (run 'parity --group {PATCHING_DEVICE_GROUP}' --list)"
+            ));
+        }
+        wanted.insert(id.as_str());
+    }
+    Ok(PATCHING_DEVICE_CASES
+        .iter()
+        .filter(|case| wanted.is_empty() || wanted.contains(case.spec.id))
+        .collect())
+}
+
+fn print_patching_device_list(cases: &[&PatchingCase]) {
+    let mut text = String::new();
+    for case in cases {
+        text.push_str(case.spec.id);
+        text.push('\t');
+        text.push_str(case.spec.stream.as_str());
+        text.push('\t');
+        text.push_str(&case.spec.argv.join(" "));
+        text.push('\n');
+    }
+    let mut out = io::stdout().lock();
+    let _ = out.write_all(text.as_bytes());
 }
 
 fn print_core_list(cases: &[&CaseSpec]) {
@@ -1087,7 +1707,7 @@ impl ProcessResult {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Environment {
     variables: Vec<(String, String)>,
 }
@@ -1136,6 +1756,23 @@ impl Environment {
         Self { variables }
     }
 
+    /// Applies case-local variables. Later entries win, matching the order the
+    /// child process receives.
+    fn with_variables(mut self, extra: impl IntoIterator<Item = (String, String)>) -> Self {
+        for (name, value) in extra {
+            if let Some(existing) = self
+                .variables
+                .iter_mut()
+                .find(|(candidate, _)| candidate == &name)
+            {
+                existing.1 = value;
+            } else {
+                self.variables.push((name, value));
+            }
+        }
+        self
+    }
+
     /// Real-tools parity must see the host's actual pinned tool cache, SDK and
     /// Java installation, so it preserves the host inputs instead of pointing
     /// HOME/ANDROID_HOME at the sandbox.
@@ -1181,6 +1818,8 @@ struct PreparedCase {
     id: String,
     argv: Vec<String>,
     spec: CaseSpec,
+    env: Vec<(String, String)>,
+    postconditions: Vec<Postcondition>,
     missing: Option<String>,
 }
 
@@ -1190,6 +1829,8 @@ impl PreparedCase {
             id: spec.id.to_string(),
             argv,
             spec: *spec,
+            env: Vec::new(),
+            postconditions: Vec::new(),
             missing: None,
         }
     }
@@ -1199,6 +1840,8 @@ impl PreparedCase {
             id: spec.id.to_string(),
             argv,
             spec: *spec,
+            env: Vec::new(),
+            postconditions: Vec::new(),
             missing: Some(reason),
         }
     }
@@ -1291,6 +1934,99 @@ fn execute_analysis_synthetic(
     )
 }
 
+fn execute_patching_device_synthetic(
+    cases: &[&PatchingCase],
+    oracle: &Oracle,
+    rust_bin: &Path,
+    sandbox: &Path,
+) -> Result<ParityReport, String> {
+    let run_root = sandbox.join("run");
+    let fake_sdk = sandbox.join("fake-sdk");
+    let fake_bin = sandbox.join("fake-bin");
+    let home = sandbox.join("home");
+    create_patching_device_fixtures(
+        &run_root,
+        &fake_sdk,
+        &home,
+        &fake_bin,
+        python_project_path(oracle),
+    )?;
+    for directory in [&home, &sandbox.join("tmp"), &fake_bin] {
+        fs::create_dir_all(directory)
+            .map_err(|error| format!("could not create {}: {error}", directory.display()))?;
+    }
+    validate_patching_device_tools(sandbox)?;
+
+    let environment = Environment::for_sandbox_with_tools(
+        sandbox,
+        python_project_path(oracle),
+        &fake_sdk,
+        Some(&fake_bin),
+    )
+    .with_variables(patching_common_variables(&run_root));
+
+    let normalizer = Normalizer::new(NormalizationContext::new(sandbox, &run_root));
+    let prepared: Vec<PreparedCase> = cases
+        .iter()
+        .map(|case| {
+            let argv = case
+                .spec
+                .argv
+                .iter()
+                .map(|value| value.to_string())
+                .collect();
+            let mut prepared = PreparedCase::new(&case.spec, argv);
+            prepared.env = case
+                .env
+                .iter()
+                .map(|(name, value)| (name.to_string(), resolve_fixture_value(&run_root, value)))
+                .collect();
+            prepared.postconditions = case.postconditions.to_vec();
+            prepared
+        })
+        .collect();
+    execute_prepared(
+        prepared,
+        oracle,
+        rust_bin,
+        &run_root,
+        &environment,
+        &normalizer,
+        PATCHING_DEVICE_REPORT_KIND,
+        Some(SYNTHETIC_PROFILE),
+        PATCHING_DEVICE_APPROVED_CASES,
+    )
+}
+
+fn resolve_fixture_value(run_root: &Path, value: &str) -> String {
+    match value.strip_prefix('@') {
+        Some(relative) => run_root.join(relative).to_string_lossy().into_owned(),
+        None => value.to_string(),
+    }
+}
+
+fn patching_common_variables(run_root: &Path) -> Vec<(String, String)> {
+    [
+        ("FAKE_LOG", "calls.log"),
+        ("FAKE_BADGING", "badging.txt"),
+        ("FAKE_LOGCAT", "logcat.txt"),
+        ("FAKE_UI_XML", "ui.xml"),
+        ("FAKE_DUMPSYS", "dumpsys.txt"),
+        ("FAKE_PATCHED_APK", "fixtures/patched.apk"),
+        ("FAKE_INSTALLED", "installed.apk"),
+        ("FAKE_PID", "pid.txt"),
+        ("FAKE_LIVE_LOG", "empty.log"),
+    ]
+    .into_iter()
+    .map(|(name, relative)| {
+        (
+            name.to_string(),
+            run_root.join(relative).to_string_lossy().into_owned(),
+        )
+    })
+    .collect()
+}
+
 #[allow(clippy::too_many_arguments)]
 fn execute_prepared(
     cases: Vec<PreparedCase>,
@@ -1309,14 +2045,16 @@ fn execute_prepared(
             results.push(missing_result_with_argv(case, reason.clone()));
             continue;
         }
-        let python = match run_process(oracle_command(oracle, &case.argv), cwd, environment) {
+        let case_environment = environment.clone().with_variables(case.env.iter().cloned());
+        let python = match run_process(oracle_command(oracle, &case.argv), cwd, &case_environment) {
             Ok(result) => result,
             Err(error) => {
                 results.push(missing_result_with_argv(case, format!("python: {error}")));
                 continue;
             }
         };
-        let rust = match run_binary(rust_bin, &case.argv, cwd, environment) {
+        let mut differences = postcondition_differences(case, cwd, "python");
+        let rust = match run_binary(rust_bin, &case.argv, cwd, &case_environment) {
             Ok(result) => result,
             Err(error) => {
                 results.push(missing_result_with_exit_and_argv(
@@ -1327,7 +2065,13 @@ fn execute_prepared(
                 continue;
             }
         };
-        let differences = compare_case(&case.spec, &python, &rust, &normalizer.at(&case.spec));
+        differences.extend(postcondition_differences(case, cwd, "rust"));
+        differences.extend(compare_case(
+            &case.spec,
+            &python,
+            &rust,
+            &normalizer.at(&case.spec),
+        ));
         let approval = approved_reason_in(approvals, &case.id);
         let approved = !differences.is_empty() && approval.is_some();
         let status = if differences.is_empty() || approved {
@@ -1350,6 +2094,33 @@ fn execute_prepared(
     }
 
     Ok(build_report_for(results, kind, profile))
+}
+
+fn postcondition_differences(case: &PreparedCase, cwd: &Path, side: &str) -> Vec<String> {
+    let mut differences = Vec::new();
+    for postcondition in &case.postconditions {
+        match postcondition {
+            Postcondition::FileExists(relative) => {
+                if !cwd.join(relative).is_file() {
+                    differences.push(format!(
+                        "{side} postcondition: expected file '{relative}' to exist"
+                    ));
+                }
+            }
+            Postcondition::FileUnchanged(relative, expected) => {
+                match fs::read(cwd.join(relative)) {
+                    Ok(contents) if contents == *expected => {}
+                    Ok(_) => differences.push(format!(
+                        "{side} postcondition: file '{relative}' changed but must stay unchanged"
+                    )),
+                    Err(error) => differences.push(format!(
+                        "{side} postcondition: could not read '{relative}': {error}"
+                    )),
+                }
+            }
+        }
+    }
+    differences
 }
 
 fn python_project_path(oracle: &Oracle) -> &Path {
@@ -1569,6 +2340,170 @@ fn load_corpus(path: &Path) -> Result<Corpus, String> {
     }
 
     Ok(Corpus { root, cases })
+}
+
+// ---------------------------------------------------------------------------
+// Real-device corpus
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct DeviceCorpusDocument {
+    kind: String,
+    version: u32,
+    artifact: String,
+    mpp: String,
+    package: String,
+    device: String,
+    cases: Vec<CorpusCaseDocument>,
+}
+
+#[derive(Debug, Clone)]
+struct DeviceCorpus {
+    /// Canonical path of the corpus document itself.
+    root: PathBuf,
+    cases: BTreeMap<String, Vec<String>>,
+}
+
+fn load_device_corpus(path: &Path) -> Result<DeviceCorpus, String> {
+    let text = fs::read_to_string(path)
+        .map_err(|error| format!("could not read corpus '{}': {error}", path.display()))?;
+    let document: DeviceCorpusDocument = serde_json::from_str(&text)
+        .map_err(|error| format!("invalid corpus '{}': {error}", path.display()))?;
+    if document.kind != DEVICE_CORPUS_KIND {
+        return Err(format!(
+            "invalid corpus '{}': kind must be '{DEVICE_CORPUS_KIND}'",
+            path.display()
+        ));
+    }
+    if document.version != DEVICE_CORPUS_VERSION {
+        return Err(format!(
+            "invalid corpus '{}': unsupported version {} (expected {DEVICE_CORPUS_VERSION})",
+            path.display(),
+            document.version
+        ));
+    }
+    for (name, value) in [
+        ("artifact", &document.artifact),
+        ("mpp", &document.mpp),
+        ("package", &document.package),
+        ("device", &document.device),
+    ] {
+        if value.trim().is_empty() {
+            return Err(format!(
+                "invalid corpus '{}': {name} must be non-empty",
+                path.display()
+            ));
+        }
+    }
+    let root = fs::canonicalize(path)
+        .map_err(|error| format!("could not resolve corpus '{}': {error}", path.display()))?;
+    let base = root.parent().unwrap_or(Path::new(".")).to_path_buf();
+    let resolve_input = |name: &str, value: &str| -> Result<PathBuf, String> {
+        let candidate = if Path::new(value).is_absolute() {
+            PathBuf::from(value)
+        } else {
+            base.join(value)
+        };
+        let resolved = fs::canonicalize(&candidate).map_err(|error| {
+            format!(
+                "invalid corpus '{}': {name} cannot be resolved ('{value}'): {error}",
+                path.display()
+            )
+        })?;
+        if !resolved.is_file() {
+            return Err(format!(
+                "invalid corpus '{}': {name} is not a file: {}",
+                path.display(),
+                resolved.display()
+            ));
+        }
+        Ok(resolved)
+    };
+    let artifact = resolve_input("artifact", &document.artifact)?;
+    let mpp = resolve_input("mpp", &document.mpp)?;
+
+    if document.cases.is_empty() {
+        return Err(format!(
+            "invalid corpus '{}': cases must contain at least one entry",
+            path.display()
+        ));
+    }
+    let replacements = [
+        ("artifact", artifact.to_string_lossy().into_owned()),
+        ("mpp", mpp.to_string_lossy().into_owned()),
+        ("package", document.package.clone()),
+        ("device", document.device.clone()),
+    ];
+    let mut cases = BTreeMap::new();
+    for case in document.cases {
+        if patching_device_case(&case.id).is_none() {
+            return Err(format!(
+                "invalid corpus '{}': unknown patching-device case '{}' (run 'parity --group {PATCHING_DEVICE_GROUP}' --list)",
+                path.display(),
+                case.id
+            ));
+        }
+        if case.argv.is_empty() {
+            return Err(format!(
+                "invalid corpus '{}': case '{}' has an empty argv",
+                path.display(),
+                case.id
+            ));
+        }
+        let mut argv = Vec::with_capacity(case.argv.len());
+        for token in case.argv {
+            let mut value = token;
+            if let Some(name) = value.strip_prefix('$') {
+                let Some((_, replacement)) = replacements
+                    .iter()
+                    .find(|(candidate, _)| *candidate == name)
+                else {
+                    return Err(format!(
+                        "invalid corpus '{}': case '{}' references unknown placeholder '${name}'",
+                        path.display(),
+                        case.id
+                    ));
+                };
+                value = replacement.clone();
+            }
+            argv.push(value);
+        }
+        if cases.insert(case.id.clone(), argv).is_some() {
+            return Err(format!(
+                "invalid corpus '{}': duplicate case '{}'",
+                path.display(),
+                case.id
+            ));
+        }
+    }
+
+    Ok(DeviceCorpus { root, cases })
+}
+
+fn prepare_real_patching_cases(
+    specs: &[&'static PatchingCase],
+    corpus: &DeviceCorpus,
+) -> Vec<PreparedCase> {
+    specs
+        .iter()
+        .map(|case| {
+            let Some(argv) = corpus.cases.get(case.spec.id) else {
+                return PreparedCase::missing(
+                    &case.spec,
+                    case.spec
+                        .argv
+                        .iter()
+                        .map(|value| value.to_string())
+                        .collect(),
+                    format!("corpus has no case '{}'", case.spec.id),
+                );
+            };
+            let mut prepared = PreparedCase::new(&case.spec, argv.clone());
+            prepared.postconditions = case.postconditions.to_vec();
+            prepared
+        })
+        .collect()
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -1822,7 +2757,17 @@ impl NormalizationContext {
             (home.to_string_lossy().into_owned(), "<home>".to_string()),
             (temp.to_string_lossy().into_owned(), "<temp>".to_string()),
         ];
-        // Longest first so nested roots replace deterministically.
+        // Commands canonicalize working directories, so macOS may report
+        // `/private/var/...` for a tempdir created as `/var/...`. Register both
+        // spellings; longest first keeps nested roots deterministic.
+        for path in [sandbox, &home, &temp, run_root] {
+            if let Ok(canonical) = fs::canonicalize(path) {
+                let canonical = canonical.to_string_lossy().into_owned();
+                if canonical != path.to_string_lossy() {
+                    replacements.push((canonical, path_replacement(path)));
+                }
+            }
+        }
         replacements.sort_by_key(|entry| std::cmp::Reverse(entry.0.len()));
         replacements.dedup_by(|left, right| left.0 == right.0);
         Self { replacements }
@@ -1841,6 +2786,18 @@ impl NormalizationContext {
         Self {
             replacements: vec![(cwd.to_string(), "<cwd>".to_string())],
         }
+    }
+}
+
+fn path_replacement(path: &Path) -> String {
+    if path.file_name().and_then(|name| name.to_str()) == Some("run") {
+        "<cwd>".to_string()
+    } else if path.file_name().and_then(|name| name.to_str()) == Some("home") {
+        "<home>".to_string()
+    } else if path.file_name().and_then(|name| name.to_str()) == Some("tmp") {
+        "<temp>".to_string()
+    } else {
+        "<sandbox>".to_string()
     }
 }
 
@@ -1866,12 +2823,74 @@ impl Normalizer {
 
     fn text(&self, text: &str) -> String {
         let normalized = self.context.replace_paths(&text.replace("\r\n", "\n"));
-        if self.rules.contains(&TextRule::HostToolDetails) {
+        let normalized = if self.rules.contains(&TextRule::HostToolDetails) {
             normalize_host_tool_lines(&normalized)
+        } else {
+            normalized
+        };
+        if self.rules.contains(&TextRule::PatchingDetails) {
+            normalize_patching_details(&normalized)
         } else {
             normalized
         }
     }
+}
+
+/// Patching check lines carry per-case wall-clock durations and monitor text
+/// carries process IDs. Both are environmental, so replace them with stable
+/// placeholders while leaving status, names and thresholds intact.
+fn normalize_patching_details(text: &str) -> String {
+    let mut lines: Vec<String> = Vec::new();
+    for line in text.split('\n') {
+        let line = normalize_pid(line);
+        if (line.starts_with("  [PASS] ") || line.starts_with("  [FAIL] ")) && line.ends_with(')') {
+            if let Some(position) = line.rfind(" (") {
+                lines.push(format!("{} (<duration>)", &line[..position]));
+                continue;
+            }
+        }
+        lines.push(line);
+    }
+    lines.join("\n").trim_end_matches('\n').to_string()
+}
+
+fn normalize_pid(line: &str) -> String {
+    let mut result = String::with_capacity(line.len());
+    let mut rest = line;
+    while let Some(position) = rest.find("PID") {
+        result.push_str(&rest[..position]);
+        rest = &rest[position..];
+        let mut chars = rest.char_indices();
+        let _ = chars.next();
+        let _ = chars.next();
+        let _ = chars.next();
+        let mut digits_at = None;
+        for (index, character) in rest.char_indices().skip(3) {
+            if character.is_ascii_digit() {
+                digits_at = Some(index);
+                break;
+            }
+            if !(character == ' ' || character == ':') {
+                break;
+            }
+        }
+        if let Some(start) = digits_at {
+            let end = rest[start..]
+                .find(|character: char| !character.is_ascii_digit())
+                .map(|offset| start + offset)
+                .unwrap_or(rest.len());
+            if end > start {
+                result.push_str(&rest[..start]);
+                result.push_str("<pid>");
+                rest = &rest[end..];
+                continue;
+            }
+        }
+        result.push_str(&rest[..3]);
+        rest = &rest[3..];
+    }
+    result.push_str(rest);
+    result
 }
 
 /// Replaces host-specific details on doctor status lines while preserving the
@@ -1963,7 +2982,14 @@ fn apply_pointer_segments(value: &mut Value, segments: &[&str], kind: VolatileKi
 
 fn volatile_placeholder(value: &Value, kind: VolatileKind) -> Value {
     match kind {
-        VolatileKind::Version => Value::String("<version>".to_string()),
+        VolatileKind::Version => match value {
+            Value::Number(_) => serde_json::json!("<version>"),
+            _ => Value::String("<version>".to_string()),
+        },
+        VolatileKind::Pid => match value {
+            Value::Number(_) => serde_json::json!("<pid>"),
+            _ => Value::String("<pid>".to_string()),
+        },
         VolatileKind::Path => match value {
             Value::String(text) if !looks_absolute(text) => value.clone(),
             _ => Value::String("<path>".to_string()),
@@ -2540,6 +3566,325 @@ enum CaseStatus {
     Missing,
 }
 
+// ---------------------------------------------------------------------------
+// Patching/device fixtures and fake tools
+// ---------------------------------------------------------------------------
+
+const PATCHING_BADGING: &str = "\
+package: name='com.avinside' versionCode='100' versionName='1.0' compileSdkVersion='34'
+launchable-activity: name='.MainActivity' label='' icon=''
+sdkVersion:'21'
+targetSdkVersion:'34'
+";
+
+const PATCHING_UI_XML: &str = r#"<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
+<hierarchy rotation="0">
+  <node index="0" text="Must &amp; Watch" resource-id="" class="android.widget.TextView" package="com.avinside" content-desc="" clickable="false" enabled="true" bounds="[32,297][861,361]" />
+  <node index="1" text="" resource-id="" class="android.view.View" package="com.avinside" content-desc="media" clickable="true" enabled="true" bounds="[281,2259][360,2290]" />
+  <node index="2" text="Save" resource-id="com.avinside:id/save" class="android.widget.Button" package="com.avinside" content-desc="" clickable="true" enabled="true" bounds="[100,200][200,300]" />
+</hierarchy>
+"#;
+
+const PATCHING_LOGCAT: &str = "\
+10-15 12:00:00.000  1234  1234 E AndroidRuntime: FATAL EXCEPTION: main
+10-15 12:00:00.000  1234  1234 E AndroidRuntime: Process: com.avinside, PID: 1234
+10-15 12:00:00.000  1234  1234 E AndroidRuntime: java.lang.VerifyError: Rejecting class com.example.Bad
+10-15 12:00:00.000  1234  1234 E AndroidRuntime:     at com.example.app.MainActivity.onCreate(MainActivity.java:20)
+";
+
+const PATCHING_LIVE_CRASH: &str =
+    "10-15 12:00:00.000  1234  1234 E AndroidRuntime: FATAL EXCEPTION: main\n";
+
+const PATCHING_AAPT2: &str = r#"#!/bin/sh
+if [ "${1:-}" = "dump" ] && [ "${2:-}" = "badging" ]; then
+  cat "$FAKE_BADGING"
+  exit 0
+fi
+exit 0
+"#;
+
+const PATCHING_DEXDUMP: &str = r#"#!/bin/sh
+exit 0
+"#;
+
+const PATCHING_APKSIGNER: &str = r#"#!/bin/sh
+printf 'apksigner %s\n' "$*" >> "${FAKE_LOG:-/dev/null}" 2>/dev/null || true
+if [ "${1:-}" = "verify" ]; then
+  printf 'Signer #1 certificate SHA-256 digest: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n'
+  exit 0
+fi
+if [ "${1:-}" = "sign" ]; then
+  if [ "${FAKE_SIGN_FAIL:-}" = "1" ]; then
+    printf 'injected signing failure\n' >&2
+    exit 1
+  fi
+  exit 0
+fi
+exit 0
+"#;
+
+const PATCHING_ZIPALIGN: &str = r#"#!/bin/sh
+printf 'zipalign %s\n' "$*" >> "${FAKE_LOG:-/dev/null}" 2>/dev/null || true
+previous=""
+last=""
+for argument in "$@"; do
+  previous="$last"
+  last="$argument"
+done
+cp "$previous" "$last"
+exit 0
+"#;
+
+const PATCHING_ADB: &str = r#"#!/bin/sh
+printf 'adb %s\n' "$*" >> "${FAKE_LOG:-/dev/null}" 2>/dev/null || true
+if [ "${1:-}" = "-s" ]; then shift 2; fi
+case "${1:-}" in
+  devices)
+    printf 'List of devices attached\nemulator-5554\tdevice\n'
+    ;;
+  logcat)
+    if [ "${2:-}" = "-d" ]; then
+      cat "$FAKE_LOGCAT"
+    else
+      if [ -s "${FAKE_LIVE_LOG:-/dev/null}" ]; then cat "$FAKE_LIVE_LOG"; fi
+    fi
+    ;;
+  install)
+    if [ "${FAKE_ADB_INSTALL_FAIL:-}" = "1" ]; then
+      printf 'Failure [INSTALL_FAILED_TEST]\n' >&2
+      exit 1
+    fi
+    last=""
+    for argument in "$@"; do last="$argument"; done
+    cp "$last" "$FAKE_INSTALLED" 2>/dev/null || true
+    printf 'Success\n'
+    ;;
+  uninstall)
+    printf 'Success\n'
+    ;;
+  shell)
+    shift
+    case "${1:-}" in
+      date) printf '1700000000 +0000\n' ;;
+      dumpsys) if [ -s "$FAKE_DUMPSYS" ]; then cat "$FAKE_DUMPSYS"; fi ;;
+      pidof) if [ -s "$FAKE_PID" ]; then cat "$FAKE_PID"; fi ;;
+      cat)
+        case "${2:-}" in
+          /proc/stat) printf 'cpu  100 0 0 0 0 0 0 0 0 0\ncpu0 100 0 0 0 0 0 0 0 0 0\n' ;;
+          *) printf '1234 (com.avinside) R 1 1 1 0 -1 4194560 100 0 0 0 100 0 0 0 20 0 1 0 100 0 0\n' ;;
+        esac
+        ;;
+      input) printf 'tap\n' ;;
+      am) printf 'Starting: Intent\n' ;;
+      kill) printf '' ;;
+    esac
+    ;;
+  exec-out)
+    cat "$FAKE_UI_XML"
+    ;;
+esac
+exit 0
+"#;
+
+const PATCHING_MORPHE: &str = r#"#!/bin/sh
+printf 'morphe %s\n' "$*" >> "${FAKE_LOG:-/dev/null}" 2>/dev/null || true
+out=""
+result=""
+group_open=0
+ungrouped=0
+names="$(mktemp "${TMPDIR:-/tmp}/morphe-names.XXXXXX")"
+: > "$names"
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    -o) out="$2"; shift 2 ;;
+    -r) result="$2"; shift 2 ;;
+    -p) group_open=1; shift 2 ;;
+    -O)
+      if [ "$group_open" != "1" ]; then ungrouped=1; fi
+      shift 2
+      ;;
+    -e)
+      if [ "$group_open" != "1" ]; then ungrouped=1; fi
+      group_open=0
+      printf '%s\n' "$2" >> "$names"
+      shift 2
+      ;;
+    *) shift ;;
+  esac
+done
+if [ -n "$out" ] && [ -n "${FAKE_PATCHED_APK:-}" ]; then
+  cp "$FAKE_PATCHED_APK" "$out" 2>/dev/null || true
+fi
+if [ -n "$result" ]; then
+  printf '{"appliedPatches":[' > "$result"
+  first=1
+  while IFS= read -r name; do
+    if [ "$first" = "1" ]; then first=0; else printf ',' >> "$result"; fi
+    printf '{"name":"%s"}' "$name" >> "$result"
+  done < "$names"
+  printf '],"failedPatches":[' >> "$result"
+  if [ "$ungrouped" = "1" ]; then
+    printf '{"name":"option-grouping","reason":"each -e must follow its own -p group"}' >> "$result"
+  fi
+  printf ']}\n' >> "$result"
+fi
+rm -f "$names"
+exit 0
+"#;
+
+fn create_patching_device_fixtures(
+    run_root: &Path,
+    fake_sdk: &Path,
+    home: &Path,
+    fake_bin: &Path,
+    project: &Path,
+) -> Result<(), String> {
+    let fixtures = run_root.join("fixtures");
+    let out = run_root.join("out");
+    let build_tools = fake_sdk.join(ANALYSIS_SDK_VERSION);
+    let platform_tools = fake_sdk.join("platform-tools");
+    for directory in [
+        &fixtures,
+        &out,
+        &build_tools,
+        &platform_tools,
+        home,
+        fake_bin,
+    ] {
+        fs::create_dir_all(directory)
+            .map_err(|error| format!("could not create {}: {error}", directory.display()))?;
+    }
+
+    let manifest = b"<manifest package=\"com.avinside\"/>" as &[u8];
+    let input_dex = dex_header(3, 7);
+    let patched_dex = dex_header(5, 11);
+    let entries: [(&str, &[u8]); 5] = [
+        ("AndroidManifest.xml", manifest),
+        ("classes.dex", input_dex.as_slice()),
+        ("resources.arsc", b"resources" as &[u8]),
+        ("assets/note.txt", b"parity fixture" as &[u8]),
+        ("lib/arm64-v8a/libnative.so", b"native" as &[u8]),
+    ];
+    let patched_entries: [(&str, &[u8]); 5] = [
+        ("AndroidManifest.xml", manifest),
+        ("classes.dex", patched_dex.as_slice()),
+        ("resources.arsc", b"resources" as &[u8]),
+        ("assets/note.txt", b"parity fixture" as &[u8]),
+        ("lib/arm64-v8a/libnative.so", b"native" as &[u8]),
+    ];
+    write_apk(&fixtures.join("artifact.apk"), &entries)?;
+    write_apk(&fixtures.join("patched.apk"), &patched_entries)?;
+    for (name, content) in [
+        ("patches.mpp", b"mpp" as &[u8]),
+        ("custom.keystore", b"custom keystore" as &[u8]),
+    ] {
+        fs::write(fixtures.join(name), content)
+            .map_err(|error| format!("could not write fixture {name}: {error}"))?;
+    }
+    for (name, content) in [
+        ("badging.txt", PATCHING_BADGING),
+        ("logcat.txt", PATCHING_LOGCAT),
+        ("ui.xml", PATCHING_UI_XML),
+        ("crash.log", PATCHING_LIVE_CRASH),
+    ] {
+        fs::write(run_root.join(name), content)
+            .map_err(|error| format!("could not write fixture {name}: {error}"))?;
+    }
+    for name in ["dumpsys.txt", "empty.log", "calls.log"] {
+        fs::write(run_root.join(name), b"")
+            .map_err(|error| format!("could not write fixture {name}: {error}"))?;
+    }
+    fs::write(run_root.join("pid.txt"), b"1234\n")
+        .map_err(|error| format!("could not write pid fixture: {error}"))?;
+    fs::write(out.join("preserved.apk"), b"original output\n")
+        .map_err(|error| format!("could not write preserved output: {error}"))?;
+
+    for (name, script, directory) in [
+        ("aapt2", PATCHING_AAPT2, build_tools.as_path()),
+        ("dexdump", PATCHING_DEXDUMP, build_tools.as_path()),
+        ("apksigner", PATCHING_APKSIGNER, build_tools.as_path()),
+        ("zipalign", PATCHING_ZIPALIGN, build_tools.as_path()),
+        ("adb", PATCHING_ADB, platform_tools.as_path()),
+        ("java", FAKE_JAVA, fake_bin),
+    ] {
+        let path = directory.join(name);
+        fs::write(&path, script)
+            .map_err(|error| format!("could not write fake {name}: {error}"))?;
+        make_executable(&path)?;
+    }
+
+    install_patching_morphe(home, project)?;
+    Ok(())
+}
+
+fn install_patching_morphe(home: &Path, project: &Path) -> Result<(), String> {
+    let lock_path = project.join("tools.lock.json");
+    let text = fs::read_to_string(&lock_path).map_err(|error| {
+        format!(
+            "could not read pinned tool lock '{}': {error}",
+            lock_path.display()
+        )
+    })?;
+    let lock: Value = serde_json::from_str(&text).map_err(|error| {
+        format!(
+            "invalid pinned tool lock '{}': {error}",
+            lock_path.display()
+        )
+    })?;
+    let spec = lock
+        .get("tools")
+        .and_then(|tools| tools.get("morphe"))
+        .ok_or_else(|| format!("pinned tool lock '{}' has no morphe", lock_path.display()))?;
+    let version = spec
+        .get("version")
+        .and_then(Value::as_str)
+        .ok_or("pinned morphe has no version")?;
+    let sha256 = spec
+        .get("sha256")
+        .and_then(Value::as_str)
+        .ok_or("pinned morphe has no sha256")?;
+    let executable = spec
+        .get("executablePath")
+        .and_then(Value::as_str)
+        .ok_or("pinned morphe has no executablePath")?;
+    let path = home
+        .join(ANALYSIS_CACHE)
+        .join("morphe")
+        .join(version)
+        .join(sha256)
+        .join(executable);
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)
+            .map_err(|error| format!("could not create {}: {error}", parent.display()))?;
+    }
+    fs::write(&path, PATCHING_MORPHE)
+        .map_err(|error| format!("could not write fake morphe: {error}"))?;
+    make_executable(&path)
+}
+
+fn validate_patching_device_tools(sandbox: &Path) -> Result<(), String> {
+    let build_tools = sandbox.join("fake-sdk").join(ANALYSIS_SDK_VERSION);
+    let mut required = vec![
+        sandbox.join("fake-bin").join("java"),
+        build_tools.join("aapt2"),
+        build_tools.join("dexdump"),
+        build_tools.join("apksigner"),
+        build_tools.join("zipalign"),
+        sandbox.join("fake-sdk").join("platform-tools").join("adb"),
+    ];
+    let morphe_root = sandbox.join("home").join(ANALYSIS_CACHE).join("morphe");
+    required.push(morphe_root);
+    for path in required {
+        if !path.exists() {
+            return Err(format!(
+                "patching-device fake tool is missing: {}",
+                path.display()
+            ));
+        }
+    }
+    Ok(())
+}
+
 #[derive(Debug, Clone, Serialize)]
 struct ExitPair {
     python: i64,
@@ -2658,6 +4003,13 @@ fn print_help() {
          \x20                     --corpus FILE --python-project DIR --rust-bin PATH \\\n\
          \x20                     [--case ID ...] [--report PATH|-]\n\
          \x20 apk-lab-migrate parity --group analysis --list [--case ID ...]\n\
+         \x20 apk-lab-migrate parity --group patching-device [--profile synthetic]\n\
+         \x20                     --python-project DIR --rust-bin PATH\n\
+         \x20                     [--case ID ...] [--report PATH|-]\n\
+         \x20 apk-lab-migrate parity --group patching-device --profile real-device \\\n\
+         \x20                     --corpus FILE --python-project DIR --rust-bin PATH \\\n\
+         \x20                     [--case ID ...] [--report PATH|-]\n\
+         \x20 apk-lab-migrate parity --group patching-device --list [--case ID ...]\n\
          \n\
          Runs the independent Python oracle and the native binary with identical\n\
          argv, cwd and environment, then compares exit status and output. JSON\n\
@@ -2690,10 +4042,30 @@ fn print_help() {
          relative to the corpus file; `$name` tokens in argv are replaced by the\n\
          canonical artifact path before execution.\n\
          \n\
+         The patching-device group defaults to --profile synthetic: it creates a\n\
+         synthetic artifact, MPP, keystore, fake SDK build-tools, fake adb and a\n\
+         fake pinned Morphe jar. No device, network or real tool cache is used.\n\
+         It covers check selection/options, deployment transaction boundaries,\n\
+         monitoring, crash traces and UI dump/click. `--profile real-device`\n\
+         requires a corpus with explicit device, artifact, MPP and package inputs;\n\
+         it never runs unless all four are present.\n\
+         \n\
+         \x20 {{\n\
+         \x20   \"kind\": \"apk-lab-patching-device-corpus\",\n\
+         \x20   \"version\": 1,\n\
+         \x20   \"artifact\": \"relative/or/absolute.apk\",\n\
+         \x20   \"mpp\": \"relative/or/absolute.mpp\",\n\
+         \x20   \"package\": \"com.example.app\",\n\
+         \x20   \"device\": \"SERIAL\",\n\
+         \x20   \"cases\": [\n\
+         \x20     {{\"id\": \"deploy-default\", \"argv\": [\"deploy\", \"$artifact\", \"--mpp\", \"$mpp\", \"--package\", \"$package\", \"--device\", \"$device\"]}}\n\
+         \x20   ]\n\
+         \x20 }}\n\
+         \n\
          Options:\n\
-         \x20 --group NAME          Parity group (available: core, analysis)\n\
-         \x20 --profile NAME        Analysis profile (synthetic, real-tools; default synthetic)\n\
-         \x20 --corpus FILE         Validated real-tools corpus manifest (required for real-tools)\n\
+         \x20 --group NAME          Parity group (available: core, analysis, patching-device)\n\
+         \x20 --profile NAME        Profile (synthetic, real-tools, real-device; default synthetic)\n\
+         \x20 --corpus FILE         Validated corpus manifest (required for real-tools/real-device)\n\
          \x20 --python-project DIR  Python project containing the oracle (tools/apk-lab)\n\
          \x20 --rust-bin PATH       Native apk-lab binary to compare\n\
          \x20 --case ID             Run only this case; may be repeated\n\
@@ -3160,5 +4532,165 @@ mod tests {
             .iter()
             .any(|rule| rule.contains("doctor")));
         assert!(NORMALIZATION_RULES.iter().any(|rule| rule.contains("JSON")));
+        assert!(NORMALIZATION_RULES
+            .iter()
+            .any(|rule| rule.contains("patching")));
+    }
+
+    #[test]
+    fn patching_device_case_selection_is_explicit_and_stable() {
+        let all = select_patching_device_cases(&[]).expect("all patching cases");
+        assert_eq!(all.len(), PATCHING_DEVICE_CASES.len());
+        assert_eq!(all[0].spec.id, "check-default-json");
+        assert!(all
+            .iter()
+            .any(|case| case.spec.id == "deploy-install-failure"));
+        assert!(all
+            .iter()
+            .any(|case| case.spec.id == "ui-click-invalid-coords"));
+
+        let selected = select_patching_device_cases(&[
+            "ui-click-text".to_string(),
+            "check-default-json".to_string(),
+        ])
+        .expect("filtered");
+        assert_eq!(
+            selected.iter().map(|case| case.spec.id).collect::<Vec<_>>(),
+            vec!["check-default-json", "ui-click-text"]
+        );
+
+        let error = select_patching_device_cases(&["not-a-case".to_string()])
+            .expect_err("unknown case must fail");
+        assert!(
+            error.contains("unknown patching-device parity case"),
+            "{error}"
+        );
+        assert!(patching_device_case("deploy-signing-failure")
+            .expect("case")
+            .postconditions
+            .iter()
+            .any(|postcondition| matches!(postcondition, Postcondition::FileUnchanged(_, _))));
+    }
+
+    #[test]
+    fn missing_patching_device_fake_tool_is_rejected() {
+        let directory = tempfile::tempdir().expect("tempdir");
+        let sandbox = directory.path();
+        let project = Path::new(env!("CARGO_MANIFEST_DIR"));
+        create_patching_device_fixtures(
+            &sandbox.join("run"),
+            &sandbox.join("fake-sdk"),
+            &sandbox.join("home"),
+            &sandbox.join("fake-bin"),
+            project,
+        )
+        .expect("fixtures");
+        validate_patching_device_tools(sandbox).expect("fake tools complete");
+
+        fs::remove_file(sandbox.join("fake-bin/java")).expect("remove fake java");
+        let error = validate_patching_device_tools(sandbox).expect_err("missing tool must fail");
+        assert!(error.contains("fake tool is missing"), "{error}");
+        assert!(error.contains("java"), "{error}");
+    }
+
+    #[test]
+    fn patching_device_exit_and_text_mismatches_fail() {
+        let spec = patching_device_case("ui-click-text").expect("case").spec;
+        let normalizer =
+            Normalizer::new(NormalizationContext::for_test("/tmp/parity-patching-case"));
+        let python = result(0, "Clicked node at (150, 250)\n", "");
+        let rust = result(2, "Clicked node at (151, 250)\n", "boom\n");
+        let differences = compare_case(&spec, &python, &rust, &normalizer.at(&spec));
+        assert!(differences.iter().any(|entry| entry.starts_with("exit:")));
+        assert!(differences.iter().any(|entry| entry.starts_with("stdout")));
+        assert!(differences.iter().any(|entry| entry.starts_with("stderr")));
+    }
+
+    #[test]
+    fn patching_device_report_is_deterministic_and_names_its_kind() {
+        let case_result = CaseResult {
+            id: "crash-trace-json".to_string(),
+            argv: vec!["crash-trace".to_string(), "--json".to_string()],
+            status: CaseStatus::Passed,
+            approved: false,
+            approval: None,
+            exit: ExitPair { python: 0, rust: 0 },
+            differences: Vec::new(),
+        };
+        let report = build_report_for(
+            vec![case_result.clone(), case_result],
+            PATCHING_DEVICE_REPORT_KIND,
+            Some(SYNTHETIC_PROFILE),
+        );
+        let rendered = render_report(&report).expect("report renders");
+        assert!(rendered.contains("\"kind\": \"apk-lab-patching-device-parity\""));
+        assert!(rendered.contains("\"profile\": \"synthetic\""));
+        assert!(report_passed(&report));
+        assert_eq!(render_report(&report).expect("renders again"), rendered);
+        assert_eq!(report.summary.total, 2);
+        assert_eq!(report.summary.passed, 2);
+    }
+
+    #[test]
+    fn real_device_profile_requires_explicit_inputs() {
+        let error = run(&[
+            "--group".to_string(),
+            PATCHING_DEVICE_GROUP.to_string(),
+            "--profile".to_string(),
+            REAL_DEVICE_PROFILE.to_string(),
+        ])
+        .expect_err("real-device without corpus must fail");
+        assert!(error.contains("--corpus is required"), "{error}");
+
+        let directory = tempfile::tempdir().expect("tempdir");
+        let corpus = directory.path().join("corpus.json");
+        fs::write(
+            &corpus,
+            serde_json::to_vec(&serde_json::json!({
+                "kind": DEVICE_CORPUS_KIND,
+                "version": DEVICE_CORPUS_VERSION,
+                "artifact": "missing.apk",
+                "mpp": "missing.mpp",
+                "package": "com.example.synthetic",
+                "device": "",
+                "cases": [{"id": "deploy-default", "argv": ["deploy"]}]
+            }))
+            .expect("corpus json"),
+        )
+        .expect("write corpus");
+        let error = load_device_corpus(&corpus).expect_err("empty device must fail");
+        assert!(error.contains("device must be non-empty"), "{error}");
+
+        fs::write(
+            &corpus,
+            serde_json::to_vec(&serde_json::json!({
+                "kind": DEVICE_CORPUS_KIND,
+                "version": DEVICE_CORPUS_VERSION,
+                "artifact": "missing.apk",
+                "mpp": "missing.mpp",
+                "package": "com.example.synthetic",
+                "device": "emulator-5554",
+                "cases": [{"id": "deploy-default", "argv": ["deploy", "$artifact"]}]
+            }))
+            .expect("corpus json"),
+        )
+        .expect("write corpus");
+        let error = load_device_corpus(&corpus).expect_err("missing artifact must fail");
+        assert!(error.contains("artifact cannot be resolved"), "{error}");
+    }
+
+    #[test]
+    fn patching_details_normalize_durations_and_pids() {
+        let normalizer = Normalizer {
+            context: NormalizationContext::for_test("/tmp/parity-patching-case"),
+            rules: &[TextRule::PatchingDetails],
+        };
+        let text =
+            "  [PASS] Remove Ads (opts: {'x': True}) (0.42s)\nAttached to process PID 1234\n";
+        let normalized = normalizer.text(text);
+        assert!(normalized.contains("(<duration>)"), "{normalized}");
+        assert!(normalized.contains("PID <pid>"), "{normalized}");
+        assert!(!normalized.contains("0.42"));
+        assert!(!normalized.contains("1234"));
     }
 }
