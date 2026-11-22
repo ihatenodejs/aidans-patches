@@ -13,6 +13,7 @@ pub mod benchmark;
 pub mod icons;
 pub mod inventory;
 pub mod oracle;
+pub mod parity;
 pub mod play;
 pub mod prerequisites;
 
@@ -67,6 +68,7 @@ pub fn run(args: &[String]) -> Result<(), String> {
         "preflight" => preflight::run(rest),
         "play" => play::run(rest),
         "capture" | "verify" => oracle::run(&args[0..]),
+        "parity" => parity::run(rest),
         "bench" => benchmark::run(rest),
         "-h" | "--help" | "help" => {
             print_usage();
@@ -92,6 +94,7 @@ Commands:
   play           Probe native Play delivery (development-only)
   capture        Record the independent Python oracle (offline profile)
   verify         Compare two oracle capture documents
+  parity         Compare the native core with the Python oracle
   bench          Run process-level baseline benchmarks
 
 Run a command with --help for its options."

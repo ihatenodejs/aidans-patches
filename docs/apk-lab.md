@@ -536,6 +536,22 @@ Features:
 
 ---
 
+### Native core coexistence
+
+`tools/apk-lab` additionally builds a native `apk-lab` binary containing the shared
+archive/workspace core plus `setup`, `doctor`, `inspect`, and `clean`. Build it with:
+
+```bash
+cargo build --release --locked --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab
+tools/apk-lab/target/release/apk-lab --help
+tools/apk-lab/target/release/apk-lab inspect app.apkm --json
+```
+
+The Python CLI remains the supported default until the later migration plans complete.
+The native binary never delegates missing commands to Python. Archive limits, Python-
+compatible workspace markers, tool-cache layout, exit codes, and `--json` modes are
+kept in parity by the migration harness.
+
 ## 5. Temporary Rust Migration Harness
 
 `tools/apk-lab/src/bin/apk-lab-migrate.rs` is an auxiliary migration and benchmark
@@ -550,6 +566,7 @@ Build and run from the repository root:
 cargo build --release --locked --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab-migrate
 MIG=tools/apk-lab/target/release/apk-lab-migrate
 $MIG inventory --check
+$MIG parity --group core --python-project tools/apk-lab --rust-bin tools/apk-lab/target/release/apk-lab
 $MIG prerequisites --manifest .apk-lab-migration/prerequisites.local.json --out .apk-lab-migration/prerequisites.json
 $MIG capture --engine python --profile offline --out .apk-lab-migration/python-contracts.json
 $MIG verify --expected .apk-lab-migration/python-contracts.json --actual .apk-lab-migration/python-contracts.json
