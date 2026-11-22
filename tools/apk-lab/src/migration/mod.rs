@@ -10,6 +10,7 @@
 
 pub mod acquisition;
 pub mod benchmark;
+pub mod compare;
 pub mod icons;
 pub mod inventory;
 pub mod oracle;
@@ -73,6 +74,8 @@ pub fn run(args: &[String]) -> Result<(), String> {
         // It is intentionally absent from the public help text.
         "acquisition-ci-scenario" => parity::run_acquisition_ci_scenario_cli(rest),
         "bench" => benchmark::run(rest),
+        "compare" => compare::run(rest),
+        "report-check" => compare::report_check(rest),
         "-h" | "--help" | "help" => {
             print_usage();
             Ok(())
@@ -98,7 +101,9 @@ Commands:
   capture        Record the independent Python oracle (offline profile)
   verify         Compare two oracle capture documents
   parity         Compare native core/analysis/patching-device with the Python oracle
-  bench          Run process-level baseline benchmarks
+  bench          Run process-level baseline or paired benchmarks
+  compare        Recompute paired statistics and apply the performance policy
+  report-check   Validate TO-RUST.md against stored data and charts
 
 Run a command with --help for its options."
     );

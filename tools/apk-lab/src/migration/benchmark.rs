@@ -90,12 +90,13 @@ mod assets;
 use assets::{stage_declared_inputs, validate_staged_files, verify_staged_inputs, StagedFile};
 
 const RESULT_SCHEMA_VERSION: u32 = 1;
+const PAIRED_RESULT_SCHEMA_VERSION: u32 = 1;
 const MANIFEST_SCHEMA_VERSION: u32 = 1;
-const POLICY_SCHEMA_VERSION: u32 = 1;
+pub(crate) const POLICY_SCHEMA_VERSION: u32 = 1;
 const PINS_SCHEMA_VERSION: u32 = 1;
 const DEFAULT_TIMEOUT_SECONDS: u64 = 600;
-const WALL_NOISE_FLOOR_MS: f64 = 5.0;
-const RSS_NOISE_FLOOR_BYTES: u64 = 1_048_576;
+pub(crate) const WALL_NOISE_FLOOR_MS: f64 = 5.0;
+pub(crate) const RSS_NOISE_FLOOR_BYTES: u64 = 1_048_576;
 
 const ALLOWED_CATEGORIES: &[&str] = &[
     "startup",
@@ -119,6 +120,8 @@ struct Options {
     profile: String,
     manifest: PathBuf,
     out: PathBuf,
+    /// Native release binary used by the paired (`--engine both`) mode.
+    rust_bin: Option<PathBuf>,
     policy: Option<PathBuf>,
     repo_root: Option<PathBuf>,
     private_dir: Option<PathBuf>,
@@ -130,48 +133,48 @@ struct Options {
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct SampleClass {
-    warmups: u32,
-    samples: u32,
+pub(crate) struct SampleClass {
+    pub(crate) warmups: u32,
+    pub(crate) samples: u32,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct BudgetSpec {
+pub(crate) struct BudgetSpec {
     #[serde(default)]
-    ratio_max: Option<f64>,
+    pub(crate) ratio_max: Option<f64>,
     #[serde(default)]
-    absolute_noise_floor_ms: Option<f64>,
+    pub(crate) absolute_noise_floor_ms: Option<f64>,
     #[serde(default)]
-    absolute_noise_floor_bytes: Option<u64>,
+    pub(crate) absolute_noise_floor_bytes: Option<u64>,
     #[serde(default)]
-    bootstrap_confidence: Option<f64>,
+    pub(crate) bootstrap_confidence: Option<f64>,
     #[serde(default)]
-    block_on_worse: Option<bool>,
+    pub(crate) block_on_worse: Option<bool>,
     #[serde(default)]
-    requires_explanation: Option<bool>,
+    pub(crate) requires_explanation: Option<bool>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct OrderPolicy {
-    single_engine: String,
-    dual_engine: String,
+pub(crate) struct OrderPolicy {
+    pub(crate) single_engine: String,
+    pub(crate) dual_engine: String,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
-struct PerformancePolicy {
-    schema_version: u32,
-    id: String,
+pub(crate) struct PerformancePolicy {
+    pub(crate) schema_version: u32,
+    pub(crate) id: String,
     #[serde(default)]
-    description: Option<String>,
-    sample_classes: BTreeMap<String, SampleClass>,
-    budgets: BTreeMap<String, BudgetSpec>,
-    required_workloads: Vec<String>,
-    seed: u64,
-    cache_policy: String,
-    order: OrderPolicy,
+    pub(crate) description: Option<String>,
+    pub(crate) sample_classes: BTreeMap<String, SampleClass>,
+    pub(crate) budgets: BTreeMap<String, BudgetSpec>,
+    pub(crate) required_workloads: Vec<String>,
+    pub(crate) seed: u64,
+    pub(crate) cache_policy: String,
+    pub(crate) order: OrderPolicy,
 }
 
 // ---------------------------------------------------------------------------
@@ -1004,11 +1007,14 @@ pub fn run(args: &[String]) -> Result<(), String> {
             .ok_or_else(|| "bench --sanitize requires --input".to_string())?;
         return sanitize_result(input, &opts.out);
     }
-    if opts.engine != "python" {
+    if !matches!(opts.engine.as_str(), "python" | "both") {
         return Err(format!(
-            "unsupported benchmark engine '{}'; only the Python oracle is implemented",
+            "unsupported benchmark engine '{}'; use 'python' for the baseline or 'both' for paired measurement",
             opts.engine
         ));
+    }
+    if opts.engine == "both" && opts.prepare {
+        return Err("'--prepare' is only supported with '--engine python'".to_string());
     }
     if opts.profile != "local" {
         return Err(format!(
@@ -1051,6 +1057,17 @@ pub fn run(args: &[String]) -> Result<(), String> {
 
     let repo_root = resolve_repo_root(&opts, &manifest)?;
 
+    if opts.engine == "both" {
+        return run_paired(
+            &repo_root,
+            &opts,
+            &policy,
+            &policy_sha256,
+            &manifest,
+            &manifest_bytes,
+        );
+    }
+
     if opts.prepare {
         let report = execute_prepare(&repo_root, &opts, &policy, &manifest, &manifest_bytes)?;
         let value = serde_json::to_value(&report)
@@ -1092,6 +1109,7 @@ fn parse_args(args: &[String]) -> Result<Options, String> {
     let mut profile: Option<String> = None;
     let mut manifest: Option<PathBuf> = None;
     let mut out: Option<PathBuf> = None;
+    let mut rust_bin: Option<PathBuf> = None;
     let mut policy: Option<PathBuf> = None;
     let mut repo_root: Option<PathBuf> = None;
     let mut private_dir: Option<PathBuf> = None;
@@ -1121,6 +1139,7 @@ fn parse_args(args: &[String]) -> Result<Options, String> {
             "--profile" => profile = Some(value(&mut index)?),
             "--manifest" => manifest = Some(PathBuf::from(value(&mut index)?)),
             "--out" => out = Some(PathBuf::from(value(&mut index)?)),
+            "--rust-bin" => rust_bin = Some(PathBuf::from(value(&mut index)?)),
             "--policy" => policy = Some(PathBuf::from(value(&mut index)?)),
             "--repo-root" => repo_root = Some(PathBuf::from(value(&mut index)?)),
             "--private-dir" => private_dir = Some(PathBuf::from(value(&mut index)?)),
@@ -1139,8 +1158,8 @@ fn parse_args(args: &[String]) -> Result<Options, String> {
             }
             "-h" | "--help" => {
                 return Err(
-                    "usage: bench [--prepare] --engine python --profile local --manifest PATH --out PATH \
-                     [--policy PATH] [--repo-root PATH] [--private-dir PATH]\n       \
+                    "usage: bench [--prepare] --engine python|both --profile local --manifest PATH --out PATH \
+                     [--rust-bin PATH] [--policy PATH] [--repo-root PATH] [--private-dir PATH]\n       \
                      bench --sanitize --input RAW.json --out PUBLIC.json"
                         .to_string(),
                 )
@@ -1162,6 +1181,7 @@ fn parse_args(args: &[String]) -> Result<Options, String> {
             ("--policy", policy.is_some()),
             ("--repo-root", repo_root.is_some()),
             ("--private-dir", private_dir.is_some()),
+            ("--rust-bin", rust_bin.is_some()),
         ] {
             if present {
                 return Err(format!("'{name}' cannot be combined with '--sanitize'"));
@@ -1173,6 +1193,7 @@ fn parse_args(args: &[String]) -> Result<Options, String> {
             profile: String::new(),
             manifest: PathBuf::new(),
             out,
+            rust_bin: None,
             policy: None,
             repo_root: None,
             private_dir: None,
@@ -1190,6 +1211,7 @@ fn parse_args(args: &[String]) -> Result<Options, String> {
         profile: profile.ok_or_else(|| "bench requires --profile".to_string())?,
         manifest: manifest.ok_or_else(|| "bench requires --manifest".to_string())?,
         out,
+        rust_bin,
         policy,
         repo_root,
         private_dir,
@@ -1203,7 +1225,7 @@ fn parse_args(args: &[String]) -> Result<Options, String> {
 // Validation
 // ---------------------------------------------------------------------------
 
-fn validate_policy(policy: &PerformancePolicy) -> Result<(), String> {
+pub(crate) fn validate_policy(policy: &PerformancePolicy) -> Result<(), String> {
     if policy.schema_version != POLICY_SCHEMA_VERSION {
         return Err(format!(
             "performance policy schemaVersion must be {POLICY_SCHEMA_VERSION}, got {}",
@@ -1932,6 +1954,1000 @@ fn execute_benchmark(
         acceptance,
         provenance: provenance_value,
     })
+}
+
+// ---------------------------------------------------------------------------
+// Paired (Python vs native Rust) measurement
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Clone)]
+struct PairedEngine {
+    role: &'static str,
+    executable: PathBuf,
+    cwd: PathBuf,
+    args_prefix: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PairedEngineResult {
+    name: String,
+    executable: String,
+    version: Option<String>,
+    cwd: String,
+    args_prefix: Vec<String>,
+    direct_execution: bool,
+    compilation_included: bool,
+    status: String,
+    warmups_expected: u32,
+    samples_expected: u32,
+    warmups_completed: u32,
+    samples_completed: u32,
+    reasons: Vec<String>,
+    samples: Vec<SampleResult>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PairedSamplePair {
+    index: u32,
+    /// Engine order actually executed for this pair, e.g. ["rust", "python"].
+    order: Vec<String>,
+    python_index: u32,
+    rust_index: u32,
+    python_output_valid: bool,
+    rust_output_valid: bool,
+    exit_codes_match: bool,
+    stdout_sha256_match: bool,
+    stderr_sha256_match: bool,
+    correct: bool,
+    mismatches: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PairedWorkloadResult {
+    id: String,
+    category: String,
+    size: String,
+    costly: bool,
+    sample_class: String,
+    status: String,
+    warmups_expected: u32,
+    samples_expected: u32,
+    measured_pairs: u32,
+    reasons: Vec<String>,
+    inputs: Vec<InputStatus>,
+    mpp: Option<InputStatus>,
+    required_tools: Vec<String>,
+    argv_template: Vec<String>,
+    environment: BTreeMap<String, String>,
+    engines: BTreeMap<String, PairedEngineResult>,
+    pairs: Vec<PairedSamplePair>,
+    correctness: Value,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    metric_limitations: Vec<MetricLimitation>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct PairedBenchmarkReport {
+    schema_version: u32,
+    kind: String,
+    status: String,
+    profile: String,
+    generated_at_epoch_seconds: u64,
+    duration_ms: f64,
+    engines: Value,
+    policy: Value,
+    source: Value,
+    corpus: Value,
+    environment: Value,
+    settings: Value,
+    measurements: Value,
+    workloads: Vec<PairedWorkloadResult>,
+    acceptance: Acceptance,
+    provenance: Value,
+}
+
+struct SplitMix64(u64);
+
+impl SplitMix64 {
+    fn new(seed: u64) -> Self {
+        Self(seed)
+    }
+
+    fn next_u64(&mut self) -> u64 {
+        self.0 = self.0.wrapping_add(0x9e3779b97f4a7c15);
+        let mut value = self.0;
+        value = (value ^ (value >> 30)).wrapping_mul(0xbf58476d1ce4e5b9);
+        value = (value ^ (value >> 27)).wrapping_mul(0x94d049bb133111eb);
+        value ^ (value >> 31)
+    }
+}
+
+fn order_seed(policy_seed: u64, workload_id: &str) -> u64 {
+    let mut hash = 0xcbf29ce484222325u64;
+    for byte in workload_id.bytes() {
+        hash ^= byte as u64;
+        hash = hash.wrapping_mul(0x100000001b3);
+    }
+    policy_seed ^ hash
+}
+
+/// Alternating randomized order: choose a seeded starting engine per workload,
+/// then strictly alternate for every subsequent warmup or measured pair.
+fn pair_order(rust_first_base: bool, ordinal: u32) -> Vec<&'static str> {
+    let rust_first = if ordinal.is_multiple_of(2) {
+        rust_first_base
+    } else {
+        !rust_first_base
+    };
+    if rust_first {
+        vec!["rust", "python"]
+    } else {
+        vec!["python", "rust"]
+    }
+}
+
+fn rust_engine_executable(repo_root: &Path, opts: &Options) -> Result<PathBuf, String> {
+    let candidate = opts
+        .rust_bin
+        .clone()
+        .unwrap_or_else(|| PathBuf::from("tools/apk-lab/target/release/apk-lab"));
+    let executable = resolve_against(repo_root, &candidate);
+    if !executable.is_file() {
+        return Err(format!(
+            "native release binary not found: {} (build it with `cargo build --release --locked --manifest-path tools/apk-lab/Cargo.toml --bins`)",
+            display_path(&executable, repo_root)
+        ));
+    }
+    let name = executable
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("");
+    if name == "cargo" || name == "uv" {
+        return Err(
+            "paired mode must execute a pre-built native binary directly, not cargo/uv".to_string(),
+        );
+    }
+    Ok(executable)
+}
+
+/// Runs `bench --engine both`. The report is written before the process exits
+/// nonzero so a partial measurement remains inspectable.
+fn run_paired(
+    repo_root: &Path,
+    opts: &Options,
+    policy: &PerformancePolicy,
+    policy_sha256: &str,
+    manifest: &BenchmarkManifest,
+    manifest_bytes: &[u8],
+) -> Result<(), String> {
+    let report = execute_paired_benchmark(
+        repo_root,
+        opts,
+        policy,
+        policy_sha256,
+        manifest,
+        manifest_bytes,
+    )?;
+    let value = serde_json::to_value(&report)
+        .map_err(|e| format!("cannot serialize paired benchmark report: {e}"))?;
+    validate_paired_result_shape(&value)?;
+    write_json_atomic(&opts.out, &value)?;
+    if report.acceptance.valid {
+        Ok(())
+    } else {
+        Err(format!(
+            "paired benchmark incomplete: {}",
+            report.acceptance.reasons.join("; ")
+        ))
+    }
+}
+
+fn corpus_identity(manifest: &BenchmarkManifest, manifest_bytes: &[u8]) -> Value {
+    let workloads: Vec<Value> = manifest
+        .workloads
+        .iter()
+        .map(|workload| {
+            json!({
+                "id": workload.id,
+                "category": workload.category,
+                "size": workload.size,
+                "costly": workload.costly,
+                "argv": workload.argv,
+                "inputs": workload.inputs.iter().map(|input| json!({
+                    "role": input.role,
+                    "sha256": input.sha256,
+                })).collect::<Vec<_>>(),
+                "mpp": workload.mpp.as_ref().map(|mpp| json!({
+                    "role": mpp.role,
+                    "sha256": mpp.sha256,
+                })),
+                "requiredTools": workload.required_tools,
+            })
+        })
+        .collect();
+    let canonical = serde_json::to_vec(&workloads).unwrap_or_default();
+    json!({
+        "profile": manifest.profile,
+        "manifestSha256": sha256_bytes(manifest_bytes),
+        "identitySha256": sha256_bytes(&canonical),
+        "workloads": workloads,
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+fn execute_paired_benchmark(
+    repo_root: &Path,
+    opts: &Options,
+    policy: &PerformancePolicy,
+    policy_sha256: &str,
+    manifest: &BenchmarkManifest,
+    manifest_bytes: &[u8],
+) -> Result<PairedBenchmarkReport, String> {
+    let started = Instant::now();
+    let metric_capability = detect_metric_capability();
+
+    let python_exe = resolve_against(repo_root, Path::new(&manifest.engine.executable));
+    let python_cwd = resolve_against(repo_root, Path::new(&manifest.engine.cwd));
+    let rust_exe = rust_engine_executable(repo_root, opts)?;
+    let rust_cwd = repo_root.to_path_buf();
+
+    let required_tools = required_tool_names(manifest);
+    let prepared_tools = prepare_tool_cache(
+        repo_root,
+        &python_cwd,
+        manifest.tool_cache.as_ref(),
+        &required_tools,
+    )?;
+    let failed_tools = prepared_tools.failed_tools();
+
+    let (source, mut provenance_reasons) = collect_source(repo_root);
+    let python_version = command_version(&python_exe, "--version");
+    let rust_version = command_version(&rust_exe, "--version");
+    let git_version = command_version(Path::new("git"), "--version");
+    let environment = collect_environment(
+        repo_root,
+        &python_exe,
+        &python_cwd,
+        python_version.clone(),
+        git_version,
+    );
+
+    let rust_hash = hash_file(&rust_exe);
+    let rust_identity = match &rust_hash {
+        Ok(hash) => json!({
+            "name": "rust",
+            "executable": display_path(&rust_exe, repo_root),
+            "version": rust_version,
+            "cwd": display_cwd(&rust_cwd, repo_root),
+            "argsPrefix": [],
+            "directExecution": true,
+            "compilationIncluded": false,
+            "binarySha256": hash.sha256,
+            "binaryBytes": hash.size_bytes,
+        }),
+        Err(error) => {
+            provenance_reasons.push(format!(
+                "native release binary could not be hashed: {error}"
+            ));
+            json!({
+                "name": "rust",
+                "executable": display_path(&rust_exe, repo_root),
+                "version": rust_version,
+                "cwd": display_cwd(&rust_cwd, repo_root),
+                "argsPrefix": [],
+                "directExecution": true,
+                "compilationIncluded": false,
+                "binarySha256": Value::Null,
+                "binaryBytes": Value::Null,
+            })
+        }
+    };
+
+    let corpus = corpus_identity(manifest, manifest_bytes);
+    let base_env = effective_base_env(&manifest.engine.env, policy.seed);
+    let private_dir = opts.private_dir.clone().unwrap_or_else(|| {
+        let parent = opts.out.parent().unwrap_or_else(|| Path::new("."));
+        parent.join("baseline-source")
+    });
+    let source_archive = archive_source(repo_root, &private_dir, &source);
+    if let Err(error) = &source_archive {
+        provenance_reasons.push(format!("private source archive failed: {error}"));
+    }
+    let source_value = source_report_value(&source, &source_archive);
+    let provenance_value = json!({
+        "schemaVersion": 1,
+        "policySha256": policy_sha256,
+        "manifestSha256": sha256_bytes(manifest_bytes),
+        "manifestStatus": "local-private-manifest-not-committed",
+        "sourceRevision": source.revision.clone(),
+        "dirty": source.dirty,
+        "worktreeDigest": source.digest.clone(),
+        "archiveDigest": source_archive.as_ref().map(|info| info.digest.clone()),
+        "reconstruction": {
+            "executable": "Pre-synced Python interpreter from engine.executable and the pre-built native release binary from --rust-bin, both executed directly.",
+            "source": "Restore the private archive exactly as executed and verify its file digests; dirty.patch is evidence, not a patch to re-apply.",
+            "inputs": "Verify every input sha256 before executing a workload.",
+        },
+        "toolchain": tool_cache_report(manifest.tool_cache.as_ref(), &prepared_tools),
+    });
+
+    let python_ready = python_exe.is_file();
+    if !python_ready {
+        provenance_reasons.push(format!(
+            "python oracle executable not found: {}",
+            display_path(&python_exe, repo_root)
+        ));
+    }
+    if !python_cwd.is_dir() {
+        provenance_reasons.push(format!(
+            "python oracle cwd not found: {}",
+            display_path(&python_cwd, repo_root)
+        ));
+    }
+
+    let python_engine = PairedEngine {
+        role: "python",
+        executable: python_exe,
+        cwd: python_cwd,
+        args_prefix: manifest.engine.args_prefix.clone(),
+    };
+    let rust_engine = PairedEngine {
+        role: "rust",
+        executable: rust_exe,
+        cwd: rust_cwd,
+        args_prefix: Vec::new(),
+    };
+    let engines_ready = python_engine.executable.is_file() && python_engine.cwd.is_dir();
+
+    let mut results = Vec::with_capacity(manifest.workloads.len());
+    for workload in &manifest.workloads {
+        let result = benchmark_paired_workload(
+            repo_root,
+            &python_engine,
+            &rust_engine,
+            &base_env,
+            policy,
+            workload,
+            &metric_capability,
+            engines_ready,
+            &failed_tools,
+            prepared_tools.cache_root(),
+        );
+        results.push(result);
+    }
+
+    let present: BTreeSet<String> = manifest
+        .workloads
+        .iter()
+        .map(|workload| workload.id.clone())
+        .collect();
+    let mut acceptance_reasons = provenance_reasons;
+    for issue in &prepared_tools.issues {
+        acceptance_reasons.push(format!(
+            "required tool '{}' was not staged ({})",
+            issue.tool, issue.reason
+        ));
+    }
+    let metric_evaluation = evaluate_metric_policy(policy, &metric_capability);
+    acceptance_reasons.extend(metric_evaluation.blockers.iter().cloned());
+    for result in &mut results {
+        if result.measured_pairs > 0 {
+            result.metric_limitations = metric_evaluation.limitations.clone();
+        }
+    }
+    for required in &policy.required_workloads {
+        if !present.contains(required) {
+            acceptance_reasons.push(format!(
+                "required workload '{required}' is missing from the manifest"
+            ));
+        }
+    }
+    for result in &results {
+        if result.status != "measured-paired" {
+            let detail = if result.reasons.is_empty() {
+                result.status.clone()
+            } else {
+                result.reasons.join(", ")
+            };
+            acceptance_reasons.push(format!(
+                "workload '{}' is not measured with paired valid outputs ({detail})",
+                result.id
+            ));
+        }
+    }
+    let acceptance = Acceptance {
+        valid: acceptance_reasons.is_empty(),
+        reasons: acceptance_reasons,
+    };
+
+    Ok(PairedBenchmarkReport {
+        schema_version: PAIRED_RESULT_SCHEMA_VERSION,
+        kind: "apk-lab-paired-benchmark-result".to_string(),
+        status: if acceptance.valid {
+            "complete".to_string()
+        } else {
+            "incomplete".to_string()
+        },
+        profile: manifest.profile.clone(),
+        generated_at_epoch_seconds: now_epoch_seconds(),
+        duration_ms: started.elapsed().as_secs_f64() * 1000.0,
+        engines: json!({
+            "python": {
+                "name": "python",
+                "executable": display_path(&python_engine.executable, repo_root),
+                "version": python_version,
+                "cwd": display_path(&python_engine.cwd, repo_root),
+                "argsPrefix": python_engine.args_prefix,
+                "directExecution": true,
+                "uvInstallPerformed": false,
+            },
+            "rust": rust_identity,
+        }),
+        policy: json!({
+            "id": policy.id.clone(),
+            "sha256": policy_sha256,
+            "sampleClasses": policy.sample_classes.clone(),
+            "budgets": policy.budgets.clone(),
+            "requiredWorkloads": policy.required_workloads.clone(),
+            "seed": policy.seed,
+            "cachePolicy": policy.cache_policy.clone(),
+            "order": policy.order.clone(),
+        }),
+        source: source_value,
+        corpus,
+        environment,
+        settings: json!({
+            "sampleClasses": policy.sample_classes.clone(),
+            "order": {
+                "policy": policy.order.dual_engine.clone(),
+                "seed": policy.seed,
+                "implementation": "Seeded starting engine per workload, then strict alternation for every warmup and measured pair. The manifest order is never used for timing.",
+            },
+            "cachePolicy": policy.cache_policy,
+            "cacheEviction": "none; measured samples are warm-file-cache after declared warmups",
+            "engineIsolation": "Every sample gets a fresh HOME/XDG/TMPDIR sandbox. Python and Rust variants of a pair receive identical input hashes, argv, options, job counts, and sandbox layouts; only the executable differs.",
+            "compilation": {
+                "included": false,
+                "measurement": Value::Null,
+                "reason": "The native release binary is pre-built and executed directly. Compilation and cargo/uv convenience overhead are never part of a timed sample.",
+            },
+            "environmentVariableKeys": base_env.keys().cloned().collect::<Vec<_>>(),
+            "toolCachePreparation": "Only workload-required tools are copied once from the explicitly configured private cache into an owned staging directory before any timed sample.",
+            "outputNormalization": "Morphe workloads only: replace the numeric value span at $.testCases[*].durationSeconds with null, from the end; every other stdout byte is preserved. Raw hashes are retained separately.",
+        }),
+        measurements: json!({
+            "wall": {
+                "supported": true,
+                "unit": "milliseconds",
+                "method": "std::time::Instant from spawn through process exit and full stdout/stderr drain; includes timeout kill/reap grace",
+            },
+            "cpu": metric_value(
+                metric_capability.cpu_supported,
+                "milliseconds",
+                CPU_METRIC_METHOD,
+                metric_capability.reason.as_deref(),
+            ),
+            "descendantRss": metric_value(
+                metric_capability.rss_supported,
+                "bytes",
+                RSS_METRIC_METHOD,
+                metric_capability.reason.as_deref(),
+            ),
+            "io": metric_value(
+                metric_capability.io_supported,
+                "bytes",
+                IO_METRIC_METHOD,
+                metric_capability.reason.as_deref(),
+            ),
+            "limitations": metric_evaluation.limitations,
+        }),
+        workloads: results,
+        acceptance,
+        provenance: provenance_value,
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+fn benchmark_paired_workload(
+    repo_root: &Path,
+    python_engine: &PairedEngine,
+    rust_engine: &PairedEngine,
+    base_env: &BTreeMap<String, String>,
+    policy: &PerformancePolicy,
+    workload: &WorkloadSpec,
+    metric_capability: &MetricCapability,
+    engines_ready: bool,
+    failed_tools: &BTreeSet<String>,
+    tool_cache_root: Option<&Path>,
+) -> PairedWorkloadResult {
+    let sample_class = if workload.costly { "costly" } else { "local" };
+    let class_counts = policy
+        .sample_classes
+        .get(sample_class)
+        .cloned()
+        .unwrap_or(SampleClass {
+            warmups: 0,
+            samples: 0,
+        });
+    let warmups_expected = workload.warmups.unwrap_or(class_counts.warmups);
+    let samples_expected = workload.samples.unwrap_or(class_counts.samples);
+
+    let mut reasons = Vec::new();
+    let mut inputs = Vec::new();
+    let mut mpp_status = None;
+    for input in &workload.inputs {
+        inputs.push(verify_input(repo_root, input));
+    }
+    if let Some(mpp) = &workload.mpp {
+        mpp_status = Some(verify_input(repo_root, mpp));
+    }
+    let input_failed = inputs.iter().any(|input| !input.available)
+        || mpp_status
+            .as_ref()
+            .map(|mpp| !mpp.available)
+            .unwrap_or(false);
+    if input_failed {
+        reasons.push(
+            "one or more declared inputs are missing or failed sha256 verification".to_string(),
+        );
+    }
+
+    let mut environment = base_env.clone();
+    for (key, value) in &workload.env {
+        environment.insert(key.clone(), value.clone());
+    }
+    let redacted_environment: BTreeMap<String, String> = environment
+        .iter()
+        .map(|(key, value)| {
+            let shown = if is_secret_key(key) {
+                "<redacted>".to_string()
+            } else {
+                value.clone()
+            };
+            (key.clone(), shown)
+        })
+        .collect();
+
+    let mut engines = BTreeMap::new();
+    for engine in [python_engine, rust_engine] {
+        engines.insert(
+            engine.role.to_string(),
+            PairedEngineResult {
+                name: engine.role.to_string(),
+                executable: display_path(&engine.executable, repo_root),
+                version: command_version(&engine.executable, "--version"),
+                cwd: display_cwd(&engine.cwd, repo_root),
+                args_prefix: engine.args_prefix.clone(),
+                direct_execution: true,
+                compilation_included: false,
+                status: "incomplete".to_string(),
+                warmups_expected,
+                samples_expected,
+                warmups_completed: 0,
+                samples_completed: 0,
+                reasons: Vec::new(),
+                samples: Vec::new(),
+            },
+        );
+    }
+    let mut result = PairedWorkloadResult {
+        id: workload.id.clone(),
+        category: workload.category.clone(),
+        size: workload.size.clone(),
+        costly: workload.costly,
+        sample_class: sample_class.to_string(),
+        status: "incomplete".to_string(),
+        warmups_expected,
+        samples_expected,
+        measured_pairs: 0,
+        reasons,
+        inputs,
+        mpp: mpp_status,
+        required_tools: workload.required_tools.clone(),
+        argv_template: workload.argv.clone(),
+        environment: redacted_environment,
+        engines,
+        pairs: Vec::new(),
+        correctness: json!({
+            "matched": false,
+            "mismatchedPairs": 0,
+            "checkedPerSample": true,
+            "checks": ["exitCode", "stdoutSha256", "stderrSha256", "expectedFiles", "expectedExitCode", "stdoutContains", "stderrContains"],
+        }),
+        metric_limitations: Vec::new(),
+    };
+
+    if !engines_ready {
+        result.reasons.push(
+            "python oracle or native release binary is unavailable; workload was not executed"
+                .to_string(),
+        );
+        for engine in result.engines.values_mut() {
+            engine.status = "unavailable".to_string();
+        }
+        return result;
+    }
+    if input_failed {
+        return result;
+    }
+    let unavailable_tools: Vec<&String> = workload
+        .required_tools
+        .iter()
+        .filter(|tool| failed_tools.contains(*tool))
+        .collect();
+    if !unavailable_tools.is_empty() {
+        result.reasons.push(format!(
+            "required tool(s) {} were not staged from the pinned private cache; workload was not executed",
+            unavailable_tools
+                .iter()
+                .map(|tool| tool.as_str())
+                .collect::<Vec<_>>()
+                .join(", ")
+        ));
+        return result;
+    }
+    let sample_tool_cache = if workload.required_tools.is_empty() {
+        None
+    } else {
+        tool_cache_root
+    };
+    let timeout = Duration::from_secs(workload.timeout_seconds.unwrap_or(DEFAULT_TIMEOUT_SECONDS));
+    let mut rng = SplitMix64::new(order_seed(policy.seed, &workload.id));
+    let rust_first_base = rng.next_u64() & 1 == 1;
+    let mut any_unpinned = false;
+    let mut hard_failure = false;
+    let engines = [python_engine, rust_engine];
+
+    'warmups: for index in 0..warmups_expected {
+        let order = pair_order(rust_first_base, index);
+        for role in order {
+            let engine = engines
+                .iter()
+                .find(|engine| engine.role == role)
+                .expect("declared engine role must exist");
+            match run_paired_sample(
+                repo_root,
+                engine,
+                &environment,
+                workload,
+                metric_capability,
+                timeout,
+                sample_tool_cache,
+            ) {
+                Ok(run) => {
+                    let mut sample = run.sample;
+                    sample.kind = "warmup".to_string();
+                    sample.cache_state = "warmup".to_string();
+                    sample.index = index;
+                    any_unpinned |= run.unpinned;
+                    let valid = run.hard_errors.is_empty();
+                    let engine_result = result
+                        .engines
+                        .get_mut(role)
+                        .expect("engine result must exist");
+                    engine_result.samples.push(sample);
+                    engine_result.warmups_completed += 1;
+                    if !valid {
+                        let errors: Vec<String> = run
+                            .hard_errors
+                            .iter()
+                            .map(|error| sanitise_report_message(error, repo_root, &PathBuf::new()))
+                            .collect();
+                        engine_result.reasons.extend(errors.clone());
+                        result.reasons.extend(errors);
+                        hard_failure = true;
+                        break 'warmups;
+                    }
+                }
+                Err(error) => {
+                    let message = sanitise_report_message(&error, repo_root, &PathBuf::new());
+                    if let Some(engine_result) = result.engines.get_mut(role) {
+                        engine_result.reasons.push(message.clone());
+                    }
+                    result
+                        .reasons
+                        .push(format!("warmup {index} ({role}) failed: {message}"));
+                    hard_failure = true;
+                    break 'warmups;
+                }
+            }
+        }
+    }
+
+    if !hard_failure {
+        'measured: for index in 0..samples_expected {
+            let order = pair_order(rust_first_base, index);
+            let order_names: Vec<String> = order.iter().map(|role| role.to_string()).collect();
+            let mut pair = PairedSamplePair {
+                index,
+                order: order_names,
+                python_index: index,
+                rust_index: index,
+                python_output_valid: false,
+                rust_output_valid: false,
+                exit_codes_match: false,
+                stdout_sha256_match: false,
+                stderr_sha256_match: false,
+                correct: false,
+                mismatches: Vec::new(),
+            };
+            let mut pair_runs: BTreeMap<&'static str, SampleRun> = BTreeMap::new();
+            for role in order {
+                let engine = engines
+                    .iter()
+                    .find(|engine| engine.role == role)
+                    .expect("declared engine role must exist");
+                match run_paired_sample(
+                    repo_root,
+                    engine,
+                    &environment,
+                    workload,
+                    metric_capability,
+                    timeout,
+                    sample_tool_cache,
+                ) {
+                    Ok(run) => {
+                        any_unpinned |= run.unpinned;
+                        pair_runs.insert(role, run);
+                    }
+                    Err(error) => {
+                        let message = sanitise_report_message(&error, repo_root, &PathBuf::new());
+                        if let Some(engine_result) = result.engines.get_mut(role) {
+                            engine_result.reasons.push(message.clone());
+                        }
+                        result
+                            .reasons
+                            .push(format!("measured pair {index} ({role}) failed: {message}"));
+                        hard_failure = true;
+                        break;
+                    }
+                }
+            }
+            if hard_failure {
+                break 'measured;
+            }
+            for (role, run) in pair_runs {
+                let mut sample = run.sample;
+                sample.kind = "measured".to_string();
+                sample.cache_state = "warm-file-cache".to_string();
+                sample.index = index;
+                let valid = run.hard_errors.is_empty();
+                let engine_result = result
+                    .engines
+                    .get_mut(role)
+                    .expect("engine result must exist");
+                engine_result.samples.push(sample);
+                if valid {
+                    engine_result.samples_completed += 1;
+                } else {
+                    let errors: Vec<String> = run
+                        .hard_errors
+                        .iter()
+                        .map(|error| sanitise_report_message(error, repo_root, &PathBuf::new()))
+                        .collect();
+                    engine_result.reasons.extend(errors.clone());
+                    result.reasons.extend(errors);
+                    hard_failure = true;
+                }
+                if role == "python" {
+                    pair.python_output_valid = valid;
+                } else if role == "rust" {
+                    pair.rust_output_valid = valid;
+                }
+            }
+            if hard_failure {
+                break 'measured;
+            }
+            // Locate the two samples by measured ordinal to compare semantics.
+            let python_sample = result.engines["python"]
+                .samples
+                .iter()
+                .find(|sample| sample.kind == "measured" && sample.index == index);
+            let rust_sample = result.engines["rust"]
+                .samples
+                .iter()
+                .find(|sample| sample.kind == "measured" && sample.index == index);
+            let (Some(python_sample), Some(rust_sample)) = (python_sample, rust_sample) else {
+                result
+                    .reasons
+                    .push(format!("measured pair {index} is missing a sample"));
+                hard_failure = true;
+                break 'measured;
+            };
+            pair.exit_codes_match = python_sample.exit_code == rust_sample.exit_code;
+            pair.stdout_sha256_match = python_sample.stdout_sha256 == rust_sample.stdout_sha256;
+            pair.stderr_sha256_match = python_sample.stderr_sha256 == rust_sample.stderr_sha256;
+            if !pair.exit_codes_match {
+                pair.mismatches.push(format!(
+                    "exit code differs: python {:?}, rust {:?}",
+                    python_sample.exit_code, rust_sample.exit_code
+                ));
+            }
+            if !pair.stdout_sha256_match {
+                pair.mismatches
+                    .push("normalized stdout sha256 differs".to_string());
+            }
+            if !pair.stderr_sha256_match {
+                pair.mismatches
+                    .push("normalized stderr sha256 differs".to_string());
+            }
+            pair.correct = pair.python_output_valid
+                && pair.rust_output_valid
+                && pair.exit_codes_match
+                && pair.stdout_sha256_match
+                && pair.stderr_sha256_match;
+            if !pair.correct {
+                let detail = if pair.mismatches.is_empty() {
+                    "one or both samples failed declared output validation".to_string()
+                } else {
+                    pair.mismatches.join("; ")
+                };
+                result
+                    .reasons
+                    .push(format!("measured pair {index} incorrect: {detail}"));
+                hard_failure = true;
+            }
+            result.measured_pairs += 1;
+            result.pairs.push(pair);
+            if hard_failure {
+                break 'measured;
+            }
+        }
+    }
+
+    if hard_failure {
+        result.status = "invalid-output".to_string();
+    } else if result
+        .engines
+        .values()
+        .any(|engine| engine.warmups_completed < warmups_expected)
+        || result
+            .engines
+            .values()
+            .any(|engine| engine.samples_completed < samples_expected)
+        || result.pairs.len() < samples_expected as usize
+    {
+        result.status = "incomplete".to_string();
+        result.reasons.push(format!(
+            "sample counts incomplete: pairs {}/{}, python {}/{}, rust {}/{}",
+            result.pairs.len(),
+            samples_expected,
+            result.engines["python"].samples_completed,
+            samples_expected,
+            result.engines["rust"].samples_completed,
+            samples_expected
+        ));
+    } else if any_unpinned {
+        result.status = "measured-unverified".to_string();
+        result.reasons.push(
+            "expected.stdoutSha256 is not pinned; observed hashes were recorded but correctness is not verified"
+                .to_string(),
+        );
+    } else {
+        result.status = "measured-paired".to_string();
+    }
+
+    let mismatched = result.pairs.iter().filter(|pair| !pair.correct).count();
+    result.correctness = json!({
+        "matched": mismatched == 0 && !result.pairs.is_empty(),
+        "mismatchedPairs": mismatched,
+        "checkedPerSample": true,
+        "checks": ["exitCode", "stdoutSha256", "stderrSha256", "expectedFiles", "expectedExitCode", "stdoutContains"],
+        "crossEngine": ["exitCode", "stdoutSha256", "stderrSha256"],
+    });
+    for engine in result.engines.values_mut() {
+        engine.status = if engine.samples_completed == samples_expected
+            && engine.warmups_completed == warmups_expected
+        {
+            "measured".to_string()
+        } else if engine.samples_completed == 0 {
+            "incomplete".to_string()
+        } else {
+            "partial".to_string()
+        };
+    }
+    result
+}
+
+#[allow(clippy::too_many_arguments)]
+fn run_paired_sample(
+    repo_root: &Path,
+    engine: &PairedEngine,
+    environment: &BTreeMap<String, String>,
+    workload: &WorkloadSpec,
+    metric_capability: &MetricCapability,
+    timeout: Duration,
+    tool_cache_root: Option<&Path>,
+) -> Result<SampleRun, String> {
+    run_one(
+        repo_root,
+        &engine.executable,
+        &engine.cwd,
+        &engine.args_prefix,
+        environment,
+        workload,
+        metric_capability,
+        timeout,
+        tool_cache_root,
+    )
+}
+
+fn validate_paired_result_shape(value: &Value) -> Result<(), String> {
+    let object = value
+        .as_object()
+        .ok_or_else(|| "paired benchmark result must be a JSON object".to_string())?;
+    if object.get("schemaVersion").and_then(Value::as_u64)
+        != Some(PAIRED_RESULT_SCHEMA_VERSION as u64)
+    {
+        return Err("paired benchmark result schemaVersion is missing or wrong".to_string());
+    }
+    if object.get("kind").and_then(Value::as_str) != Some("apk-lab-paired-benchmark-result") {
+        return Err("paired benchmark result kind is missing or wrong".to_string());
+    }
+    match object.get("status").and_then(Value::as_str) {
+        Some("complete") | Some("incomplete") => {}
+        _ => {
+            return Err(
+                "paired benchmark result status must be 'complete' or 'incomplete'".to_string(),
+            )
+        }
+    }
+    let engines = object
+        .get("engines")
+        .and_then(Value::as_object)
+        .ok_or_else(|| "paired benchmark result engines must be an object".to_string())?;
+    for engine in ["python", "rust"] {
+        if !engines.get(engine).map(Value::is_object).unwrap_or(false) {
+            return Err(format!(
+                "paired benchmark result engines.{engine} is missing"
+            ));
+        }
+    }
+    if !object.get("corpus").map(Value::is_object).unwrap_or(false) {
+        return Err("paired benchmark result corpus must be an object".to_string());
+    }
+    let workloads = object
+        .get("workloads")
+        .and_then(Value::as_array)
+        .ok_or_else(|| "paired benchmark result workloads must be an array".to_string())?;
+    for workload in workloads {
+        let id = workload
+            .get("id")
+            .and_then(Value::as_str)
+            .ok_or_else(|| "paired workload id is missing".to_string())?;
+        let engines = workload
+            .get("engines")
+            .and_then(Value::as_object)
+            .ok_or_else(|| format!("paired workload '{id}' engines must be an object"))?;
+        for engine in ["python", "rust"] {
+            let samples = engines
+                .get(engine)
+                .and_then(|value| value.get("samples"))
+                .and_then(Value::as_array)
+                .ok_or_else(|| {
+                    format!("paired workload '{id}' engines.{engine}.samples must be an array")
+                })?;
+            if engine == "rust" && samples.is_empty() && workloads.len() == 1 {
+                // An unavailable engine is allowed; acceptance carries the reason.
+            }
+        }
+        if !workload.get("pairs").map(Value::is_array).unwrap_or(false) {
+            return Err(format!("paired workload '{id}' pairs must be an array"));
+        }
+    }
+    if object
+        .get("acceptance")
+        .and_then(|value| value.get("valid"))
+        .and_then(Value::as_bool)
+        .is_none()
+    {
+        return Err("paired benchmark result acceptance.valid must be a boolean".to_string());
+    }
+    Ok(())
 }
 
 /// Replace host-private roots before a message reaches a committed report.
@@ -4463,14 +5479,23 @@ fn display_path(path: &Path, repo_root: &Path) -> String {
     }
 }
 
-fn now_epoch_seconds() -> u64 {
+fn display_cwd(path: &Path, repo_root: &Path) -> String {
+    let shown = display_path(path, repo_root);
+    if shown.is_empty() {
+        ".".to_string()
+    } else {
+        shown
+    }
+}
+
+pub(crate) fn now_epoch_seconds() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|duration| duration.as_secs())
         .unwrap_or(0)
 }
 
-fn sha256_bytes(bytes: &[u8]) -> String {
+pub(crate) fn sha256_bytes(bytes: &[u8]) -> String {
     let mut hasher = Sha256::new();
     hasher.update(bytes);
     hex(&hasher.finalize())
@@ -4485,7 +5510,7 @@ fn hex(bytes: &[u8]) -> String {
     output
 }
 
-fn write_json_atomic(path: &Path, value: &Value) -> Result<(), String> {
+pub(crate) fn write_json_atomic(path: &Path, value: &Value) -> Result<(), String> {
     if let Some(parent) = path.parent() {
         if !parent.as_os_str().is_empty() {
             fs::create_dir_all(parent).map_err(|e| {
@@ -6385,6 +7410,127 @@ mod tests {
         )
         .unwrap_err();
         assert!(error.contains("requires --input"), "got: {error}");
+    }
+
+    #[test]
+    fn paired_cli_accepts_engine_both_and_rust_bin() {
+        let args: Vec<String> = [
+            "--engine",
+            "both",
+            "--profile",
+            "local",
+            "--manifest",
+            "manifest.json",
+            "--rust-bin",
+            "tools/apk-lab/target/release/apk-lab",
+            "--out",
+            "paired.json",
+        ]
+        .iter()
+        .map(|arg| arg.to_string())
+        .collect();
+        let options = parse_args(&args).unwrap();
+        assert_eq!(options.engine, "both");
+        assert_eq!(
+            options.rust_bin.as_deref(),
+            Some(Path::new("tools/apk-lab/target/release/apk-lab"))
+        );
+
+        let error = parse_args(
+            &[
+                "--prepare",
+                "--engine",
+                "both",
+                "--profile",
+                "local",
+                "--manifest",
+                "manifest.json",
+                "--out",
+                "paired.json",
+            ]
+            .iter()
+            .map(|arg| arg.to_string())
+            .collect::<Vec<_>>(),
+        )
+        .unwrap();
+        assert!(error.prepare);
+        assert!(run(&[
+            "--prepare".to_string(),
+            "--engine".to_string(),
+            "both".to_string(),
+            "--profile".to_string(),
+            "local".to_string(),
+            "--manifest".to_string(),
+            "missing.json".to_string(),
+            "--out".to_string(),
+            "out.json".to_string(),
+        ])
+        .is_err());
+    }
+
+    #[test]
+    fn paired_order_alternates_from_a_seeded_start() {
+        let mut rng = SplitMix64::new(order_seed(20261120, "inspect.small"));
+        let rust_first = rng.next_u64() & 1 == 1;
+        let first = pair_order(rust_first, 0);
+        let second = pair_order(rust_first, 1);
+        let third = pair_order(rust_first, 2);
+        assert_eq!(first, third);
+        assert_ne!(first, second);
+        if rust_first {
+            assert_eq!(first, vec!["rust", "python"]);
+        } else {
+            assert_eq!(first, vec!["python", "rust"]);
+        }
+        // A different workload gets an independent seeded start.
+        let other = order_seed(20261120, "inspect.large");
+        assert_ne!(order_seed(20261120, "inspect.small"), other);
+    }
+
+    #[test]
+    fn paired_result_shape_accepts_only_both_engines() {
+        let workload = json!({
+            "id": "startup.help",
+            "category": "startup",
+            "size": "small",
+            "costly": false,
+            "sampleClass": "local",
+            "status": "measured-paired",
+            "warmupsExpected": 5,
+            "samplesExpected": 30,
+            "measuredPairs": 0,
+            "reasons": [],
+            "inputs": [],
+            "mpp": null,
+            "requiredTools": [],
+            "argvTemplate": ["--help"],
+            "environment": {},
+            "engines": {
+                "python": {"samples": []},
+                "rust": {"samples": []}
+            },
+            "pairs": [],
+            "correctness": {"matched": false}
+        });
+        let mut value = json!({
+            "schemaVersion": 1,
+            "kind": "apk-lab-paired-benchmark-result",
+            "status": "incomplete",
+            "profile": "local",
+            "engines": {
+                "python": {"directExecution": true},
+                "rust": {"directExecution": true, "compilationIncluded": false}
+            },
+            "corpus": {"identitySha256": "c".repeat(64)},
+            "workloads": [workload],
+            "acceptance": {"valid": false, "reasons": ["not measured"]}
+        });
+        validate_paired_result_shape(&value).unwrap();
+        value["workloads"][0]["engines"]
+            .as_object_mut()
+            .unwrap()
+            .remove("rust");
+        assert!(validate_paired_result_shape(&value).is_err());
     }
 
     fn test_directory(name: &str) -> PathBuf {

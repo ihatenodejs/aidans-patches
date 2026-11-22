@@ -75,6 +75,14 @@ $MIG bench --engine python --profile local \
   --out .apk-lab-migration/python-baseline.json
 $MIG bench --sanitize --input .apk-lab-migration/python-baseline.json \
   --out docs/benchmarks/apk-lab/baseline.json
+$MIG bench --engine both --profile local \
+  --manifest docs/benchmarks/apk-lab/corpus.local.json \
+  --rust-bin tools/apk-lab/target/release/apk-lab \
+  --out .apk-lab-migration/paired.json
+$MIG compare --input .apk-lab-migration/paired.json \
+  --policy tools/apk-lab/migration/performance-policy.json \
+  --out .apk-lab-migration/comparison.json
+$MIG report-check --report TO-RUST.md --data-dir docs/benchmarks/apk-lab
 $MIG preflight icons --manifest .apk-lab-migration/icons-reference/proof.local.json \
   --out .apk-lab-migration/icons-proof.json
 $MIG preflight icons --check --report .apk-lab-migration/icons-proof.json
@@ -176,6 +184,22 @@ The plan-001 baseline is collected by the Rust harness, never by hand:
   is not a performance sample.
 - `bench` then executes the full pre-registered workload matrix with the declared
   warmup/sample classes and writes a result document.
+- `bench --engine both` runs the synced Python interpreter and the pre-built native
+  release binary directly, alternating seeded engine order for every warmup and
+  measured pair. Each sample gets an identical fresh sandbox and the same argv, jobs,
+  inputs, and options; compilation and `uv` convenience are excluded from the timed
+  interval. The report keeps both engines' raw samples plus the explicit pairing and
+  per-sample correctness record.
+- `compare` recomputes medians, p95, paired ratios, and deterministic bootstrap 95%
+  intervals from the raw samples, then applies the unchanged policy (5% ratio budget,
+  5 ms wall floor, 1 MiB RSS floor). Missing or invalid samples, crossing intervals, and
+  confirmed material slowdowns fail instead of being averaged away.
+- `report-check` recomputes stored medians, p95, ratios and bootstrap intervals,
+  verifies the paired/comparison data link and provenance, and requires every
+  referenced chart to exist and map to stored workload ids and measurement units.
+  Charts are declared in `docs/benchmarks/apk-lab/charts/manifest.json` as
+  `{file, workloads, metric, unit}` entries; the report must reference both the
+  manifest and every declared chart file.
 - `bench --sanitize` derives the publishable result from the private one: engine paths,
   archive locations, and corpus paths become fixed placeholders derived from declared
   hashes, `argvTemplate` becomes a `command`/`flags` description, the host name becomes
