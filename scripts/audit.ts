@@ -1411,12 +1411,13 @@ async function runTest(domain: AuditDomain = 'all'): Promise<PhaseResult> {
     });
   }
 
-  // 7. Adobe Scan Extension Java Unit Tests (Gradle)
+  // 7. Morphe Patch & Extension Unit Tests (Gradle)
   if (shouldRunDomain(domain, 'android')) {
     process.stdout.write(
-      `  ${sym.arrow} Running Extension unit tests (Gradle)... `,
+      `  ${sym.arrow} Running patch and extension unit tests (Gradle)... `,
     );
     const extTestRes = await execCommand('./gradlew', [
+      ':patches:test',
       ':extensions:extension:testReleaseUnitTest',
       '--console=plain',
     ]);
@@ -1426,7 +1427,7 @@ async function runTest(domain: AuditDomain = 'all'): Promise<PhaseResult> {
       printRawCommandOutput(extTestRes.stdout, extTestRes.stderr);
     }
     results.push({
-      title: 'Extension Unit Tests (Gradle)',
+      title: 'Morphe Patch & Extension Unit Tests (Gradle)',
       tool: 'gradle test',
       domain: 'android',
       success: extTestPassed,

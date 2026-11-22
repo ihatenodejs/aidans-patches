@@ -38,6 +38,7 @@
     "tools/apk-lab/**/*.md",
     "worker/**/*.md",
     "site/**/*.md",
+    ".agents/**/*.md",
     ".github/**/*.md"
   ],
   "ignores": [

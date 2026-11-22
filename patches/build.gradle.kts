@@ -27,6 +27,7 @@ dependencies {
     compileOnly(libs.gson)
     patchListGeneratorClasspath(libs.gson)
     pdfboxConfig(libs.pdfbox.android)
+    testImplementation(libs.junit)
 }
 val emojiFontDir = layout.buildDirectory.dir("generated/resources/emojiFont")
 val outputFontFile = emojiFontDir.map { it.file("fonts/AppleColorEmoji.ttf") }

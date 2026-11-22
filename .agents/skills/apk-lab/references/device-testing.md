@@ -9,6 +9,7 @@ Apply Morphe patches, align, sign with debug keystore, stream to connected ADB d
 Applies Morphe patches from a `.mpp` bundle to an APK or split container (APKM/XAPK/APKS), aligns with `zipalign`, signs with the negotiated keystore, installs to an ADB device/emulator, and optionally cold-launches the app.
 
 ### Deployment Pipeline & Invariants
+
 1. **Patch Application**: Executes pinned Morphe Desktop in a temporary scratch workspace.
 2. **Alignment**: Runs `zipalign -f 4` to align 32-bit and 64-bit uncompressed shared libraries to 4-byte boundaries.
 3. **Keystore Negotiation & Signing**:
@@ -56,6 +57,7 @@ uv run --project tools/apk-lab apk-lab deploy path/to/app.apkm \
 ```
 
 ### CLI Arguments
+
 - `artifact` (required positional): Path to APK/APKM/XAPK/APKS.
 - `--mpp MPP`: Path to `.mpp` patch bundle (optional if `--build` is specified).
 - `--build`: Automatically compile newest `.mpp` patch bundle via Gradle (`./gradlew :patches:buildAndroid`).
@@ -74,6 +76,7 @@ uv run --project tools/apk-lab apk-lab deploy path/to/app.apkm \
 - `--key-pass PASS`: Key password.
 
 ### Exit Codes
+
 - `0`: Deployment succeeded.
 - `2`: Usage error, missing files, or device selection error.
 - `4`: Infrastructure error (ADB failure, Morphe failure, signing error).
@@ -85,6 +88,7 @@ uv run --project tools/apk-lab apk-lab deploy path/to/app.apkm \
 Hooks into a running or freshly launched app process via ADB, monitors main thread CPU utilization, detects infinite spin loops, catches ANRs and native crashes, and retrieves diagnostic stack traces.
 
 ### Monitoring & Detection Rules
+
 - **Main Thread CPU Spin Detection**:
   - Samples `/proc/<pid>/task/<pid>/stat` (TID == PID) and `/proc/stat` at 500ms intervals.
   - Flags a **High CPU Spin Warning** and exits with code `5` (`RUNTIME_FAILURE`) if the main thread sustains State `R` (running) and $\ge 90\%$ CPU for 3.0 consecutive seconds (6 samples).
@@ -117,16 +121,17 @@ uv run --project tools/apk-lab apk-lab monitor \
 ```
 
 ### CLI Arguments
+
 - `--package PACKAGE` (required): Package name to monitor.
 - `--device SERIAL`: Specific ADB device serial.
 - `--timeout SECONDS`: Monitoring duration (default: monitor until exit or Ctrl+C).
 - `--dump-threads`: Capture thread dump on spin or ANR.
 
 ### Exit Codes
+
 - `0`: Healthy monitoring session or clean process termination.
 - `2`: Device not connected or multiple devices without `--device`.
 - `5`: `RUNTIME_FAILURE` — Package did not start before `--timeout`, high CPU spin loop, ANR, crash, or fatal exit-info reason.
-
 
 ## 3. `crash-trace` — Smali-Aware Crash Harvester
 
@@ -147,6 +152,7 @@ uv run --project tools/apk-lab apk-lab crash-trace \
 ```
 
 ### CLI Arguments
+
 - `--package PACKAGE` (required): Target application package name.
 - `--device SERIAL`: Specific ADB device serial.
 - `--lines N`: Number of logcat lines to inspect (default: `5000`).
@@ -157,6 +163,7 @@ uv run --project tools/apk-lab apk-lab crash-trace \
 ## 4. `dev` — Rapid Iteration Workflow
 
 Automates the inner development loop for patch development. Executes a complete iteration cycle with a single command:
+
 1. **Repo Root Discovery**: Resolves the root of the Git repository containing patch sources.
 2. **Patch Compilation**: Executes `./gradlew :patches:buildAndroid` to compile the newest `.mpp` patch bundle.
 3. **Artifact Discovery**: Locates the matching target APK/APKM artifact for the given application slug/name.
@@ -174,6 +181,7 @@ uv run --project tools/apk-lab apk-lab dev sezzle --device emulator-5554 --clean
 ```
 
 ### CLI Arguments
+
 - `app` (required positional): Application name or package identifier (e.g. `geocaching`, `sezzle`).
 - `--device SERIAL`: Specific ADB device serial.
 - `--launch`: Launch main activity after installation (default: `True`).
