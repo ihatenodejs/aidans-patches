@@ -1,0 +1,74 @@
+name: APK Compatibility Test Resources
+
+on:
+  workflow_dispatch:
+    inputs:
+      package_name:
+        description: 'Package identity recorded in the smoke payload'
+        required: false
+        default: 'com.aftership.AfterShip'
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: Isolated R2 and callback smoke
+    runs-on: ubuntu-latest
+    env:
+      R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      R2_BUCKET_NAME: ${{ vars.R2_BUCKET_NAME }}
+      WORKER_STATUS_URL: ${{ vars.WORKER_STATUS_URL }}
+      COMPATIBILITY_STATUS_SECRET: ${{ secrets.COMPATIBILITY_STATUS_SECRET }}
+      PACKAGE_NAME: ${{ inputs.package_name }}
+    steps:
+      - name: Check isolated bindings are present
+        run: |
+          test -n "$R2_ACCOUNT_ID"
+          test -n "$R2_ACCESS_KEY_ID"
+          test -n "$R2_SECRET_ACCESS_KEY"
+          test -n "$R2_BUCKET_NAME"
+          test -n "$WORKER_STATUS_URL"
+          test -n "$COMPATIBILITY_STATUS_SECRET"
+          echo "url_len=${#WORKER_STATUS_URL} secret_len=${#COMPATIBILITY_STATUS_SECRET} bucket_len=${#R2_BUCKET_NAME}"
+
+      - name: S3 read/write in the isolated prefix
+        run: |
+          python3 -m venv /tmp/ci-smoke-venv
+          /tmp/ci-smoke-venv/bin/pip install --quiet boto3
+          /tmp/ci-smoke-venv/bin/python - <<'PY'
+          import hashlib, os
+          import boto3
+
+          key = "migration/ci-smoke.txt"
+          payload = b"isolated-ci-smoke\n"
+          client = boto3.client(
+              "s3",
+              endpoint_url=f"https://{os.environ['R2_ACCOUNT_ID']}.r2.cloudflarestorage.com",
+              aws_access_key_id=os.environ["R2_ACCESS_KEY_ID"],
+              aws_secret_access_key=os.environ["R2_SECRET_ACCESS_KEY"],
+              region_name="auto",
+          )
+          bucket = os.environ["R2_BUCKET_NAME"]
+          client.put_object(Bucket=bucket, Key=key, Body=payload)
+          stored = client.get_object(Bucket=bucket, Key=key)["Body"].read()
+          assert stored == payload
+          print("r2", bucket, key, hashlib.sha256(stored).hexdigest())
+          PY
+
+      - name: Callback accepts the test secret and rejects a wrong one
+        run: |
+          url="${WORKER_STATUS_URL%/}/api/compatibility-results"
+          payload="{\"requestId\":\"ci-smoke\",\"packageName\":\"$PACKAGE_NAME\",\"status\":\"smoke\"}"
+          accepted=$(curl -sS -o /dev/null -w '%{http_code}' -X POST "$url" \
+            -H "Authorization: Bearer $COMPATIBILITY_STATUS_SECRET" \
+            -H 'Content-Type: application/json' --data "$payload")
+          rejected=$(curl -sS -o /dev/null -w '%{http_code}' -X POST "$url" \
+            -H 'Authorization: Bearer wrong' \
+            -H 'Content-Type: application/json' --data "$payload")
+          test "$accepted" = "200"
+          test "$rejected" = "403"
+          echo "callback ok"
