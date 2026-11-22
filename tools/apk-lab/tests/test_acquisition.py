@@ -430,6 +430,7 @@ def test_acquire_artifact_fallback_to_apkmirror(monkeypatch, tmp_path):
 
     monkeypatch.setattr("apk_lab.acquisition.acquire_with_goopdl", mock_goopdl)
     monkeypatch.setattr("apk_lab.acquisition.acquire_with_apkmirror", mock_apkmirror)
+    monkeypatch.setattr("apk_lab.acquisition.load_google_play_accounts", lambda: None)
 
     artifact, source = acquire_artifact("com.sezzle.sezzlemobile", out_dir)
     assert source == AcquisitionSource.APKMIRROR
