@@ -823,6 +823,9 @@ pub trait DexTool: Send + Sync {
     fn class_descriptors(&self, apk_path: &Path) -> Result<BTreeSet<String>, String>;
 }
 
+/// Full class listings exceed the generic 1 MiB capture bound on large apps.
+const DEXDUMP_MAX_OUTPUT_BYTES: usize = 64 * 1024 * 1024;
+
 /// `dexdump` from Android build-tools, invoked through the process adapter.
 #[derive(Debug, Clone)]
 pub struct DexDump {
@@ -841,7 +844,7 @@ impl DexDump {
             missing_reason: None,
             timeout: None,
             cancellation: None,
-            max_output_bytes: process::DEFAULT_MAX_OUTPUT_BYTES,
+            max_output_bytes: DEXDUMP_MAX_OUTPUT_BYTES,
         }
     }
 
@@ -854,7 +857,7 @@ impl DexDump {
                 missing_reason: Some(error.message()),
                 timeout: None,
                 cancellation: None,
-                max_output_bytes: process::DEFAULT_MAX_OUTPUT_BYTES,
+                max_output_bytes: DEXDUMP_MAX_OUTPUT_BYTES,
             },
         }
     }
