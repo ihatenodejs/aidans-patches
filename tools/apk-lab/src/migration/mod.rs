@@ -8,6 +8,7 @@
 //! `serde_json::json!` literals; expansion depth needs more than the default.
 #![recursion_limit = "256"]
 
+pub mod acquisition;
 pub mod benchmark;
 pub mod icons;
 pub mod inventory;
@@ -20,13 +21,14 @@ use std::io::Write;
 mod preflight {
     use super::icons;
 
-    /// Routes `preflight <area> ...`; only `icons` exists so far.
+    /// Routes `preflight <area> ...`.
     pub fn run(args: &[String]) -> Result<(), String> {
         let Some((subcommand, rest)) = args.split_first() else {
             print_usage();
             return Err("preflight requires a subcommand".to_string());
         };
         match subcommand.as_str() {
+            "acquisition" => super::acquisition::run(rest),
             "icons" => icons::run(rest),
             "-h" | "--help" | "help" => {
                 print_usage();
@@ -44,8 +46,9 @@ mod preflight {
             "apk-lab-migrate preflight <area> [options]\n\
              \n\
              Areas:\n\
-             \x20 icons   Prove native icon pixels against the pinned Pillow baseline\n\
-             \x20         (capture, --check, or --sanitize a public summary)"
+             \x20 acquisition  Validate native Play delivery evidence and capability coverage\n\
+             \x20 icons        Prove native icon pixels against the pinned Pillow baseline\n\
+             \x20              (capture, --check, or --sanitize a public summary)"
         );
     }
 }
