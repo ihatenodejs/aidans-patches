@@ -1,3 +1,13 @@
+## [1.10.0-dev.3](https://github.com/ihatenodejs/aidans-patches/compare/v1.10.0-dev.2...v1.10.0-dev.3) (2026-11-22)
+
+### 🐛 Bug Fixes
+
+* **aftership:** harden byte patch bounds ([d8acd66](https://github.com/ihatenodejs/aidans-patches/commit/d8acd66abd4a0291fc7f00248eac2f5a378ad3f2))
+
+### 🚀 Updated App Support
+
+* **sidelineswap:** support 2.3.2 compose rewrite ([84d1f94](https://github.com/ihatenodejs/aidans-patches/commit/84d1f9470bd505aa0a5ab568a5e55398781b1245))
+
 ## [1.10.0-dev.2](https://github.com/ihatenodejs/aidans-patches/compare/v1.10.0-dev.1...v1.10.0-dev.2) (2026-11-22)
 
 ### ✨ New Features
