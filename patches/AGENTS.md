@@ -93,6 +93,7 @@ Use only managed APK Lab commands described in `../tools/apk-lab/AGENTS.md`. Do 
 
 ```bash
 ./gradlew :patches:compileKotlin :extensions:extension:compileReleaseJavaWithJavac --console=plain
+./gradlew :patches:test
 ./gradlew :patches:buildAndroid
 ./gradlew generatePatchesList
 
