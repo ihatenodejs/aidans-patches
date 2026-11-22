@@ -1,3 +1,9 @@
+## [1.10.0-dev.2](https://github.com/ihatenodejs/aidans-patches/compare/v1.10.0-dev.1...v1.10.0-dev.2) (2026-11-22)
+
+### ✨ New Features
+
+* **canvas:** added splash screen and landing logo theming to Change App Icon patch ([9926d0d](https://github.com/ihatenodejs/aidans-patches/commit/9926d0dd1e52bd1c7be19683c8094d9176faba39))
+
 ## [1.10.0-dev.1](https://github.com/ihatenodejs/aidans-patches/compare/v1.9.3...v1.10.0-dev.1) (2026-11-21)
 
 ### 🐛 Bug Fixes
