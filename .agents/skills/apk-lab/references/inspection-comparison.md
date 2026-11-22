@@ -9,6 +9,7 @@ Inspect single APKs and multi-split container bundles (APKM, XAPK, APKS), parse 
 Inspects container architecture, manifest badging, DEX metrics, and native components without creating persistent workspaces.
 
 ### Security Invariants & Container Classification
+
 - **Safe ZIP Validation**:
   - Rejects directory traversal (`..`), absolute paths, and POSIX symlinks.
   - Rejects archive bombs: max 100,000 entries, max 4 GiB total expanded size, max 100.0 compression ratio on entries > 1 MiB.
@@ -37,10 +38,12 @@ uv run --project tools/apk-lab apk-lab inspect path/to/app.apkm --json /tmp/insp
 ```
 
 ### CLI Arguments
+
 - `artifact` (required positional): Path to `.apk`, `.apkm`, `.xapk`, or `.apks` file.
 - `--json [PATH|-]`: Output structured JSON report. Omitting value or passing `-` writes to stdout; otherwise writes to given path.
 
 ### Output Fields (`ArtifactInspection`)
+
 - `filePath`: Canonical path to artifact.
 - `containerType`: `APK`, `APKM`, `XAPK`, `APKS`, or `UNKNOWN`.
 - `fileSize`, `sha256`: Container file size and SHA-256 digest.
@@ -53,6 +56,7 @@ uv run --project tools/apk-lab apk-lab inspect path/to/app.apkm --json /tmp/insp
 - `warnings`: Diagnostic warnings encountered during inspection.
 
 ### Exit Codes
+
 - `0`: Inspection succeeded.
 - `2`: Artifact file does not exist or build tools missing.
 - `3`: Invalid artifact (archive security violation, inconsistent splits, corrupt manifest).
@@ -65,6 +69,7 @@ uv run --project tools/apk-lab apk-lab inspect path/to/app.apkm --json /tmp/insp
 Compares two APK/APKM/XAPK/APKS artifacts across metadata, split architecture, native libraries, and decompiled class bytecode.
 
 ### Diff Capabilities
+
 - **Metadata**: Version name, version code delta, signing certificate changes.
 - **Splits**: Added, removed, or modified split APKs (based on content hash).
 - **DEX Metrics**: Net change in class count and method count.
@@ -88,12 +93,14 @@ uv run --project tools/apk-lab apk-lab compare old_app.apkm new_app.apkm --json 
 ```
 
 ### CLI Arguments
+
 - `old_artifact` (required positional): Path to baseline artifact.
 - `new_artifact` (required positional): Path to target/updated artifact.
 - `--class CLASS`: Repeatable fully-qualified class name to decompile and diff with JADX.
 - `--json [PATH|-]`: Output structured JSON report.
 
 ### Exit Codes
+
 - `0`: Comparison succeeded.
 - `2`: Artifact not found, or JADX failed on requested class comparison.
 - `3`: Invalid artifact format or archive security error.

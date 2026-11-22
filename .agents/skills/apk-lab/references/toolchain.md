@@ -17,6 +17,7 @@ APK Lab orchestrates external tools pinned with immutable SHA-256 digests in `to
 | **uv** | Modern | PATH (`uv run --project tools/apk-lab`) |
 
 External tools cached in `~/.cache/aidans-patches/apk-lab/tools/`:
+
 - **Morphe Desktop**: `1.18.0` (JAR)
 - **JADX**: `1.5.6` (ZIP with bin/jadx)
 - **Apktool**: `3.0.3` (JAR)
@@ -27,10 +28,13 @@ External tools cached in `~/.cache/aidans-patches/apk-lab/tools/`:
 ---
 
 ## 2. CLI Reference
+
 Global options (e.g. `--workspace-root PATH`, default: `.apk-lab`) precede the subcommand:
+
 ```bash
 uv run --project tools/apk-lab apk-lab [--workspace-root PATH] <subcommand> [flags]
 ```
+
 ### `setup` — Toolchain Download & Verification
 
 Downloads and verifies all pinned tools for the specified profile using SHA-256 checksums from `tools.lock.json`.
@@ -112,6 +116,7 @@ uv run --project tools/apk-lab apk-lab clean --package com.example.app --dry-run
 ## 3. Workspace Structure & Marker Contract
 
 Analysis runs create isolated, reproducible workspaces under `.apk-lab/`:
+
 ```text
 .apk-lab/
   └── <package_name>/
@@ -125,6 +130,7 @@ Analysis runs create isolated, reproducible workspaces under `.apk-lab/`:
 ```
 
 ### Marker Format (`.marker.json`)
+
 ```json
 {
   "schemaVersion": 1,

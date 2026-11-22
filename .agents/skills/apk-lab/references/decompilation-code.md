@@ -9,6 +9,7 @@ Extract APK artifacts into managed workspaces, perform surgical single-class/sin
 Unpacks an APK or split container (APKM, XAPK, APKS) into an isolated, reproducible run directory under `.apk-lab/`, disassembles bytecode, extracts native `.so` libraries, and optionally decompiles Java or resources.
 
 ### Capabilities
+
 - **Native Library Extraction**: Extracts `.so` shared libraries from the base APK and all architecture splits into `<workspace>/lib/<arch>/` (e.g. `lib/arm64-v8a/libil2cpp.so`). Conflicting identical libraries are deduplicated; conflicting differing libraries raise an error.
 - **Bytecode Disassembly**: Uses pinned baksmali to disassemble all `classes*.dex` into Smali.
 - **Java Decompilation**: Optional JADX decompilation with class filtering.
@@ -32,6 +33,7 @@ uv run --project tools/apk-lab apk-lab analyze path/to/app.apkm --apktool
 ```
 
 ### CLI Arguments
+
 - `artifact` (required positional): Path to APK or split container.
 - `--jadx`: Enable JADX Java decompilation.
 - `--apktool`: Enable Apktool resource decoding.
@@ -39,10 +41,12 @@ uv run --project tools/apk-lab apk-lab analyze path/to/app.apkm --apktool
 - `--class CLASS ...`: Specific class patterns for JADX decompilation.
 
 ### Exit Codes
+
 - `0`: Analysis succeeded. Prints workspace path and matching cleanup command.
 - `2`: Usage error or invalid arguments.
 - `3`: Invalid artifact or security error.
 - `4`: Tool or infrastructure failure.
+
 ---
 
 ## 2. `inspect-code` — Surgical Class & Method Inspection
@@ -50,6 +54,7 @@ uv run --project tools/apk-lab apk-lab analyze path/to/app.apkm --apktool
 Extracts or decompiles **only a single class or method** directly from an APK without decompiling the entire multi-gigabyte application, and provides side-by-side unified diffs between unpatched and patched APKs.
 
 ### Localization & Extraction Mechanism
+
 1. **Multi-DEX Search**: Scans `classes*.dex` across all splits using `dexdump` on each extracted DEX to find the exact split and DEX file containing the class.
 2. **Smali Disassembly**: Invokes pinned baksmali with `--classes <descriptor> --code-offsets` on the containing DEX.
 3. **Java Decompilation**: Invokes pinned JADX with `--single-class <fqcn> --show-bad-code --no-res` directly on the containing APK.
@@ -87,6 +92,7 @@ uv run --project tools/apk-lab apk-lab inspect-code patched.apk \
 ```
 
 ### CLI Arguments
+
 - `artifact` (required positional): Path to APK/APKM/XAPK/APKS.
 - `--class CLASS` (required): Fully-qualified class name (e.g. `com.example.app.MainActivity`).
 - `--method METHOD`: Method name or Dalvik descriptor.
@@ -95,6 +101,7 @@ uv run --project tools/apk-lab apk-lab inspect-code patched.apk \
 - `--compare ARTIFACT`: Baseline APK to produce a unified diff against.
 
 ### Exit Codes
+
 - `0`: Inspection or comparison succeeded.
 - `2`: Class not found, ambiguous method overload, invalid selector, or tool error.
 
@@ -105,6 +112,7 @@ uv run --project tools/apk-lab apk-lab inspect-code patched.apk \
 Statically validates Smali instruction snippets before injecting them into Morphe Kotlin DSL `addInstructions` / `replaceInstruction` blocks.
 
 ### Validation Checks
+
 1. **Register Mapping**: Maps `p0..pN` registers to absolute indices (`v<locals + idx>`).
    - Instance methods: `p0` is `this`, `p1..pN` are parameters.
    - Static methods (`--is-static`): `p0..p(N-1)` are parameters.
@@ -138,12 +146,15 @@ uv run --project tools/apk-lab apk-lab validate-smali \
 ```
 
 ### CLI Arguments
+
 - `--snippet TEXT` (required): Raw Smali instructions (newline-separated).
 - `--locals N` (required): `.locals` count of target method.
 - `--params N`: Number of declared single-width parameters (assumes 1 register per param; use `--descriptor` for wide types; defaults to 0 if omitted).
 - `--descriptor DESC`: Method descriptor (e.g. `'(IJLjava/lang/String;)V'`) defining exact parameter types and 64-bit wide register widths.
 - `--is-static`: Set if target method is static (does not have implicit `p0 = this`).
+
 ### Exit Codes
+
 - `0`: Snippet passed all checks without errors.
 - `2`: Validation error found (register overflow, invalid literal, malformed branch, or assembler failure).
 

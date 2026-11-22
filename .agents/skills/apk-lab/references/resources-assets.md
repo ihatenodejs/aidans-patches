@@ -9,6 +9,7 @@ Inspect and query Android resources across multi-split containers, inspect Unity
 Resolves resource entries, layout IDs, and raw members across the base APK and all configuration splits (`split_config.xxhdpi.apk`), detects duplicates across splits, and recommends the appropriate Morphe patch mode.
 
 ### Supported Query Formats
+
 - **Hex Resource ID**: `0x7f08028e` (looks up in ARSC tables via AAPT2).
 - **Type/Name Reference**: `@drawable/map_preview_trails` or `drawable/map_preview_trails`.
 - **Package-Prefixed Reference**: `com.example.app:string/app_name`.
@@ -17,6 +18,7 @@ Resolves resource entries, layout IDs, and raw members across the base APK and a
 - **Text/Value Substring**: `text:<query>`, `val:<query>`, `value:<query>`, or `--text <query>` / `--value <query>` flag aliases (case-insensitive substring search across string tables in `resources.arsc`).
 
 ### Invariants & Output Intelligence
+
 - **Split Handling**: Split packages lacking `resources.arsc` (such as native library splits `config.arm64_v8a.apk`) are gracefully skipped during ARSC table inspection without error, while raw archive members (assets, libraries, manifest) remain searchable and accessible.
 - **Morphe Mode Guidance**:
   - `AndroidManifest.xml` and files under `res/...` advise `resourcePatch` (`document(...)` for XML DOM manipulation, `get(...)` for binary resources).
@@ -51,10 +53,12 @@ uv run --project tools/apk-lab apk-lab res path/to/app.apkm \
 ```
 
 ### Exit Codes
+
 - `0`: Query executed successfully.
 - `2`: Artifact not found or invalid query format.
 - `3`: Archive security error or extraction safety violation.
 - `4`: Uncaught infrastructure failure or build tool error.
+
 ---
 
 ## 2. `unity` — Unity Serialized Asset & GameObject Inspector
@@ -62,6 +66,7 @@ uv run --project tools/apk-lab apk-lab res path/to/app.apkm \
 Parses Unity serialized asset files (`assets/bin/Data/*.assets`, `*.assets.split*`, `globalgamemanagers`) across single APKs and split containers (APKM, APKS, XAPK). Locates `GameObject` records by name, reports matched asset member paths and file offsets, and computes the exact byte offset and value of the `m_IsActive` boolean property.
 
 ### Purpose for Patching
+
 In Unity games, disabling unwanted promotional buttons, help centers, or ad prompts can be accomplished by setting the GameObject's `m_IsActive` byte to `0x00` in the serialized asset file via a Morphe `rawResourcePatch`. This tool finds the exact file offset.
 
 ### CLI Invocation
@@ -75,11 +80,13 @@ uv run --project tools/apk-lab apk-lab unity path/to/game.apkm --gameobject Butt
 ```
 
 ### CLI Arguments
+
 - `artifact` (required positional): Path to APK or split bundle.
 - `--gameobject` / `-g` (required): Case-sensitive name of the Unity `GameObject`.
 - `--json [PATH|-]`: Output structured JSON report.
 
 ### Exit Codes
+
 - `0`: Inspection succeeded.
 - `2`: Artifact not found or invalid argument.
 
@@ -90,6 +97,7 @@ uv run --project tools/apk-lab apk-lab unity path/to/game.apkm --gameobject Butt
 Encodes ARM64 machine instructions and computes 26-bit relative branch relocations (`b`, `bl`), register returns (`ret`), and register moves (`mov`/`movz`). Formats output deterministically for direct use in Morphe Kotlin patches.
 
 ### Capabilities
+
 - **Branch Relocation**: Computes relative PC offset for `b` and `bl` instructions:
   $$\text{imm26} = \frac{\text{target} - \text{pc}}{4}$$
   Enforces 4-byte alignment and range $[-134217728, +134217724]$ ($\pm 128\text{ MiB}$).
@@ -118,12 +126,14 @@ uv run --project tools/apk-lab apk-lab asm "mov w1, #1" --format hex
 ```
 
 ### CLI Arguments
+
 - `statement` (required positional): ARM64 instruction (e.g. `"bl 0x3c98ce4"`, `"ret"`, `"mov w1, #1"`).
 - `--pc INT|HEX`: Program counter address (default: `0`).
 - `--target INT|HEX`: Explicit branch target address (overrides operand in statement).
 - `--format {hex,kotlin,int,bytes}`: Output formatting (default: `hex`).
 
 ### Exit Codes
+
 - `0`: Assembly succeeded.
 - `2`: Syntax error, unaligned address, out-of-range branch or immediate, or invalid format.
 
@@ -144,11 +154,13 @@ uv run --project tools/apk-lab apk-lab il2cpp path/to/game.apkm --query "Blackja
 ```
 
 ### CLI Arguments
+
 - `artifact` (required positional): Path to APK or split bundle.
 - `--query` / `-q`: Case-insensitive regex or substring query. Searches namespace, type name, and method names.
 - `--json [PATH|-]`: Output structured JSON array.
 
 ### Exit Codes
+
 - `0`: Query succeeded.
 - `2`: Artifact not found, `global-metadata.dat` missing, or unsupported metadata version.
 

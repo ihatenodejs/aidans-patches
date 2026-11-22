@@ -54,10 +54,12 @@ To conserve context tokens, read only the specific reference file needed for you
 ## 4. Standard Operational Workflows
 
 ### Workflow A: Inspecting an Unknown APK or Bundle
+
 1. Read `skill://apk-lab/references/inspection-comparison.md`.
 2. Run `apk-lab inspect <artifact>` to determine container type, package name, version, signing certificate, splits, and DEX metrics.
 
 ### Workflow B: Authoring Patches for a New Target App
+
 1. Read `skill://apk-lab/references/decompilation-code.md` and `references/resources-assets.md`.
 2. Run `apk-lab analyze <artifact> --smali` to extract smali and native shared libraries into `.apk-lab/`.
 3. If Unity: run `apk-lab il2cpp <artifact> --query <name>` or `apk-lab unity <artifact> --gameobject <name>`.
@@ -69,6 +71,7 @@ To conserve context tokens, read only the specific reference file needed for you
 9. Clean: `apk-lab clean --run <run_path>`.
 
 ### Workflow C: Migrating Patches on App Updates
+
 1. Read `skill://apk-lab/references/inspection-comparison.md` and `references/patch-verification.md`.
 2. Acquire update: `apk-lab acquire <pkg>` or load updated artifact.
 3. Compare versions: `apk-lab compare <old_artifact> <new_artifact> --class <TargetClass>`.
@@ -78,11 +81,13 @@ To conserve context tokens, read only the specific reference file needed for you
 7. Verify all patches pass: `apk-lab check <new_artifact> --mpp <bundle> --package <pkg> --all`.
 
 ### Workflow D: Deploying & Smoke Testing on Device
+
 1. Read `skill://apk-lab/references/device-testing.md`.
 2. Rapid iteration shortcut: `apk-lab dev <app>` (auto-builds patches, locates artifact, signs with negotiated keystore, deploys, and launches).
 3. Or manual deploy: `apk-lab deploy <artifact> --mpp <bundle> --package <pkg> --all --launch` (or with `--build` to compile automatically).
 4. Watch health: `apk-lab monitor --package <pkg> --timeout 10.0 --dump-threads`.
 5. Inspect crashes with Smali resolution: `apk-lab crash-trace --package <pkg>`.
+
 ---
 
 ## 5. Command Reference Quick Index
