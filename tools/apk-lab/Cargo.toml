@@ -28,6 +28,7 @@ sha2 = "0.10.8"
 tempfile = "3.15.0"
 tokio = { version = "1.43.0", features = ["full"] }
 ureq = { version = "=3.5.2", default-features = false, features = ["rustls", "gzip"] }
+zip = { version = "=9.8.1", default-features = false, features = ["deflate-flate2-zlib-rs", "bzip2", "lzma"] }
 
 [patch.crates-io]
 turbojpeg-sys = { path = "../asset-prep/vendor/turbojpeg-sys" }

@@ -9,8 +9,10 @@
 //! default.
 #![recursion_limit = "256"]
 
+pub mod archives;
 pub mod cli;
 pub mod error;
 pub mod migration;
 pub mod models;
 pub mod process;
+pub mod workspace;
