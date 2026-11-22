@@ -17,11 +17,12 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
 use std::time::{Duration, Instant};
+use wait_timeout::ChildExt;
 
 /// Default retained bytes per captured stream.
 pub const DEFAULT_MAX_OUTPUT_BYTES: usize = 1024 * 1024;
 
-const POLL_INTERVAL: Duration = Duration::from_millis(10);
+const CANCEL_POLL_INTERVAL: Duration = Duration::from_millis(10);
 const READ_BUFFER_BYTES: usize = 8 * 1024;
 const REDACTED: &str = "[REDACTED]";
 
@@ -236,10 +237,25 @@ pub fn run(spec: &ProcessSpec) -> Result<ProcessOutput, Error> {
     let started = Instant::now();
     let mut timed_out = false;
     let mut cancelled = false;
-    let status = loop {
-        match child.try_wait() {
-            Ok(Some(status)) => break status,
-            Ok(None) => {}
+    let status = match (spec.cancel.as_ref(), spec.timeout) {
+        (None, None) => child.wait().map_err(|error| {
+            Error::io(
+                format!("failed while waiting for '{}'", spec.describe_command()),
+                error,
+            )
+        })?,
+        (None, Some(limit)) => match child.wait_timeout(limit) {
+            Ok(Some(status)) => status,
+            Ok(None) => {
+                timed_out = true;
+                let _ = child.kill();
+                child.wait().map_err(|error| {
+                    Error::io(
+                        format!("failed to reap timed-out '{}'", spec.describe_command()),
+                        error,
+                    )
+                })?
+            }
             Err(error) => {
                 let _ = child.kill();
                 let _ = child.wait();
@@ -248,37 +264,56 @@ pub fn run(spec: &ProcessSpec) -> Result<ProcessOutput, Error> {
                     error,
                 ));
             }
-        }
+        },
+        (Some(flag), timeout) => {
+            let deadline = timeout.map(|limit| started + limit);
+            loop {
+                if flag.load(Ordering::Relaxed) {
+                    cancelled = true;
+                    let _ = child.kill();
+                    break child.wait().map_err(|error| {
+                        Error::io(
+                            format!("failed to reap cancelled '{}'", spec.describe_command()),
+                            error,
+                        )
+                    })?;
+                }
 
-        if spec
-            .cancel
-            .as_ref()
-            .is_some_and(|flag| flag.load(Ordering::Relaxed))
-        {
-            cancelled = true;
-            let _ = child.kill();
-            break child.wait().map_err(|error| {
-                Error::io(
-                    format!("failed to reap cancelled '{}'", spec.describe_command()),
-                    error,
-                )
-            })?;
-        }
+                let slice = match deadline {
+                    Some(deadline) => {
+                        let remaining = deadline.saturating_duration_since(Instant::now());
+                        if remaining.is_zero() {
+                            timed_out = true;
+                            let _ = child.kill();
+                            break child.wait().map_err(|error| {
+                                Error::io(
+                                    format!(
+                                        "failed to reap timed-out '{}'",
+                                        spec.describe_command()
+                                    ),
+                                    error,
+                                )
+                            })?;
+                        }
+                        remaining.min(CANCEL_POLL_INTERVAL)
+                    }
+                    None => CANCEL_POLL_INTERVAL,
+                };
 
-        if let Some(limit) = spec.timeout {
-            if started.elapsed() >= limit {
-                timed_out = true;
-                let _ = child.kill();
-                break child.wait().map_err(|error| {
-                    Error::io(
-                        format!("failed to reap timed-out '{}'", spec.describe_command()),
-                        error,
-                    )
-                })?;
+                match child.wait_timeout(slice) {
+                    Ok(Some(status)) => break status,
+                    Ok(None) => {}
+                    Err(error) => {
+                        let _ = child.kill();
+                        let _ = child.wait();
+                        return Err(Error::io(
+                            format!("failed while waiting for '{}'", spec.describe_command()),
+                            error,
+                        ));
+                    }
+                }
             }
         }
-
-        thread::sleep(POLL_INTERVAL);
     };
 
     let stdout = join_reader(stdout_reader, "stdout")?;
@@ -372,6 +407,28 @@ fn read_bounded<R: Read>(reader: &mut R, limit: usize) -> io::Result<BoundedOutp
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn cancellation_kills_and_reaps_the_child() {
+        let flag = Arc::new(AtomicBool::new(false));
+        let signal = Arc::clone(&flag);
+        let starter = std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(50));
+            signal.store(true, Ordering::Relaxed);
+        });
+        let started = Instant::now();
+        let spec = ProcessSpec::new("/bin/sh")
+            .args(["-c", "sleep 5"])
+            .cancel(flag);
+        let output = run(&spec).expect("sh starts");
+        starter.join().expect("signal thread");
+        assert!(output.cancelled, "child must be reported as cancelled");
+        assert!(!output.success());
+        assert!(
+            started.elapsed() < Duration::from_secs(3),
+            "cancel must not wait for the child"
+        );
+    }
 
     #[test]
     fn truncation_boundary_is_exact() {

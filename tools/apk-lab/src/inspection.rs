@@ -16,7 +16,7 @@ use crate::error::Error;
 use crate::models::{AndroidManifestInfo, ArtifactInspection, ContainerType, SplitInfo};
 use crate::process::{self, ProcessSpec};
 use crate::tools::{default_repo_root, find_build_tools_bin, ToolEnvironment};
-use sha2::{Digest, Sha256};
+use ring::digest::{Context, SHA256};
 use std::collections::BTreeSet;
 use std::fs::{self, File};
 use std::io::Read;
@@ -63,6 +63,21 @@ pub fn inspect_artifact_with_options(
     artifact_path: impl AsRef<Path>,
     options: &InspectionOptions,
 ) -> Result<ArtifactInspection, Error> {
+    let (inspection, _materialized) =
+        inspect_artifact_with_materialization(artifact_path, options)?;
+    Ok(inspection)
+}
+
+/// Inspection that also returns the split materialization it validated.
+///
+/// Split containers are extracted once for inspection, and callers that read
+/// the same splits afterwards reuse this extraction instead of unpacking the
+/// container a second time. The materialized rows already carry the
+/// manifest-resolved split names and base flags.
+pub fn inspect_artifact_with_materialization(
+    artifact_path: impl AsRef<Path>,
+    options: &InspectionOptions,
+) -> Result<(ArtifactInspection, archives::MaterializedApks), Error> {
     let path = canonical_or_absolute(artifact_path.as_ref());
     if !path.is_file() {
         return Err(Error::usage(format!(
@@ -90,7 +105,7 @@ pub fn inspect_artifact_with_options(
         let scan = scan_apk(&path)?;
         let manifest_info = parse_apk_badging(&path, options)?;
         let cert_sha256 = extract_signing_cert_sha256(&path, options);
-        return Ok(ArtifactInspection {
+        let inspection = ArtifactInspection {
             file_path: path.to_string_lossy().into_owned(),
             container_type: ContainerType::Apk,
             file_size,
@@ -109,7 +124,10 @@ pub fn inspect_artifact_with_options(
             resources: scan.resources,
             assets: scan.assets,
             warnings: scan.warnings,
-        });
+        };
+        let materialized = archives::materialize_artifact_apks(&path, &[], true)
+            .map_err(|error| archive_error("Security validation failed", error))?;
+        return Ok((inspection, materialized));
     }
 
     if safe_report.apk_members.is_empty() {
@@ -130,8 +148,9 @@ pub fn inspect_artifact_with_options(
             is_base: false,
         })
         .collect();
-    let materialized = archives::materialize_artifact_apks(&path, &split_rows, false)
-        .map_err(|error| archive_error("Security validation failed", error))?;
+    let (mut materialized, split_hashes) =
+        archives::materialize_artifact_apks_hashed(&path, &split_rows, false)
+            .map_err(|error| archive_error("Security validation failed", error))?;
 
     let mut inspected = Vec::with_capacity(materialized.as_slice().len());
     let mut base_candidates: Vec<String> = Vec::new();
@@ -147,7 +166,7 @@ pub fn inspect_artifact_with_options(
     let mut all_assets = BTreeSet::new();
     let mut all_warnings = Vec::new();
 
-    for row in materialized.as_slice() {
+    for (row_index, row) in materialized.as_slice().iter().enumerate() {
         let apk_name = row
             .container_member
             .clone()
@@ -155,7 +174,12 @@ pub fn inspect_artifact_with_options(
         let apk_size = fs::metadata(&row.path)
             .map_err(|error| Error::io(format!("read split {}", row.path.display()), error))?
             .len();
-        let apk_sha256 = sha256_file(&row.path)?;
+        let apk_sha256 = split_hashes.get(row_index).cloned().ok_or_else(|| {
+            Error::invalid_artifact(format!(
+                "Missing digest for materialized split {}",
+                row.path.display()
+            ))
+        })?;
         let scan = scan_apk(&row.path)?;
         let manifest_info = parse_apk_badging(&row.path, options)?;
         let cert_sha256 = extract_signing_cert_sha256(&row.path, options);
@@ -252,7 +276,11 @@ pub fn inspect_artifact_with_options(
         Error::invalid_artifact(format!("Base APK manifest not found in {}", path.display()))
     })?;
 
-    Ok(ArtifactInspection {
+    materialized
+        .apply_split_metadata(&splits_info)
+        .map_err(|error| archive_error("Security validation failed", error))?;
+
+    let inspection = ArtifactInspection {
         file_path: path.to_string_lossy().into_owned(),
         container_type: safe_report.container_type,
         file_size,
@@ -271,7 +299,8 @@ pub fn inspect_artifact_with_options(
         resources: all_resources.into_iter().collect(),
         assets: all_assets.into_iter().collect(),
         warnings: all_warnings,
-    })
+    };
+    Ok((inspection, materialized))
 }
 
 struct InspectedSplit {
@@ -533,7 +562,7 @@ fn archive_error(context: &str, error: ArchiveError) -> Error {
 fn sha256_file(path: &Path) -> Result<String, Error> {
     let mut file = File::open(path)
         .map_err(|error| Error::io(format!("read artifact {}", path.display()), error))?;
-    let mut hasher = Sha256::new();
+    let mut hasher = Context::new(&SHA256);
     let mut buffer = [0u8; 64 * 1024];
     loop {
         let read = file
@@ -544,7 +573,7 @@ fn sha256_file(path: &Path) -> Result<String, Error> {
         }
         hasher.update(&buffer[..read]);
     }
-    Ok(format!("{:x}", hasher.finalize()))
+    Ok(archives::sha256_digest_hex(&hasher.finish()))
 }
 
 fn canonical_or_absolute(path: &Path) -> PathBuf {

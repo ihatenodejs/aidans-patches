@@ -16,8 +16,7 @@
 
 use crate::archives::{self, ArchiveError, MaterializedApk};
 use crate::error::Error;
-use crate::inspection::{inspect_artifact_with_options, InspectionOptions};
-use crate::models::ContainerType;
+use crate::inspection::{inspect_artifact_with_materialization, InspectionOptions};
 use crate::process::{self, ProcessSpec};
 use crate::tools::{default_repo_root, find_build_tools_bin, ToolEnvironment};
 use regex::Regex;
@@ -1124,12 +1123,8 @@ pub fn inspect_resources_with_options(
 ) -> Result<ResourceQueryReport, Error> {
     let parsed = normalize_resource_query(query)?;
     let artifact_path = artifact_path.as_ref();
-    let inspection = inspect_artifact_with_options(artifact_path, options)?;
-    let materialized = archives::materialize_artifact_apks(
-        artifact_path,
-        &inspection.splits,
-        inspection.container_type == ContainerType::Apk,
-    )?;
+    let (_inspection, materialized) =
+        inspect_artifact_with_materialization(artifact_path, options)?;
     let aapt2 = find_build_tools_bin(&options.env, "aapt2")?;
     let (matches, mut warnings) =
         query_apk_resources_with_aapt2(materialized.as_slice(), &parsed, &aapt2)?;

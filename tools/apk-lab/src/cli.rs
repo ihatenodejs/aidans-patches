@@ -15,7 +15,6 @@
 use crate::accounts_tui;
 use crate::acquisition::{self, AcquiredArtifact};
 use crate::analysis::{self, AnalyzeOptions};
-use crate::archives;
 use crate::asm;
 use crate::code_inspection::{
     self, InspectCodeRequest, LiveArtifactInspector, NativeToolExecutor, ToolExecutor, ToolKind,
@@ -33,7 +32,7 @@ use crate::fixtures::{R2FixtureManager, SlotMetadata};
 use crate::il2cpp;
 use crate::inspection;
 use crate::manifest;
-use crate::models::{ArtifactInspection, ContainerType, Envelope, ExitCode};
+use crate::models::{ArtifactInspection, Envelope, ExitCode};
 use crate::morphe::{
     self, ArtifactInspector, CheckOptions, CheckRunner, DexDump, DexTool, MorpheTool,
     NativeInspector, PatchCommandPaths, PatchCompatibilityReport, ToolVersions,
@@ -2372,13 +2371,9 @@ fn collect_artifact_strings(
     pattern: Option<&regex::Regex>,
     dex_filter: Option<&str>,
 ) -> Result<Vec<StringMatchRow>, Error> {
-    let inspection = inspection::inspect_artifact(artifact)?;
-    let materialized = archives::materialize_artifact_apks(
-        artifact,
-        &inspection.splits,
-        inspection.container_type == ContainerType::Apk,
-    )
-    .map_err(Error::from)?;
+    let options = inspection::InspectionOptions::from_process();
+    let (_inspection, materialized) =
+        inspection::inspect_artifact_with_materialization(artifact, &options)?;
 
     let mut matches = Vec::new();
     for apk in materialized.as_slice() {

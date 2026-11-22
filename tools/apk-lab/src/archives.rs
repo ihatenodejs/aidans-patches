@@ -14,8 +14,8 @@
 
 use crate::error::Error as CrateError;
 use crate::models::{ContainerType, MemberInfo, SplitInfo};
-use sha2::{Digest, Sha256};
-use std::collections::HashSet;
+use ring::digest::{Context, Digest, SHA256};
+use std::collections::{HashMap, HashSet};
 use std::fmt;
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read, Seek, Write};
@@ -468,7 +468,7 @@ pub fn compute_zip_member_sha256(
     let mut member = archive
         .by_name(member_name)
         .map_err(|error| map_zip_error("open archive member", error))?;
-    let mut hasher = Sha256::new();
+    let mut hasher = Context::new(&SHA256);
     let mut buffer = [0u8; STREAM_BUFFER_BYTES];
     loop {
         let read = member
@@ -479,7 +479,19 @@ pub fn compute_zip_member_sha256(
         }
         hasher.update(&buffer[..read]);
     }
-    Ok(format!("{:x}", hasher.finalize()))
+    Ok(sha256_digest_hex(&hasher.finish()))
+}
+
+/// Lowercase hexadecimal SHA-256 digest, matching Python `hexdigest()`.
+pub(crate) fn sha256_digest_hex(digest: &Digest) -> String {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let bytes = digest.as_ref();
+    let mut hex = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        hex.push(char::from(HEX[usize::from(byte >> 4)]));
+        hex.push(char::from(HEX[usize::from(byte & 0x0f)]));
+    }
+    hex
 }
 
 /// Resolves a temporary extraction root for materialization.
@@ -501,6 +513,35 @@ impl MaterializedApks {
     #[must_use]
     pub fn temp_root(&self) -> Option<&Path> {
         self.temp_dir.as_ref().map(TempDir::path)
+    }
+
+    /// Applies manifest-resolved split names and base flags to rows extracted
+    /// under provisional names.
+    ///
+    /// Inspection first extracts members using file-stem split names so the
+    /// splits can be read; once `aapt2` reports each member's declared split it
+    /// retargets the same extraction instead of extracting a second time.
+    pub fn apply_split_metadata(&mut self, splits: &[SplitInfo]) -> Result<(), ArchiveError> {
+        let mut metadata: HashMap<&str, (&str, bool)> = HashMap::with_capacity(splits.len());
+        for split in splits {
+            metadata.insert(
+                split.filename.as_str(),
+                (split.split_name.as_str(), split.is_base),
+            );
+        }
+        for apk in &mut self.apks {
+            let Some(member) = apk.container_member.as_deref() else {
+                continue;
+            };
+            let Some((split_name, is_base)) = metadata.get(member) else {
+                return Err(ArchiveError::corrupt(format!(
+                    "Materialized member {member} has no split metadata"
+                )));
+            };
+            apk.split_name = (*split_name).to_string();
+            apk.is_base = *is_base;
+        }
+        Ok(())
     }
 }
 
@@ -532,6 +573,26 @@ pub fn materialize_artifact_apks(
     )
 }
 
+/// Materializes a split container and hashes each extracted member while it is
+/// streamed to disk.
+///
+/// The returned digest vector is aligned with [`MaterializedApks::as_slice`]
+/// and is empty for a plain APK (whose hash callers already hold). This removes
+/// a second full read of every split during inspection.
+pub fn materialize_artifact_apks_hashed(
+    artifact_path: impl AsRef<Path>,
+    splits: &[SplitInfo],
+    is_plain_apk: bool,
+) -> Result<(MaterializedApks, Vec<String>), ArchiveError> {
+    materialize_impl(
+        artifact_path,
+        splits,
+        is_plain_apk,
+        ArchiveLimits::default(),
+        true,
+    )
+}
+
 /// Materialization with explicit safety limits.
 pub fn materialize_artifact_apks_with_limits(
     artifact_path: impl AsRef<Path>,
@@ -539,18 +600,31 @@ pub fn materialize_artifact_apks_with_limits(
     is_plain_apk: bool,
     limits: ArchiveLimits,
 ) -> Result<MaterializedApks, ArchiveError> {
+    Ok(materialize_impl(artifact_path, splits, is_plain_apk, limits, false)?.0)
+}
+
+fn materialize_impl(
+    artifact_path: impl AsRef<Path>,
+    splits: &[SplitInfo],
+    is_plain_apk: bool,
+    limits: ArchiveLimits,
+    hash_members: bool,
+) -> Result<(MaterializedApks, Vec<String>), ArchiveError> {
     let path = artifact_path.as_ref();
     let resolved = resolve_existing_path(path);
     if is_plain_apk || splits.is_empty() {
-        return Ok(MaterializedApks {
-            apks: vec![MaterializedApk {
-                path: resolved,
-                container_member: None,
-                split_name: "base".to_string(),
-                is_base: true,
-            }],
-            temp_dir: None,
-        });
+        return Ok((
+            MaterializedApks {
+                apks: vec![MaterializedApk {
+                    path: resolved,
+                    container_member: None,
+                    split_name: "base".to_string(),
+                    is_base: true,
+                }],
+                temp_dir: None,
+            },
+            Vec::new(),
+        ));
     }
 
     // Validate the whole container before creating a single file.
@@ -582,6 +656,11 @@ pub fn materialize_artifact_apks_with_limits(
         ZipArchive::new(file).map_err(|error| map_zip_error("open zip archive", error))?;
 
     let mut apks = Vec::with_capacity(ordered.len());
+    let mut hashes = if hash_members {
+        Vec::with_capacity(ordered.len())
+    } else {
+        Vec::new()
+    };
     for (position, split) in ordered.iter().enumerate() {
         let index = archive.index_for_name(&split.filename).ok_or_else(|| {
             ArchiveError::corrupt(format!(
@@ -601,7 +680,11 @@ pub fn materialize_artifact_apks_with_limits(
         let mut source = archive
             .by_index(index)
             .map_err(|error| map_zip_error("open split member", error))?;
-        stream_to_new_file(&mut source, &destination)?;
+        if hash_members {
+            hashes.push(stream_to_new_file_hashed(&mut source, &destination)?);
+        } else {
+            stream_to_new_file(&mut source, &destination)?;
+        }
         apks.push(MaterializedApk {
             path: destination,
             container_member: Some(split.filename.clone()),
@@ -610,10 +693,13 @@ pub fn materialize_artifact_apks_with_limits(
         });
     }
 
-    Ok(MaterializedApks {
-        apks,
-        temp_dir: Some(temp_dir),
-    })
+    Ok((
+        MaterializedApks {
+            apks,
+            temp_dir: Some(temp_dir),
+        },
+        hashes,
+    ))
 }
 
 fn select_base_index(ordered: &[&SplitInfo]) -> usize {
@@ -731,6 +817,14 @@ pub fn safe_extract_member(
 }
 
 fn copy_bounded<R: Read, W: Write>(source: &mut R, target: &mut W) -> Result<u64, ArchiveError> {
+    copy_bounded_hashed(source, target, None)
+}
+
+fn copy_bounded_hashed<R: Read, W: Write>(
+    source: &mut R,
+    target: &mut W,
+    mut hasher: Option<&mut Context>,
+) -> Result<u64, ArchiveError> {
     let mut buffer = [0u8; STREAM_BUFFER_BYTES];
     let mut written = 0u64;
     loop {
@@ -739,6 +833,9 @@ fn copy_bounded<R: Read, W: Write>(source: &mut R, target: &mut W) -> Result<u64
             .map_err(|error| ArchiveError::io("read archive member", error))?;
         if read == 0 {
             break;
+        }
+        if let Some(digest) = hasher.as_deref_mut() {
+            digest.update(&buffer[..read]);
         }
         target
             .write_all(&buffer[..read])
@@ -752,7 +849,27 @@ fn copy_bounded<R: Read, W: Write>(source: &mut R, target: &mut W) -> Result<u64
 }
 
 fn stream_to_new_file<R: Read>(source: &mut R, destination: &Path) -> Result<(), ArchiveError> {
-    let mut target = OpenOptions::new()
+    let mut target = create_extraction_target(destination)?;
+    copy_bounded(source, &mut target).inspect_err(|_| {
+        let _ = fs::remove_file(destination);
+    })?;
+    Ok(())
+}
+
+fn stream_to_new_file_hashed<R: Read>(
+    source: &mut R,
+    destination: &Path,
+) -> Result<String, ArchiveError> {
+    let mut target = create_extraction_target(destination)?;
+    let mut hasher = Context::new(&SHA256);
+    copy_bounded_hashed(source, &mut target, Some(&mut hasher)).inspect_err(|_| {
+        let _ = fs::remove_file(destination);
+    })?;
+    Ok(sha256_digest_hex(&hasher.finish()))
+}
+
+fn create_extraction_target(destination: &Path) -> Result<File, ArchiveError> {
+    OpenOptions::new()
         .write(true)
         .create_new(true)
         .open(destination)
@@ -761,11 +878,7 @@ fn stream_to_new_file<R: Read>(source: &mut R, destination: &Path) -> Result<(),
                 format!("create extraction target {}", destination.display()),
                 error,
             )
-        })?;
-    copy_bounded(source, &mut target).inspect_err(|_| {
-        let _ = fs::remove_file(destination);
-    })?;
-    Ok(())
+        })
 }
 
 /// Resolves and confines a member destination under `root`.
@@ -868,6 +981,21 @@ fn resolve_existing_path(path: &Path) -> PathBuf {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn sha256_hex_matches_python_digest_vectors() {
+        let empty = Context::new(&SHA256).finish();
+        assert_eq!(
+            sha256_digest_hex(&empty),
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        );
+        let mut abc = Context::new(&SHA256);
+        abc.update(b"abc");
+        assert_eq!(
+            sha256_digest_hex(&abc.finish()),
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+        );
+    }
 
     #[test]
     fn entry_count_boundary_is_inclusive() {

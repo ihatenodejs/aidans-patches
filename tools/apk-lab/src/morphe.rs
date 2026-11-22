@@ -884,12 +884,16 @@ impl DexDump {
     }
 }
 
-fn read_dex_entries(apk_path: &Path) -> Result<Vec<(String, Vec<u8>)>, String> {
+/// Stream each DEX member directly to a temp file; DEX payloads are never held
+/// in memory, matching the Python oracle's bounded copy loop.
+fn for_each_dex_file<F>(apk_path: &Path, directory: &Path, mut visit: F) -> Result<(), String>
+where
+    F: FnMut(&str, &Path) -> Result<(), String>,
+{
     let file =
         fs::File::open(apk_path).map_err(|error| format!("{}: {error}", apk_path.display()))?;
     let mut archive =
         ZipArchive::new(file).map_err(|error| format!("invalid zip archive: {error}"))?;
-    let mut dex_entries = Vec::new();
     for index in 0..archive.len() {
         let mut member = archive
             .by_index(index)
@@ -901,32 +905,22 @@ fn read_dex_entries(apk_path: &Path) -> Result<Vec<(String, Vec<u8>)>, String> {
         if member.is_dir() || !name.ends_with(".dex") {
             continue;
         }
-        let mut bytes = Vec::new();
-        member
-            .read_to_end(&mut bytes)
-            .map_err(|error| format!("read {name}: {error}"))?;
-        dex_entries.push((name, bytes));
+        let path = directory.join(name.replace('/', "_"));
+        let mut output = fs::File::create(&path)
+            .map_err(|error| format!("write {}: {error}", path.display()))?;
+        std::io::copy(&mut member, &mut output).map_err(|error| format!("read {name}: {error}"))?;
+        visit(&name, &path)?;
     }
-    Ok(dex_entries)
-}
-
-fn write_dex_file(directory: &Path, name: &str, bytes: &[u8]) -> Result<PathBuf, String> {
-    let file_name = name.replace('/', "_");
-    let path = directory.join(file_name);
-    fs::write(&path, bytes).map_err(|error| format!("write {}: {error}", path.display()))?;
-    Ok(path)
+    Ok(())
 }
 
 impl DexTool for DexDump {
     fn verify(&self, apk_path: &Path) -> Result<(), String> {
-        let dex_entries = read_dex_entries(apk_path)?;
-        if dex_entries.is_empty() {
-            return Err("No DEX files found in patched output".to_string());
-        }
         let directory =
             TempDir::new().map_err(|error| format!("create DEX temp directory: {error}"))?;
-        for (name, bytes) in dex_entries {
-            let path = write_dex_file(directory.path(), &name, &bytes)?;
+        let mut count = 0usize;
+        for_each_dex_file(apk_path, directory.path(), |name, path| {
+            count += 1;
             let program = self.program()?;
             let mut spec = ProcessSpec::new(program.to_path_buf())
                 .arg("-c".to_string())
@@ -952,6 +946,10 @@ impl DexTool for DexDump {
                     truncate_chars(&output.stderr.text_lossy(), 200)
                 ));
             }
+            Ok(())
+        })?;
+        if count == 0 {
+            return Err("No DEX files found in patched output".to_string());
         }
         Ok(())
     }
@@ -960,12 +958,10 @@ impl DexTool for DexDump {
         if self.program.is_none() {
             return Ok(BTreeSet::new());
         }
-        let dex_entries = read_dex_entries(apk_path)?;
         let directory =
             TempDir::new().map_err(|error| format!("create DEX temp directory: {error}"))?;
         let mut classes = BTreeSet::new();
-        for (name, bytes) in dex_entries {
-            let path = write_dex_file(directory.path(), &name, &bytes)?;
+        for_each_dex_file(apk_path, directory.path(), |name, path| {
             let program = self.program()?;
             let mut spec = ProcessSpec::new(program.to_path_buf())
                 .arg(path.to_string_lossy().into_owned())
@@ -992,7 +988,8 @@ impl DexTool for DexDump {
                 ));
             }
             classes.extend(parse_dexdump_class_descriptors(&output.stdout.text_lossy()));
-        }
+            Ok(())
+        })?;
         Ok(classes)
     }
 }
