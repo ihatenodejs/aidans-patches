@@ -163,7 +163,11 @@
       "exitCode": 1,
       "checksPassed": 27,
       "checksTotal": 30,
-      "failures": ["renderer formatting", "fixture Markdown lint", "fixture links treated as documentation"],
+      "failures": [
+        "renderer formatting",
+        "fixture Markdown lint",
+        "fixture links treated as documentation"
+      ],
       "resolution": "Focused formatting/fixture-data exclusions; affected web format and lint commands plus all documentation tests passed afterward. No full-audit rerun is claimed."
     }
   },
