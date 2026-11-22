@@ -11,9 +11,9 @@
 //! created inside an isolated temporary sandbox. No case touches the network,
 //! a device, Google Play, or the real tool cache.
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
@@ -23,7 +23,13 @@ use zip::{CompressionMethod, ZipWriter};
 
 const SCHEMA_VERSION: u32 = 1;
 const REPORT_KIND: &str = "apk-lab-core-parity";
+const ANALYSIS_REPORT_KIND: &str = "apk-lab-analysis-parity";
 const CORE_GROUP: &str = "core";
+const ANALYSIS_GROUP: &str = "analysis";
+const SYNTHETIC_PROFILE: &str = "synthetic";
+const REAL_TOOLS_PROFILE: &str = "real-tools";
+const CORPUS_KIND: &str = "apk-lab-analysis-corpus";
+const CORPUS_VERSION: u32 = 1;
 
 /// The only normalizations the core group applies. Anything not listed here is
 /// a substantive difference and fails the case.
@@ -136,12 +142,23 @@ const APPROVED_CASES: &[(&str, &str)] = &[
     ),
 ];
 
-fn approved_reason(case_id: &str) -> Option<&'static str> {
-    APPROVED_CASES
+fn approved_reason_in(
+    table: &'static [(&'static str, &'static str)],
+    case_id: &str,
+) -> Option<&'static str> {
+    table
         .iter()
         .find(|(id, _)| *id == case_id)
         .map(|(_, reason)| *reason)
 }
+
+/// Maintainer-approved analysis differences (approved by the parent agent on
+/// 2026-11-22). This is deliberately a one-entry table: every other analysis
+/// difference is a failure.
+const ANALYSIS_APPROVED_CASES: &[(&str, &str)] = &[(
+    "res-no-json",
+    "both reject --json with exit 2; Python argparse prints global usage, native prints RES_HELP",
+)];
 
 const CORE_CASES: &[CaseSpec] = &[
     CaseSpec {
@@ -211,15 +228,397 @@ const CORE_CASES: &[CaseSpec] = &[
 ];
 
 // ---------------------------------------------------------------------------
+// Analysis case table
+// ---------------------------------------------------------------------------
+
+/// Pinned external tools a real-tools analysis case executes. The synthetic
+/// profile installs a deterministic fake for each of these at the exact pinned
+/// version and digest from the project lock file, so both the Python oracle and
+/// the native binary resolve the same identities.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum Prerequisite {
+    Aapt2,
+    Dexdump,
+    Baksmali,
+    Smali,
+    Jadx,
+    Apktool,
+}
+
+impl Prerequisite {
+    fn name(self) -> &'static str {
+        match self {
+            Prerequisite::Aapt2 => "aapt2",
+            Prerequisite::Dexdump => "dexdump",
+            Prerequisite::Baksmali => "baksmali",
+            Prerequisite::Smali => "smali",
+            Prerequisite::Jadx => "jadx",
+            Prerequisite::Apktool => "apktool",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+struct AnalysisCase {
+    spec: CaseSpec,
+    requires: &'static [Prerequisite],
+}
+
+const INSPECT_ANALYSIS_REQUIRES: &[Prerequisite] = &[
+    Prerequisite::Aapt2,
+    Prerequisite::Dexdump,
+    Prerequisite::Baksmali,
+];
+
+const ANALYSIS_CASES: &[AnalysisCase] = &[
+    AnalysisCase {
+        spec: CaseSpec {
+            id: "asm-encode",
+            argv: &["asm", "bl 0x3c98ce4", "--pc", "0x1fcf6e8"],
+            stream: StreamMode::Stdout,
+            json_stream: None,
+            volatile_json: &[],
+            text_rules: &[],
+        },
+        requires: &[],
+    },
+    AnalysisCase {
+        spec: CaseSpec {
+            id: "asm-range-error",
+            argv: &["asm", "b 0x8000000", "--pc", "0"],
+            stream: StreamMode::Stderr,
+            json_stream: None,
+            volatile_json: &[],
+            text_rules: &[],
+        },
+        requires: &[],
+    },
+    AnalysisCase {
+        spec: CaseSpec {
+            id: "strings-unicode-json",
+            argv: &["strings", "fixtures/analysis.apk", "-q", "Grüße", "--json"],
+            stream: StreamMode::Stdout,
+            json_stream: Some(StreamMode::Stdout),
+            volatile_json: &[],
+            text_rules: &[],
+        },
+        requires: &[Prerequisite::Aapt2],
+    },
+    AnalysisCase {
+        spec: CaseSpec {
+            id: "strings-malformed-dex",
+            argv: &["strings", "fixtures/malformed.apk", "--json"],
+            stream: StreamMode::Stdout,
+            json_stream: Some(StreamMode::Stdout),
+            volatile_json: &[],
+            text_rules: &[],
+        },
+        requires: &[Prerequisite::Aapt2],
+    },
+    AnalysisCase {
+        spec: CaseSpec {
+            id: "unity-offset-json",
+            argv: &[
+                "unity",
+                "fixtures/analysis.apk",
+                "--gameobject",
+                "Button_HelpCenter",
+                "--json",
+            ],
+            stream: StreamMode::Stdout,
+            json_stream: Some(StreamMode::Stdout),
+            volatile_json: &[],
+            text_rules: &[],
+        },
+        requires: &[Prerequisite::Aapt2],
+    },
+    AnalysisCase {
+        spec: CaseSpec {
+            id: "unity-unsupported",
+            argv: &[
+                "unity",
+                "fixtures/unity-unsupported.apk",
+                "--gameobject",
+                "Button_HelpCenter",
+                "--json",
+            ],
+            stream: StreamMode::Stdout,
+            json_stream: Some(StreamMode::Stdout),
+            volatile_json: &[],
+            text_rules: &[],
+        },
+        requires: &[Prerequisite::Aapt2],
+    },
+    AnalysisCase {
+        spec: CaseSpec {
+            id: "il2cpp-offset-json",
+            argv: &[
+                "il2cpp",
+                "fixtures/analysis.apk",
+                "--query",
+                "OpenShop",
+                "--json",
+            ],
+            stream: StreamMode::Stdout,
+            json_stream: Some(StreamMode::Stdout),
+            volatile_json: &[],
+            text_rules: &[],
+        },
+        requires: &[Prerequisite::Aapt2],
+    },
+    AnalysisCase {
+        spec: CaseSpec {
+            id: "il2cpp-unsupported-layout",
+            argv: &["il2cpp", "fixtures/il2cpp-unsupported.apk", "--json"],
+            stream: StreamMode::Stderr,
+            json_stream: None,
+            volatile_json: &[],
+            text_rules: &[],
+        },
+        requires: &[Prerequisite::Aapt2],
+    },
+    AnalysisCase {
+        spec: CaseSpec {
+            id: "smali-static-valid",
+            argv: &[
+                "validate-smali",
+                "--snippet",
+                "return-void",
+                "--locals",
+                "0",
+            ],
+            stream: StreamMode::Stdout,
+            json_stream: None,
+            volatile_json: &[],
+            text_rules: &[],
+        },
+        requires: &[Prerequisite::Smali],
+    },
+    AnalysisCase {
+        spec: CaseSpec {
+            id: "smali-static-invalid",
+            argv: &[
+                "validate-smali",
+                "--snippet",
+                "const/4 v2, 1",
+                "--locals",
+                "1",
+            ],
+            stream: StreamMode::Stdout,
+            json_stream: None,
+            volatile_json: &[],
+            text_rules: &[],
+        },
+        requires: &[Prerequisite::Smali],
+    },
+    AnalysisCase {
+        spec: CaseSpec {
+            id: "manifest-json",
+            argv: &["manifest", "fixtures/analysis.apk", "--json"],
+            stream: StreamMode::Stdout,
+            json_stream: Some(StreamMode::Stdout),
+            volatile_json: &[],
+            text_rules: &[],
+        },
+        requires: &[Prerequisite::Aapt2],
+    },
+    AnalysisCase {
+        spec: CaseSpec {
+            id: "res-scalar",
+            argv: &[
+                "res",
+                "fixtures/analysis.apk",
+                "--query",
+                "@string/app_name",
+            ],
+            stream: StreamMode::Stdout,
+            json_stream: None,
+            volatile_json: &[],
+            text_rules: &[],
+        },
+        requires: &[Prerequisite::Aapt2],
+    },
+    AnalysisCase {
+        spec: CaseSpec {
+            id: "res-duplicate",
+            argv: &[
+                "res",
+                "fixtures/analysis.apk",
+                "--query",
+                "@string/duplicate_value",
+            ],
+            stream: StreamMode::Stdout,
+            json_stream: None,
+            volatile_json: &[],
+            text_rules: &[],
+        },
+        requires: &[Prerequisite::Aapt2],
+    },
+    AnalysisCase {
+        spec: CaseSpec {
+            id: "res-alias",
+            argv: &[
+                "res",
+                "fixtures/analysis.apk",
+                "--query",
+                "@string/app_alias",
+            ],
+            stream: StreamMode::Stdout,
+            json_stream: None,
+            volatile_json: &[],
+            text_rules: &[],
+        },
+        requires: &[Prerequisite::Aapt2],
+    },
+    AnalysisCase {
+        spec: CaseSpec {
+            id: "res-human-output",
+            argv: &[
+                "res",
+                "fixtures/analysis.apk",
+                "--query",
+                "res/values/strings.xml",
+            ],
+            stream: StreamMode::Stdout,
+            json_stream: None,
+            volatile_json: &[],
+            text_rules: &[],
+        },
+        requires: &[Prerequisite::Aapt2],
+    },
+    AnalysisCase {
+        spec: CaseSpec {
+            id: "res-no-json",
+            argv: &[
+                "res",
+                "fixtures/analysis.apk",
+                "--query",
+                "@string/app_name",
+                "--json",
+            ],
+            stream: StreamMode::Stderr,
+            json_stream: None,
+            volatile_json: &[],
+            text_rules: &[],
+        },
+        requires: &[Prerequisite::Aapt2],
+    },
+    AnalysisCase {
+        spec: CaseSpec {
+            id: "inspect-code-localized",
+            argv: &[
+                "inspect-code",
+                "fixtures/analysis.apk",
+                "--class",
+                "com.example.Foo",
+            ],
+            stream: StreamMode::Stdout,
+            json_stream: None,
+            volatile_json: &[],
+            text_rules: &[],
+        },
+        requires: INSPECT_ANALYSIS_REQUIRES,
+    },
+    AnalysisCase {
+        spec: CaseSpec {
+            id: "inspect-code-ambiguous",
+            argv: &[
+                "inspect-code",
+                "fixtures/ambiguous.apk",
+                "--class",
+                "com.example.Foo",
+            ],
+            stream: StreamMode::Stderr,
+            json_stream: None,
+            volatile_json: &[],
+            text_rules: &[],
+        },
+        requires: INSPECT_ANALYSIS_REQUIRES,
+    },
+    AnalysisCase {
+        spec: CaseSpec {
+            id: "compare-summary-json",
+            argv: &[
+                "compare",
+                "fixtures/analysis-old.apk",
+                "fixtures/analysis-new.apk",
+                "--json",
+            ],
+            stream: StreamMode::Stdout,
+            json_stream: Some(StreamMode::Stdout),
+            volatile_json: &[],
+            text_rules: &[],
+        },
+        requires: &[Prerequisite::Aapt2],
+    },
+    AnalysisCase {
+        spec: CaseSpec {
+            id: "compare-diff-truncation",
+            argv: &[
+                "compare",
+                "fixtures/analysis-old.apk",
+                "fixtures/analysis-new.apk",
+                "--class",
+                "com.example.Foo",
+            ],
+            stream: StreamMode::Stdout,
+            json_stream: None,
+            volatile_json: &[],
+            text_rules: &[],
+        },
+        requires: &[Prerequisite::Aapt2, Prerequisite::Jadx],
+    },
+    AnalysisCase {
+        spec: CaseSpec {
+            id: "analyze-workspace-native",
+            argv: &[
+                "--workspace-root",
+                "fixtures/workspace",
+                "analyze",
+                "fixtures/analysis.apk",
+            ],
+            stream: StreamMode::Stdout,
+            json_stream: None,
+            volatile_json: &[],
+            text_rules: &[],
+        },
+        requires: &[Prerequisite::Aapt2, Prerequisite::Baksmali],
+    },
+    AnalysisCase {
+        spec: CaseSpec {
+            id: "analyze-apktool",
+            argv: &[
+                "--workspace-root",
+                "fixtures/workspace-apktool",
+                "analyze",
+                "fixtures/analysis.apk",
+                "--apktool",
+            ],
+            stream: StreamMode::Stdout,
+            json_stream: None,
+            volatile_json: &[],
+            text_rules: &[],
+        },
+        requires: &[Prerequisite::Aapt2, Prerequisite::Apktool],
+    },
+];
+
+fn analysis_case(id: &str) -> Option<&'static AnalysisCase> {
+    ANALYSIS_CASES.iter().find(|case| case.spec.id == id)
+}
+
+// ---------------------------------------------------------------------------
 // Options and entry point
 // ---------------------------------------------------------------------------
 
 #[derive(Debug)]
 struct Options {
     group: String,
+    profile: String,
     python_project: Option<PathBuf>,
     rust_bin: Option<PathBuf>,
     cases: Vec<String>,
+    corpus: Option<PathBuf>,
     report: Option<String>,
     list: bool,
 }
@@ -231,34 +630,39 @@ pub fn run(args: &[String]) -> Result<(), String> {
         return Ok(());
     };
 
-    if options.group != CORE_GROUP {
+    match options.group.as_str() {
+        CORE_GROUP => run_core(options),
+        ANALYSIS_GROUP => run_analysis(options),
+        other => Err(format!(
+            "unsupported parity group '{other}' (available: '{CORE_GROUP}', '{ANALYSIS_GROUP}')"
+        )),
+    }
+}
+
+fn run_core(options: Options) -> Result<(), String> {
+    if options.profile != SYNTHETIC_PROFILE {
         return Err(format!(
-            "unsupported parity group '{}' (available: '{CORE_GROUP}')",
-            options.group
+            "--profile {REAL_TOOLS_PROFILE} is only supported with --group {ANALYSIS_GROUP}"
+        ));
+    }
+    if options.corpus.is_some() {
+        return Err(format!(
+            "--corpus is only supported with --group {ANALYSIS_GROUP} --profile {REAL_TOOLS_PROFILE}"
         ));
     }
 
-    let selected = select_cases(&options.cases)?;
+    let selected = select_core_cases(&options.cases)?;
     if options.list {
-        print_list(&selected);
+        print_core_list(&selected);
         return Ok(());
     }
 
-    let python_project = options
-        .python_project
-        .ok_or("--python-project is required unless --list is used")?;
-    let rust_bin = options
-        .rust_bin
-        .ok_or("--rust-bin is required unless --list is used")?;
-    let python_project = require_directory(&python_project, "--python-project")?;
-    let rust_bin = require_executable(&rust_bin, "--rust-bin")?;
-    let oracle = resolve_oracle(&python_project)?;
-
+    let (oracle, rust_bin) = resolve_tools(&options)?;
     let sandbox = tempfile::Builder::new()
         .prefix("apk-lab-core-parity-")
         .tempdir()
         .map_err(|error| format!("could not create parity sandbox: {error}"))?;
-    let report = execute(&selected, &oracle, &rust_bin, sandbox.path())?;
+    let report = execute_core(&selected, &oracle, &rust_bin, sandbox.path())?;
 
     let rendered = render_report(&report)?;
     write_report(options.report.as_deref(), &rendered)?;
@@ -273,11 +677,111 @@ pub fn run(args: &[String]) -> Result<(), String> {
     Ok(())
 }
 
+fn run_analysis(options: Options) -> Result<(), String> {
+    let requested = &options.cases;
+    let specs = select_analysis_specs(requested)?;
+    if options.list {
+        print_analysis_list(&specs);
+        return Ok(());
+    }
+
+    match options.profile.as_str() {
+        SYNTHETIC_PROFILE => run_analysis_synthetic(options, &specs),
+        REAL_TOOLS_PROFILE => run_analysis_real_tools(options, &specs),
+        other => Err(format!(
+            "unsupported parity profile '{other}' (available: '{SYNTHETIC_PROFILE}', '{REAL_TOOLS_PROFILE}')"
+        )),
+    }
+}
+
+fn run_analysis_synthetic(options: Options, specs: &[&'static CaseSpec]) -> Result<(), String> {
+    if options.corpus.is_some() {
+        return Err(format!(
+            "--corpus requires --profile {REAL_TOOLS_PROFILE}; the {SYNTHETIC_PROFILE} profile generates its own fixtures"
+        ));
+    }
+    let (oracle, rust_bin) = resolve_tools(&options)?;
+    let sandbox = tempfile::Builder::new()
+        .prefix("apk-lab-analysis-parity-")
+        .tempdir()
+        .map_err(|error| format!("could not create parity sandbox: {error}"))?;
+    let prepared = execute_analysis_synthetic(specs, &oracle, &rust_bin, sandbox.path())?;
+
+    finish_analysis(options.report.as_deref(), prepared, SYNTHETIC_PROFILE)
+}
+
+fn run_analysis_real_tools(options: Options, specs: &[&'static CaseSpec]) -> Result<(), String> {
+    let corpus_path = options
+        .corpus
+        .as_deref()
+        .ok_or("--corpus is required with --profile real-tools")?;
+    // Validate the corpus before resolving executables or touching a report.
+    let corpus = load_corpus(corpus_path)?;
+
+    let (oracle, rust_bin) = resolve_tools(&options)?;
+    let availability = real_tool_availability();
+    let cwd = corpus
+        .root
+        .parent()
+        .map(Path::to_path_buf)
+        .unwrap_or_else(|| corpus.root.clone());
+    let environment = Environment::for_real_host();
+    let normalizer = Normalizer::new(NormalizationContext::new(Path::new("/nonexistent"), &cwd));
+    let prepared = prepare_real_cases(specs, &corpus, &availability);
+    let report = execute_prepared(
+        prepared,
+        &oracle,
+        &rust_bin,
+        &cwd,
+        &environment,
+        &normalizer,
+        ANALYSIS_REPORT_KIND,
+        Some(REAL_TOOLS_PROFILE),
+        ANALYSIS_APPROVED_CASES,
+    )?;
+
+    finish_analysis(options.report.as_deref(), report, REAL_TOOLS_PROFILE)
+}
+
+fn finish_analysis(
+    report_path: Option<&str>,
+    report: ParityReport,
+    profile: &'static str,
+) -> Result<(), String> {
+    let rendered = render_report(&report)?;
+    write_report(report_path, &rendered)?;
+    if !report_passed(&report) {
+        return Err(format!(
+            "analysis parity ({profile}) failed: {} of {} case(s) did not pass",
+            report.summary.failed + report.summary.missing,
+            report.summary.total
+        ));
+    }
+    Ok(())
+}
+
+fn resolve_tools(options: &Options) -> Result<(Oracle, PathBuf), String> {
+    let python_project = options
+        .python_project
+        .as_ref()
+        .ok_or("--python-project is required unless --list is used")?;
+    let rust_bin = options
+        .rust_bin
+        .as_ref()
+        .ok_or("--rust-bin is required unless --list is used")?;
+    let python_project = require_directory(python_project, "--python-project")?;
+    let rust_bin = require_executable(rust_bin, "--rust-bin")?;
+    let oracle = resolve_oracle(&python_project)?;
+    Ok((oracle, rust_bin))
+}
+
 fn parse_args(args: &[String]) -> Result<Option<Options>, String> {
     let mut group: Option<String> = None;
+    let mut profile: Option<String> = None;
     let mut python_project: Option<PathBuf> = None;
     let mut rust_bin: Option<PathBuf> = None;
     let mut cases = Vec::new();
+    let mut corpus: Option<PathBuf> = None;
     let mut report: Option<String> = None;
     let mut list = false;
     let mut index = 0;
@@ -295,6 +799,13 @@ fn parse_args(args: &[String]) -> Result<Option<Options>, String> {
             }
             _ if arg.starts_with("--group=") => {
                 group = Some(non_empty(&arg["--group=".len()..], "--group")?);
+                index += 1;
+            }
+            "--profile" => {
+                profile = Some(require_value(args, &mut index, "--profile")?);
+            }
+            _ if arg.starts_with("--profile=") => {
+                profile = Some(non_empty(&arg["--profile=".len()..], "--profile")?);
                 index += 1;
             }
             "--python-project" => {
@@ -332,6 +843,16 @@ fn parse_args(args: &[String]) -> Result<Option<Options>, String> {
                 cases.push(non_empty(&arg["--case=".len()..], "--case")?);
                 index += 1;
             }
+            "--corpus" => {
+                corpus = Some(PathBuf::from(require_value(args, &mut index, "--corpus")?));
+            }
+            _ if arg.starts_with("--corpus=") => {
+                corpus = Some(PathBuf::from(non_empty(
+                    &arg["--corpus=".len()..],
+                    "--corpus",
+                )?));
+                index += 1;
+            }
             "--report" => {
                 report = Some(require_value(args, &mut index, "--report")?);
             }
@@ -347,12 +868,25 @@ fn parse_args(args: &[String]) -> Result<Option<Options>, String> {
         }
     }
 
-    let group = group.ok_or("--group is required (available: 'core')")?;
+    let group = group.ok_or(format!(
+        "--group is required (available: '{CORE_GROUP}', '{ANALYSIS_GROUP}')"
+    ))?;
+    let profile = profile.unwrap_or_else(|| SYNTHETIC_PROFILE.to_string());
+    match profile.as_str() {
+        SYNTHETIC_PROFILE | REAL_TOOLS_PROFILE => {}
+        other => {
+            return Err(format!(
+                "unsupported parity profile '{other}' (available: '{SYNTHETIC_PROFILE}', '{REAL_TOOLS_PROFILE}')"
+            ))
+        }
+    }
     Ok(Some(Options {
         group,
+        profile,
         python_project,
         rust_bin,
         cases,
+        corpus,
         report,
         list,
     }))
@@ -374,7 +908,7 @@ fn non_empty(value: &str, flag: &str) -> Result<String, String> {
     }
 }
 
-fn select_cases(requested: &[String]) -> Result<Vec<&'static CaseSpec>, String> {
+fn select_core_cases(requested: &[String]) -> Result<Vec<&'static CaseSpec>, String> {
     if requested.is_empty() {
         return Ok(CORE_CASES.iter().collect());
     }
@@ -393,7 +927,38 @@ fn select_cases(requested: &[String]) -> Result<Vec<&'static CaseSpec>, String> 
         .collect())
 }
 
-fn print_list(cases: &[&CaseSpec]) {
+fn select_analysis_specs(requested: &[String]) -> Result<Vec<&'static CaseSpec>, String> {
+    let mut wanted = BTreeSet::new();
+    for id in requested {
+        if analysis_case(id).is_none() {
+            return Err(format!(
+                "unknown analysis parity case '{id}' (run 'parity --group analysis --list')"
+            ));
+        }
+        wanted.insert(id.as_str());
+    }
+    Ok(ANALYSIS_CASES
+        .iter()
+        .map(|case| &case.spec)
+        .filter(|spec| wanted.is_empty() || wanted.contains(spec.id))
+        .collect())
+}
+
+fn print_core_list(cases: &[&CaseSpec]) {
+    let mut text = String::new();
+    for case in cases {
+        text.push_str(case.id);
+        text.push('\t');
+        text.push_str(case.stream.as_str());
+        text.push('\t');
+        text.push_str(&case.argv.join(" "));
+        text.push('\n');
+    }
+    let mut out = io::stdout().lock();
+    let _ = out.write_all(text.as_bytes());
+}
+
+fn print_analysis_list(cases: &[&CaseSpec]) {
     let mut text = String::new();
     for case in cases {
         text.push_str(case.id);
@@ -529,9 +1094,21 @@ struct Environment {
 
 impl Environment {
     fn for_sandbox(sandbox: &Path, project: &Path, fake_sdk: &Path) -> Self {
+        Self::for_sandbox_with_tools(sandbox, project, fake_sdk, None)
+    }
+
+    fn for_sandbox_with_tools(
+        sandbox: &Path,
+        project: &Path,
+        fake_sdk: &Path,
+        fake_bin: Option<&Path>,
+    ) -> Self {
         let home = sandbox.join("home");
         let temp = sandbox.join("tmp");
-        let path = std::env::var("PATH").unwrap_or_else(|_| "/usr/bin:/bin".to_string());
+        let mut path = std::env::var("PATH").unwrap_or_else(|_| "/usr/bin:/bin".to_string());
+        if let Some(fake_bin) = fake_bin {
+            path = format!("{}:{path}", fake_bin.to_string_lossy());
+        }
         let variables = vec![
             ("PATH".to_string(), path),
             ("HOME".to_string(), home.to_string_lossy().into_owned()),
@@ -558,9 +1135,76 @@ impl Environment {
         ];
         Self { variables }
     }
+
+    /// Real-tools parity must see the host's actual pinned tool cache, SDK and
+    /// Java installation, so it preserves the host inputs instead of pointing
+    /// HOME/ANDROID_HOME at the sandbox.
+    fn for_real_host() -> Self {
+        let variables = std::env::vars()
+            .filter(|(name, _)| {
+                matches!(
+                    name.as_str(),
+                    "PATH"
+                        | "HOME"
+                        | "USERPROFILE"
+                        | "HOMEDRIVE"
+                        | "HOMEPATH"
+                        | "ANDROID_HOME"
+                        | "ANDROID_SDK_ROOT"
+                        | "JAVA_HOME"
+                        | "APK_LAB_TOOLS_LOCK"
+                        | "APK_LAB_REPO_ROOT"
+                )
+            })
+            .chain(
+                [
+                    ("TZ", "UTC"),
+                    ("PYTHONIOENCODING", "utf-8"),
+                    ("PYTHONDONTWRITEBYTECODE", "1"),
+                    ("PYTHONHASHSEED", "0"),
+                    ("PYTHONUTF8", "1"),
+                ]
+                .into_iter()
+                .map(|(name, value)| (name.to_string(), value.to_string())),
+            )
+            .collect();
+        Self { variables }
+    }
 }
 
-fn execute(
+/// One selected case with its concrete argv. `spec` supplies the comparison
+/// contract; `argv` may come from the committed table (synthetic) or from a
+/// validated corpus (real tools). `missing` short-circuits execution and
+/// produces a `missing` result with an exact reason.
+#[derive(Debug)]
+struct PreparedCase {
+    id: String,
+    argv: Vec<String>,
+    spec: CaseSpec,
+    missing: Option<String>,
+}
+
+impl PreparedCase {
+    fn new(spec: &CaseSpec, argv: Vec<String>) -> Self {
+        Self {
+            id: spec.id.to_string(),
+            argv,
+            spec: *spec,
+            missing: None,
+        }
+    }
+
+    fn missing(spec: &CaseSpec, argv: Vec<String>, reason: String) -> Self {
+        Self {
+            id: spec.id.to_string(),
+            argv,
+            spec: *spec,
+            missing: Some(reason),
+        }
+    }
+}
+
+fn execute_core(
     cases: &[&CaseSpec],
     oracle: &Oracle,
     rust_bin: &Path,
@@ -575,20 +1219,107 @@ fn execute(
     }
     let environment = Environment::for_sandbox(sandbox, python_project_path(oracle), &fake_sdk);
     let normalizer = Normalizer::new(NormalizationContext::new(sandbox, &run_root));
+    let prepared: Vec<PreparedCase> = cases
+        .iter()
+        .map(|case| {
+            PreparedCase::new(
+                case,
+                case.argv.iter().map(|value| value.to_string()).collect(),
+            )
+        })
+        .collect();
+    execute_prepared(
+        prepared,
+        oracle,
+        rust_bin,
+        &run_root,
+        &environment,
+        &normalizer,
+        REPORT_KIND,
+        None,
+        APPROVED_CASES,
+    )
+}
 
+fn execute_analysis_synthetic(
+    cases: &[&CaseSpec],
+    oracle: &Oracle,
+    rust_bin: &Path,
+    sandbox: &Path,
+) -> Result<ParityReport, String> {
+    let run_root = sandbox.join("run");
+    let fake_sdk = sandbox.join("fake-sdk");
+    let fake_bin = sandbox.join("fake-bin");
+    let home = sandbox.join("home");
+    create_analysis_fixtures(
+        &run_root,
+        &fake_sdk,
+        &home,
+        &fake_bin,
+        python_project_path(oracle),
+    )?;
+    for directory in [&home, &sandbox.join("tmp"), &fake_bin] {
+        fs::create_dir_all(directory)
+            .map_err(|error| format!("could not create {}: {error}", directory.display()))?;
+    }
+    let environment = Environment::for_sandbox_with_tools(
+        sandbox,
+        python_project_path(oracle),
+        &fake_sdk,
+        Some(&fake_bin),
+    );
+    let normalizer = Normalizer::new(NormalizationContext::new(sandbox, &run_root));
+    let prepared: Vec<PreparedCase> = cases
+        .iter()
+        .map(|case| {
+            PreparedCase::new(
+                case,
+                case.argv.iter().map(|value| value.to_string()).collect(),
+            )
+        })
+        .collect();
+    execute_prepared(
+        prepared,
+        oracle,
+        rust_bin,
+        &run_root,
+        &environment,
+        &normalizer,
+        ANALYSIS_REPORT_KIND,
+        Some(SYNTHETIC_PROFILE),
+        ANALYSIS_APPROVED_CASES,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn execute_prepared(
+    cases: Vec<PreparedCase>,
+    oracle: &Oracle,
+    rust_bin: &Path,
+    cwd: &Path,
+    environment: &Environment,
+    normalizer: &Normalizer,
+    kind: &'static str,
+    profile: Option<&'static str>,
+    approvals: &'static [(&'static str, &'static str)],
+) -> Result<ParityReport, String> {
     let mut results = Vec::with_capacity(cases.len());
-    for case in cases {
-        let python = match run_process(oracle_command(oracle, case), &run_root, &environment) {
+    for case in &cases {
+        if let Some(reason) = &case.missing {
+            results.push(missing_result_with_argv(case, reason.clone()));
+            continue;
+        }
+        let python = match run_process(oracle_command(oracle, &case.argv), cwd, environment) {
             Ok(result) => result,
             Err(error) => {
-                results.push(missing_result(case, format!("python: {error}")));
+                results.push(missing_result_with_argv(case, format!("python: {error}")));
                 continue;
             }
         };
-        let rust = match run_binary(rust_bin, case.argv, &run_root, &environment) {
+        let rust = match run_binary(rust_bin, &case.argv, cwd, environment) {
             Ok(result) => result,
             Err(error) => {
-                results.push(missing_result_with_exit(
+                results.push(missing_result_with_exit_and_argv(
                     case,
                     &python,
                     format!("rust: {error}"),
@@ -596,19 +1327,20 @@ fn execute(
                 continue;
             }
         };
-        let differences = compare_case(case, &python, &rust, &normalizer.at(case));
-        let approved = !differences.is_empty() && approved_reason(case.id).is_some();
+        let differences = compare_case(&case.spec, &python, &rust, &normalizer.at(&case.spec));
+        let approval = approved_reason_in(approvals, &case.id);
+        let approved = !differences.is_empty() && approval.is_some();
         let status = if differences.is_empty() || approved {
             CaseStatus::Passed
         } else {
             CaseStatus::Failed
         };
         results.push(CaseResult {
-            id: case.id.to_string(),
-            argv: case.argv.iter().map(|value| value.to_string()).collect(),
+            id: case.id.clone(),
+            argv: case.argv.clone(),
             status,
             approved,
-            approval: approved_reason(case.id).map(str::to_string),
+            approval: approval.map(str::to_string),
             exit: ExitPair {
                 python: python.exit,
                 rust: rust.exit,
@@ -617,7 +1349,7 @@ fn execute(
         });
     }
 
-    Ok(build_report(results))
+    Ok(build_report_for(results, kind, profile))
 }
 
 fn python_project_path(oracle: &Oracle) -> &Path {
@@ -631,12 +1363,9 @@ fn python_project_path(oracle: &Oracle) -> &Path {
     }
 }
 
-fn oracle_command(oracle: &Oracle, case: &CaseSpec) -> (PathBuf, Vec<String>) {
+fn oracle_command(oracle: &Oracle, argv: &[String]) -> (PathBuf, Vec<String>) {
     match oracle {
-        Oracle::Direct(entrypoint) => (
-            entrypoint.clone(),
-            case.argv.iter().map(|value| value.to_string()).collect(),
-        ),
+        Oracle::Direct(entrypoint) => (entrypoint.clone(), argv.to_vec()),
         Oracle::Uv { uv, project } => {
             let mut args = vec![
                 "run".to_string(),
@@ -644,7 +1373,7 @@ fn oracle_command(oracle: &Oracle, case: &CaseSpec) -> (PathBuf, Vec<String>) {
                 project.to_string_lossy().into_owned(),
                 "apk-lab".to_string(),
             ];
-            args.extend(case.argv.iter().map(|value| value.to_string()));
+            args.extend(argv.iter().cloned());
             (uv.clone(), args)
         }
     }
@@ -685,18 +1414,18 @@ fn run_binary(
     })
 }
 
-fn missing_result(case: &CaseSpec, difference: String) -> CaseResult {
-    missing_result_with_exit(case, &ProcessResult::missing(), difference)
+fn missing_result_with_argv(case: &PreparedCase, difference: String) -> CaseResult {
+    missing_result_with_exit_and_argv(case, &ProcessResult::missing(), difference)
 }
 
-fn missing_result_with_exit(
-    case: &CaseSpec,
+fn missing_result_with_exit_and_argv(
+    case: &PreparedCase,
     python: &ProcessResult,
     difference: String,
 ) -> CaseResult {
     CaseResult {
-        id: case.id.to_string(),
-        argv: case.argv.iter().map(|value| value.to_string()).collect(),
+        id: case.id.clone(),
+        argv: case.argv.clone(),
         status: CaseStatus::Missing,
         approved: false,
         approval: None,
@@ -706,6 +1435,220 @@ fn missing_result_with_exit(
         },
         differences: vec![difference],
     }
+}
+
+// ---------------------------------------------------------------------------
+// Real-tools corpus
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CorpusDocument {
+    kind: String,
+    version: u32,
+    #[serde(default)]
+    artifacts: BTreeMap<String, String>,
+    cases: Vec<CorpusCaseDocument>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CorpusCaseDocument {
+    id: String,
+    argv: Vec<String>,
+}
+
+#[derive(Debug, Clone)]
+struct Corpus {
+    /// Canonical path of the corpus document itself.
+    root: PathBuf,
+    cases: BTreeMap<String, Vec<String>>,
+}
+
+fn load_corpus(path: &Path) -> Result<Corpus, String> {
+    let text = fs::read_to_string(path)
+        .map_err(|error| format!("could not read corpus '{}': {error}", path.display()))?;
+    let document: CorpusDocument = serde_json::from_str(&text)
+        .map_err(|error| format!("invalid corpus '{}': {error}", path.display()))?;
+    if document.kind != CORPUS_KIND {
+        return Err(format!(
+            "invalid corpus '{}': kind must be '{CORPUS_KIND}'",
+            path.display()
+        ));
+    }
+    if document.version != CORPUS_VERSION {
+        return Err(format!(
+            "invalid corpus '{}': unsupported version {} (expected {CORPUS_VERSION})",
+            path.display(),
+            document.version
+        ));
+    }
+    let root = fs::canonicalize(path)
+        .map_err(|error| format!("could not resolve corpus '{}': {error}", path.display()))?;
+    let base = root.parent().unwrap_or(Path::new(".")).to_path_buf();
+
+    let mut artifacts = BTreeMap::new();
+    for (name, relative) in document.artifacts {
+        if name.is_empty() {
+            return Err(format!(
+                "invalid corpus '{}': artifact names must be non-empty",
+                path.display()
+            ));
+        }
+        if relative.is_empty() {
+            return Err(format!(
+                "invalid corpus '{}': artifact '{name}' has an empty path",
+                path.display()
+            ));
+        }
+        let candidate = if Path::new(&relative).is_absolute() {
+            PathBuf::from(&relative)
+        } else {
+            base.join(&relative)
+        };
+        let resolved = fs::canonicalize(&candidate).map_err(|error| {
+            format!(
+                "invalid corpus '{}': artifact '{name}' cannot be resolved ('{relative}'): {error}",
+                path.display()
+            )
+        })?;
+        if !resolved.is_file() {
+            return Err(format!(
+                "invalid corpus '{}': artifact '{name}' is not a file: {}",
+                path.display(),
+                resolved.display()
+            ));
+        }
+        artifacts.insert(name, resolved);
+    }
+
+    if document.cases.is_empty() {
+        return Err(format!(
+            "invalid corpus '{}': cases must contain at least one entry",
+            path.display()
+        ));
+    }
+    let mut cases = BTreeMap::new();
+    for case in document.cases {
+        if analysis_case(&case.id).is_none() {
+            return Err(format!(
+                "invalid corpus '{}': unknown analysis case '{}' (run 'parity --group analysis --list')",
+                path.display(),
+                case.id
+            ));
+        }
+        if case.argv.is_empty() {
+            return Err(format!(
+                "invalid corpus '{}': case '{}' has an empty argv",
+                path.display(),
+                case.id
+            ));
+        }
+        let mut argv = Vec::with_capacity(case.argv.len());
+        for token in case.argv {
+            if let Some(name) = token.strip_prefix('$') {
+                let Some(artifact) = artifacts.get(name) else {
+                    return Err(format!(
+                        "invalid corpus '{}': case '{}' references unknown artifact '${name}'",
+                        path.display(),
+                        case.id
+                    ));
+                };
+                argv.push(artifact.to_string_lossy().into_owned());
+            } else {
+                argv.push(token);
+            }
+        }
+        if cases.insert(case.id.clone(), argv).is_some() {
+            return Err(format!(
+                "invalid corpus '{}': duplicate case '{}'",
+                path.display(),
+                case.id
+            ));
+        }
+    }
+
+    Ok(Corpus { root, cases })
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+struct RealToolAvailability {
+    aapt2: bool,
+    dexdump: bool,
+    baksmali: bool,
+    smali: bool,
+    jadx: bool,
+    apktool: bool,
+}
+
+impl RealToolAvailability {
+    fn has(self, prerequisite: Prerequisite) -> bool {
+        match prerequisite {
+            Prerequisite::Aapt2 => self.aapt2,
+            Prerequisite::Dexdump => self.dexdump,
+            Prerequisite::Baksmali => self.baksmali,
+            Prerequisite::Smali => self.smali,
+            Prerequisite::Jadx => self.jadx,
+            Prerequisite::Apktool => self.apktool,
+        }
+    }
+}
+
+fn real_tool_availability() -> RealToolAvailability {
+    let repo_root = crate::tools::default_repo_root();
+    let env = crate::tools::ToolEnvironment::from_process(&repo_root);
+    let manager = crate::tools::ToolManager::with_defaults();
+    let installed = |name: &str| {
+        manager
+            .as_ref()
+            .is_ok_and(|manager| manager.is_tool_installed(name))
+    };
+    RealToolAvailability {
+        aapt2: crate::tools::find_build_tools_bin(&env, "aapt2").is_ok(),
+        dexdump: crate::tools::find_build_tools_bin(&env, "dexdump").is_ok(),
+        baksmali: installed("baksmali"),
+        smali: installed("smali"),
+        jadx: installed("jadx"),
+        apktool: installed("apktool"),
+    }
+}
+
+fn missing_prerequisites(
+    required: &[Prerequisite],
+    availability: RealToolAvailability,
+) -> Option<String> {
+    let missing: Vec<&str> = required
+        .iter()
+        .filter(|prerequisite| !availability.has(**prerequisite))
+        .map(|prerequisite| prerequisite.name())
+        .collect();
+    (!missing.is_empty()).then(|| format!("missing pinned tool(s): {}", missing.join(", ")))
+}
+
+fn prepare_real_cases(
+    specs: &[&'static CaseSpec],
+    corpus: &Corpus,
+    availability: &RealToolAvailability,
+) -> Vec<PreparedCase> {
+    specs
+        .iter()
+        .map(|spec| {
+            let Some(argv) = corpus.cases.get(spec.id) else {
+                return PreparedCase::missing(
+                    spec,
+                    spec.argv.iter().map(|value| value.to_string()).collect(),
+                    format!("corpus has no case '{}'", spec.id),
+                );
+            };
+            let requires = analysis_case(spec.id)
+                .map(|case| case.requires)
+                .unwrap_or(&[]);
+            if let Some(reason) = missing_prerequisites(requires, *availability) {
+                return PreparedCase::missing(spec, argv.clone(), reason);
+            }
+            PreparedCase::new(spec, argv.clone())
+        })
+        .collect()
 }
 
 // ---------------------------------------------------------------------------
@@ -1133,6 +2076,459 @@ fn write_apk(path: &Path, entries: &[(&str, &[u8])]) -> Result<(), String> {
 }
 
 // ---------------------------------------------------------------------------
+// Analysis fixtures and fake pinned tools
+// ---------------------------------------------------------------------------
+
+const ANALYSIS_SDK_VERSION: &str = "build-tools/36.0.0";
+const ANALYSIS_CACHE: &str = ".cache/aidans-patches/apk-lab/tools";
+
+const ANALYSIS_BADGING: &str = "\
+package: name='com.example.analysis' versionCode='100' versionName='1.0' compileSdkVersion='34'
+sdkVersion:'21'
+targetSdkVersion:'34'
+uses-permission: name='android.permission.INTERNET'
+";
+
+const ANALYSIS_XMLTREE: &str = r#"N: android=http://schemas.android.com/apk/res/android (line=2)
+  E: manifest (line=2)
+    E: application (line=10)
+      E: activity (line=12)
+        A: http://schemas.android.com/apk/res/android:name(0x01010003)="com.example.MainActivity" (Raw: "com.example.MainActivity")
+        A: http://schemas.android.com/apk/res/android:exported(0x01010010)=true
+        E: intent-filter (line=15)
+          E: action (line=16)
+            A: http://schemas.android.com/apk/res/android:name(0x01010003)="android.intent.action.MAIN" (Raw: "android.intent.action.MAIN")
+      E: service (line=20)
+        A: http://schemas.android.com/apk/res/android:name(0x01010003)="com.example.SyncService"
+        A: http://schemas.android.com/apk/res/android:permission(0x01010006)="com.example.PERMISSION"
+"#;
+
+const ANALYSIS_RESOURCES: &str = r#"Package name=com.example.analysis id=7f
+  type string id=01 entryCount=3
+    resource 0x7f010001 string/app_name
+      () "Parity App"
+    resource 0x7f010002 string/app_alias
+      () "@string/app_name"
+    resource 0x7f010003 string/duplicate_value
+      () "same"
+    resource 0x7f010003 string/duplicate_value
+      () "same"
+  type drawable id=02 entryCount=1
+    resource 0x7f020001 drawable/icon
+      () (file) res/drawable/icon.png
+"#;
+
+const ANALYSIS_AAPT2: &str = r#"#!/bin/sh
+set -eu
+dir="$(dirname "$0")"
+case "${1:-} ${2:-}" in
+  "dump badging") exec cat "$dir/badging.txt" ;;
+  "dump xmltree") exec cat "$dir/xmltree.txt" ;;
+  "dump resources") exec cat "$dir/resources.txt" ;;
+  *)
+    echo "fake aapt2 does not support: $*" >&2
+    exit 64
+    ;;
+esac
+"#;
+
+const FAKE_JAVA: &str = r#"#!/bin/sh
+if [ "${1:-}" != "-jar" ]; then
+  echo "fake java only supports -jar" >&2
+  exit 64
+fi
+shift
+jar="$1"
+shift
+exec "$jar" "$@"
+"#;
+
+const FAKE_JADX: &str = r#"#!/bin/sh
+set -eu
+out=""
+single_out=""
+artifact=""
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    -d) out="$2"; shift 2 ;;
+    --single-class-output) single_out="$2"; shift 2 ;;
+    --single-class|--include-pkg|--output-format) shift 2 ;;
+    --no-res|--show-bad-code) shift ;;
+    *) artifact="$1"; shift ;;
+  esac
+done
+if [ -n "$single_out" ]; then
+  file="$single_out"
+  mkdir -p "$(dirname "$file")"
+else
+  file="$out/sources/com/example/Foo.java"
+  mkdir -p "$(dirname "$file")"
+fi
+if grep -aq "PARITY_NEW" "$artifact"; then
+  base=1000
+else
+  base=0
+fi
+{
+  echo "package com.example;"
+  echo
+  echo "public class Foo {"
+  echo "    public static int answer() {"
+  i=0
+  while [ "$i" -lt 300 ]; do
+    echo "        int value$i = $((base + i));"
+    i=$((i + 1))
+  done
+  echo "        return value299;"
+  echo "    }"
+  echo "}"
+} > "$file"
+"#;
+
+const FAKE_BAKSMALI: &str = r#"#!/bin/sh
+set -eu
+if [ "${1:-}" != "d" ]; then
+  echo "fake baksmali only supports d" >&2
+  exit 64
+fi
+shift
+dex="$1"
+shift
+out=""
+descriptor=""
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --classes) descriptor="$2"; shift 2 ;;
+    --code-offsets) shift ;;
+    -o) out="$2"; shift 2 ;;
+    *) shift ;;
+  esac
+done
+if [ -z "$out" ]; then
+  echo "fake baksmali requires -o" >&2
+  exit 64
+fi
+if [ -n "$descriptor" ]; then
+  rel="$(printf '%s' "$descriptor" | sed 's/^L//; s/;$//')"
+  file="$out/$rel.smali"
+  mkdir -p "$(dirname "$file")"
+  {
+    printf '.class public %s\n' "$descriptor"
+    printf '.super Ljava/lang/Object;\n\n'
+    printf '.method public static answer()I\n'
+    printf '    .registers 2\n'
+    printf '    const/4 v0, 0x2a\n'
+    printf '    return v0\n'
+    printf '.end method\n'
+  } > "$file"
+else
+  mkdir -p "$out"
+  printf '.class public Lcom/example/All;\n' > "$out/All.smali"
+fi
+"#;
+
+const FAKE_SMALI: &str = r#"#!/bin/sh
+if [ "${1:-}" = "assemble" ]; then
+  exit 0
+fi
+exit 1
+"#;
+
+const FAKE_APKTOOL: &str = r#"#!/bin/sh
+set -eu
+out=""
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    -o) out="$2"; shift 2 ;;
+    *) shift ;;
+  esac
+done
+if [ -n "$out" ]; then
+  mkdir -p "$out"
+  printf 'decoded\n' > "$out/apktool.yml"
+fi
+"#;
+
+const FAKE_MORPHE: &str = "#!/bin/sh\nexit 0\n";
+
+fn create_analysis_fixtures(
+    run_root: &Path,
+    fake_sdk: &Path,
+    home: &Path,
+    fake_bin: &Path,
+    project: &Path,
+) -> Result<(), String> {
+    let fixtures = run_root.join("fixtures");
+    let build_tools = fake_sdk.join(ANALYSIS_SDK_VERSION);
+    for directory in [&fixtures, &build_tools, home, fake_bin] {
+        fs::create_dir_all(directory)
+            .map_err(|error| format!("could not create {}: {error}", directory.display()))?;
+    }
+
+    for (name, content) in [
+        ("badging.txt", ANALYSIS_BADGING),
+        ("xmltree.txt", ANALYSIS_XMLTREE),
+        ("resources.txt", ANALYSIS_RESOURCES),
+    ] {
+        fs::write(build_tools.join(name), content)
+            .map_err(|error| format!("could not write fake {name}: {error}"))?;
+    }
+    let aapt2 = build_tools.join("aapt2");
+    fs::write(&aapt2, ANALYSIS_AAPT2)
+        .map_err(|error| format!("could not write fake aapt2: {error}"))?;
+    make_executable(&aapt2)?;
+
+    let dexdump = build_tools.join("dexdump");
+    fs::write(&dexdump, FAKE_DEXDUMP)
+        .map_err(|error| format!("could not write fake dexdump: {error}"))?;
+    make_executable(&dexdump)?;
+
+    let apksigner = build_tools.join("apksigner");
+    fs::write(&apksigner, "#!/bin/sh\nexit 1\n")
+        .map_err(|error| format!("could not write fake apksigner: {error}"))?;
+    make_executable(&apksigner)?;
+
+    install_analysis_tools(home, fake_bin, project)?;
+
+    let manifest = b"<manifest package=\"com.example.analysis\"/>" as &[u8];
+    let metadata = il2cpp_metadata_v29();
+    let gameobject = unity_gameobject("Button_HelpCenter", 1);
+    let analysis_dex = dex_with_strings(&["PARITY_CLASS", "Grüße", "Привет"], 1);
+    let analysis_entries: [(&str, &[u8]); 9] = [
+        ("AndroidManifest.xml", manifest),
+        ("classes.dex", analysis_dex.as_slice()),
+        ("resources.arsc", b"fake_arsc" as &[u8]),
+        ("res/values/strings.xml", b"<resources/>" as &[u8]),
+        ("res/drawable/icon.png", b"icon" as &[u8]),
+        ("assets/note.txt", b"parity fixture" as &[u8]),
+        ("lib/arm64-v8a/libnative.so", b"native" as &[u8]),
+        (
+            "assets/bin/Data/Managed/Metadata/global-metadata.dat",
+            metadata.as_slice(),
+        ),
+        (
+            "assets/bin/Data/sharedassets0.assets",
+            gameobject.as_slice(),
+        ),
+    ];
+    write_apk(&fixtures.join("analysis.apk"), &analysis_entries)?;
+
+    let old_dex = dex_with_strings(&["PARITY_CLASS", "PARITY_OLD"], 1);
+    let new_dex = dex_with_strings(&["PARITY_CLASS", "PARITY_NEW"], 1);
+    let old_entries: [(&str, &[u8]); 4] = [
+        ("AndroidManifest.xml", manifest),
+        ("classes.dex", old_dex.as_slice()),
+        ("lib/arm64-v8a/libnative.so", b"native" as &[u8]),
+        ("assets/note.txt", b"parity fixture" as &[u8]),
+    ];
+    let new_entries: [(&str, &[u8]); 4] = [
+        ("AndroidManifest.xml", manifest),
+        ("classes.dex", new_dex.as_slice()),
+        ("lib/arm64-v8a/libnative.so", b"native" as &[u8]),
+        ("assets/note.txt", b"parity fixture" as &[u8]),
+    ];
+    write_apk(&fixtures.join("analysis-old.apk"), &old_entries)?;
+    write_apk(&fixtures.join("analysis-new.apk"), &new_entries)?;
+
+    let ambiguous_dex = dex_with_strings(&["PARITY_CLASS", "Grüße"], 1);
+    let ambiguous_entries: [(&str, &[u8]); 3] = [
+        ("AndroidManifest.xml", manifest),
+        ("classes.dex", ambiguous_dex.as_slice()),
+        ("classes2.dex", ambiguous_dex.as_slice()),
+    ];
+    write_apk(&fixtures.join("ambiguous.apk"), &ambiguous_entries)?;
+
+    write_apk(
+        &fixtures.join("malformed.apk"),
+        &[
+            ("AndroidManifest.xml", manifest),
+            ("classes.dex", b"dex\n035\0" as &[u8]),
+        ],
+    )?;
+    write_apk(
+        &fixtures.join("unity-unsupported.apk"),
+        &[
+            ("AndroidManifest.xml", manifest),
+            ("assets/bin/Data/sharedassets9.assets", b"short" as &[u8]),
+        ],
+    )?;
+    let unsupported_metadata = il2cpp_metadata_with_version(99);
+    write_apk(
+        &fixtures.join("il2cpp-unsupported.apk"),
+        &[
+            ("AndroidManifest.xml", manifest),
+            (
+                "assets/bin/Data/Managed/Metadata/global-metadata.dat",
+                unsupported_metadata.as_slice(),
+            ),
+        ],
+    )?;
+    Ok(())
+}
+
+const FAKE_DEXDUMP: &str = r#"#!/bin/sh
+if grep -aq "PARITY_CLASS" "$1" || grep -aq "PARITY_OLD" "$1" || grep -aq "PARITY_NEW" "$1"; then
+  echo "Class descriptor  : 'Lcom/example/Foo;'"
+fi
+exit 0
+"#;
+
+fn install_analysis_tools(home: &Path, fake_bin: &Path, project: &Path) -> Result<(), String> {
+    let lock_path = project.join("tools.lock.json");
+    let text = fs::read_to_string(&lock_path).map_err(|error| {
+        format!(
+            "could not read pinned tool lock '{}': {error}",
+            lock_path.display()
+        )
+    })?;
+    let lock: Value = serde_json::from_str(&text).map_err(|error| {
+        format!(
+            "invalid pinned tool lock '{}': {error}",
+            lock_path.display()
+        )
+    })?;
+    let tools = lock
+        .get("tools")
+        .and_then(Value::as_object)
+        .ok_or_else(|| format!("pinned tool lock '{}' has no tools", lock_path.display()))?;
+
+    for (name, script) in [
+        ("morphe", FAKE_MORPHE),
+        ("jadx", FAKE_JADX),
+        ("apktool", FAKE_APKTOOL),
+        ("baksmali", FAKE_BAKSMALI),
+        ("smali", FAKE_SMALI),
+    ] {
+        let spec = tools
+            .get(name)
+            .ok_or_else(|| format!("pinned tool lock is missing '{name}'"))?;
+        let version = spec
+            .get("version")
+            .and_then(Value::as_str)
+            .ok_or_else(|| format!("pinned tool '{name}' has no version"))?;
+        let sha256 = spec
+            .get("sha256")
+            .and_then(Value::as_str)
+            .ok_or_else(|| format!("pinned tool '{name}' has no sha256"))?;
+        let executable = spec
+            .get("executablePath")
+            .and_then(Value::as_str)
+            .ok_or_else(|| format!("pinned tool '{name}' has no executablePath"))?;
+        let path = home
+            .join(ANALYSIS_CACHE)
+            .join(name)
+            .join(version)
+            .join(sha256)
+            .join(executable);
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent)
+                .map_err(|error| format!("could not create {}: {error}", parent.display()))?;
+        }
+        fs::write(&path, script)
+            .map_err(|error| format!("could not write fake {name}: {error}"))?;
+        make_executable(&path)?;
+    }
+
+    let java = fake_bin.join("java");
+    fs::write(&java, FAKE_JAVA).map_err(|error| format!("could not write fake java: {error}"))?;
+    make_executable(&java)
+}
+
+fn dex_with_strings(strings: &[&str], class_count: u32) -> Vec<u8> {
+    let ids_offset = 0x70usize;
+    let data_offset = ids_offset + strings.len() * 4;
+    let mut blob = Vec::new();
+    let mut offsets = Vec::new();
+    for value in strings {
+        offsets.push(data_offset + blob.len());
+        blob.push(value.len() as u8);
+        blob.extend_from_slice(value.as_bytes());
+        blob.push(0);
+    }
+    let mut data = vec![0u8; data_offset];
+    data[0..8].copy_from_slice(b"dex\n035\0");
+    for (index, offset) in offsets.iter().enumerate() {
+        let position = ids_offset + index * 4;
+        data[position..position + 4].copy_from_slice(&(*offset as u32).to_le_bytes());
+    }
+    data.extend_from_slice(&blob);
+    data[0x38..0x3C].copy_from_slice(&(strings.len() as u32).to_le_bytes());
+    data[0x3C..0x40].copy_from_slice(&(ids_offset as u32).to_le_bytes());
+    data[0x58..0x5C].copy_from_slice(&0u32.to_le_bytes());
+    data[0x60..0x64].copy_from_slice(&class_count.to_le_bytes());
+    let size = data.len() as u32;
+    data[0x20..0x24].copy_from_slice(&size.to_le_bytes());
+    data
+}
+
+fn unity_gameobject(name: &str, is_active: u8) -> Vec<u8> {
+    let mut data = vec![0u8; 32];
+    let name_bytes = name.as_bytes();
+    data.extend_from_slice(&(name_bytes.len() as u32).to_le_bytes());
+    data.extend_from_slice(name_bytes);
+    data.extend(std::iter::repeat_n(0u8, (4 - (name_bytes.len() % 4)) % 4));
+    data.extend_from_slice(&0u16.to_le_bytes());
+    data.push(is_active);
+    data.extend(std::iter::repeat_n(0u8, 16));
+    data
+}
+
+fn il2cpp_metadata_v29() -> Vec<u8> {
+    il2cpp_metadata_with_version(29)
+}
+
+fn il2cpp_metadata_with_version(version: u32) -> Vec<u8> {
+    let string_data: &[u8] =
+        b"\x00TestNamespace\x00BlackjackApplication\x00OpenShop\x00OtherMethod\x00";
+    let string_offset = 256usize;
+    let string_size = string_data.len();
+    let mut methods_data = Vec::new();
+    // v29 method record: name_idx, decl_type, return_type, param_start,
+    // gen_container, token, flags, iflags, slot (u16), param_count (u16).
+    methods_data.extend_from_slice(&36i32.to_le_bytes());
+    methods_data.extend_from_slice(&0i32.to_le_bytes());
+    methods_data.extend_from_slice(&0i32.to_le_bytes());
+    methods_data.extend_from_slice(&0i32.to_le_bytes());
+    methods_data.extend_from_slice(&(-1i32).to_le_bytes());
+    methods_data.extend_from_slice(&0u32.to_le_bytes());
+    methods_data.extend_from_slice(&0u16.to_le_bytes());
+    methods_data.extend_from_slice(&0u16.to_le_bytes());
+    methods_data.extend_from_slice(&0u16.to_le_bytes());
+    methods_data.extend_from_slice(&1u16.to_le_bytes());
+    methods_data.extend_from_slice(&45i32.to_le_bytes());
+    methods_data.extend_from_slice(&0i32.to_le_bytes());
+    methods_data.extend_from_slice(&0i32.to_le_bytes());
+    methods_data.extend_from_slice(&0i32.to_le_bytes());
+    methods_data.extend_from_slice(&(-1i32).to_le_bytes());
+    methods_data.extend_from_slice(&0u32.to_le_bytes());
+    methods_data.extend_from_slice(&0u16.to_le_bytes());
+    methods_data.extend_from_slice(&0u16.to_le_bytes());
+    methods_data.extend_from_slice(&0u16.to_le_bytes());
+    methods_data.extend_from_slice(&0u16.to_le_bytes());
+    let methods_offset = string_offset + string_size + 4;
+    let types_offset = methods_offset + methods_data.len() + 4;
+    let mut type0 = vec![0u8; 88];
+    type0[0..4].copy_from_slice(&15i32.to_le_bytes());
+    type0[4..8].copy_from_slice(&1i32.to_le_bytes());
+    type0[36..40].copy_from_slice(&0i32.to_le_bytes());
+    type0[64..66].copy_from_slice(&2u16.to_le_bytes());
+    let total = types_offset + type0.len() + 16;
+    let mut data = vec![0u8; total];
+    data[0..4].copy_from_slice(&0xFAB1_1BAFu32.to_le_bytes());
+    data[4..8].copy_from_slice(&version.to_le_bytes());
+    data[24..28].copy_from_slice(&(string_offset as u32).to_le_bytes());
+    data[28..32].copy_from_slice(&(string_size as u32).to_le_bytes());
+    data[48..52].copy_from_slice(&(methods_offset as u32).to_le_bytes());
+    data[52..56].copy_from_slice(&(methods_data.len() as u32).to_le_bytes());
+    data[160..164].copy_from_slice(&(types_offset as u32).to_le_bytes());
+    data[164..168].copy_from_slice(&(type0.len() as u32).to_le_bytes());
+    data[string_offset..string_offset + string_size].copy_from_slice(string_data);
+    data[methods_offset..methods_offset + methods_data.len()].copy_from_slice(&methods_data);
+    data[types_offset..types_offset + type0.len()].copy_from_slice(&type0);
+    data
+}
+
+// ---------------------------------------------------------------------------
 // Report
 // ---------------------------------------------------------------------------
 
@@ -1176,11 +2572,22 @@ struct Summary {
 struct ParityReport {
     schema_version: u32,
     kind: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    profile: Option<&'static str>,
     cases: Vec<CaseResult>,
     summary: Summary,
 }
 
+#[cfg(test)]
 fn build_report(cases: Vec<CaseResult>) -> ParityReport {
+    build_report_for(cases, REPORT_KIND, None)
+}
+
+fn build_report_for(
+    cases: Vec<CaseResult>,
+    kind: &'static str,
+    profile: Option<&'static str>,
+) -> ParityReport {
     let mut summary = Summary {
         total: cases.len(),
         ..Summary::default()
@@ -1197,7 +2604,8 @@ fn build_report(cases: Vec<CaseResult>) -> ParityReport {
     }
     ParityReport {
         schema_version: SCHEMA_VERSION,
-        kind: REPORT_KIND,
+        kind,
+        profile,
         cases,
         summary,
     }
@@ -1243,14 +2651,49 @@ fn print_help() {
          \x20 apk-lab-migrate parity --group core --python-project DIR --rust-bin PATH\n\
          \x20                     [--case ID ...] [--report PATH|-]\n\
          \x20 apk-lab-migrate parity --group core --list [--case ID ...]\n\
+         \x20 apk-lab-migrate parity --group analysis [--profile synthetic] \\\n\
+         \x20                     --python-project DIR --rust-bin PATH \\\n\
+         \x20                     [--case ID ...] [--report PATH|-]\n\
+         \x20 apk-lab-migrate parity --group analysis --profile real-tools \\\n\
+         \x20                     --corpus FILE --python-project DIR --rust-bin PATH \\\n\
+         \x20                     [--case ID ...] [--report PATH|-]\n\
+         \x20 apk-lab-migrate parity --group analysis --list [--case ID ...]\n\
          \n\
          Runs the independent Python oracle and the native binary with identical\n\
-         argv and cwd, then compares exit status and output. JSON output is\n\
-         compared semantically after removing the volatile fields declared by the\n\
-         committed core case table; human output uses the same normalization set.\n\
+         argv, cwd and environment, then compares exit status and output. JSON\n\
+         output is compared structurally after removing only the volatile fields\n\
+         declared by the committed case table; human output uses the same\n\
+         normalization set.\n\
+         \n\
+         The analysis group defaults to --profile synthetic: it creates tiny\n\
+         deterministic fixtures and installs fake pinned aapt2, dexdump, baksmali,\n\
+         smali, JADX and Apktool tool identities from the project lock file. No\n\
+         network, device, Python production path or real tool cache is used.\n\
+         \n\
+         --profile real-tools requires --corpus and the actual pinned tools plus a\n\
+         real artifact for every corpus case. A missing tool, artifact or case is\n\
+         reported as `missing` and exits nonzero; nothing is skipped green. The\n\
+         corpus is a JSON document, validated before any report is written:\n\
+         \n\
+         \x20 {{\n\
+         \x20   \"kind\": \"apk-lab-analysis-corpus\",\n\
+         \x20   \"version\": 1,\n\
+         \x20   \"artifacts\": {{\"base\": \"relative/or/absolute.apk\"}},\n\
+         \x20   \"cases\": [\n\
+         \x20     {{\"id\": \"manifest-json\", \"argv\": [\"manifest\", \"$base\", \"--json\"]}}\n\
+         \x20   ]\n\
+         \x20 }}\n\
+         \n\
+         Every case id must name a case from `--list`; duplicate or unknown ids,\n\
+         unknown $artifact placeholders, missing artifacts, an unknown kind or\n\
+         version, and an empty cases list are rejected. Artifact paths are resolved\n\
+         relative to the corpus file; `$name` tokens in argv are replaced by the\n\
+         canonical artifact path before execution.\n\
          \n\
          Options:\n\
-         \x20 --group NAME          Parity group (available: core)\n\
+         \x20 --group NAME          Parity group (available: core, analysis)\n\
+         \x20 --profile NAME        Analysis profile (synthetic, real-tools; default synthetic)\n\
+         \x20 --corpus FILE         Validated real-tools corpus manifest (required for real-tools)\n\
          \x20 --python-project DIR  Python project containing the oracle (tools/apk-lab)\n\
          \x20 --rust-bin PATH       Native apk-lab binary to compare\n\
          \x20 --case ID             Run only this case; may be repeated\n\
@@ -1306,9 +2749,268 @@ mod tests {
 
     #[test]
     fn unknown_case_is_rejected_before_any_report() {
-        let error = select_cases(&["not-a-real-case".to_string()])
+        let error = select_core_cases(&["not-a-real-case".to_string()])
             .expect_err("unknown case must be rejected");
         assert!(error.contains("unknown core parity case"), "{error}");
+    }
+
+    #[test]
+    fn analysis_group_selection_is_explicit_and_stable() {
+        let selected = select_analysis_specs(&[]).expect("all analysis cases");
+        assert_eq!(selected.len(), ANALYSIS_CASES.len());
+        assert_eq!(selected[0].id, "asm-encode");
+        assert_eq!(selected.last().map(|spec| spec.id), Some("analyze-apktool"));
+        let filtered =
+            select_analysis_specs(&["manifest-json".to_string(), "asm-encode".to_string()])
+                .expect("filtered");
+        assert_eq!(
+            filtered.iter().map(|spec| spec.id).collect::<Vec<_>>(),
+            vec!["asm-encode", "manifest-json"]
+        );
+        let error = select_analysis_specs(&["not-an-analysis-case".to_string()])
+            .expect_err("unknown analysis case must be rejected");
+        assert!(error.contains("unknown analysis parity case"), "{error}");
+
+        let core = select_core_cases(&[]).expect("all core cases");
+        assert_eq!(core.len(), CORE_CASES.len());
+    }
+
+    #[test]
+    fn analysis_case_absent_from_corpus_is_missing() {
+        let spec = select_analysis_specs(&["manifest-json".to_string()])
+            .expect("spec")
+            .remove(0);
+        let corpus = Corpus {
+            root: PathBuf::from("/tmp/corpus.json"),
+            cases: BTreeMap::new(),
+        };
+        let availability = RealToolAvailability {
+            aapt2: true,
+            ..RealToolAvailability::default()
+        };
+        let prepared = prepare_real_cases(&[spec], &corpus, &availability);
+        assert_eq!(prepared.len(), 1);
+        assert_eq!(
+            prepared[0].missing.as_deref(),
+            Some("corpus has no case 'manifest-json'")
+        );
+        let result = missing_result_with_argv(&prepared[0], prepared[0].missing.clone().unwrap());
+        assert_eq!(result.status, CaseStatus::Missing);
+        let report = build_report_for(vec![result], ANALYSIS_REPORT_KIND, Some(REAL_TOOLS_PROFILE));
+        assert!(!report_passed(&report));
+        assert_eq!(report.summary.missing, 1);
+    }
+
+    #[test]
+    fn missing_real_tools_prerequisites_are_missing_not_skipped() {
+        let availability = RealToolAvailability::default();
+        let reason =
+            missing_prerequisites(&[Prerequisite::Aapt2, Prerequisite::Dexdump], availability)
+                .expect("both missing");
+        assert_eq!(reason, "missing pinned tool(s): aapt2, dexdump");
+        assert!(missing_prerequisites(
+            &[Prerequisite::Aapt2],
+            RealToolAvailability {
+                aapt2: true,
+                ..RealToolAvailability::default()
+            }
+        )
+        .is_none());
+    }
+
+    #[test]
+    fn analysis_exit_json_and_text_mismatches_fail() {
+        let context = NormalizationContext::for_test("/tmp/parity-case");
+        let json_spec = select_analysis_specs(&["manifest-json".to_string()])
+            .expect("spec")
+            .remove(0);
+        let normalizer = Normalizer::new(context.clone()).at(json_spec);
+        let differences = compare_case(
+            json_spec,
+            &result(0, r#"[{"type":"activity"}]"#, ""),
+            &result(0, r#"[{"type":"service"}]"#, ""),
+            &normalizer,
+        );
+        assert!(
+            differences
+                .iter()
+                .any(|line| line.contains("/0/type: python")),
+            "{differences:?}"
+        );
+
+        let text_spec = select_analysis_specs(&["res-scalar".to_string()])
+            .expect("spec")
+            .remove(0);
+        let normalizer = Normalizer::new(context).at(text_spec);
+        let differences = compare_case(
+            text_spec,
+            &result(0, "Found 1 matching resources:\n", ""),
+            &result(0, "Found 2 matching resources:\n", ""),
+            &normalizer,
+        );
+        assert!(
+            differences
+                .iter()
+                .any(|line| line.contains("stdout differs")),
+            "{differences:?}"
+        );
+    }
+
+    #[test]
+    fn analysis_report_is_deterministic_and_names_profile() {
+        let cases = vec![CaseResult {
+            id: "asm-encode".to_string(),
+            argv: vec!["asm".to_string(), "ret".to_string()],
+            status: CaseStatus::Passed,
+            approved: false,
+            approval: None,
+            exit: ExitPair { python: 0, rust: 0 },
+            differences: Vec::new(),
+        }];
+        let report = build_report_for(cases, ANALYSIS_REPORT_KIND, Some(SYNTHETIC_PROFILE));
+        assert_eq!(report.summary.total, 1);
+        assert_eq!(report.summary.passed, 1);
+        let first = render_report(&report).expect("render");
+        let second = render_report(&report).expect("render twice");
+        assert_eq!(first, second);
+        let parsed: Value = serde_json::from_str(&first).expect("json");
+        assert_eq!(parsed["kind"], "apk-lab-analysis-parity");
+        assert_eq!(parsed["profile"], "synthetic");
+        assert_eq!(
+            parsed["summary"],
+            serde_json::json!({
+                "total": 1,
+                "passed": 1,
+                "failed": 0,
+                "missing": 0,
+                "approved": 0
+            })
+        );
+    }
+
+    #[test]
+    fn invalid_corpus_is_refused_before_reporting() {
+        let directory = tempfile::tempdir().expect("tempdir");
+        let corpus = directory.path().join("corpus.json");
+        let report = directory.path().join("report.json");
+        fs::write(&corpus, "{ not json").expect("write corpus");
+        let error = run(&[
+            "--group".to_string(),
+            "analysis".to_string(),
+            "--profile".to_string(),
+            "real-tools".to_string(),
+            "--corpus".to_string(),
+            corpus.to_string_lossy().into_owned(),
+            "--python-project".to_string(),
+            ".".to_string(),
+            "--rust-bin".to_string(),
+            "/bin/sh".to_string(),
+            "--report".to_string(),
+            report.to_string_lossy().into_owned(),
+        ])
+        .expect_err("invalid corpus must be rejected");
+        assert!(error.contains("invalid corpus"), "{error}");
+        assert!(!report.exists(), "no report may be written");
+    }
+
+    #[test]
+    fn corpus_validation_rejects_unknown_case_and_placeholder() {
+        let directory = tempfile::tempdir().expect("tempdir");
+        let artifact = directory.path().join("base.apk");
+        fs::write(&artifact, b"apk").expect("artifact");
+
+        let unknown_case = directory.path().join("unknown-case.json");
+        fs::write(
+            &unknown_case,
+            serde_json::to_vec(&serde_json::json!({
+                "kind": CORPUS_KIND,
+                "version": CORPUS_VERSION,
+                "artifacts": {"base": "base.apk"},
+                "cases": [{"id": "not-a-case", "argv": ["asm", "ret"]}]
+            }))
+            .expect("json"),
+        )
+        .expect("write");
+        let error = load_corpus(&unknown_case).expect_err("unknown case");
+        assert!(error.contains("unknown analysis case"), "{error}");
+
+        let unknown_artifact = directory.path().join("unknown-artifact.json");
+        fs::write(
+            &unknown_artifact,
+            serde_json::to_vec(&serde_json::json!({
+                "kind": CORPUS_KIND,
+                "version": CORPUS_VERSION,
+                "artifacts": {"base": "base.apk"},
+                "cases": [{"id": "manifest-json", "argv": ["manifest", "$other", "--json"]}]
+            }))
+            .expect("json"),
+        )
+        .expect("write");
+        let error = load_corpus(&unknown_artifact).expect_err("unknown artifact");
+        assert!(error.contains("unknown artifact '$other'"), "{error}");
+
+        let valid = directory.path().join("valid.json");
+        fs::write(
+            &valid,
+            serde_json::to_vec(&serde_json::json!({
+                "kind": CORPUS_KIND,
+                "version": CORPUS_VERSION,
+                "artifacts": {"base": "base.apk"},
+                "cases": [{"id": "manifest-json", "argv": ["manifest", "$base", "--json"]}]
+            }))
+            .expect("json"),
+        )
+        .expect("write");
+        let corpus = load_corpus(&valid).expect("valid corpus");
+        let resolved = &corpus.cases["manifest-json"];
+        assert_eq!(resolved[0], "manifest");
+        assert_eq!(
+            resolved[1],
+            fs::canonicalize(&artifact)
+                .expect("canonical")
+                .to_string_lossy()
+        );
+    }
+
+    #[test]
+    fn only_the_approved_analysis_difference_is_allowlisted() {
+        assert_eq!(ANALYSIS_APPROVED_CASES.len(), 1);
+        let reason = approved_reason_in(ANALYSIS_APPROVED_CASES, "res-no-json")
+            .expect("res --json rejection is approved");
+        assert!(
+            reason.contains("both reject --json with exit 2"),
+            "{reason}"
+        );
+        for spec in ANALYSIS_CASES {
+            if spec.spec.id == "res-no-json" {
+                continue;
+            }
+            assert!(
+                approved_reason_in(ANALYSIS_APPROVED_CASES, spec.spec.id).is_none(),
+                "unexpected analysis approval for {}",
+                spec.spec.id
+            );
+        }
+        let spec = select_analysis_specs(&["res-no-json".to_string()])
+            .expect("spec")
+            .remove(0);
+        let prepared = PreparedCase::new(spec, vec!["res".into(), "--json".into()]);
+        let context = NormalizationContext::for_test("/tmp/parity-case");
+        let normalizer = Normalizer::new(context).at(spec);
+        let python = result(
+            2,
+            "",
+            "usage: apk-lab ...\napk-lab: error: unrecognized arguments: --json\n",
+        );
+        let rust = result(
+            2,
+            "",
+            "Usage: apk-lab res ...\napk-lab: unrecognized option '--json'\n",
+        );
+        let differences = compare_case(spec, &python, &rust, &normalizer);
+        assert!(!differences.is_empty());
+        let approval = approved_reason_in(ANALYSIS_APPROVED_CASES, &prepared.id);
+        assert!(approval.is_some());
     }
 
     #[test]
@@ -1419,13 +3121,13 @@ mod tests {
 
     #[test]
     fn case_listing_is_deterministic_and_names_streams() {
-        let selected = select_cases(&[]).expect("all cases");
+        let selected = select_core_cases(&[]).expect("all cases");
         assert_eq!(selected.len(), CORE_CASES.len());
         assert_eq!(selected[0].id, "help");
         assert_eq!(selected[0].stream.as_str(), "stdout");
         assert_eq!(case("inspect-missing-artifact").stream, StreamMode::Stderr);
         assert_eq!(
-            select_cases(&["version".to_string(), "help".to_string()])
+            select_core_cases(&["version".to_string(), "help".to_string()])
                 .expect("filtered")
                 .iter()
                 .map(|case| case.id)

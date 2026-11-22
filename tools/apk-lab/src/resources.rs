@@ -514,11 +514,13 @@ pub fn query_apk_resources_with_aapt2(
             continue;
         }
 
-        let spec = ProcessSpec::new(aapt2).args([
-            "dump".to_string(),
-            "resources".to_string(),
-            materialized.path.to_string_lossy().into_owned(),
-        ]);
+        let spec = ProcessSpec::new(aapt2)
+            .args([
+                "dump".to_string(),
+                "resources".to_string(),
+                materialized.path.to_string_lossy().into_owned(),
+            ])
+            .max_output_bytes(64 * 1024 * 1024);
         let output = process::run(&spec)?;
         if output.success() {
             let parsed = parse_aapt2_resource_dump(
@@ -2037,5 +2039,32 @@ esac"#,
             b"icon bytes"
         );
         assert_eq!(report.query, "0x7f080001");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn large_aapt2_dump_is_not_truncated_at_one_mib() {
+        let (_guard, root) = temp_dir();
+        let tool = stub_aapt2(
+            &root,
+            r#"printf 'Package name=com.example.app\n'
+i=0
+while [ "$i" -lt 20000 ]; do
+  printf '  resource 0x%08x string/big%s\n    () "NEEDLE %s"\n' "$((0x7f010000 + i))" "$i" "$i"
+  i=$((i + 1))
+done"#,
+        );
+        let apk_path = root.join("base.apk");
+        write_zip(&apk_path, &[("resources.arsc", b"fake")]);
+        let apks = vec![materialized(apk_path, "base", None)];
+        let query = normalize_resource_query("text:NEEDLE").expect("text query");
+        let (matches, warnings) =
+            query_apk_resources_with_aapt2(&apks, &query, &tool).expect("query resources");
+        assert!(warnings.is_empty());
+        assert_eq!(matches.len(), 20000);
+        assert!(matches.iter().all(|row| row
+            .value
+            .as_deref()
+            .is_some_and(|value| value.starts_with("\"NEEDLE "))));
     }
 }
