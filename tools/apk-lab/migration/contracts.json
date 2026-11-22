@@ -3138,6 +3138,27 @@
       "notes": "Package architecture/commands/testing guidance."
     },
     {
+      "path": "tools/apk-lab/Cargo.toml",
+      "interfaces": ["apk_lab"],
+      "classification": "native-host-crate",
+      "supported": true,
+      "notes": "Declares the native apk_lab library target; references the Rust crate, not the Python package."
+    },
+    {
+      "path": "tools/apk-lab/src/bin/apk-lab-migrate.rs",
+      "interfaces": ["apk_lab"],
+      "classification": "native-host-crate",
+      "supported": true,
+      "notes": "Migration binary calls the native apk_lab library; not a Python API consumer."
+    },
+    {
+      "path": "tools/apk-lab/src/bin/apk-lab.rs",
+      "interfaces": ["apk_lab"],
+      "classification": "native-host-crate",
+      "supported": true,
+      "notes": "Native CLI binary calls the native apk_lab library; not a Python API consumer."
+    },
+    {
       "path": "tools/apk-lab/pyproject.toml",
       "interfaces": ["apk_lab", "apk_lab.cli"],
       "classification": "packaging-entrypoint",

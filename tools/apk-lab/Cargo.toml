@@ -1,13 +1,17 @@
 [package]
-name = "apk-lab-migrate"
+name = "apk-lab"
 version = "0.1.0"
 edition = "2021"
 publish = false
-description = "Migration harness for the apk-lab Python oracle and Rust port"
+description = "Native APK Lab host CLI and Python-oracle migration harness"
 
 [lib]
-name = "apk_lab_migrate"
-path = "src/migration/mod.rs"
+name = "apk_lab"
+path = "src/lib.rs"
+
+[[bin]]
+name = "apk-lab"
+path = "src/bin/apk-lab.rs"
 
 [[bin]]
 name = "apk-lab-migrate"

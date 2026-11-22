@@ -6,7 +6,7 @@
 //!
 //! The sanitizer tests build a complete benchmark-result fixture with nested
 //! `serde_json::json!` literals; expansion depth needs more than the default.
-#![recursion_limit = "256"]
+//! The crate-level limit lives in `src/lib.rs`.
 
 pub mod acquisition;
 pub mod benchmark;
