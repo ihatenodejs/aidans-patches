@@ -220,6 +220,15 @@ fn validated_relative_destination(workload_id: &str, value: &str) -> Result<Path
             value
         ));
     }
+    if value
+        .split(['/', '\\'])
+        .any(|part| part == "." || part == "..")
+    {
+        return Err(format!(
+            "workload '{workload_id}' stagedFiles path '{}' contains a disallowed component",
+            value
+        ));
+    }
     let path = Path::new(value);
     if path.is_absolute() {
         return Err(format!(
@@ -244,9 +253,9 @@ fn validated_relative_destination(workload_id: &str, value: &str) -> Result<Path
             | Component::RootDir
             | Component::Prefix(_) => {
                 return Err(format!(
-                    "workload '{workload_id}' stagedFiles path '{}' contains a disallowed component",
-                    value
-                ))
+                "workload '{workload_id}' stagedFiles path '{}' contains a disallowed component",
+                value
+            ))
             }
         }
     }
@@ -324,7 +333,10 @@ mod tests {
         let error = validate_staged_files(
             "w",
             &inputs,
-            &[staged("rawFont", "a/font.ttf"), staged("rawFont", "a/font.ttf")],
+            &[
+                staged("rawFont", "a/font.ttf"),
+                staged("rawFont", "a/font.ttf"),
+            ],
         )
         .expect_err("duplicate destination must be rejected");
         assert!(error.contains("duplicate destination"));
@@ -348,9 +360,8 @@ mod tests {
 
         let workspace = temp.path().join("workspace");
         fs::create_dir_all(&workspace).expect("workspace");
-        let staged_inputs =
-            stage_declared_inputs(temp.path(), &inputs, &staged_files, &workspace)
-                .expect("stage input");
+        let staged_inputs = stage_declared_inputs(temp.path(), &inputs, &staged_files, &workspace)
+            .expect("stage input");
         assert_eq!(
             fs::read(workspace.join("cache/font.ttf")).expect("staged bytes"),
             bytes
@@ -359,7 +370,11 @@ mod tests {
         {
             let source_meta = fs::metadata(&source).expect("source meta");
             let staged_meta = fs::metadata(workspace.join("cache/font.ttf")).expect("staged meta");
-            assert_ne!(source_meta.ino(), staged_meta.ino(), "must not be a hard link");
+            assert_ne!(
+                source_meta.ino(),
+                staged_meta.ino(),
+                "must not be a hard link"
+            );
             assert_eq!(staged_meta.nlink(), 1);
         }
 
@@ -371,7 +386,9 @@ mod tests {
             .expect("restage input");
         fs::write(&source, b"mutated source").expect("mutate source");
         let errors = verify_staged_inputs(&staged_inputs);
-        assert!(errors.iter().any(|error| error.contains("source was modified")));
+        assert!(errors
+            .iter()
+            .any(|error| error.contains("source was modified")));
     }
 
     #[test]
@@ -388,7 +405,10 @@ mod tests {
             &workspace,
         )
         .expect_err("hash mismatch must abort staging");
-        assert!(error.contains("sha256 mismatch"), "unexpected error: {error}");
+        assert!(
+            error.contains("sha256 mismatch"),
+            "unexpected error: {error}"
+        );
         assert!(!workspace.join("font.ttf").exists());
     }
 }

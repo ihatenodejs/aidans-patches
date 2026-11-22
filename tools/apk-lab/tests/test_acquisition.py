@@ -418,6 +418,8 @@ def test_acquire_with_apkmirror_success(monkeypatch, tmp_path, bundle):
 
 def test_acquire_artifact_fallback_to_apkmirror(monkeypatch, tmp_path):
     out_dir = tmp_path / "out"
+    monkeypatch.delenv("APKEEP_ACCOUNTS", raising=False)
+    monkeypatch.setenv("APKEEP_ACCOUNTS_FILE", str(tmp_path / "absent-accounts.json"))
 
     def mock_goopdl(*args, **kwargs):
         raise AcquisitionError("goopdl failed", ExitCode.INFRASTRUCTURE_FAILURE)

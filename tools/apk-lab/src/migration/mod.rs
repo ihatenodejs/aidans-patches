@@ -12,6 +12,7 @@ pub mod benchmark;
 pub mod icons;
 pub mod inventory;
 pub mod oracle;
+pub mod play;
 pub mod prerequisites;
 
 use std::io::Write;
@@ -61,6 +62,7 @@ pub fn run(args: &[String]) -> Result<(), String> {
         "inventory" => inventory::run(rest),
         "prerequisites" => prerequisites::run(rest),
         "preflight" => preflight::run(rest),
+        "play" => play::run(rest),
         "capture" | "verify" => oracle::run(&args[0..]),
         "bench" => benchmark::run(rest),
         "-h" | "--help" | "help" => {
@@ -84,6 +86,7 @@ Commands:
   inventory      Validate the frozen command/test/consumer contract inventory
   prerequisites  Inventory or check migration prerequisites
   preflight      Prove asset-pipeline compatibility (icons)
+  play           Probe native Play delivery (development-only)
   capture        Record the independent Python oracle (offline profile)
   verify         Compare two oracle capture documents
   bench          Run process-level baseline benchmarks

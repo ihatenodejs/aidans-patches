@@ -4095,17 +4095,6 @@ fn source_git_paths() -> Vec<&'static str> {
     paths
 }
 
-/// True when an archived repository-relative file is one of the ancillary
-/// generator/config/lock inputs.
-fn is_ancillary_source_path(relative: &str) -> bool {
-    ANCILLARY_SOURCE_PATHS.iter().any(|path| {
-        relative == *path
-            || relative
-                .strip_prefix(*path)
-                .is_some_and(|rest| rest.starts_with('/'))
-    })
-}
-
 fn collect_source(repo_root: &Path) -> (SourceSnapshot, Vec<String>) {
     let mut reasons = Vec::new();
     let revision = git_output(repo_root, &["rev-parse", "HEAD"])
@@ -5492,7 +5481,11 @@ mod tests {
     fn archive_entry_collection_tolerates_absent_historical_paths() {
         let directory = test_directory("archive-absent");
         fs::create_dir_all(directory.join(".github/scripts")).unwrap();
-        fs::write(directory.join(".github/scripts/present.py"), b"print('x')\n").unwrap();
+        fs::write(
+            directory.join(".github/scripts/present.py"),
+            b"print('x')\n",
+        )
+        .unwrap();
         fs::write(directory.join("patches-list.json"), b"{}").unwrap();
 
         let mut entries = BTreeMap::new();
@@ -5511,9 +5504,8 @@ mod tests {
         assert!(entries.contains_key(".github/scripts/present.py"));
         assert!(entries.contains_key("patches-list.json"));
         assert!(!entries.contains_key(".github/scripts/generate_patches_readme.py"));
-        assert!(!entries.contains_key(
-            "extensions/adobescan-pdf-native/tests/fixtures/generate_fixtures.py"
-        ));
+        assert!(!entries
+            .contains_key("extensions/adobescan-pdf-native/tests/fixtures/generate_fixtures.py"));
         let _ = fs::remove_dir_all(&directory);
     }
 
