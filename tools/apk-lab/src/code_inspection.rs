@@ -410,7 +410,7 @@ pub fn locate_class(
     let mut matches = Vec::new();
     let mut searched = Vec::new();
 
-    for materialized in materialized_apks {
+    for (split_index, materialized) in materialized_apks.iter().enumerate() {
         let file = File::open(&materialized.path).map_err(|error| {
             CodeInspectionError::Infrastructure(format!(
                 "open {}: {error}",
@@ -441,12 +441,15 @@ pub fn locate_class(
             }
         }
 
-        for dex_name in dex_names {
+        for (dex_index, dex_name) in dex_names.iter().enumerate() {
             searched.push(format!("{}:{}", materialized.split_name, dex_name));
+            // Split names come from untrusted manifest metadata, so they never
+            // become path components. Positional names are collision-free
+            // across every split and DEX in this call.
             let extracted = temp
                 .path()
-                .join(format!("{}_{}", materialized.split_name, dex_name));
-            extract_dex(&mut archive, &dex_name, &extracted).map_err(|error| {
+                .join(format!("split-{split_index}-dex-{dex_index}.dex"));
+            extract_dex(&mut archive, dex_name, &extracted).map_err(|error| {
                 CodeInspectionError::Infrastructure(format!("extract {dex_name}: {error}"))
             })?;
             let args = vec![extracted.to_string_lossy().into_owned()];
@@ -521,7 +524,7 @@ pub fn extract_smali_class(
     let temp = TempDir::new().map_err(|error| {
         CodeInspectionError::Infrastructure(format!("create temp dir: {error}"))
     })?;
-    let extracted = temp.path().join(&location.dex_name);
+    let extracted = temp.path().join("class.dex");
 
     let file = File::open(&location.apk_path).map_err(|error| {
         CodeInspectionError::Infrastructure(format!(
@@ -1643,6 +1646,113 @@ mod tests {
             locate_class(&materialized, "com.example.Target", true, &executor)
                 .expect("tolerate malformed output")
                 .is_none()
+        );
+    }
+
+    #[test]
+    fn locate_class_never_uses_split_name_as_a_path_component() {
+        let sandbox = TempDir::new().expect("sandbox");
+        let escape_dir = sandbox.path().join("escape");
+        fs::create_dir(&escape_dir).expect("escape directory");
+        let sentinel = escape_dir.join("owned_classes.dex");
+        fs::write(&sentinel, b"sentinel bytes").expect("sentinel");
+
+        let apk = sandbox.path().join("base.apk");
+        write_zip(&apk, &[("classes.dex", b"dex1")]);
+        let evil_split = format!("{}/owned", escape_dir.display());
+        let materialized = vec![MaterializedApk {
+            path: apk,
+            container_member: None,
+            split_name: evil_split.clone(),
+            is_base: true,
+        }];
+        let sentinel_for_executor = sentinel.clone();
+        let escape_for_executor = escape_dir.clone();
+        let executor = FakeExecutor::new(&[ToolKind::Dexdump], move |_tool, args| {
+            let extracted = PathBuf::from(&args[0]);
+            assert_eq!(
+                extracted.file_name().and_then(|name| name.to_str()),
+                Some("split-0-dex-0.dex")
+            );
+            assert!(!extracted.starts_with(&escape_for_executor));
+            assert_eq!(
+                fs::read(&sentinel_for_executor).expect("sentinel readable"),
+                b"sentinel bytes"
+            );
+            ok("Class descriptor  : 'Lcom/example/Target;'\n")
+        });
+
+        let location = locate_class(&materialized, "com.example.Target", false, &executor)
+            .expect("locate")
+            .expect("present");
+        assert_eq!(location.split, evil_split);
+        assert_eq!(
+            fs::read(&sentinel).expect("sentinel intact"),
+            b"sentinel bytes"
+        );
+        let entries: Vec<String> = fs::read_dir(&escape_dir)
+            .expect("escape listing")
+            .map(|entry| entry.expect("entry").file_name().to_string_lossy().into())
+            .collect();
+        assert_eq!(entries, vec!["owned_classes.dex".to_string()]);
+    }
+
+    #[test]
+    fn locate_class_extraction_names_are_unique_across_splits_and_dexes() {
+        let temp = TempDir::new().expect("temp");
+        let first = temp.path().join("config-1.apk");
+        write_zip(&first, &[("classes.dex", b"one"), ("classes2.dex", b"two")]);
+        let second = temp.path().join("config-2.apk");
+        write_zip(&second, &[("classes.dex", b"three")]);
+        let materialized = vec![
+            MaterializedApk {
+                path: first,
+                container_member: None,
+                split_name: "config".to_string(),
+                is_base: true,
+            },
+            MaterializedApk {
+                path: second,
+                container_member: None,
+                split_name: "config".to_string(),
+                is_base: false,
+            },
+        ];
+        let seen = std::rc::Rc::new(RefCell::new(Vec::new()));
+        let seen_for_executor = std::rc::Rc::clone(&seen);
+        let executor = FakeExecutor::new(&[ToolKind::Dexdump], move |_tool, args| {
+            seen_for_executor
+                .borrow_mut()
+                .push(fs::read(&args[0]).expect("read extracted dex"));
+            ok("Class descriptor  : 'Lcom/example/Target;'\n")
+        });
+
+        let error = locate_class(&materialized, "com.example.Target", false, &executor)
+            .expect_err("duplicate class");
+        assert!(matches!(error, CodeInspectionError::DuplicateClass { .. }));
+        assert_eq!(
+            *seen.borrow(),
+            vec![b"one".to_vec(), b"two".to_vec(), b"three".to_vec()]
+        );
+
+        let paths: Vec<String> = executor
+            .calls()
+            .into_iter()
+            .map(|(_, args)| {
+                PathBuf::from(&args[0])
+                    .file_name()
+                    .expect("filename")
+                    .to_string_lossy()
+                    .into_owned()
+            })
+            .collect();
+        assert_eq!(
+            paths,
+            vec![
+                "split-0-dex-0.dex".to_string(),
+                "split-0-dex-1.dex".to_string(),
+                "split-1-dex-0.dex".to_string(),
+            ]
         );
     }
 
