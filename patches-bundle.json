@@ -1,7 +1,7 @@
 {
-  "created_at": "2026-11-23T01:45:56",
-  "description": "## [1.10.0-dev.5](https://github.com/ihatenodejs/aidans-patches/compare/v1.10.0-dev.4...v1.10.0-dev.5) (2026-11-23)\n\n### 🚀 Updated App Support\n\n* **365pay:** add support for 10.2606.1 ([136aab6](https://github.com/ihatenodejs/aidans-patches/commit/136aab641fceac46d64e80197712a4cd068166fe))",
-  "download_url": "https://github.com/ihatenodejs/aidans-patches/releases/download/v1.10.0-dev.5/patches-1.10.0-dev.5.mpp",
+  "created_at": "2026-11-23T02:11:09",
+  "description": "## [1.10.0-dev.6](https://github.com/ihatenodejs/aidans-patches/compare/v1.10.0-dev.5...v1.10.0-dev.6) (2026-11-23)\n\n### 🚀 Updated App Support\n\n* **navigate360-student:** update patches for 26.23.8 ([073bcc3](https://github.com/ihatenodejs/aidans-patches/commit/073bcc39bb715b33f38375ca4d81d789671f17d6))",
+  "download_url": "https://github.com/ihatenodejs/aidans-patches/releases/download/v1.10.0-dev.6/patches-1.10.0-dev.6.mpp",
   "signature_download_url": "",
-  "version": "1.10.0-dev.5"
+  "version": "1.10.0-dev.6"
 }

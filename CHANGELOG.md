@@ -1,3 +1,9 @@
+## [1.10.0-dev.6](https://github.com/ihatenodejs/aidans-patches/compare/v1.10.0-dev.5...v1.10.0-dev.6) (2026-11-23)
+
+### 🚀 Updated App Support
+
+* **navigate360-student:** update patches for 26.23.8 ([073bcc3](https://github.com/ihatenodejs/aidans-patches/commit/073bcc39bb715b33f38375ca4d81d789671f17d6))
+
 ## [1.10.0-dev.5](https://github.com/ihatenodejs/aidans-patches/compare/v1.10.0-dev.4...v1.10.0-dev.5) (2026-11-23)
 
 ### 🚀 Updated App Support
