@@ -62,6 +62,7 @@ public class AdBlockSettingsActivity extends Activity {
         super.onCreate(savedInstanceState);
         mStore = AdBlockStore.get(this);
         mRepo = RuleRepository.get(this);
+        AdBlockAutoUpdateScheduler.syncFromPreference(this);
 
         mRepo.ensureInitialized(() -> runOnUiThread(() -> {
             mRuleMetadataReady = true;
@@ -397,7 +398,13 @@ public class AdBlockSettingsActivity extends Activity {
         card.addView(NhlAdBlockUi.createDivider(this, false));
 
         addToggleRow(card, "Automatic Updates", "Periodically refresh filter list subscriptions in the background", mStore.isAutoUpdate(), (view, isChecked) -> {
-            mStore.setAutoUpdate(isChecked);
+            boolean scheduled = AdBlockAutoUpdateScheduler.setEnabled(this, isChecked);
+            if (isChecked && !scheduled) {
+                Toast.makeText(
+                        this,
+                        "Automatic updates are enabled, but the system did not schedule the background job.",
+                        Toast.LENGTH_LONG).show();
+            }
         });
 
         card.addView(NhlAdBlockUi.createDivider(this, false));
@@ -494,20 +501,26 @@ public class AdBlockSettingsActivity extends Activity {
         LinearLayout actionsCard = NhlAdBlockUi.createCard(this, false);
         Button updateBtn = NhlAdBlockUi.createPrimaryButton(
                 this,
-                mRepo.isCompiling() ? "Updating / Compiling..." : "Update All Subscriptions Now",
+                (mRepo.isCompiling() || mRepo.isUpdatingAll()) ? "Updating / Compiling..." : "Update All Subscriptions Now",
                 v -> {
                     v.setEnabled(false);
                     ((Button) v).setText("Updating...");
-                    mRepo.updateAllSubscriptionsAsync(() -> runOnUiThread(() -> {
+                    mRepo.updateAllSubscriptionsAsync(success -> runOnUiThread(() -> {
                         if (!isFinishing() && !isDestroyed()) {
                             mRuleMetadataReady = true;
+                            if (!success) {
+                                Toast.makeText(
+                                        this,
+                                        "Some subscriptions could not be updated. Previous lists and metadata were kept.",
+                                        Toast.LENGTH_LONG).show();
+                            }
                             refreshRuleCountViews();
                             renderScreen("rules");
                         }
                     }));
                 }
         );
-        updateBtn.setEnabled(!mRepo.isCompiling());
+        updateBtn.setEnabled(!mRepo.isCompiling() && !mRepo.isUpdatingAll());
         actionsCard.addView(updateBtn);
         content.addView(actionsCard);
         content.addView(NhlAdBlockUi.createSectionSpacer(this));

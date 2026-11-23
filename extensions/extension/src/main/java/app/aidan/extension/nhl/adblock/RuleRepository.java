@@ -7,16 +7,11 @@ import android.util.Log;
 import org.json.JSONArray;
 import org.json.JSONObject;
 
-import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.io.IOException;
-import java.net.HttpURLConnection;
-import java.net.InetAddress;
-import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -29,9 +24,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.zip.GZIPInputStream;
-
-import javax.net.ssl.HttpsURLConnection;
 
 /**
  * Manages filter list subscriptions, bundled snapshots, custom rules,
@@ -58,6 +50,7 @@ public final class RuleRepository {
     private final ExecutorService mExecutor;
     private final File mListsDir;
     private final File mCacheFile;
+    private final SubscriptionDownloader mDownloader = new SubscriptionDownloader();
 
     private final ScheduledExecutorService mCleanupExecutor =
             Executors.newSingleThreadScheduledExecutor(r -> {
@@ -68,6 +61,8 @@ public final class RuleRepository {
     private final AtomicLong mActiveEngineHandle = new AtomicLong(0L);
     private final AtomicLong mGeneration = new AtomicLong(1L);
     private final AtomicBoolean mIsCompiling = new AtomicBoolean(false);
+    private final AtomicBoolean mUpdateAllRunning = new AtomicBoolean(false);
+    private volatile UpdateCancellation mActiveUpdate;
     private final Set<String> mActiveDownloads = ConcurrentHashMap.newKeySet();
 
     private final List<SubscriptionInfo> mSubscriptions = Collections.synchronizedList(new ArrayList<>());
@@ -292,17 +287,123 @@ public final class RuleRepository {
         recompileAsync(null);
     }
 
+    public interface UpdateCallback {
+        void onComplete(boolean success);
+    }
+
+    interface SubscriptionFetcher {
+        boolean fetch(SubscriptionInfo subscription, UpdateCancellation cancellation);
+    }
+
+    interface EngineCompiler {
+        boolean compile(UpdateCancellation cancellation);
+    }
+
+    public boolean isUpdatingAll() {
+        return mUpdateAllRunning.get();
+    }
+
+    public void cancelUpdateAll() {
+        UpdateCancellation active = mActiveUpdate;
+        if (active != null) {
+            active.cancel();
+        }
+    }
+
     public void updateAllSubscriptionsAsync(Runnable onComplete) {
-        mExecutor.execute(() -> {
-            List<SubscriptionInfo> list = getSubscriptions();
-            for (SubscriptionInfo s : list) {
-                if (s.enabled && !"nhl-default".equals(s.id)) {
-                    fetchSubscription(s);
-                }
-            }
-            compileInternal();
+        updateAllSubscriptionsAsync(success -> {
             if (onComplete != null) onComplete.run();
         });
+    }
+
+    /**
+     * Refreshes every enabled external subscription and recompiles once. The callback is
+     * invoked with {@code false} when another refresh is already in flight, the refresh is
+     * cancelled, any enabled subscription fails to download, or compilation fails. Previous
+     * list files and metadata are kept on failure.
+     */
+    public UpdateCancellation updateAllSubscriptionsAsync(UpdateCallback onComplete) {
+        return updateAllSubscriptionsAsync(new UpdateCancellation(), onComplete);
+    }
+
+    public UpdateCancellation updateAllSubscriptionsAsync(
+            UpdateCancellation cancellation,
+            UpdateCallback onComplete) {
+        if (!mUpdateAllRunning.compareAndSet(false, true)) {
+            if (onComplete != null) onComplete.onComplete(false);
+            return cancellation;
+        }
+        mActiveUpdate = cancellation;
+        try {
+            mExecutor.execute(() -> {
+                boolean success;
+                try {
+                    success = refreshAll(
+                            getSubscriptions(),
+                            this::fetchSubscription,
+                            this::compileInternal,
+                            cancellation);
+                } catch (RuntimeException e) {
+                    success = false;
+                    Log.e(TAG, "Subscription refresh failed unexpectedly", e);
+                } finally {
+                    if (mActiveUpdate == cancellation) {
+                        mActiveUpdate = null;
+                    }
+                    mUpdateAllRunning.set(false);
+                }
+                if (onComplete != null) onComplete.onComplete(success);
+            });
+        } catch (RuntimeException e) {
+            if (mActiveUpdate == cancellation) mActiveUpdate = null;
+            mUpdateAllRunning.set(false);
+            Log.e(TAG, "Unable to queue subscription refresh", e);
+            if (onComplete != null) onComplete.onComplete(false);
+        }
+        return cancellation;
+    }
+
+    static boolean refreshAll(
+            List<SubscriptionInfo> subscriptions,
+            SubscriptionFetcher fetcher,
+            EngineCompiler compiler,
+            UpdateCancellation cancellation) {
+        boolean success = true;
+        for (SubscriptionInfo subscription : subscriptions) {
+            if (!subscription.enabled || "nhl-default".equals(subscription.id)) {
+                continue;
+            }
+            if (isCancelled(cancellation)) {
+                return false;
+            }
+            if (!fetcher.fetch(subscription, cancellation)) {
+                success = false;
+            }
+            if (isCancelled(cancellation)) {
+                return false;
+            }
+        }
+        if (isCancelled(cancellation)) {
+            return false;
+        }
+        if (!compiler.compile(cancellation)) {
+            success = false;
+        }
+        return success && !isCancelled(cancellation);
+    }
+
+    private static boolean isCancelled(UpdateCancellation cancellation) {
+        return cancellation != null && cancellation.isCancelled();
+    }
+
+    private static boolean commit(
+            UpdateCancellation cancellation,
+            UpdateCancellation.CommitAction action) throws IOException {
+        if (cancellation == null) {
+            action.run();
+            return true;
+        }
+        return cancellation.commit(action);
     }
 
     public void updateSubscriptionAsync(SubscriptionInfo info) {
@@ -312,7 +413,7 @@ public final class RuleRepository {
     public void updateSubscriptionAsync(SubscriptionInfo info, Runnable onComplete) {
         mExecutor.execute(() -> {
             try {
-                fetchSubscription(info);
+                fetchSubscription(info, null);
                 compileInternal();
             } finally {
                 if (onComplete != null) onComplete.run();
@@ -391,10 +492,17 @@ public final class RuleRepository {
         }
     }
 
-    private void compileInternal() {
+    private boolean compileInternal() {
+        return compileInternal(null);
+    }
+
+    private boolean compileInternal(UpdateCancellation cancellation) {
+        if (isCancelled(cancellation)) {
+            return false;
+        }
         if (!NativeEngine.isAvailable()) {
             Log.w(TAG, "Native engine not available; skipping compilation");
-            return;
+            return false;
         }
 
         mIsCompiling.set(true);
@@ -426,7 +534,10 @@ public final class RuleRepository {
 
             if (totalBytes > MAX_TOTAL_BYTES) {
                 Log.e(TAG, "Total filter lists size exceeds 24 MiB limit: " + totalBytes);
-                return;
+                return false;
+            }
+            if (isCancelled(cancellation)) {
+                return false;
             }
 
             long newHandle = NativeEngine.compile(
@@ -434,111 +545,59 @@ public final class RuleRepository {
                     mCacheFile.getAbsolutePath()
             );
 
-            if (newHandle != 0L) {
-                long oldHandle = mActiveEngineHandle.getAndSet(newHandle);
-                mGeneration.incrementAndGet();
-                if (oldHandle != 0L) {
-                    mCleanupExecutor.schedule(() -> {
-                        NativeEngine.release(oldHandle);
-                    }, 5000L, TimeUnit.MILLISECONDS);
-                }
-                Log.i(TAG, "Successfully compiled adblock engine generation " + mGeneration.get());
+            if (newHandle == 0L) {
+                return false;
             }
+
+            boolean committed;
+            try {
+                committed = commit(cancellation, () -> {
+                    long oldHandle = mActiveEngineHandle.getAndSet(newHandle);
+                    mGeneration.incrementAndGet();
+                    if (oldHandle != 0L) {
+                        mCleanupExecutor.schedule(() -> {
+                            NativeEngine.release(oldHandle);
+                        }, 5000L, TimeUnit.MILLISECONDS);
+                    }
+                    Log.i(TAG, "Successfully compiled adblock engine generation " + mGeneration.get());
+                });
+            } catch (IOException e) {
+                NativeEngine.release(newHandle);
+                Log.e(TAG, "Engine installation failed", e);
+                return false;
+            }
+            if (!committed) {
+                NativeEngine.release(newHandle);
+                return false;
+            }
+            return true;
         } catch (Exception e) {
             Log.e(TAG, "Engine compilation failed", e);
+            return false;
         } finally {
             mIsCompiling.set(false);
         }
     }
 
-    private void fetchSubscription(SubscriptionInfo s) {
-        if ("nhl-default".equals(s.id)) return;
+    private boolean fetchSubscription(SubscriptionInfo s, UpdateCancellation cancellation) {
+        if ("nhl-default".equals(s.id)) return true;
+        if (isCancelled(cancellation)) return false;
         mActiveDownloads.add(s.id);
         try {
-            URL currentUrl = new URL(s.url);
-            int redirects = 0;
-            HttpsURLConnection conn = null;
-
-            while (redirects < 3) {
-                if (!currentUrl.getProtocol().equalsIgnoreCase("https")) {
-                    throw new IllegalArgumentException("Redirect to non-HTTPS URL disallowed: " + currentUrl);
-                }
-
-                // DNS resolution check: reject non-public IPs
-                InetAddress addr = InetAddress.getByName(currentUrl.getHost());
-                if (addr.isLoopbackAddress() || addr.isSiteLocalAddress() || addr.isLinkLocalAddress() || addr.isAnyLocalAddress()) {
-                    throw new SecurityException("Host resolves to private or loopback IP: " + addr);
-                }
-
-                conn = (HttpsURLConnection) currentUrl.openConnection();
-                conn.setInstanceFollowRedirects(false);
-                conn.setConnectTimeout(10_000);
-                conn.setReadTimeout(30_000);
-                conn.setRequestProperty("User-Agent", "NHL-AdBlock/1.0");
-                conn.setRequestProperty("Accept-Encoding", "gzip");
-                if (s.lastUpdated > 0L && !s.etag.isEmpty()) {
-                    conn.setRequestProperty("If-None-Match", s.etag);
-                }
-
-                int code = conn.getResponseCode();
-                if (code == HttpURLConnection.HTTP_NOT_MODIFIED) {
-                    s.lastUpdated = System.currentTimeMillis();
-                    s.lastError = "";
-                    return;
-                }
-                if (code == HttpURLConnection.HTTP_MOVED_PERM || code == HttpURLConnection.HTTP_MOVED_TEMP || code == 307 || code == 308) {
-                    String loc = conn.getHeaderField("Location");
-                    if (loc == null) break;
-                    currentUrl = new URL(currentUrl, loc);
-                    redirects++;
-                    continue;
-                }
-                if (code == HttpURLConnection.HTTP_OK) {
-                    break;
-                }
-                throw new IllegalStateException("HTTP error " + code);
-            }
-
-            if (conn == null) throw new IllegalStateException("Connection failed");
-
-            String encoding = conn.getContentEncoding();
-            InputStream is = conn.getInputStream();
-            if ("gzip".equalsIgnoreCase(encoding)) {
-                is = new GZIPInputStream(is);
-            }
-
             File targetFile = new File(mListsDir, s.id + ".txt");
-            File tmpFile = new File(mListsDir, s.id + ".txt.tmp");
-
-            long written = 0L;
-            try (FileOutputStream fos = new FileOutputStream(tmpFile)) {
-                byte[] buf = new byte[8192];
-                int read;
-                while ((read = is.read(buf)) != -1) {
-                    written += read;
-                    if (written > MAX_LIST_BYTES) {
-                        tmpFile.delete();
-                        throw new IllegalStateException("Subscription exceeds 8 MiB limit");
-                    }
-                    fos.write(buf, 0, read);
-                }
-            } finally {
-                is.close();
+            mDownloader.download(s, targetFile, cancellation);
+            if (isCancelled(cancellation)) {
+                return false;
             }
-
-            // Atomic rename
-            tmpFile.renameTo(targetFile);
-
-            s.etag = conn.getHeaderField("ETag") != null ? conn.getHeaderField("ETag") : "";
-            s.lastModified = conn.getHeaderField("Last-Modified") != null ? conn.getHeaderField("Last-Modified") : "";
-            s.lastUpdated = System.currentTimeMillis();
-            s.lastError = "";
-
-            // Parse diagnostics
             parseDiagnosticsForFile(targetFile, s);
+            return true;
         } catch (Exception e) {
+            if (isCancelled(cancellation)) {
+                return false;
+            }
             s.lastError = e.getMessage() != null ? e.getMessage() : e.toString();
             Log.w(TAG, "Failed to update subscription " + s.url, e);
+            return false;
         } finally {
             mActiveDownloads.remove(s.id);
             saveSubscriptions();
