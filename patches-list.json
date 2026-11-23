@@ -147,6 +147,13 @@
           "isExperimental": false,
           "minSdk": 27,
           "description": null
+        },
+        {
+          "version": "10.2606.1",
+          "versionCodes": null,
+          "isExperimental": false,
+          "minSdk": 27,
+          "description": null
         }
       ],
       "patchNames": [
@@ -156,9 +163,10 @@
         "Unlock Developer Tools"
       ],
       "supportedVersions": [
-        "10.2605.0"
+        "10.2605.0",
+        "10.2606.1"
       ],
-      "latestSupportedVersion": "10.2605.0"
+      "latestSupportedVersion": "10.2606.1"
     },
     {
       "packageName": "com.creditkarma.mobile",
@@ -1120,6 +1128,13 @@
               "isExperimental": false,
               "minSdk": 27,
               "description": null
+            },
+            {
+              "version": "10.2606.1",
+              "versionCodes": null,
+              "isExperimental": false,
+              "minSdk": 27,
+              "description": null
             }
           ]
         }
@@ -1847,6 +1862,13 @@
           "targets": [
             {
               "version": "10.2605.0",
+              "versionCodes": null,
+              "isExperimental": false,
+              "minSdk": 27,
+              "description": null
+            },
+            {
+              "version": "10.2606.1",
               "versionCodes": null,
               "isExperimental": false,
               "minSdk": 27,
@@ -2904,6 +2926,13 @@
               "isExperimental": false,
               "minSdk": 27,
               "description": null
+            },
+            {
+              "version": "10.2606.1",
+              "versionCodes": null,
+              "isExperimental": false,
+              "minSdk": 27,
+              "description": null
             }
           ]
         }
@@ -3757,7 +3786,7 @@
     },
     {
       "name": "Unlock Developer Tools",
-      "description": "Exposes the internal developer and diagnostics screen (Environment Settings) on the Welcome Screen, and allows booting directly with Debug Messages or Demo Mode enabled.",
+      "description": "Exposes the internal developer and diagnostics screen (Environment Settings) with a single Welcome Screen logo tap, and allows booting directly with Debug Messages or Demo Mode enabled.",
       "default": false,
       "category": "Developer",
       "dependencies": [],
@@ -3778,20 +3807,18 @@
               "isExperimental": false,
               "minSdk": 27,
               "description": null
+            },
+            {
+              "version": "10.2606.1",
+              "versionCodes": null,
+              "isExperimental": false,
+              "minSdk": 27,
+              "description": null
             }
           ]
         }
       ],
       "options": [
-        {
-          "key": "unlockDeveloperSettings",
-          "title": "Unlock Developer Settings",
-          "description": "Reduces the hidden Welcome Screen logo tap gesture from five taps to a single tap to open the Environment Settings menu.",
-          "required": false,
-          "type": "kotlin.Boolean",
-          "default": true,
-          "values": null
-        },
         {
           "key": "startWithDebugMessages",
           "title": "Start with Debug Messages",
