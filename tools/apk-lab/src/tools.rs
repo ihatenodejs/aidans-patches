@@ -709,8 +709,33 @@ impl ToolManager {
         let spec_process = ProcessSpec::new(program)
             .args(args[1..].iter().cloned())
             .timeout(PROBE_TIMEOUT);
-        let output = process::run(&spec_process).map_err(|error| {
-            ToolError::Probe(format!("Version probe failed for '{name}': {error}"))
+        let mut output = None;
+        for attempt in 0..3 {
+            match process::run(&spec_process) {
+                Ok(result) => {
+                    output = Some(result);
+                    break;
+                }
+                Err(Error::Io {
+                    kind: std::io::ErrorKind::ExecutableFileBusy,
+                    ..
+                }) if attempt < 2 => {
+                    // Linux can briefly report ETXTBSY while another worker
+                    // closes a just-written staged file. Retry the probe rather
+                    // than turning a transient cache install into a failure.
+                    std::thread::sleep(Duration::from_millis(25));
+                }
+                Err(error) => {
+                    return Err(ToolError::Probe(format!(
+                        "Version probe failed for '{name}': {error}"
+                    )))
+                }
+            }
+        }
+        let output = output.ok_or_else(|| {
+            ToolError::Probe(format!(
+                "Version probe failed for '{name}': executable remained busy"
+            ))
         })?;
         let combined = format!(
             "{}\n{}",
