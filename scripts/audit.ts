@@ -411,7 +411,7 @@ async function runFormat(
     });
   }
 
-  // Rust host crates.
+  // 3. Rust host crates (cargo fmt)
   if (shouldRunDomain(domain, 'rust')) {
     for (const project of RUST_PROJECTS) {
       process.stdout.write(
@@ -439,7 +439,7 @@ async function runFormat(
     }
   }
 
-  // 6. C++ (clang-format)
+  // 4. C++ (clang-format)
   if (shouldRunDomain(domain, 'native')) {
     process.stdout.write(
       `  ${sym.arrow} Formatting C++ Adobe Scan Native sources (clang-format)... `,
@@ -642,7 +642,7 @@ async function runLint(
     });
   }
 
-  // Rust host crates.
+  // 4. Rust host crates (cargo clippy)
   if (shouldRunDomain(domain, 'rust')) {
     for (const project of RUST_PROJECTS) {
       process.stdout.write(
@@ -680,7 +680,7 @@ async function runLint(
     }
   }
 
-  // 6. C++ (CMake host build with -Wall -Wextra -Werror)
+  // 5. C++ (CMake host build with -Wall -Wextra -Werror)
   if (shouldRunDomain(domain, 'native')) {
     process.stdout.write(
       `  ${sym.arrow} Linting C++ Adobe Scan Native engine (-Wall -Wextra)... `,
@@ -827,7 +827,7 @@ async function runTypecheck(domain: AuditDomain = 'all'): Promise<PhaseResult> {
     });
   }
 
-  // Rust host crates.
+  // 4. Rust host crates (cargo check)
   if (shouldRunDomain(domain, 'rust')) {
     for (const project of RUST_PROJECTS) {
       process.stdout.write(
@@ -855,7 +855,7 @@ async function runTypecheck(domain: AuditDomain = 'all'): Promise<PhaseResult> {
     }
   }
 
-  // 7. C++ (CMake host target compilation)
+  // 5. C++ (CMake host target compilation)
   if (shouldRunDomain(domain, 'native')) {
     process.stdout.write(
       `  ${sym.arrow} Compiling C++ Adobe Scan Native host targets (CMake)... `,
@@ -951,7 +951,7 @@ async function runTest(domain: AuditDomain = 'all'): Promise<PhaseResult> {
     });
   }
 
-  // 3. Astro Site test suite (Bun test)
+  // 2. Astro Site test suite (Bun test)
   if (shouldRunDomain(domain, 'web')) {
     process.stdout.write(`  ${sym.arrow} Running Site tests (Bun test)... `);
     const sRes = await execCommand('bun', ['run', '--cwd', 'site', 'test']);
@@ -976,7 +976,7 @@ async function runTest(domain: AuditDomain = 'all'): Promise<PhaseResult> {
     });
   }
 
-  // Rust host crates.
+  // 3. Rust host crates (cargo test)
   if (shouldRunDomain(domain, 'rust')) {
     for (const project of RUST_PROJECTS) {
       process.stdout.write(
@@ -1008,7 +1008,7 @@ async function runTest(domain: AuditDomain = 'all'): Promise<PhaseResult> {
     }
   }
 
-  // 6. Adobe Scan Native PDF Engine test suite (ctest)
+  // 4. Adobe Scan Native PDF Engine test suite (ctest)
   if (shouldRunDomain(domain, 'native')) {
     process.stdout.write(
       `  ${sym.arrow} Running Adobe Scan Native PDF Engine tests (ctest)... `,
@@ -1085,7 +1085,7 @@ async function runTest(domain: AuditDomain = 'all'): Promise<PhaseResult> {
     });
   }
 
-  // 7. Morphe Patch & Extension Unit Tests (Gradle)
+  // 5. Morphe Patch & Extension Unit Tests (Gradle)
   if (shouldRunDomain(domain, 'android')) {
     process.stdout.write(
       `  ${sym.arrow} Running patch and extension unit tests (Gradle)... `,
@@ -1110,7 +1110,7 @@ async function runTest(domain: AuditDomain = 'all'): Promise<PhaseResult> {
     });
   }
 
-  // 8. Target Application Icons Check
+  // 6. Target Application Icons Check
   if (shouldRunDomain(domain, 'web')) {
     process.stdout.write(
       `  ${sym.arrow} Verifying application icon assets... `,
@@ -1135,7 +1135,7 @@ async function runTest(domain: AuditDomain = 'all'): Promise<PhaseResult> {
     });
   }
 
-  // 9. Scripts & Dependencies test suite (bun test)
+  // 7. Scripts & Dependencies test suite (bun test)
   if (shouldRunDomain(domain, 'web')) {
     process.stdout.write(
       `  ${sym.arrow} Running Scripts & Dependencies tests (bun test)... `,
@@ -1172,7 +1172,7 @@ async function runTest(domain: AuditDomain = 'all'): Promise<PhaseResult> {
     });
   }
 
-  // 10. Documentation & Link Integrity (bun test)
+  // 8. Documentation & Link Integrity (bun test)
   if (shouldRunDomain(domain, 'web')) {
     process.stdout.write(
       `  ${sym.arrow} Running Documentation & Link Integrity tests (bun test)... `,
