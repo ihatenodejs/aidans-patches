@@ -60,6 +60,21 @@ private fun HermesBundleEditor.disableUseShowThanks() {
     patchBytes(offset, LOAD_CONST_FALSE_RET_R0)
 }
 
+/**
+ * Makes the Braze banner component render nothing. The native Braze SDK is
+ * stubbed below; leaving the JS banner mounted makes it consume a patched module.
+ */
+private fun HermesBundleEditor.disableBrazeBanner() {
+    val offset = findFunctionOffsetByName("BrazeBannerWithPadding")
+        ?: throw PatchException("BrazeBannerWithPadding function not found")
+    if (matchesBytes(offset, LOAD_CONST_NULL_RET_R0)) return
+    // CreateFunctionEnvironment prologue; fail fast if the bundle layout changes.
+    if (!matchesBytes(offset, byteArrayOf(0x40, 0x04, 0x0d))) {
+        throw PatchException("Unexpected BrazeBannerWithPadding prologue")
+    }
+    patchBytes(offset, LOAD_CONST_NULL_RET_R0)
+}
+
 /** Replaces the Thanks base URL constant with `null`. */
 private fun HermesBundleEditor.disableThanksBaseUrl() {
     val url = "https://thanks.is/"
@@ -123,6 +138,7 @@ val removeAdsAndTrackingPatch = compositeFeaturePatch(
             editor.forceSelectorFalse(selector)
         }
         editor.disableUseShowThanks()
+        editor.disableBrazeBanner()
         editor.disableThanksBaseUrl()
 
         editor.updateFooterHash()

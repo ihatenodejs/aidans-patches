@@ -40,10 +40,21 @@ private data class ShortcutItemConfig(
  * Builds a Hermes shortcut filter excluding [items], padded to exactly [capacity]
  * bytes. String IDs must fit the width selected by isLongIndex.
  *
+ * [nameStringId] is the bundle's `name` identifier, read with `GetByIdShort`; it
+ * must fit in the opcode's single-byte string operand.
+ *
  * @throws IllegalArgumentException if the predicate exceeds capacity, a comparison
- * jump is outside 1..255 bytes, or the generated exit offset is inconsistent.
+ * jump is outside 1..255 bytes, the name ID exceeds 8 bits, or the generated exit
+ * offset is inconsistent.
  */
-private fun assembleShortcutPredicate(items: List<ShortcutItemConfig>, capacity: Int): ByteArray {
+private fun assembleShortcutPredicate(
+    items: List<ShortcutItemConfig>,
+    capacity: Int,
+    nameStringId: Int
+): ByteArray {
+    require(nameStringId in 0..0xFF) {
+        "Shortcut item name string ID ($nameStringId) exceeds GetByIdShort range"
+    }
     val totalComparisonLength = items.sumOf { (if (it.isLongIndex) 6 else 4) + 4 }
     val preambleSize = 14
     val trueReturnOffset = preambleSize + totalComparisonLength
@@ -59,7 +70,7 @@ private fun assembleShortcutPredicate(items: List<ShortcutItemConfig>, capacity:
         0x89.toByte(), 0x01, 0x01,
         0x94.toByte(), 0x00,
         0xd3.toByte(), (falseReturnOffset - 5).toByte(), 0x01, 0x00,
-        0x44.toByte(), 0x02, 0x01, 0x00, 0x8e.toByte()
+        0x44.toByte(), 0x02, 0x01, 0x00, nameStringId.toByte()
     )
     System.arraycopy(preamble, 0, buffer, 0, preamble.size)
 
@@ -271,7 +282,9 @@ val configureShortcutsPatch = rawResourcePatch(
         }
 
         if (excludedItems.isNotEmpty()) {
-            val predicateBytes = assembleShortcutPredicate(excludedItems, DONOR_CAPACITY)
+            val nameStringId = editor.findStringId("name")
+                ?: throw PatchException("String 'name' not found")
+            val predicateBytes = assembleShortcutPredicate(excludedItems, DONOR_CAPACITY, nameStringId)
             editor.patchBytes(DONOR_CODE_OFFSET, predicateBytes)
             editor.redirectFunctionHeader(SHORTCUTS_FUNCTION_INDEX, DONOR_CODE_OFFSET, DONOR_CAPACITY)
             editor.patchBytes(EXPECTED_SHORTCUTS_CODE_OFFSET, FILTERED_SHORTCUTS_PREFIX_BYTES)

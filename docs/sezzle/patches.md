@@ -65,6 +65,7 @@ Applies the following Hermes bytecode substitutions followed by recalculating th
 6. **`isPlacementInCatalog` Selector:** Forces `isPlacementInCatalog` selector to return `false` (`LoadConstFalse r1; Ret r1`).
 7. **`useShowThanks` Hook:** Forces the Thanks visibility hook to return `false` (`LoadConstFalse r0; Ret r0`), keeping the modal unmounted.
 8. **Thanks Base URL:** Replaces the `https://thanks.is/` loader with `null` (`LoadConstNull r0; Ret r0`).
+9. **Braze Banner Component:** Forces `BrazeBannerWithPadding` to return `null` (`LoadConstNull r0; Ret r0`), so the Orders/Home banner does not consume the stubbed native Braze module.
 
 Selectors are located by their property name in the memoized selector wrappers, so the patch is not tied to fixed byte offsets.
 
@@ -210,9 +211,9 @@ Customizes which items appear in the "Your Shortcuts" carousel on Home and Shop 
 
 Modifies `assets/index.android.bundle`:
 
-1. Validates Hermes function `#97583` (offset `0x019ba337`, capacity 57) and donor function `#75517` (offset `0x017d2ed7`, capacity 152).
-2. Synthesizes a predicate in the donor region filtering targeted shortcut string identifiers (`user_referrals`, `sezzle_mobile`, `offers`, `offer`, `giveaway`, `earn`, `amazon_deals`, `amazonDeals`, `amazon`, `amazonStore`, `deals`, `deal`, `anywhere`, `sezzleAnywhere`, `pay_later_anywhere`, `sezzle_anywhere`).
-3. Re-points `#97583`'s function header to the synthesized donor logic.
+1. Validates Hermes function `#90129` (offset `0x01b6cd83`, capacity 57) and donor function `#85895` (offset `0x01b1aa98`, capacity 154).
+2. Synthesizes a predicate in the donor region filtering targeted shortcut string identifiers (`user_referrals`, `sezzle_mobile`, `offers`, `offer`, `giveaway`, `earn`, `amazon_deals`, `amazonDeals`, `amazon`, `amazonStore`, `deals`, `deal`, `anywhere`, `sezzleAnywhere`, `pay_later_anywhere`, `sezzle_anywhere`). The predicate reads the item's `name` property using the bundle's current `name` identifier rather than a fixed string ID.
+3. Re-points `#90129`'s function header to the synthesized donor logic.
 4. Recomputes Hermes footer hash.
 
 ---
