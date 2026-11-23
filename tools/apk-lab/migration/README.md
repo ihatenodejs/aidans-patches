@@ -1,12 +1,14 @@
 # APK Lab migration harness
 
-This directory freezes the observable contracts of the Python `apk-lab` implementation
-and records an independent baseline before any native Rust replacement is accepted.
-The Python package remains the oracle for the entire migration; it is not removed or
-weakened to make a comparison pass.
+This directory freezes the observable contracts of the retired Python `apk-lab`
+implementation and records the baseline that authorized the native Rust replacement.
+The Python package was removed by plan 009 after the plan-008 parity and performance
+evidence was accepted; the frozen source archive under
+`.apk-lab-migration/baseline-source` preserves the oracle without making it an active
+dependency.
 
-The auxiliary Rust binary is a test/benchmark tool. It is not the replacement CLI and
-does not change production Python behavior.
+The auxiliary Rust binary is a test/benchmark tool. It is not the replacement CLI;
+the production command is `tools/apk-lab/src/bin/apk-lab.rs`.
 
 ## Scope and ownership
 
@@ -32,9 +34,10 @@ cargo fmt --manifest-path tools/apk-lab/Cargo.toml -- --check
 cargo clippy --locked --manifest-path tools/apk-lab/Cargo.toml --all-targets -- -D warnings
 ```
 
-The Python oracle gates are unchanged:
+The Python oracle commands below apply only to a restored baseline archive:
 
 ```sh
+# Historical reconstruction only; requires the archived runtime and package.
 uv sync --locked --project tools/apk-lab
 uv run --project tools/apk-lab pytest -q
 ```
@@ -57,6 +60,11 @@ the pinned archive; subsequent builds verify and reuse it. Native transformation
 never invoke Python. The independent PNG decoder in the preflight harness does.
 
 ## Commands
+
+Normal CI and development use `inventory --check`, `report-check`, `prerequisites`,
+and `compare` against committed sanitized data. The `capture`/`verify`/`bench
+--engine python` forms below are historical reconstruction commands and require a
+restored baseline archive plus a Python 3.12 interpreter.
 
 ```sh
 MIG=tools/apk-lab/target/release/apk-lab-migrate
@@ -95,10 +103,11 @@ profiles, missing inputs, or incomplete reports are errors with a statement of w
 not run. Neither `capture` nor `verify` mutates production state, contacts a network
 service, or touches a device.
 
-`capture` selects Python in this order: `--python PATH`, `APK_LAB_PYTHON`,
-`tools/apk-lab/.venv/bin/python`, then `python3`. The interpreter must be 3.12 or newer.
-If the binary is not run from inside the repository, pass `--repo-root PATH` (the
-directory containing `tools/apk-lab/apk_lab/cli.py`). It records the interpreter
+`capture` (historical only) selects Python in this order: `--python PATH`,
+`APK_LAB_PYTHON`, then `python3`. The interpreter must be 3.12 or newer. The archived
+baseline records the observed interpreter identity and source digest.
+If the binary is not run from inside the restored baseline checkout, pass `--repo-root PATH`
+(the directory containing the archived `tools/apk-lab/apk_lab/cli.py`). It records the interpreter
 implementation/version (not its absolute path), the Python source digest, and the
 best-effort Git revision/dirty flag. The source digest is the authority when the
 worktree differs from `HEAD`.

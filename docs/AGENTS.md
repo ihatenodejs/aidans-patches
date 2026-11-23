@@ -18,7 +18,7 @@ Source package and docs directory names may differ (for example `adobescan` sour
 - Prefer stable symbols, paths, commands, invariants, and failure modes over patch counts or prose inventories that quickly drift.
 - Keep architecture (what the target/app/tool is) separate from patch specification (what this repository changes).
 - Update docs in the same change when user-visible behavior, patch options/dependencies, target compatibility, CLI flags/output, storage layout, or safety rules change.
-- Use exact repository-relative paths and runnable commands. Commands must use `./gradlew`, Bun package scripts, or `uv run --project tools/apk-lab`; do not recommend ad hoc tool invocation that bypasses repository controls.
+- Use exact repository-relative paths and runnable commands. Commands must use `./gradlew`, Bun package scripts, or the canonical `cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- ...`; do not recommend ad hoc tool invocation that bypasses repository controls.
 - Avoid duplicating the full root or nested `AGENTS.md` rules. Link to the canonical guide and explain only feature-specific context.
 - Never include credentials, private fixture contents, proprietary source dumps, or large decompiler output. Summarize evidence and point to repository-owned code/specs.
 

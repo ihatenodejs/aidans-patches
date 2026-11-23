@@ -9,6 +9,7 @@ This reference covers manipulating Hermes bytecode bundles (`index.android.bundl
 React Native Android applications often compile JavaScript into Hermes Bytecode (HBC). The bundle is located at `assets/index.android.bundle`. In Morphe, asset manipulation is executed within a `rawResourcePatch` or the `rawResources { ... }` block of a `compositeFeaturePatch`.
 
 ### `HermesBundleEditor` Overview
+
 The repository provides a shared utility: `app.aidan.patches.shared.HermesBundleEditor`.
 
 ```kotlin
@@ -36,18 +37,19 @@ rawResources {
 
 ### Core API Methods in `HermesBundleEditor`
 
-| Method | Description |
-|---|---|
-| `findFunctionOffsetByName(name, predicate)` | Finds the code offset of the first function matching the given name and optional offset predicate. |
-| `findFunctionOffsetsByName(name)` | Returns a `List<Int>` of all function code offsets matching the name. |
-| `matchesBytes(offset, expected)` | Returns `true` if the byte slice starting at `offset` matches `expected`. |
-| `patchBytes(offset, bytes)` | Writes raw bytes directly at `offset` (in-place replacement). |
-| `patchBytesIfMatches(offset, expected, replacement)` | Validates that `expected.size == replacement.size` and that bytes at `offset` match `expected`, then writes `replacement`. Throws `IllegalArgumentException` on size mismatch or mismatching bytes. |
-| `redirectFunctionHeader(funcIndex, newOffset, newSize)` | **(HBC v98+ only)** Redirects a function header to alternate bytecode (e.g. pointing a complex function to a donor no-op function). |
-| `updateFooterHash()` | Recalculates the Hermes SHA-1 footer hash across `data.size - 20` bytes and updates the final 20 bytes. |
-| `toByteArray()` | Returns the mutated bundle byte array. |
+| Method                                                  | Description                                                                                                                                                                                         |
+| ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `findFunctionOffsetByName(name, predicate)`             | Finds the code offset of the first function matching the given name and optional offset predicate.                                                                                                  |
+| `findFunctionOffsetsByName(name)`                       | Returns a `List<Int>` of all function code offsets matching the name.                                                                                                                               |
+| `matchesBytes(offset, expected)`                        | Returns `true` if the byte slice starting at `offset` matches `expected`.                                                                                                                           |
+| `patchBytes(offset, bytes)`                             | Writes raw bytes directly at `offset` (in-place replacement).                                                                                                                                       |
+| `patchBytesIfMatches(offset, expected, replacement)`    | Validates that `expected.size == replacement.size` and that bytes at `offset` match `expected`, then writes `replacement`. Throws `IllegalArgumentException` on size mismatch or mismatching bytes. |
+| `redirectFunctionHeader(funcIndex, newOffset, newSize)` | **(HBC v98+ only)** Redirects a function header to alternate bytecode (e.g. pointing a complex function to a donor no-op function).                                                                 |
+| `updateFooterHash()`                                    | Recalculates the Hermes SHA-1 footer hash across `data.size - 20` bytes and updates the final 20 bytes.                                                                                             |
+| `toByteArray()`                                         | Returns the mutated bundle byte array.                                                                                                                                                              |
 
 ### Hard Invariants for Hermes Patching
+
 1. **Never Shift or Expand Bundles**:
    - HBC offsets for functions, string tables, and identifiers are absolute. Never insert or delete bytes, which would invalidate all subsequent offsets.
    - Any in-place byte replacement must have `expected.size == replacement.size`.
@@ -58,6 +60,7 @@ rawResources {
    - Hermes runtimes verify the 20-byte SHA-1 hash at the end of `index.android.bundle`. If `editor.updateFooterHash()` is omitted, the app will crash instantly on startup with an invalid bundle checksum error.
 
 ### Example: Neutralizing a React Native Feature Flag Function
+
 ```kotlin
 val fnOffset = editor.findFunctionOffsetByName("useIsPromotionsEnabled")
     ?: throw PatchException("Function useIsPromotionsEnabled not found in Hermes bundle")
@@ -78,25 +81,30 @@ When app integrity checks, signature validation, or core protections are impleme
 
 ### Standard ARM64 Assembly Sequences
 
-| Operation | ARM64 Disassembly | Kotlin Byte Sequence (`byteArrayOf(...)`) |
-|---|---|---|
-| `RETURN_VOID` | `ret` | `byteArrayOf(0xc0.toByte(), 0x03, 0x5f, 0xd6.toByte())` |
-| `RETURN_TRUE` | `mov w0, #1`<br>`ret` | `byteArrayOf(0x20, 0x00, 0x80.toByte(), 0x52, 0xc0.toByte(), 0x03, 0x5f, 0xd6.toByte())` |
+| Operation      | ARM64 Disassembly     | Kotlin Byte Sequence (`byteArrayOf(...)`)                                                |
+| -------------- | --------------------- | ---------------------------------------------------------------------------------------- |
+| `RETURN_VOID`  | `ret`                 | `byteArrayOf(0xc0.toByte(), 0x03, 0x5f, 0xd6.toByte())`                                  |
+| `RETURN_TRUE`  | `mov w0, #1`<br>`ret` | `byteArrayOf(0x20, 0x00, 0x80.toByte(), 0x52, 0xc0.toByte(), 0x03, 0x5f, 0xd6.toByte())` |
 | `RETURN_FALSE` | `mov w0, #0`<br>`ret` | `byteArrayOf(0x00, 0x00, 0x80.toByte(), 0x52, 0xc0.toByte(), 0x03, 0x5f, 0xd6.toByte())` |
-| `NOP` | `nop` | `byteArrayOf(0x1f, 0x20, 0x03, 0xd5.toByte())` |
+| `NOP`          | `nop`                 | `byteArrayOf(0x1f, 0x20, 0x03, 0xd5.toByte())`                                           |
 
-### Disassembling & Calculating Offsets with APK Lab
+### Calculating Offsets with APK Lab
+
 Use `apk-lab asm` to calculate branch targets and convert instructions directly to Kotlin byte arrays:
 
 ```bash
-# Assemble ARM64 instruction into Kotlin byteArrayOf
-uv run --project tools/apk-lab apk-lab asm --arch arm64 "mov w0, #1" "ret"
+# Assemble ARM64 instructions into Kotlin byteArrayOf syntax
+cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- asm "mov w0, #1" --format kotlin
+cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- asm "ret" --format kotlin
 
-# Disassemble byte hex string to ARM64 instructions
-uv run --project tools/apk-lab apk-lab asm --arch arm64 --disasm "20008052c0035fd6"
+# Calculate a 26-bit branch relocation at the instruction's program counter
+cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- asm "bl 0x3c98ce4" --pc 0x1fcf6e8
 ```
 
+Raw hex decoding is outside `apk-lab`; use an external ARM64 disassembler when you need instruction text from existing bytes.
+
 ### Binary Patching Pattern: Bounds, Match & Idempotency
+
 Always follow this exact structure to ensure idempotency and safety:
 
 ```kotlin
@@ -142,11 +150,14 @@ if (arm64So.exists()) {
 XML resources (such as `res/xml/*.xml`, `res/values/*.xml`, and `AndroidManifest.xml`) are modified inside a `resourcePatch` or the `resources { ... }` block of a `compositeFeaturePatch`.
 
 ### XML Namespaces
+
 Android resource documents use standard XML namespaces:
+
 - Android: `http://schemas.android.com/apk/res/android`
 - App/Custom: `http://schemas.android.com/apk/res-auto`
 
 ### Accessing Documents
+
 Use `document(path).use { doc -> ... }` to ensure safe parsing and streaming:
 
 ```kotlin
@@ -177,6 +188,7 @@ resources {
 ```
 
 ### Hard Invariants for Resource Patching
+
 1. **Always Use `.use { ... }`**: Ensures XML output is flushed and underlying streams are closed.
 2. **Explicit Namespace URI**: Never use unqualified attribute names (e.g. `setAttribute("android:name", ...)`); always use `setAttributeNS("http://schemas.android.com/apk/res/android", "android:name", ...)`.
 3. **Fail-Fast on Missing Required Nodes**: If an XML document or an anchor node is expected, throw `PatchException` rather than silently doing nothing.

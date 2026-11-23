@@ -37,27 +37,24 @@ jobs:
 
       - name: S3 read/write in the isolated prefix
         run: |
-          python3 -m venv /tmp/ci-smoke-venv
-          /tmp/ci-smoke-venv/bin/pip install --quiet boto3
-          /tmp/ci-smoke-venv/bin/python - <<'PY'
-          import hashlib, os
-          import boto3
+          url="https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${R2_BUCKET_NAME}/migration/ci-smoke.txt"
+          payload_file="$(mktemp)"
+          read_file="$(mktemp)"
+          printf 'isolated-ci-smoke\n' > "$payload_file"
 
-          key = "migration/ci-smoke.txt"
-          payload = b"isolated-ci-smoke\n"
-          client = boto3.client(
-              "s3",
-              endpoint_url=f"https://{os.environ['R2_ACCOUNT_ID']}.r2.cloudflarestorage.com",
-              aws_access_key_id=os.environ["R2_ACCESS_KEY_ID"],
-              aws_secret_access_key=os.environ["R2_SECRET_ACCESS_KEY"],
-              region_name="auto",
-          )
-          bucket = os.environ["R2_BUCKET_NAME"]
-          client.put_object(Bucket=bucket, Key=key, Body=payload)
-          stored = client.get_object(Bucket=bucket, Key=key)["Body"].read()
-          assert stored == payload
-          print("r2", bucket, key, hashlib.sha256(stored).hexdigest())
-          PY
+          curl --fail-with-body --silent --show-error \
+            --aws-sigv4 "aws:amz:auto:s3" \
+            --user "${R2_ACCESS_KEY_ID}:${R2_SECRET_ACCESS_KEY}" \
+            -X PUT --data-binary @"$payload_file" "$url"
+
+          curl --fail-with-body --silent --show-error \
+            --aws-sigv4 "aws:amz:auto:s3" \
+            --user "${R2_ACCESS_KEY_ID}:${R2_SECRET_ACCESS_KEY}" \
+            -o "$read_file" "$url"
+
+          cmp "$payload_file" "$read_file"
+          echo "r2 ${R2_BUCKET_NAME} migration/ci-smoke.txt $(sha256sum "$read_file" | cut -d' ' -f1)"
+          rm -f "$payload_file" "$read_file"
 
       - name: Callback accepts the test secret and rejects a wrong one
         run: |

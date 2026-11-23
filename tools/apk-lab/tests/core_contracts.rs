@@ -833,26 +833,3 @@ fn marker_timestamp_format_matches_python_isoformat() {
         Freshness::Fresh
     );
 }
-
-/// Optional oracle cross-check. Ignored so the suite never depends on Python.
-#[test]
-#[ignore = "requires python3; cross-checks the canonical digest oracle"]
-fn python_oracle_config_digest_cross_check() {
-    let config = config();
-    let tools = tools();
-    let payload = json!({"command": "check", "config": config, "toolVersions": tools});
-    let output = std::process::Command::new("python3")
-        .args([
-            "-c",
-            "import json,hashlib,sys; p=json.loads(sys.argv[1]); print(hashlib.sha256(json.dumps(p,sort_keys=True,separators=(',',':')).encode()).hexdigest()[:12])",
-            &payload.to_string(),
-        ])
-        .output()
-        .expect("run python3");
-    assert!(output.status.success());
-    let expected = String::from_utf8(output.stdout).unwrap();
-    assert_eq!(
-        compute_config_digest("check", &config, &tools).unwrap(),
-        expected.trim()
-    );
-}

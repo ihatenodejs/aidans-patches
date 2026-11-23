@@ -29,52 +29,61 @@ graph TD
 ```
 
 ### Phase 1: Diff & Failure Baseline
+
 Compare the currently supported version against the new target version to identify architectural drifts, class renames, and failing patches:
 
 ```bash
 # 1. Structural comparison: container splits, DEX counts, manifest changes, class deltas
-uv run --project tools/apk-lab apk-lab compare \
+cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- compare \
   path/to/old-version.apkm \
   path/to/new-version.apkm
 
 # 2. Force-run current patch bundle against the new APK to capture failing patches
-uv run --project tools/apk-lab apk-lab check \
+cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- check \
   path/to/new-version.apkm \
   --mpp patches/build/libs/patches-*.mpp \
   --package com.example.app \
   --all \
   --force
 ```
+
 Review the failure log from `--force`. Note which specific classes, methods, or Hermes function offsets failed to resolve.
 
 ### Phase 2: Targeted Bytecode Analysis & De-obfuscation
+
 When an obfuscated class (e.g. `LA6/c0;`) is renamed to `LB2/d1;`:
+
 1. **Smali Extraction**:
    ```bash
-   uv run --project tools/apk-lab apk-lab analyze path/to/new-version.apkm --smali
+   cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- analyze path/to/new-version.apkm --smali
    ```
-2. **Symbol Mapping via Anchors (`inspect-code`)**:
-   Search the extracted Smali for unique string literals, logged tags, interface implementations, or method signature fingerprints:
+2. **Symbol Mapping via Anchors**:
+   Search the artifact for unique string literals, logged tags, or descriptor references, then inspect the owning class:
    ```bash
-   # Search for unique string literals in extracted code
-   uv run --project tools/apk-lab apk-lab inspect-code path/to/new-version.apkm \
-     --symbol "SELECT * FROM user_preferences"
+   # Search for unique string literals in the DEX pools
+   cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- strings path/to/new-version.apkm \
+     -q "SELECT * FROM user_preferences"
 
-   # Search for specific interface or superclass references
-   uv run --project tools/apk-lab apk-lab inspect-code path/to/new-version.apkm \
-     --symbol "Lcom/google/android/gms/maps/GoogleMap;"
+   # Search for an interface or superclass descriptor, then inspect the class
+   cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- strings path/to/new-version.apkm \
+     -q "Lcom/google/android/gms/maps/GoogleMap;"
+   cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- inspect-code path/to/new-version.apkm \
+     --class Lcom/example/Target;
    ```
 3. **Call-Graph & Cross-Reference Mapping**:
    If string constants are missing, inspect callers of known unchanged Android SDK classes (e.g. `Landroid/app/Activity;`, `Landroid/content/SharedPreferences;`).
 
 ### Phase 3: Patch Remapping
+
 Update the patch implementations in `patches/src/main/kotlin/app/aidan/patches/<app>/`:
+
 - Update class descriptors (e.g. `"LA6/c0;"` $\to$ `"LB2/d1;"`).
 - Update method names or parameter descriptors.
 - In Hermes bundles (`index.android.bundle`), update function names or byte sequence offsets if bundle layout changed.
 - In native ARM64 libraries (`lib/**/*.so`), recalculate byte offsets and branch instructions using `apk-lab asm`.
 
 ### Phase 4: Compatibility Metadata Bump
+
 Once patch code matches the new target, update `patches/src/main/kotlin/app/aidan/patches/<app>/shared/Constants.kt`:
 
 ```kotlin
@@ -92,6 +101,7 @@ object Constants {
 ```
 
 ### Phase 5: Build & Matrix Verification
+
 Execute full bundle build, metadata generation, and the 5 verification gates:
 
 ```bash
@@ -100,7 +110,7 @@ Execute full bundle build, metadata generation, and the 5 verification gates:
 ./gradlew generatePatchesList
 
 # 2. Execute full patch permutation check
-uv run --project tools/apk-lab apk-lab check \
+cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- check \
   path/to/new-version.apkm \
   --mpp patches/build/libs/patches-*.mpp \
   --package com.example.app \
@@ -108,6 +118,7 @@ uv run --project tools/apk-lab apk-lab check \
 ```
 
 #### The 5 Verification Gates of `apk-lab check`:
+
 1. **Morphe Execution**: Patch applies with exit code 0 without exceptions.
 2. **Identity**: Package name and version code match expected target identity.
 3. **Android DEX Verification**: Patched DEX bytecode validates cleanly via Android SDK `dexdump -c` without verification errors.
@@ -115,6 +126,7 @@ uv run --project tools/apk-lab apk-lab check \
 5. **Extension Inventory**: All required extension classes from `extensions/extension.mpe` are present in output DEX.
 
 ### Phase 6: Documentation & Conventional Commit
+
 1. **Update App Docs**:
    - Update `docs/<app>/architecture.md` with any newly discovered obfuscation patterns or architecture changes.
    - Update `docs/<app>/patches.md` if any user-facing patch options or behaviors were modified.
@@ -130,10 +142,10 @@ uv run --project tools/apk-lab apk-lab check \
 
 ## 3. Troubleshooting Common Upgrade Failures
 
-| Failure Symptom | Probable Cause | Correct Action |
-|---|---|---|
-| `PatchException: Could not find class ...` | ProGuard/R8 obfuscation rename | Search for unique string literals or call sites with `apk-lab inspect-code` to identify the new class name. |
-| `PatchException: Method ... not found` | Method signature changed (e.g. parameter added) | Check method overloads on the resolved classDef and inspect parameter types. |
-| `DEX verification error (VerifyError)` | Dalvik register width exceeded (e.g. `v16` in format `22c`) | Use `apk-lab validate-smali` to fix register allocations ($v0 \dots v15$). |
-| `Checksum mismatch on Hermes bundle` | `editor.updateFooterHash()` missing | Call `editor.updateFooterHash()` before `bundleFile.writeBytes(...)`. |
-| `Member delta check failed (0 members modified)` | Patch skipped all instructions or condition was already met | Ensure the patch actually mutates bytecode; check if the vendor app changed logic or removed the feature. |
+| Failure Symptom                                  | Probable Cause                                              | Correct Action                                                                                              |
+| ------------------------------------------------ | ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `PatchException: Could not find class ...`       | ProGuard/R8 obfuscation rename                              | Search for unique string literals or call sites with `apk-lab inspect-code` to identify the new class name. |
+| `PatchException: Method ... not found`           | Method signature changed (e.g. parameter added)             | Check method overloads on the resolved classDef and inspect parameter types.                                |
+| `DEX verification error (VerifyError)`           | Dalvik register width exceeded (e.g. `v16` in format `22c`) | Use `apk-lab validate-smali` to fix register allocations ($v0 \dots v15$).                                  |
+| `Checksum mismatch on Hermes bundle`             | `editor.updateFooterHash()` missing                         | Call `editor.updateFooterHash()` before `bundleFile.writeBytes(...)`.                                       |
+| `Member delta check failed (0 members modified)` | Patch skipped all instructions or condition was already met | Ensure the patch actually mutates bytecode; check if the vendor app changed logic or removed the feature.   |

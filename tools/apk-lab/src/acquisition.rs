@@ -323,11 +323,11 @@ pub fn build_apkmirror_args(
 /// compiled crate directory second. The runner itself is unchanged.
 #[must_use]
 pub fn default_apkmirror_runner() -> PathBuf {
-    let from_repo = default_repo_root().join("tools/apk-lab/apk_lab/apkmirror_runner.cjs");
+    let from_repo = default_repo_root().join("tools/apk-lab/apkmirror_runner.cjs");
     if from_repo.is_file() {
         from_repo
     } else {
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("apk_lab/apkmirror_runner.cjs")
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("apkmirror_runner.cjs")
     }
 }
 

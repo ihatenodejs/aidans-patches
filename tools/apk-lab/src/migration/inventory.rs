@@ -312,9 +312,10 @@ pub fn run(args: &[String]) -> Result<(), String> {
                 println!(
                     "apk-lab-migrate inventory [--check] [--root <repo>] [--contracts <path>]\n\
                      \n\
-                     Discovers the Python apk-lab command, test, consumer and wire\n\
-                     interfaces and validates migration/contracts.json. Any unmapped\n\
-                     addition, removal or metadata change is an error."
+                     Validates migration/contracts.json against the frozen Python command,\n\
+                     test, consumer and wire inventory. After the Python retirement the\n\
+                     contract document is authoritative and is checked for schema validity.\n\
+                     Any unmapped addition, removal or metadata change is an error."
                 );
                 return Ok(());
             }
@@ -338,8 +339,28 @@ pub fn run(args: &[String]) -> Result<(), String> {
             .join("contracts.json")
     });
 
-    let discovery = discover_all(&root)?;
+    let discovery = if root.join("tools/apk-lab/apk_lab/cli.py").is_file() {
+        Some(discover_all(&root)?)
+    } else {
+        None
+    };
     let contract = load_contracts(&contracts_path)?;
+    let discovery = match discovery {
+        Some(discovery) => discovery,
+        None => {
+            if check {
+                println!(
+                    "inventory check: frozen contracts accepted (Python source retired; schema valid)"
+                );
+            } else {
+                println!(
+                    "inventory: contracts at {} are frozen and schema-valid",
+                    contracts_path.display()
+                );
+            }
+            return Ok(());
+        }
+    };
     let issues = validate(&discovery, &contract);
 
     if !issues.is_empty() {
@@ -388,6 +409,9 @@ fn discover_root() -> Result<PathBuf, String> {
         if dir.join("tools/apk-lab/apk_lab/cli.py").is_file() {
             return Ok(dir.to_path_buf());
         }
+        if dir.join("tools/apk-lab/migration/contracts.json").is_file() {
+            return Ok(dir.to_path_buf());
+        }
         if dir.join("apk_lab/cli.py").is_file() {
             if let Some(root) = dir.parent().and_then(|p| p.parent()) {
                 return Ok(root.to_path_buf());
@@ -395,7 +419,7 @@ fn discover_root() -> Result<PathBuf, String> {
         }
     }
     Err(format!(
-        "could not locate the repository root containing tools/apk-lab/apk_lab/cli.py from {}",
+        "could not locate a repository root containing tools/apk-lab/migration/contracts.json from {}",
         cwd.display()
     ))
 }
@@ -2669,6 +2693,10 @@ mod tests {
             .and_then(|p| p.parent())
             .expect("repository root");
         if std::env::var("APK_LAB_INVENTORY_SKIP_REPO_CHECK").as_deref() == Ok("1") {
+            return;
+        }
+        if !root.join("tools/apk-lab/apk_lab/cli.py").is_file() {
+            // Python source retirement: contracts.json is now the frozen authority.
             return;
         }
         let contracts_path = manifest_dir.join("migration/contracts.json");

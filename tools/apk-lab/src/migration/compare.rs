@@ -37,7 +37,7 @@ const REQUIRED_SECTIONS: &[&str] = &[
     "correctness and integration evidence",
     "rejected and inconclusive measurements",
     "performance acceptance verdict",
-    "remaining python and removal prerequisites",
+    "python retirement",
     "operational rollback and rebuild",
     "limitations",
 ];
@@ -1736,7 +1736,7 @@ mod tests {
         )
         .unwrap();
         let report = directory.join("TO-RUST.md");
-        let text = "# Apache Lab migration\n\n             ## Goals and non-goals\nGoals.\n\n             ## Architecture\nArchitecture.\n\n             ## Migration map\nMap.\n\n             ## Clean-code decisions\nDecisions.\n\n             ## Provenance\nRevision 0123456789abcdef0123456789abcdef01234567.\n\n             ## Methodology\nMethod.\n\n             ## Data and charts\n[paired](docs/benchmarks/apk-lab/paired.json) [comparison](docs/benchmarks/apk-lab/comparison.json)\n             [manifest](docs/benchmarks/apk-lab/charts/manifest.json) [wall](docs/benchmarks/apk-lab/charts/wall.png)\n\n             ## Correctness and integration evidence\nw.small passed.\n\n             ## Rejected and inconclusive measurements\nNone.\n\n             ## Performance acceptance verdict\nPass.\n\n             ## Remaining Python and removal prerequisites\nPending.\n\n             ## Operational rollback and rebuild\nRebuild.\n\n             ## Limitations\nNone.\n"
+        let text = "# Apache Lab migration\n\n             ## Goals and non-goals\nGoals.\n\n             ## Architecture\nArchitecture.\n\n             ## Migration map\nMap.\n\n             ## Clean-code decisions\nDecisions.\n\n             ## Provenance\nRevision 0123456789abcdef0123456789abcdef01234567.\n\n             ## Methodology\nMethod.\n\n             ## Data and charts\n[paired](docs/benchmarks/apk-lab/paired.json) [comparison](docs/benchmarks/apk-lab/comparison.json)\n             [manifest](docs/benchmarks/apk-lab/charts/manifest.json) [wall](docs/benchmarks/apk-lab/charts/wall.png)\n\n             ## Correctness and integration evidence\nw.small passed.\n\n             ## Rejected and inconclusive measurements\nNone.\n\n             ## Performance acceptance verdict\nPass.\n\n             ## Python retirement\nRetired.\n\n             ## Operational rollback and rebuild\nRebuild.\n\n             ## Limitations\nNone.\n"
         .to_string();
         fs::write(&report, text).unwrap();
         (directory, report, data_dir)

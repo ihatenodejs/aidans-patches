@@ -42,13 +42,13 @@ This skill provides comprehensive instructions for authoring, modifying, and ver
 
 To conserve context tokens, read only the specific reference file needed for your current task:
 
-| Task / Domain | Key Topics & Modules | Reference Document |
-|---|---|---|
-| **DSL & Architecture** | `compositeFeaturePatch`, `bytecodePatch`, `resourcePatch`, `rawResourcePatch`, `dependsOn`, `extendWith`, options, categories | [DSL & Architecture](references/dsl-architecture.md)<br>`skill://morphe-patches/references/dsl-architecture.md` |
-| **Bytecode & Dexlib2** | Dexlib2 AST navigation, `BytecodeNeutralizers`, Smali instruction injection, register widths (`22c`), `validate-smali` | [Bytecode & Dexlib2](references/bytecode-dexlib2.md)<br>`skill://morphe-patches/references/bytecode-dexlib2.md` |
-| **Java Extension Bridges** | `extensions/extension.mpe`, reflection over obfuscated classes, lifecycle guards, main-thread UI dispatch, WebView security | [Java Extension Bridges](references/extension-bridges.md)<br>`skill://morphe-patches/references/extension-bridges.md` |
-| **Binary Assets & Hermes** | `HermesBundleEditor` (HBC v96, v98+), ARM64 ELF patching, `apk-lab asm`, XML/Manifest DOM manipulation | [Binary Assets, Hermes & Resources](references/binary-assets-hermes.md)<br>`skill://morphe-patches/references/binary-assets-hermes.md` |
-| **App Version Upgrades** | 6-phase upgrade playbook: baseline diff, targeted decompilation, symbol remapping, compatibility bump, matrix checks | [App Upgrade Playbook](references/app-upgrade-playbook.md)<br>`skill://morphe-patches/references/app-upgrade-playbook.md` |
+| Task / Domain              | Key Topics & Modules                                                                                                          | Reference Document                                                                                                                     |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| **DSL & Architecture**     | `compositeFeaturePatch`, `bytecodePatch`, `resourcePatch`, `rawResourcePatch`, `dependsOn`, `extendWith`, options, categories | [DSL & Architecture](references/dsl-architecture.md)<br>`skill://morphe-patches/references/dsl-architecture.md`                        |
+| **Bytecode & Dexlib2**     | Dexlib2 AST navigation, `BytecodeNeutralizers`, Smali instruction injection, register widths (`22c`), `validate-smali`        | [Bytecode & Dexlib2](references/bytecode-dexlib2.md)<br>`skill://morphe-patches/references/bytecode-dexlib2.md`                        |
+| **Java Extension Bridges** | `extensions/extension.mpe`, reflection over obfuscated classes, lifecycle guards, main-thread UI dispatch, WebView security   | [Java Extension Bridges](references/extension-bridges.md)<br>`skill://morphe-patches/references/extension-bridges.md`                  |
+| **Binary Assets & Hermes** | `HermesBundleEditor` (HBC v96, v98+), ARM64 ELF patching, `apk-lab asm`, XML/Manifest DOM manipulation                        | [Binary Assets, Hermes & Resources](references/binary-assets-hermes.md)<br>`skill://morphe-patches/references/binary-assets-hermes.md` |
+| **App Version Upgrades**   | 6-phase upgrade playbook: baseline diff, targeted decompilation, symbol remapping, compatibility bump, matrix checks          | [App Upgrade Playbook](references/app-upgrade-playbook.md)<br>`skill://morphe-patches/references/app-upgrade-playbook.md`              |
 
 ---
 
@@ -67,7 +67,7 @@ All commands run from the repository root:
 ./gradlew generatePatchesList
 
 # 4. Validate patch compatibility across baseline and all boolean option permutations
-uv run --project tools/apk-lab apk-lab check path/to/app.apkm \
+cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- check path/to/app.apkm \
   --mpp patches/build/libs/patches-<version>.mpp \
   --package <package.name> \
   --all
@@ -81,6 +81,7 @@ bun run audit
 ## 4. Standard Operational Workflows
 
 ### Workflow A: Adding or Editing a Bytecode Patch
+
 1. Read [Bytecode & Dexlib2](references/bytecode-dexlib2.md).
 2. Determine if the patch requires companion XML/raw assets:
    - If yes and 1-to-1: use `compositeFeaturePatch`.
@@ -91,12 +92,14 @@ bun run audit
 6. Run `apk-lab check <artifact> --mpp <bundle> --package <pkg> --all`.
 
 ### Workflow B: Modifying Hermes or Native ARM64 Libraries
+
 1. Read [Binary Assets, Hermes & Resources](references/binary-assets-hermes.md).
 2. For Hermes (`index.android.bundle`): instantiate `HermesBundleEditor(bundleFile.readBytes())`, match target function offsets, apply modifications with `patchBytesIfMatches`, and invoke `updateFooterHash()`.
 3. For ARM64 (`.so`): disassemble instruction using `apk-lab asm`, verify offsets, confirm idempotency with `alreadyPatched`, and write verified replacements.
 4. Run `./gradlew :patches:buildAndroid` and verify via `apk-lab check`.
 
 ### Workflow C: Authoring a Java Extension Bridge
+
 1. Read [Java Extension Bridges](references/extension-bridges.md).
 2. Create or update `extensions/extension/src/main/java/app/aidan/extension/<app>/<BridgeName>.java`.
 3. Keep class `public final` with a `private` constructor and static methods.
@@ -104,6 +107,7 @@ bun run audit
 5. Compile both targets: `./gradlew :patches:compileKotlin :extensions:extension:compileReleaseJavaWithJavac --console=plain`.
 
 ### Workflow D: Upgrading a Supported Target App Version
+
 1. Read [App Upgrade Playbook](references/app-upgrade-playbook.md).
 2. Follow the 6-phase upgrade protocol:
    - Phase 1: Diff & Failure Baseline (`apk-lab compare`, `apk-lab check --force`).

@@ -4985,7 +4985,7 @@ fn looks_absolute(text: &str) -> bool {
 // Fixtures
 // ---------------------------------------------------------------------------
 
-fn create_fixtures(run_root: &Path, fake_sdk: &Path) -> Result<(), String> {
+pub(crate) fn create_fixtures(run_root: &Path, fake_sdk: &Path) -> Result<(), String> {
     let fixtures = run_root.join("fixtures");
     fs::create_dir_all(&fixtures)
         .map_err(|error| format!("could not create fixture directory: {error}"))?;
@@ -5034,7 +5034,7 @@ printf "targetSdkVersion:'35'\n"
 printf "uses-permission: name='android.permission.INTERNET'\n"
 "#;
 
-fn make_executable(path: &Path) -> Result<(), String> {
+pub(crate) fn make_executable(path: &Path) -> Result<(), String> {
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
@@ -5046,6 +5046,17 @@ fn make_executable(path: &Path) -> Result<(), String> {
             .map_err(|error| format!("could not make {} executable: {error}", path.display()))?;
     }
     Ok(())
+}
+
+/// Golden-verifier entry point for the core fixtures. Kept separate from
+/// `create_fixtures` so the parity harness keeps its private naming.
+pub(crate) fn create_core_golden_fixtures(run_root: &Path, fake_sdk: &Path) -> Result<(), String> {
+    create_fixtures(run_root, fake_sdk)
+}
+
+/// Golden-verifier entry point for sentinel scripts.
+pub(crate) fn make_executable_for_goldens(path: &Path) -> Result<(), String> {
+    make_executable(path)
 }
 
 fn dex_header(class_count: u32, method_count: u32) -> Vec<u8> {
@@ -5251,7 +5262,7 @@ fi
 
 const FAKE_MORPHE: &str = "#!/bin/sh\nexit 0\n";
 
-fn create_analysis_fixtures(
+pub(crate) fn create_analysis_fixtures(
     run_root: &Path,
     fake_sdk: &Path,
     home: &Path,
@@ -5706,7 +5717,7 @@ rm -f "$names"
 exit 0
 "#;
 
-fn create_patching_device_fixtures(
+pub(crate) fn create_patching_device_fixtures(
     run_root: &Path,
     fake_sdk: &Path,
     home: &Path,

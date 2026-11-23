@@ -135,12 +135,49 @@ Per-workload results, confidence intervals, and RSS verdicts are in
 [comparison.json](docs/benchmarks/apk-lab/comparison.json). No single aggregate
 speedup is asserted.
 
-## Remaining Python and removal prerequisites
+## Python retirement
 
-Python is not yet retired. The Python oracle and its test suite remain available for
-final clean-checkout verification. Plan 009 must remove the Python APK Lab
-implementation and dependencies, run the Python-free executable/dependency checks,
-and retain the measured report as rollback evidence.
+Plan 009 retired the first-party Python APK Lab implementation after this report was
+accepted. The active source contains no Python package, tests, manifests, lockfile, or
+Python-backed APK Lab downloader/hook. The retained CJS APKMirror runner is not Python
+and lives at `tools/apk-lab/apkmirror_runner.cjs`.
+
+Removed: `tools/apk-lab/apk_lab/` (Python package), its Python test suite,
+`pyproject.toml`, `uv.lock`, `.python-version`, root `pytest.ini`, and the obsolete
+binary-fixture generator. Audit and dependency tooling no longer runs Ruff, mypy,
+pytest, PyPI resolution, uv, or pre-commit. Workflows use native Rust binaries and the
+existing JVM/Android/Bun tooling.
+
+Added:
+
+- `apk-lab-migrate verify-goldens --group all`: executes the native CLI against 36
+  committed golden cases across core, analysis, patching/device, and acquisition/CI,
+  with Python sentinels first on `PATH`; exact output/exit/hash mismatches fail.
+- `scripts/check-no-python.ts`: deterministic first-party Python-free gate, with
+  narrow historical exclusions for plans, immutable migration evidence, changelog,
+  and frozen oracle fixtures. Ordinary `bun run audit` runs it on every check.
+
+Verification at the cutover revision:
+
+- `bun run audit`: all 35 checks pass across format, lint, typecheck, and tests,
+  including 703 native APK Lab tests, asset-prep, Play metadata, NHL native, C++,
+  Gradle, Worker, site, scripts, dependencies, icons, and documentation.
+- The same 35-check audit passed with a Python-free `PATH`
+  (`/tmp/nopy-bin:/tmp/nopy-extra:/bin`) containing no `python`, `python3`, `pip`,
+  `uv`, `pytest`, `mypy`, or Ruff executable. Host Python installations remain present
+  but are not reached by repository commands.
+- `verify-goldens --group all`: 36/36 native cases passed with sentinel
+  `python`/`python3`/`pip`/`uv`/`pytest` executables first on `PATH`; no sentinel ran.
+  `report-check` and frozen-contract `inventory --check` passed.
+- `./gradlew :patches:buildAndroid --no-daemon`, `bun run --cwd site check:icons`, and
+  native CLI `--help`/`asm` smoke from the repository root and `/tmp` passed.
+- Rollback archive: `.apk-lab-migration/baseline-source/ROLLBACK.md`, aggregate
+  SHA-256 `58d5bdc30913acb840c2afc8fde3eef3b89cb4ddde6cf0c7a8b018a0a23ec279`.
+  Rollback is a reviewed source revert/rebuild, not a dormant Python fallback.
+
+No first-party Python runtime, build, release, CI, hook, test, or dependency-management
+requirement remains. Historical prose and frozen oracle fixtures may mention Python;
+the gate permits those only outside executable requirements.
 
 ## Operational rollback and rebuild
 

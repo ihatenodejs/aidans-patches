@@ -1,0 +1,296 @@
+{
+  "schemaVersion": 1,
+  "kind": "apk-lab-native-goldens",
+  "cases": [
+    {
+      "id": "acquire-help",
+      "group": "acquisition-ci",
+      "exit": 0,
+      "stdout": "Usage: apk-lab acquire <package> [--version NAME] [--version-code CODE] [--out-dir DIR]\n\nDownload and normalize an APK from Google Play.\n\nOptions:\n  --version NAME       Expected version name\n  --version-code CODE  Expected version code\n  --out-dir DIR        Output directory (default: the system temp directory)\n  -h, --help           Print help\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "id": "acquire-invalid-option",
+      "group": "acquisition-ci",
+      "exit": 2,
+      "stdout": "",
+      "stderr": "Usage: apk-lab acquire <package> [--version NAME] [--version-code CODE] [--out-dir DIR]\n\nDownload and normalize an APK from Google Play.\n\nOptions:\n  --version NAME       Expected version name\n  --version-code CODE  Expected version code\n  --out-dir DIR        Output directory (default: the system temp directory)\n  -h, --help           Print help\napk-lab: unrecognized option '--not-an-option'\n",
+      "files": {}
+    },
+    {
+      "id": "ci-matrix",
+      "group": "acquisition-ci",
+      "exit": 0,
+      "stdout": "packages=[\"com.example.alpha\", \"com.example.beta\"]\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "id": "ci-matrix-missing-list",
+      "group": "acquisition-ci",
+      "exit": 2,
+      "stdout": "",
+      "stderr": "apk-lab: patches-list.json not found at <run>/fixtures/absent-patches-list.json\n",
+      "files": {}
+    },
+    {
+      "id": "ci-run-missing-bundle",
+      "group": "acquisition-ci",
+      "exit": 2,
+      "stdout": "",
+      "stderr": "Error: No MPP bundle found in patches/build/libs/\n",
+      "files": {}
+    },
+    {
+      "id": "ci-start-missing-secret",
+      "group": "acquisition-ci",
+      "exit": 2,
+      "stdout": "",
+      "stderr": "Missing COMPATIBILITY_STATUS_SECRET; cannot post run start.\n",
+      "files": {}
+    },
+    {
+      "id": "fixtures-info-unconfigured",
+      "group": "acquisition-ci",
+      "exit": 4,
+      "stdout": "",
+      "stderr": "Fixtures info error: R2 credentials (R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY) not configured\n",
+      "files": {}
+    },
+    {
+      "id": "analysis-asm-encode",
+      "group": "analysis",
+      "exit": 0,
+      "stdout": "7f 25 73 94\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "id": "analysis-asm-range",
+      "group": "analysis",
+      "exit": 2,
+      "stdout": "",
+      "stderr": "Assembly error: Branch delta 134217728 bytes (from 0x0 to 0x8000000) exceeds ARM64 26-bit range [-134217728, 134217724]\n",
+      "files": {}
+    },
+    {
+      "id": "analysis-il2cpp-offset",
+      "group": "analysis",
+      "exit": 0,
+      "stdout": "[{\"method\":\"OpenShop\",\"namespace\":\"TestNamespace\",\"parameters_count\":1,\"type\":\"BlackjackApplication\"}]",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "id": "analysis-manifest-json",
+      "group": "analysis",
+      "exit": 0,
+      "stdout": "[{\"authorities\":null,\"exported\":true,\"intent_actions\":[\"android.intent.action.MAIN\"],\"name\":\"com.example.MainActivity\",\"permission\":null,\"type\":\"activity\"},{\"authorities\":null,\"exported\":null,\"intent_actions\":[],\"name\":\"com.example.SyncService\",\"permission\":\"com.example.PERMISSION\",\"type\":\"service\"}]",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "id": "analysis-res-alias",
+      "group": "analysis",
+      "exit": 0,
+      "stdout": "Found 1 matching resources:\n0x7f010002 | string/app_alias | - | - | resourcePatch | unique\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "id": "analysis-res-duplicate",
+      "group": "analysis",
+      "exit": 0,
+      "stdout": "Found 2 matching resources:\n0x7f010003 | string/duplicate_value | - | - | resourcePatch | equivalent\n0x7f010003 | string/duplicate_value | - | - | resourcePatch | equivalent\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "id": "analysis-res-scalar",
+      "group": "analysis",
+      "exit": 0,
+      "stdout": "Found 1 matching resources:\n0x7f010001 | string/app_name | - | - | resourcePatch | unique\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "id": "analysis-smali-invalid",
+      "group": "analysis",
+      "exit": 2,
+      "stdout": "Validation failed with 1 error(s) and 0 warning(s):\n  [ERROR] Line 1 (REGISTER_OUT_OF_RANGE): Register 'v2' out of range for total 2 registers (v0..v1)\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "id": "analysis-smali-valid",
+      "group": "analysis",
+      "exit": 0,
+      "stdout": "Validation succeeded with 0 errors and 0 warnings.\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "id": "analysis-strings-malformed",
+      "group": "analysis",
+      "exit": 0,
+      "stdout": "[]",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "id": "analysis-strings-unicode",
+      "group": "analysis",
+      "exit": 0,
+      "stdout": "[{\"dex\":\"classes.dex\",\"split\":\"base\",\"string\":\"Grüße\"}]",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "id": "analysis-unity-offset",
+      "group": "analysis",
+      "exit": 0,
+      "stdout": "[{\"file_offset\":32,\"is_active_offset\":58,\"is_active_offset_hex\":\"0x3a\",\"is_active_value\":1,\"member\":\"assets/bin/Data/sharedassets0.assets\",\"name\":\"Button_HelpCenter\",\"path_id\":0}]",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "id": "core-help",
+      "group": "core",
+      "exit": 0,
+      "stdout": "Native APK Lab host CLI.\n\nUsage:\n  apk-lab [--workspace-root DIR] <command> [options]\n  apk-lab --help\n  apk-lab --version\n\nCommands:\n  setup         Download and verify pinned tools\n  doctor        Verify host prerequisites and cached tools\n  acquire       Download and normalize an APK from Google Play\n  play-accounts Manage Google Play accounts for authenticated acquisition\n  fixtures      Manage R2 fixture slots\n  ci            Compatibility CI matrix, run start, and reconciliation\n  inspect       Inspect an APK/APKM/XAPK/APKS artifact\n  analyze       Extract and analyze an artifact into a managed run\n  compare       Compare two APK artifacts\n  asm           Encode an ARM64 instruction and calculate relocations\n  strings       Search string literal pools across DEX files\n  unity         Inspect Unity assets and locate GameObject properties\n  il2cpp       Query Unity IL2CPP symbols from an artifact\n  manifest      Inspect AndroidManifest.xml components\n  res           Inspect and query resources across split containers\n  inspect-code  Disassemble/decompile a class or method and diff artifacts\n  validate-smali  Validate a Smali snippet (alias: smali)\n  check         Apply and verify patches with Morphe\n  deploy        Apply patches, sign, and install to a device\n  dev           Build patches, locate an artifact, deploy, and launch\n  monitor       Monitor application process health, ANRs, and crashes\n  crash-trace   Harvest recent Java crash reports from logcat\n  ui            Device UI hierarchy inspection and click automation\n  clean         Clean validated managed workspaces\n  selftest      Validate native CLI, model, and exit-code contracts\n\nOptions:\n  -h, --help     Print help\n  -V, --version  Print version\n\nRun 'apk-lab <command> --help' for command options.\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "id": "core-inspect-human",
+      "group": "core",
+      "exit": 0,
+      "stdout": "Artifact:          <run>/fixtures/core.apk\nContainer Type:    APK\nSize:              506 bytes\nSHA-256:           e2e1bd5ab295ffe9d534bbb91305debc7ed4728cc9c6e4e683f01062f0ba0252\nPackage Name:      com.example.parity\nVersion Name:      1.2.3\nVersion Code:      42\nMin / Target SDK:  None / 35\nSigner SHA-256:    None\nSplits:            0\nDEX Stats:         3 classes, 7 methods (1 dex files)\nNative Libraries:  0\nAssets:            1\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "id": "core-inspect-invalid",
+      "group": "core",
+      "exit": 3,
+      "stdout": "",
+      "stderr": "Inspection error: Unsupported or unrecognized Android container format: <run>/fixtures/unknown.apk\n",
+      "files": {}
+    },
+    {
+      "id": "core-inspect-json",
+      "group": "core",
+      "exit": 0,
+      "stdout": "{\"assets\":[\"assets/note.txt\"],\"containerType\":\"APK\",\"dexClassesCount\":3,\"dexFiles\":[\"classes.dex\"],\"dexMethodsCount\":7,\"filePath\":\"<volatile>\",\"fileSize\":506,\"minSdk\":null,\"nativeLibraries\":[],\"packageName\":\"com.example.parity\",\"resources\":[],\"sha256\":\"e2e1bd5ab295ffe9d534bbb91305debc7ed4728cc9c6e4e683f01062f0ba0252\",\"signingCertificateSha256\":null,\"splits\":[],\"targetSdk\":35,\"versionCode\":42,\"versionName\":\"1.2.3\",\"warnings\":[]}",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "id": "core-inspect-missing",
+      "group": "core",
+      "exit": 2,
+      "stdout": "",
+      "stderr": "Inspection error: Artifact not found: <run>/fixtures/absent.apk\n",
+      "files": {}
+    },
+    {
+      "id": "core-version",
+      "group": "core",
+      "exit": 0,
+      "stdout": "apk-lab 0.1.0\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "id": "patching-check-all-json",
+      "group": "patching-device",
+      "exit": 0,
+      "stdout": "{\"artifactSha256\":\"dfa5e99b8756e2c171eb67d87caac45d3e1adf7b8f620f9177e335dda8e1f86f\",\"failedCases\":0,\"failureReason\":null,\"gitRevision\":\"unknown\",\"overallStatus\":\"compatible\",\"packageName\":\"com.avinside\",\"passedCases\":15,\"patchBundleVersion\":\"1.10.0-dev.1\",\"testCases\":[{\"appliedPatches\":[\"Display Cutout Adaptation\"],\"durationSeconds\":\"<volatile>\",\"errorMessage\":null,\"injectedClasses\":[],\"options\":{},\"patchName\":\"Display Cutout Adaptation\",\"success\":true},{\"appliedPatches\":[\"Remove Ads\"],\"durationSeconds\":\"<volatile>\",\"errorMessage\":null,\"injectedClasses\":[],\"options\":{\"removeInAppMessages\":true,\"removeReviewPrompts\":true,\"zeroAdvertisingId\":true},\"patchName\":\"Remove Ads\",\"success\":true},{\"appliedPatches\":[\"Remove Ads\"],\"durationSeconds\":\"<volatile>\",\"errorMessage\":null,\"injectedClasses\":[],\"options\":{\"removeInAppMessages\":false,\"removeReviewPrompts\":true,\"zeroAdvertisingId\":true},\"patchName\":\"Remove Ads\",\"success\":true},{\"appliedPatches\":[\"Remove Ads\"],\"durationSeconds\":\"<volatile>\",\"errorMessage\":null,\"injectedClasses\":[],\"options\":{\"removeInAppMessages\":true,\"removeReviewPrompts\":false,\"zeroAdvertisingId\":true},\"patchName\":\"Remove Ads\",\"success\":true},{\"appliedPatches\":[\"Remove Ads\"],\"durationSeconds\":\"<volatile>\",\"errorMessage\":null,\"injectedClasses\":[],\"options\":{\"removeInAppMessages\":true,\"removeReviewPrompts\":true,\"zeroAdvertisingId\":false},\"patchName\":\"Remove Ads\",\"success\":true},{\"appliedPatches\":[\"Remove Tracking\"],\"durationSeconds\":\"<volatile>\",\"errorMessage\":null,\"injectedClasses\":[],\"options\":{\"disableBranch\":true,\"disableCrashlytics\":true,\"disableFirebaseAnalytics\":true,\"disableInstana\":true,\"disableOneSignalTracking\":true},\"patchName\":\"Remove Tracking\",\"success\":true},{\"appliedPatches\":[\"Remove Tracking\"],\"durationSeconds\":\"<volatile>\",\"errorMessage\":null,\"injectedClasses\":[],\"options\":{\"disableBranch\":true,\"disableCrashlytics\":true,\"disableFirebaseAnalytics\":false,\"disableInstana\":true,\"disableOneSignalTracking\":true},\"patchName\":\"Remove Tracking\",\"success\":true},{\"appliedPatches\":[\"Remove Tracking\"],\"durationSeconds\":\"<volatile>\",\"errorMessage\":null,\"injectedClasses\":[],\"options\":{\"disableBranch\":true,\"disableCrashlytics\":false,\"disableFirebaseAnalytics\":true,\"disableInstana\":true,\"disableOneSignalTracking\":true},\"patchName\":\"Remove Tracking\",\"success\":true},{\"appliedPatches\":[\"Remove Tracking\"],\"durationSeconds\":\"<volatile>\",\"errorMessage\":null,\"injectedClasses\":[],\"options\":{\"disableBranch\":true,\"disableCrashlytics\":true,\"disableFirebaseAnalytics\":true,\"disableInstana\":false,\"disableOneSignalTracking\":true},\"patchName\":\"Remove Tracking\",\"success\":true},{\"appliedPatches\":[\"Remove Tracking\"],\"durationSeconds\":\"<volatile>\",\"errorMessage\":null,\"injectedClasses\":[],\"options\":{\"disableBranch\":false,\"disableCrashlytics\":true,\"disableFirebaseAnalytics\":true,\"disableInstana\":true,\"disableOneSignalTracking\":true},\"patchName\":\"Remove Tracking\",\"success\":true},{\"appliedPatches\":[\"Remove Tracking\"],\"durationSeconds\":\"<volatile>\",\"errorMessage\":null,\"injectedClasses\":[],\"options\":{\"disableBranch\":true,\"disableCrashlytics\":true,\"disableFirebaseAnalytics\":true,\"disableInstana\":true,\"disableOneSignalTracking\":false},\"patchName\":\"Remove Tracking\",\"success\":true},{\"appliedPatches\":[\"Unlock Developer Tools\"],\"durationSeconds\":\"<volatile>\",\"errorMessage\":null,\"injectedClasses\":[],\"options\":{\"startInDemoMode\":false,\"startWithDebugMessages\":false,\"unlockDeveloperSettings\":true},\"patchName\":\"Unlock Developer Tools\",\"success\":true},{\"appliedPatches\":[\"Unlock Developer Tools\"],\"durationSeconds\":\"<volatile>\",\"errorMessage\":null,\"injectedClasses\":[],\"options\":{\"startInDemoMode\":false,\"startWithDebugMessages\":false,\"unlockDeveloperSettings\":false},\"patchName\":\"Unlock Developer Tools\",\"success\":true},{\"appliedPatches\":[\"Unlock Developer Tools\"],\"durationSeconds\":\"<volatile>\",\"errorMessage\":null,\"injectedClasses\":[],\"options\":{\"startInDemoMode\":false,\"startWithDebugMessages\":true,\"unlockDeveloperSettings\":true},\"patchName\":\"Unlock Developer Tools\",\"success\":true},{\"appliedPatches\":[\"Unlock Developer Tools\"],\"durationSeconds\":\"<volatile>\",\"errorMessage\":null,\"injectedClasses\":[],\"options\":{\"startInDemoMode\":true,\"startWithDebugMessages\":false,\"unlockDeveloperSettings\":true},\"patchName\":\"Unlock Developer Tools\",\"success\":true}],\"toolVersions\":{\"apktool\":\"3.0.3\",\"baksmali\":\"3.0.10\",\"jadx\":\"1.5.6\",\"morphe\":\"1.18.0\"},\"totalCases\":15,\"versionCode\":100,\"versionName\":\"1.0\"}",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "id": "patching-check-json",
+      "group": "patching-device",
+      "exit": 0,
+      "stdout": "{\"artifactSha256\":\"dfa5e99b8756e2c171eb67d87caac45d3e1adf7b8f620f9177e335dda8e1f86f\",\"failedCases\":0,\"failureReason\":null,\"gitRevision\":\"unknown\",\"overallStatus\":\"compatible\",\"packageName\":\"com.avinside\",\"passedCases\":11,\"patchBundleVersion\":\"1.10.0-dev.1\",\"testCases\":[{\"appliedPatches\":[\"Display Cutout Adaptation\"],\"durationSeconds\":\"<volatile>\",\"errorMessage\":null,\"injectedClasses\":[],\"options\":{},\"patchName\":\"Display Cutout Adaptation\",\"success\":true},{\"appliedPatches\":[\"Remove Ads\"],\"durationSeconds\":\"<volatile>\",\"errorMessage\":null,\"injectedClasses\":[],\"options\":{\"removeInAppMessages\":true,\"removeReviewPrompts\":true,\"zeroAdvertisingId\":true},\"patchName\":\"Remove Ads\",\"success\":true},{\"appliedPatches\":[\"Remove Ads\"],\"durationSeconds\":\"<volatile>\",\"errorMessage\":null,\"injectedClasses\":[],\"options\":{\"removeInAppMessages\":false,\"removeReviewPrompts\":true,\"zeroAdvertisingId\":true},\"patchName\":\"Remove Ads\",\"success\":true},{\"appliedPatches\":[\"Remove Ads\"],\"durationSeconds\":\"<volatile>\",\"errorMessage\":null,\"injectedClasses\":[],\"options\":{\"removeInAppMessages\":true,\"removeReviewPrompts\":false,\"zeroAdvertisingId\":true},\"patchName\":\"Remove Ads\",\"success\":true},{\"appliedPatches\":[\"Remove Ads\"],\"durationSeconds\":\"<volatile>\",\"errorMessage\":null,\"injectedClasses\":[],\"options\":{\"removeInAppMessages\":true,\"removeReviewPrompts\":true,\"zeroAdvertisingId\":false},\"patchName\":\"Remove Ads\",\"success\":true},{\"appliedPatches\":[\"Remove Tracking\"],\"durationSeconds\":\"<volatile>\",\"errorMessage\":null,\"injectedClasses\":[],\"options\":{\"disableBranch\":true,\"disableCrashlytics\":true,\"disableFirebaseAnalytics\":true,\"disableInstana\":true,\"disableOneSignalTracking\":true},\"patchName\":\"Remove Tracking\",\"success\":true},{\"appliedPatches\":[\"Remove Tracking\"],\"durationSeconds\":\"<volatile>\",\"errorMessage\":null,\"injectedClasses\":[],\"options\":{\"disableBranch\":true,\"disableCrashlytics\":true,\"disableFirebaseAnalytics\":false,\"disableInstana\":true,\"disableOneSignalTracking\":true},\"patchName\":\"Remove Tracking\",\"success\":true},{\"appliedPatches\":[\"Remove Tracking\"],\"durationSeconds\":\"<volatile>\",\"errorMessage\":null,\"injectedClasses\":[],\"options\":{\"disableBranch\":true,\"disableCrashlytics\":false,\"disableFirebaseAnalytics\":true,\"disableInstana\":true,\"disableOneSignalTracking\":true},\"patchName\":\"Remove Tracking\",\"success\":true},{\"appliedPatches\":[\"Remove Tracking\"],\"durationSeconds\":\"<volatile>\",\"errorMessage\":null,\"injectedClasses\":[],\"options\":{\"disableBranch\":true,\"disableCrashlytics\":true,\"disableFirebaseAnalytics\":true,\"disableInstana\":false,\"disableOneSignalTracking\":true},\"patchName\":\"Remove Tracking\",\"success\":true},{\"appliedPatches\":[\"Remove Tracking\"],\"durationSeconds\":\"<volatile>\",\"errorMessage\":null,\"injectedClasses\":[],\"options\":{\"disableBranch\":false,\"disableCrashlytics\":true,\"disableFirebaseAnalytics\":true,\"disableInstana\":true,\"disableOneSignalTracking\":true},\"patchName\":\"Remove Tracking\",\"success\":true},{\"appliedPatches\":[\"Remove Tracking\"],\"durationSeconds\":\"<volatile>\",\"errorMessage\":null,\"injectedClasses\":[],\"options\":{\"disableBranch\":true,\"disableCrashlytics\":true,\"disableFirebaseAnalytics\":true,\"disableInstana\":true,\"disableOneSignalTracking\":false},\"patchName\":\"Remove Tracking\",\"success\":true}],\"toolVersions\":{\"apktool\":\"3.0.3\",\"baksmali\":\"3.0.10\",\"jadx\":\"1.5.6\",\"morphe\":\"1.18.0\"},\"totalCases\":11,\"versionCode\":100,\"versionName\":\"1.0\"}",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "id": "patching-check-missing-mpp",
+      "group": "patching-device",
+      "exit": 2,
+      "stdout": "",
+      "stderr": "Check error: No compiled .mpp found in patches/build/libs/. Run ./gradlew :patches:buildAndroid first.\n",
+      "files": {}
+    },
+    {
+      "id": "patching-deploy",
+      "group": "patching-device",
+      "exit": 0,
+      "stdout": "Output APK: <run>/out/deploy.apk\nPackage: com.avinside\nDevice: emulator-5554\nInstall mode: reinstall\nApplied patches: Display Cutout Adaptation, Remove Ads, Remove Tracking\n",
+      "stderr": "",
+      "files": {
+        "out/deploy.apk": "b398dc789fd710b1656c1109a35bc6936d523c1fb9ed0c8e538606c8ca5f28a1"
+      }
+    },
+    {
+      "id": "patching-deploy-missing-bundle",
+      "group": "patching-device",
+      "exit": 2,
+      "stdout": "",
+      "stderr": "Deployment error: Either --mpp or --build must be specified\n",
+      "files": {}
+    },
+    {
+      "id": "patching-monitor-crash",
+      "group": "patching-device",
+      "exit": 5,
+      "stdout": "Monitoring process for package 'com.avinside'...\nAttached to process PID 1234\n",
+      "stderr": "\nLive Crash detected: 10-15 12:00:00.000  1234  1234 E AndroidRuntime: FATAL EXCEPTION: main\n",
+      "files": {}
+    },
+    {
+      "id": "patching-monitor-healthy",
+      "group": "patching-device",
+      "exit": 0,
+      "stdout": "Monitoring process for package 'com.avinside'...\nAttached to process PID 1234\nMonitoring completed: process healthy after <duration>.\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "id": "patching-ui-click",
+      "group": "patching-device",
+      "exit": 0,
+      "stdout": "Clicked node at (150, 250): UiNode(text='Save', content_desc='', resource_id='com.avinside:id/save', class_name='android.widget.Button', clickable=True, bounds=(100, 200, 200, 300))\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "id": "patching-ui-click-missing",
+      "group": "patching-device",
+      "exit": 2,
+      "stdout": "",
+      "stderr": "Error: No matching UI node found (text='absent', desc='None')\n",
+      "files": {}
+    },
+    {
+      "id": "patching-ui-dump",
+      "group": "patching-device",
+      "exit": 0,
+      "stdout": "android.view.View center=(320, 2274) bounds=(281, 2259, 360, 2290) [clickable] desc=\"media\"\nandroid.widget.Button center=(150, 250) bounds=(100, 200, 200, 300) [clickable] text=\"Save\" id=\"com.avinside:id/save\"\n",
+      "stderr": "",
+      "files": {}
+    },
+    {
+      "id": "patching-ui-dump-json",
+      "group": "patching-device",
+      "exit": 0,
+      "stdout": "[{\"bounds\":[100,200,200,300],\"center\":[150,250],\"className\":\"android.widget.Button\",\"clickable\":true,\"contentDesc\":\"\",\"resourceId\":\"com.avinside:id/save\",\"text\":\"Save\"}]",
+      "stderr": "",
+      "files": {}
+    }
+  ]
+}

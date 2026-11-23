@@ -3,17 +3,11 @@ import { spawn } from 'node:child_process';
 import * as crypto from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { RUST_PROJECTS, cargoArgs } from './rust-projects';
 
 const KTLINT_VERSION = '1.5.0';
 const KTLINT_SHA256 =
   'a16be01dcc480aab2f55f444b620142152f66e31564b3b9376506d624c28a2ad';
-const RUST_CRATES = [
-  ['Play Metadata', 'tools/play-metadata/Cargo.toml'],
-  ['NHL AdBlock Native', 'extensions/nhl-adblock-native/Cargo.toml'],
-  ['Asset Prep', 'tools/asset-prep/Cargo.toml'],
-  ['APK Lab', 'tools/apk-lab/Cargo.toml'],
-] as const;
-
 // --- ANSI Styling ---
 const c = {
   reset: '\x1b[0m',
@@ -38,12 +32,10 @@ const sym = {
   arrow: `${c.gray}→${c.reset}`,
 };
 
-export type AuditDomain =
-  'web' | 'python' | 'android' | 'rust' | 'native' | 'all';
+export type AuditDomain = 'web' | 'android' | 'rust' | 'native' | 'all';
 
 export const VALID_DOMAINS: readonly AuditDomain[] = [
   'web',
-  'python',
   'android',
   'rust',
   'native',
@@ -187,33 +179,6 @@ function findFilesRecursive(dir: string, extensions: string[]): string[] {
   }
   return results;
 }
-function resolveRuffCommand(): { cmd: string; baseArgs: string[] } {
-  const systemRuff = Bun.which('ruff');
-  if (systemRuff) {
-    return { cmd: systemRuff, baseArgs: [] };
-  }
-  const venvRuff = path.join(
-    process.cwd(),
-    'tools',
-    'apk-lab',
-    '.venv',
-    process.platform === 'win32' ? 'Scripts' : 'bin',
-    process.platform === 'win32' ? 'ruff.exe' : 'ruff',
-  );
-  if (fs.existsSync(venvRuff)) {
-    return { cmd: venvRuff, baseArgs: [] };
-  }
-  const systemUvx = Bun.which('uvx');
-  if (systemUvx) {
-    return { cmd: systemUvx, baseArgs: ['ruff'] };
-  }
-  const systemUv = Bun.which('uv');
-  if (systemUv) {
-    return { cmd: systemUv, baseArgs: ['tool', 'run', 'ruff'] };
-  }
-  return { cmd: 'ruff', baseArgs: [] };
-}
-
 function printSectionHeader(title: string, subtitle?: string): void {
   console.log();
   console.log(
@@ -409,35 +374,7 @@ async function runFormat(
     });
   }
 
-  // 2. Ruff (Python)
-  if (shouldRunDomain(domain, 'python')) {
-    process.stdout.write(`  ${sym.arrow} Formatting Python sources (Ruff)... `);
-    const ruff = resolveRuffCommand();
-    const ruffArgs = checkOnly
-      ? ['format', '--check', 'tools/apk-lab', 'extensions']
-      : ['format', 'tools/apk-lab', 'extensions'];
-    const rRes = await execCommand(ruff.cmd, [...ruff.baseArgs, ...ruffArgs]);
-    const rPassed = rRes.code === 0;
-    const rSummary = checkOnly
-      ? rPassed
-        ? 'All Python files formatted'
-        : 'Python files need formatting'
-      : 'Formatted Python sources';
-    console.log(rPassed ? sym.ok : sym.err);
-    if (!rPassed) {
-      printRawCommandOutput(rRes.stdout, rRes.stderr);
-    }
-    results.push({
-      title: 'Python (Ruff format)',
-      tool: 'ruff',
-      domain: 'python',
-      success: rPassed,
-      durationMs: rRes.durationMs,
-      summary: rSummary,
-    });
-  }
-
-  // 3. ktlint (Kotlin)
+  // 2. ktlint (Kotlin)
   if (shouldRunDomain(domain, 'android')) {
     process.stdout.write(
       `  ${sym.arrow} Formatting Kotlin sources (ktlint)... `,
@@ -476,18 +413,17 @@ async function runFormat(
 
   // Rust host crates.
   if (shouldRunDomain(domain, 'rust')) {
-    for (const [name, manifest] of RUST_CRATES) {
+    for (const project of RUST_PROJECTS) {
       process.stdout.write(
-        `  ${sym.arrow} Formatting Rust ${name} sources (cargo fmt)... `,
+        `  ${sym.arrow} Formatting Rust ${project.label} sources (cargo fmt)... `,
       );
-      const args = ['fmt', '--manifest-path', manifest];
-      if (checkOnly) args.push('--check');
+      const args = cargoArgs(project, ['fmt'], checkOnly ? ['--check'] : []);
       const result = await execCommand('cargo', args);
       const passed = result.code === 0;
       console.log(passed ? sym.ok : sym.err);
       if (!passed) printRawCommandOutput(result.stdout, result.stderr);
       results.push({
-        title: `Rust ${name} (cargo fmt)`,
+        title: `Rust ${project.label} (cargo fmt)`,
         tool: 'cargo fmt',
         domain: 'rust',
         success: passed,
@@ -617,46 +553,26 @@ async function runLint(
     });
   }
 
-  // 2. Ruff (Python)
-  if (shouldRunDomain(domain, 'python')) {
-    process.stdout.write(`  ${sym.arrow} Linting Python sources (Ruff)... `);
-    const ruff = resolveRuffCommand();
-    const ruffArgs = ['check', '--output-format', 'json'];
-    if (autoFix) ruffArgs.push('--fix');
-    ruffArgs.push('tools/apk-lab', 'extensions');
-
-    const rRes = await execCommand(ruff.cmd, [...ruff.baseArgs, ...ruffArgs]);
-    const rDiags: Diagnostic[] = [];
-    try {
-      const items = JSON.parse(rRes.stdout);
-      if (Array.isArray(items)) {
-        for (const item of items) {
-          rDiags.push({
-            tool: 'ruff',
-            file: item.filename,
-            line: item.location?.row,
-            col: item.location?.column,
-            message: item.message,
-            rule: item.code,
-            severity: 'error',
-          });
-        }
-      }
-    } catch {
-      printRawCommandOutput(rRes.stdout, rRes.stderr);
+  // 2. Python-free gate (first-party sources, manifests and workflows)
+  if (shouldRunDomain(domain, 'web')) {
+    process.stdout.write(
+      `  ${sym.arrow} Checking Python-free repository gate... `,
+    );
+    const noPyRes = await execCommand('bun', ['scripts/check-no-python.ts']);
+    const noPyPassed = noPyRes.code === 0;
+    console.log(noPyPassed ? sym.ok : sym.err);
+    if (!noPyPassed) {
+      printRawCommandOutput(noPyRes.stdout, noPyRes.stderr);
     }
-    const rPassed = rRes.code === 0 && rDiags.length === 0;
-    allDiagnostics.push(...rDiags);
-
-    console.log(rPassed ? sym.ok : sym.err);
     results.push({
-      title: 'Python (Ruff check)',
-      tool: 'ruff',
-      domain: 'python',
-      success: rPassed,
-      durationMs: rRes.durationMs,
-      summary: `${rDiags.length === 0 ? 'No issues' : `${rDiags.length} issues found`}`,
-      diagnostics: rDiags,
+      title: 'Python-Free Gate (check-no-python)',
+      tool: 'check-no-python',
+      domain: 'web',
+      success: noPyPassed,
+      durationMs: noPyRes.durationMs,
+      summary: noPyPassed
+        ? 'No first-party Python requirements'
+        : 'First-party Python requirements detected',
     });
   }
 
@@ -751,26 +667,29 @@ async function runLint(
 
   // Rust host crates.
   if (shouldRunDomain(domain, 'rust')) {
-    for (const [name, manifest] of RUST_CRATES) {
+    for (const project of RUST_PROJECTS) {
       process.stdout.write(
-        `  ${sym.arrow} Linting Rust ${name} sources (clippy)... `,
+        `  ${sym.arrow} Linting Rust ${project.label} sources (clippy)... `,
       );
-      const result = await execCommand('cargo', [
-        'clippy',
-        '--locked',
-        '--manifest-path',
-        manifest,
-        '--all-targets',
-        ...(autoFix ? ['--fix', '--allow-dirty', '--allow-staged'] : []),
-        '--',
-        '-D',
-        'warnings',
-      ]);
+      const result = await execCommand(
+        'cargo',
+        cargoArgs(
+          project,
+          ['clippy', '--locked'],
+          [
+            '--all-targets',
+            ...(autoFix ? ['--fix', '--allow-dirty', '--allow-staged'] : []),
+            '--',
+            '-D',
+            'warnings',
+          ],
+        ),
+      );
       const passed = result.code === 0;
       console.log(passed ? sym.ok : sym.err);
       if (!passed) printRawCommandOutput(result.stdout, result.stderr);
       results.push({
-        title: `Rust ${name} (clippy)`,
+        title: `Rust ${project.label} (clippy)`,
         tool: 'clippy',
         domain: 'rust',
         success: passed,
@@ -854,7 +773,7 @@ async function runLint(
 // TYPECHECK COMMAND
 // ============================================================================
 async function runTypecheck(domain: AuditDomain = 'all'): Promise<PhaseResult> {
-  const subtitle = `TypeScript, Astro, Python, Rust, C++, and Kotlin/Java${domain !== 'all' ? ` [domain: ${domain}]` : ''}`;
+  const subtitle = `TypeScript, Astro, Rust, C++, and Kotlin/Java${domain !== 'all' ? ` [domain: ${domain}]` : ''}`;
   printSectionHeader('Typecheck', subtitle);
   const results: StepResult[] = [];
 
@@ -904,37 +823,7 @@ async function runTypecheck(domain: AuditDomain = 'all'): Promise<PhaseResult> {
     });
   }
 
-  // 3. Python (mypy on tools/apk-lab)
-  if (shouldRunDomain(domain, 'python')) {
-    process.stdout.write(
-      `  ${sym.arrow} Checking Python types (mypy on apk-lab)... `,
-    );
-    const pyRes = await execCommand('uv', [
-      'run',
-      '--project',
-      'tools/apk-lab',
-      '--with',
-      'mypy',
-      'mypy',
-      'tools/apk-lab/apk_lab',
-      '--ignore-missing-imports',
-    ]);
-    const pyPassed = pyRes.code === 0;
-    console.log(pyPassed ? sym.ok : sym.err);
-    if (!pyPassed) {
-      printRawCommandOutput(pyRes.stdout, pyRes.stderr);
-    }
-    results.push({
-      title: 'APK Lab Python (mypy)',
-      tool: 'mypy',
-      domain: 'python',
-      success: pyPassed,
-      durationMs: pyRes.durationMs,
-      summary: pyPassed ? '15 source files verified' : 'Mypy type errors found',
-    });
-  }
-
-  // 4. Morphe Patches & Extensions (Gradle compileKotlin + compileReleaseJavaWithJavac)
+  // 3. Morphe Patches & Extensions (Gradle compileKotlin + compileReleaseJavaWithJavac)
   if (shouldRunDomain(domain, 'android')) {
     process.stdout.write(
       `  ${sym.arrow} Compiling Morphe Patches & Extension (Gradle)... `,
@@ -963,22 +852,19 @@ async function runTypecheck(domain: AuditDomain = 'all'): Promise<PhaseResult> {
 
   // Rust host crates.
   if (shouldRunDomain(domain, 'rust')) {
-    for (const [name, manifest] of RUST_CRATES) {
+    for (const project of RUST_PROJECTS) {
       process.stdout.write(
-        `  ${sym.arrow} Checking Rust ${name} types (cargo check)... `,
+        `  ${sym.arrow} Checking Rust ${project.label} types (cargo check)... `,
       );
-      const result = await execCommand('cargo', [
-        'check',
-        '--locked',
-        '--manifest-path',
-        manifest,
-        '--all-targets',
-      ]);
+      const result = await execCommand(
+        'cargo',
+        cargoArgs(project, ['check', '--locked'], ['--all-targets']),
+      );
       const passed = result.code === 0;
       console.log(passed ? sym.ok : sym.err);
       if (!passed) printRawCommandOutput(result.stdout, result.stderr);
       results.push({
-        title: `Rust ${name} (cargo check)`,
+        title: `Rust ${project.label} (cargo check)`,
         tool: 'cargo check',
         domain: 'rust',
         success: passed,
@@ -1063,38 +949,7 @@ async function runTest(domain: AuditDomain = 'all'): Promise<PhaseResult> {
   printSectionHeader('Test', subtitle);
   const results: StepResult[] = [];
 
-  // 1. APK Lab Python test suite (pytest)
-  if (shouldRunDomain(domain, 'python')) {
-    process.stdout.write(`  ${sym.arrow} Running APK Lab tests (pytest)... `);
-    const pyRes = await execCommand('uv', [
-      'run',
-      '--project',
-      'tools/apk-lab',
-      'pytest',
-      '-q',
-    ]);
-    const pyPassed = pyRes.code === 0;
-    const pySummaryMatch = pyRes.stdout.match(/([0-9]+ passed[^\n]*)/);
-    const pySummary = pySummaryMatch
-      ? pySummaryMatch[1].trim()
-      : pyPassed
-        ? 'All tests passed'
-        : 'Tests failed';
-    console.log(pyPassed ? sym.ok : sym.err);
-    if (!pyPassed) {
-      printRawCommandOutput(pyRes.stdout, pyRes.stderr);
-    }
-    results.push({
-      title: 'APK Lab Suite (pytest)',
-      tool: 'pytest',
-      domain: 'python',
-      success: pyPassed,
-      durationMs: pyRes.durationMs,
-      summary: pySummary,
-    });
-  }
-
-  // 2. Cloudflare Worker test suite (Vitest)
+  // 1. Cloudflare Worker test suite (Vitest)
   if (shouldRunDomain(domain, 'web')) {
     process.stdout.write(`  ${sym.arrow} Running Worker tests (Vitest)... `);
     const wRes = await execCommand('bun', ['run', '--cwd', 'worker', 'test']);
@@ -1146,16 +1001,14 @@ async function runTest(domain: AuditDomain = 'all'): Promise<PhaseResult> {
 
   // Rust host crates.
   if (shouldRunDomain(domain, 'rust')) {
-    for (const [name, manifest] of RUST_CRATES) {
+    for (const project of RUST_PROJECTS) {
       process.stdout.write(
-        `  ${sym.arrow} Running Rust ${name} tests (cargo test)... `,
+        `  ${sym.arrow} Running Rust ${project.label} tests (cargo test)... `,
       );
-      const result = await execCommand('cargo', [
-        'test',
-        '--locked',
-        '--manifest-path',
-        manifest,
-      ]);
+      const result = await execCommand(
+        'cargo',
+        cargoArgs(project, ['test', '--locked']),
+      );
       const passed = result.code === 0;
       const counts = [
         ...result.stdout.matchAll(/test result: ok\.\s+([0-9]+) passed/g),
@@ -1164,7 +1017,7 @@ async function runTest(domain: AuditDomain = 'all'): Promise<PhaseResult> {
       console.log(passed ? sym.ok : sym.err);
       if (!passed) printRawCommandOutput(result.stdout, result.stderr);
       results.push({
-        title: `Rust ${name} (cargo test)`,
+        title: `Rust ${project.label} (cargo test)`,
         tool: 'cargo test',
         domain: 'rust',
         success: passed,
@@ -1280,7 +1133,7 @@ async function runTest(domain: AuditDomain = 'all'): Promise<PhaseResult> {
   }
 
   // 8. Target Application Icons Check
-  if (shouldRunDomain(domain, 'rust')) {
+  if (shouldRunDomain(domain, 'web')) {
     process.stdout.write(
       `  ${sym.arrow} Verifying application icon assets... `,
     );
@@ -1297,7 +1150,7 @@ async function runTest(domain: AuditDomain = 'all'): Promise<PhaseResult> {
     results.push({
       title: 'App Icons Verification',
       tool: 'asset-prep',
-      domain: 'rust',
+      domain: 'web',
       success: iconPassed,
       durationMs: iconRes.durationMs,
       summary: iconPassed ? iconRes.stdout.trim() : 'Missing application icons',
@@ -1313,6 +1166,8 @@ async function runTest(domain: AuditDomain = 'all'): Promise<PhaseResult> {
       'test',
       '--timeout=30000',
       'scripts/dependencies',
+      'scripts/check-no-python.test.ts',
+      'scripts/rust-projects.test.ts',
       'scripts/generate-patches-readme.test.ts',
       'scripts/hooks.test.ts',
       'scripts/install-hooks.test.ts',
@@ -1433,11 +1288,10 @@ async function runDeps(): Promise<PhaseResult> {
     }>
   > = {
     'JavaScript (NPM / Bun)': [],
-    'Python (PyPI / uv)': [],
     'Rust (crates.io / Cargo)': [],
     'Gradle Plugins & Libraries': [],
     'External APK Tools': [],
-    'GitHub Actions & Hooks': [],
+    'GitHub Actions': [],
     'Toolchains & Runtimes': [],
     'Embedded Assets': [],
   };
@@ -1445,16 +1299,14 @@ async function runDeps(): Promise<PhaseResult> {
   for (const item of report.items) {
     if (item.ecosystem === 'npm')
       ecosystemGroups['JavaScript (NPM / Bun)'].push(item);
-    else if (item.ecosystem === 'pypi')
-      ecosystemGroups['Python (PyPI / uv)'].push(item);
     else if (item.ecosystem === 'crates')
       ecosystemGroups['Rust (crates.io / Cargo)'].push(item);
     else if (item.ecosystem === 'gradle')
       ecosystemGroups['Gradle Plugins & Libraries'].push(item);
     else if (item.id.startsWith('tool:apk-lab/'))
       ecosystemGroups['External APK Tools'].push(item);
-    else if (item.ecosystem === 'action' || item.ecosystem === 'hook')
-      ecosystemGroups['GitHub Actions & Hooks'].push(item);
+    else if (item.ecosystem === 'action')
+      ecosystemGroups['GitHub Actions'].push(item);
     else if (item.ecosystem === 'embedded')
       ecosystemGroups['Embedded Assets'].push(item);
     else ecosystemGroups['Toolchains & Runtimes'].push(item);
@@ -1468,17 +1320,11 @@ async function runDeps(): Promise<PhaseResult> {
     );
     const groupUpdates = groupItems.filter((i) => i.status === 'update').length;
     const groupErrors = groupItems.filter((i) => i.status === 'error').length;
-    const groupBlocked = groupItems.filter(
-      (i) => i.status === 'blocked',
-    ).length;
     const groupUnsupported = groupItems.filter(
       (i) => i.status === 'unsupported',
     ).length;
     const groupSuccess =
-      groupUpdates === 0 &&
-      groupErrors === 0 &&
-      groupBlocked === 0 &&
-      groupUnsupported === 0;
+      groupUpdates === 0 && groupErrors === 0 && groupUnsupported === 0;
 
     let summaryStr = `All ${groupItems.length} items up to date or held`;
     if (groupErrors > 0) {
@@ -1487,12 +1333,6 @@ async function runDeps(): Promise<PhaseResult> {
         .map((i) => i.reason)
         .filter(Boolean);
       summaryStr = `${groupErrors} errors (${errReasons[0] || 'lookup failed'})`;
-    } else if (groupBlocked > 0) {
-      const blockedReasons = groupItems
-        .filter((i) => i.status === 'blocked')
-        .map((i) => i.reason)
-        .filter(Boolean);
-      summaryStr = `${groupBlocked} blocked (${blockedReasons[0] || 'policy/compatibility conflict'})`;
     } else if (groupUnsupported > 0) {
       const unsupportedReasons = groupItems
         .filter((i) => i.status === 'unsupported')
@@ -1527,7 +1367,7 @@ ${c.bold}Commands:${c.reset}
   format:check  Audit formatting without mutating files
   lint          Audit code quality and static analysis
   lint:fix      Audit and auto-fix supported lint rules
-  typecheck     Audit types across TypeScript, Python, Kotlin/Java, Rust, and C++
+  typecheck     Audit types across TypeScript, Kotlin/Java, Rust, and C++
   test          Run automated test suites
   deps          Audit dependency freshness
   all           Run format:check, lint, typecheck, and test (default)

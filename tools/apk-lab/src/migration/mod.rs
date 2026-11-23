@@ -17,6 +17,7 @@ pub mod oracle;
 pub mod parity;
 pub mod play;
 pub mod prerequisites;
+pub mod verify_goldens;
 
 use std::io::Write;
 
@@ -76,6 +77,7 @@ pub fn run(args: &[String]) -> Result<(), String> {
         "bench" => benchmark::run(rest),
         "compare" => compare::run(rest),
         "report-check" => compare::report_check(rest),
+        "verify-goldens" => verify_goldens::run(rest),
         "-h" | "--help" | "help" => {
             print_usage();
             Ok(())
@@ -104,6 +106,7 @@ Commands:
   bench          Run process-level baseline or paired benchmarks
   compare        Recompute paired statistics and apply the performance policy
   report-check   Validate TO-RUST.md against stored data and charts
+  verify-goldens Execute the native CLI against fixtures and check goldens
 
 Run a command with --help for its options."
     );
@@ -121,6 +124,17 @@ mod tests {
     #[test]
     fn unknown_subcommand_is_an_error() {
         assert!(run(&["nope".to_string()]).is_err());
+    }
+
+    #[test]
+    fn verify_goldens_help_is_dispatched() {
+        assert!(run(&["verify-goldens".to_string(), "--help".to_string()]).is_ok());
+        assert!(run(&[
+            "verify-goldens".to_string(),
+            "--group".to_string(),
+            "nope".to_string()
+        ])
+        .is_err());
     }
 
     #[test]

@@ -9,6 +9,7 @@ This reference covers navigating Dexlib2 AST structures, locating classes and me
 Inside a `bytecodePatch` or `compositeFeaturePatch`'s `execute { ... }` block, the receiver is `BytecodePatchContext`.
 
 ### Class Discovery
+
 Always prefer safe resolution with explicit error throwing over unsafe operations:
 
 ```kotlin
@@ -25,7 +26,9 @@ if (optionalDef == null) {
 ```
 
 ### Method Discovery & Anchoring
+
 Avoid matching on broad names alone (e.g. `init` or `onClick`). Anchor methods using:
+
 1. Exact method name.
 2. Parameter types (list of descriptors).
 3. Return type descriptor (`"V"` for void, `"Z"` for boolean, `"I"` for int, `"Ljava/lang/String;"`, etc.).
@@ -42,6 +45,7 @@ val targetMethod = classDef.methods.firstOrNull { method ->
 ```
 
 ### Locating Instruction Anchors
+
 Inspect `implementation.instructions` to anchor edits to specific opcodes or references:
 
 ```kotlin
@@ -91,18 +95,19 @@ import app.aidan.patches.shared.returnOptionalString
 
 ### Neutralizer Catalog & Semantics
 
-| Helper Method | Required / Optional | Semantics |
-|---|---|---|
-| `disableRequiredVoidMethods(classDescriptor, *methodNames)` | **Required** | Class must exist. At least one of the named void methods must be present and will be injected with `return-void` at index 0. |
-| `disableRequiredVoidMethodsByName(classDescriptor, *methodNames)` | **Required** | Class must exist. **Every** named method must be present and neutralized with `return-void`. |
-| `disableOptionalVoidMethods(classDescriptor, *methodNames)` | Optional | If class exists, all matching implemented void methods are neutralized with `return-void`. Missing classes or methods do not throw. |
-| `returnRequiredBoolean(classDescriptor, methodName, value)` | **Required** | Class and method must exist. Injects `const/4 v0, <0x0|0x1>` and `return v0` at index 0 for all matching boolean-returning overloads. |
-| `returnOptionalBoolean(classDescriptor, methodName, value)` | Optional | Gracefully succeeds if class or method is absent; otherwise forces return value. |
-| `returnRequiredNullObject(classDescriptor, methodName)` | **Required** | Class and method must exist. Injects `const/4 v0, 0x0` and `return-object v0` for class-returning overloads. |
-| `returnOptionalNullObject(classDescriptor, methodName)` | Optional | Same as above, but ignores missing classes or methods. |
-| `returnOptionalString(classDescriptor, methodName, value)` | Optional | If method exists, injects `const-string v0, "<escaped>"` and `return-object v0`. |
+| Helper Method                                                     | Required / Optional | Semantics                                                                                                                           |
+| ----------------------------------------------------------------- | ------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `disableRequiredVoidMethods(classDescriptor, *methodNames)`       | **Required**        | Class must exist. At least one of the named void methods must be present and will be injected with `return-void` at index 0.        |
+| `disableRequiredVoidMethodsByName(classDescriptor, *methodNames)` | **Required**        | Class must exist. **Every** named method must be present and neutralized with `return-void`.                                        |
+| `disableOptionalVoidMethods(classDescriptor, *methodNames)`       | Optional            | If class exists, all matching implemented void methods are neutralized with `return-void`. Missing classes or methods do not throw. |
+| `returnRequiredBoolean(classDescriptor, methodName, value)`       | **Required**        | Class and method must exist. Injects `const/4 v0, <0x0                                                                              | 0x1>`and`return v0` at index 0 for all matching boolean-returning overloads. |
+| `returnOptionalBoolean(classDescriptor, methodName, value)`       | Optional            | Gracefully succeeds if class or method is absent; otherwise forces return value.                                                    |
+| `returnRequiredNullObject(classDescriptor, methodName)`           | **Required**        | Class and method must exist. Injects `const/4 v0, 0x0` and `return-object v0` for class-returning overloads.                        |
+| `returnOptionalNullObject(classDescriptor, methodName)`           | Optional            | Same as above, but ignores missing classes or methods.                                                                              |
+| `returnOptionalString(classDescriptor, methodName, value)`        | Optional            | If method exists, injects `const-string v0, "<escaped>"` and `return-object v0`.                                                    |
 
 ### Example: Disabling Analytics & Telemetry
+
 ```kotlin
 execute {
     // Required: crash reporter class must be present
@@ -134,6 +139,7 @@ import app.morphe.patcher.extensions.InstructionExtensions.replaceInstruction
 ```
 
 ### Register Allocation & Parameter Registers
+
 1. **Local vs Parameter Registers**:
    - In Smali, parameters use `p0`, `p1`, `p2`, etc.
    - For **instance (virtual/direct)** methods:
@@ -151,6 +157,7 @@ import app.morphe.patcher.extensions.InstructionExtensions.replaceInstruction
    - Therefore, `vA` and `vB` **MUST** be $\le 15$ (`v0` through `v15`). Specifying `v16` or higher will fail DEX verification with an `IndexOutOfBoundsException` or `VerifyError` at runtime.
 
 ### Example: Calling a Java Extension Bridge
+
 ```kotlin
 // Inject at method entry (index 0)
 // p0 is the Activity instance in an instance method
@@ -163,6 +170,7 @@ targetMethod.addInstructions(
 ```
 
 ### Example: Replacing an Instruction with Idempotency Guard
+
 ```kotlin
 val instructions = targetMethod.implementation!!.instructions.toList()
 val branchIndex = instructions.indexOfFirst { it.opcode == Opcode.IF_EQZ }
@@ -190,17 +198,25 @@ if (!alreadyPatched) {
 Before building the full bundle, statically validate register widths, Smali opcodes, literal bounds, and control-flow graphs using `apk-lab validate-smali`:
 
 ```bash
-# Validate Smali code snippet directly
-uv run --project tools/apk-lab apk-lab validate-smali --smali "
+# Validate a Smali instruction snippet directly
+cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- validate-smali --snippet "
     const/4 v0, 0x1
     return v0
-"
+" --locals 1
 
-# Validate a Smali file extracted during inspection
-uv run --project tools/apk-lab apk-lab validate-smali path/to/Class.smali
+# Validate a static snippet with a branch and parameter descriptor
+cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- validate-smali \
+  --snippet "const/4 v0, 1
+:loop
+add-int/lit8 v0, v0, 1
+goto :loop" \
+  --locals 1 \
+  --descriptor "(I)V" \
+  --is-static
 ```
 
 `apk-lab validate-smali` verifies:
+
 - Format `22c` register bounds ($v0 \dots v15$).
 - Integer literal ranges (e.g. `const/4` requires $-8 \dots 7$, `const/16` requires $-32768 \dots 32767$).
 - Target label existence for branch instructions (`goto`, `if-eqz`).

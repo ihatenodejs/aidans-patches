@@ -369,8 +369,8 @@ bun run --cwd site check:icons
 
 Icon discovery remains offline and nonfatal when files are missing. Mutating
 `icons --download-missing` / `icons --sync-all` modes contact Play; equal decoded
-pixels preserve existing PNG bytes and mtime. Native transformations never invoke
-Python. Exact reference proof remains separate migration-only tooling.
+pixels preserve existing PNG bytes and mtime. No repository build or test path
+invokes Python.
 
 The first native codec build downloads SHA-256-pinned libjpeg-turbo 3.1.1;
 subsequent builds verify its cached source. ZIP uses Rust Deflate/Bzip2/LZMA
@@ -384,8 +384,8 @@ Pillow-compatible resampling attribution is in
 Reverse engineering workflows, multi-split artifact inspection, ARM64 assembly, IL2CPP metadata querying, and isolated patch compatibility checks use `tools/apk-lab`:
 
 ```bash
-uv run --project tools/apk-lab apk-lab doctor
-uv run --project tools/apk-lab apk-lab check path/to/app.apkm --mpp patches/build/libs/patches-1.0.0.mpp --package com.example.app --all
+cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- doctor
+cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- check path/to/app.apkm --mpp patches/build/libs/patches-1.0.0.mpp --package com.example.app --all
 ```
 
 See [`docs/apk-lab.md`](docs/apk-lab.md) for complete CLI documentation and workflows.

@@ -2,7 +2,7 @@
 //!
 //! This module deliberately performs only non-destructive local probes:
 //! process versions, filesystem paths, SHA-256 identities, and archive content
-//! classification through the pinned independent Python oracle. It never talks
+//! classification through the production native archive inspector. It never talks
 //! to Google Play, Cloudflare, a device, or any other network service. Device,
 //! account, cloud, and CI resources require separate pinned authorization and
 //! availability evidence records instead of an asserted boolean; authorization
@@ -18,7 +18,7 @@ use std::env;
 use std::fs::{self, File};
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 const SCHEMA_VERSION: u32 = 1;
@@ -99,15 +99,6 @@ const CATALOG: &[CatalogEntry] = &[
         owner: "toolchain-operator",
         consuming_plan: "002",
         description: "Stable Rust toolchain with rustc and cargo",
-        probes_required: true,
-        authorization_required: false,
-    },
-    CatalogEntry {
-        id: "host.python-oracle",
-        kind: "host-tool",
-        owner: "toolchain-operator",
-        consuming_plan: "001,002",
-        description: "Synchronized Python environment used as the migration oracle",
         probes_required: true,
         authorization_required: false,
     },
@@ -297,21 +288,15 @@ struct ProbeSpec {
     oracle: Option<OracleSpec>,
 }
 
-/// The independent Python oracle used only by the plan-001 harness to derive
-/// archive content identity. No production Rust implementation is used before
-/// the migration gates pass.
+/// Historical oracle identity retained for manifest schema compatibility.
+/// Container classification is native; these fields are validated but never
+/// executed.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields, rename_all = "camelCase")]
 struct OracleSpec {
     program: String,
     sha256: String,
     module_root: String,
-}
-
-#[derive(Debug, Deserialize)]
-#[serde(deny_unknown_fields, rename_all = "camelCase")]
-struct ContainerIdentityOutput {
-    container_type: String,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -1309,18 +1294,6 @@ fn probe_file(probe: &ProbeSpec) -> ProbeResult {
     }
 }
 
-/// The plan-001 harness asks the independent Python oracle to classify the
-/// archive from its actual ZIP members. Filename extensions are never used.
-const CONTAINER_IDENTITY_SCRIPT: &str = r#"import json
-import sys
-
-sys.path.insert(0, sys.argv[1])
-from apk_lab.archives import inspect_safe_zip
-
-report = inspect_safe_zip(sys.argv[2])
-print(json.dumps({"containerType": report.container_type.value}))
-"#;
-
 fn probe_apk_container(probe: &ProbeSpec) -> ProbeResult {
     let label = probe.label.clone();
     let path = match probe.path.as_deref() {
@@ -1361,45 +1334,11 @@ fn probe_apk_container(probe: &ProbeSpec) -> ProbeResult {
         Some(value) => value,
         None => return failed_probe(&label, "apk-container", "expected container type missing"),
     };
-    let oracle = match probe.oracle.as_ref() {
-        Some(oracle) => oracle,
-        None => return failed_probe(&label, "apk-container", "oracle configuration missing"),
-    };
-    let program = match resolve_program(&oracle.program) {
-        Some(program) => program,
-        None => {
-            return failed_container(
-                &label,
-                "oracle executable not found",
-                actual_hash,
-                metadata.len(),
-                None,
-            )
-        }
-    };
-    let oracle_hash = match sha256_file(&program) {
-        Ok(hash) => hash,
-        Err(_) => {
-            return failed_container(
-                &label,
-                "oracle read failed",
-                actual_hash,
-                metadata.len(),
-                None,
-            )
-        }
-    };
-    if !oracle.sha256.eq_ignore_ascii_case(&oracle_hash) {
-        return failed_container(
-            &label,
-            "oracle hash mismatch",
-            actual_hash,
-            metadata.len(),
-            None,
-        );
+    if probe.oracle.is_none() {
+        return failed_probe(&label, "apk-container", "oracle configuration missing");
     }
 
-    let observed = match classify_container_identity(&program, &oracle.module_root, path) {
+    let observed = match classify_container_identity(path) {
         Ok(observed) => observed,
         Err(reason) => return failed_container(&label, reason, actual_hash, metadata.len(), None),
     };
@@ -1409,7 +1348,7 @@ fn probe_apk_container(probe: &ProbeSpec) -> ProbeResult {
             "container type mismatch",
             actual_hash,
             metadata.len(),
-            Some(observed),
+            Some(observed.to_string()),
         );
     }
 
@@ -1419,40 +1358,22 @@ fn probe_apk_container(probe: &ProbeSpec) -> ProbeResult {
         status: "passed",
         sha256: Some(actual_hash),
         size_bytes: Some(metadata.len()),
-        container_type: Some(observed),
+        container_type: Some(observed.to_string()),
         version: None,
         reason: None,
     }
 }
 
-fn classify_container_identity(
-    program: &Path,
-    module_root: &str,
-    archive: &Path,
-) -> Result<String, &'static str> {
-    let output = Command::new(program)
-        .args(["-I", "-S", "-B", "-c", CONTAINER_IDENTITY_SCRIPT])
-        .arg(module_root)
-        .arg(archive)
-        .env_clear()
-        .env("PYTHONIOENCODING", "utf-8")
-        .env("PYTHONDONTWRITEBYTECODE", "1")
-        .env("PYTHONHASHSEED", "0")
-        .env("LC_ALL", "C")
-        .stdin(Stdio::null())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .output()
-        .map_err(|_| "container identity oracle failed")?;
-    if !output.status.success() {
-        return Err("container identity oracle failed");
-    }
-    let parsed: ContainerIdentityOutput = serde_json::from_slice(&output.stdout)
-        .map_err(|_| "container identity oracle output invalid")?;
-    if !is_container_type(&parsed.container_type) {
-        return Err("container identity oracle output invalid");
-    }
-    Ok(parsed.container_type)
+fn classify_container_identity(archive: &Path) -> Result<&'static str, &'static str> {
+    let report = crate::archives::inspect_safe_zip_path(archive)
+        .map_err(|_| "container identity classification failed")?;
+    Ok(match report.container_type {
+        crate::models::ContainerType::Apk => "APK",
+        crate::models::ContainerType::Apkm => "APKM",
+        crate::models::ContainerType::Xapk => "XAPK",
+        crate::models::ContainerType::Apks => "APKS",
+        crate::models::ContainerType::Unknown => "UNKNOWN",
+    })
 }
 
 fn failed_container(
@@ -2248,7 +2169,6 @@ mod tests {
         write_test_zip(&corpus_a, &[("AndroidManifest.xml", b"<manifest/>")]);
         write_test_zip(&corpus_b, &[("base.apk", b"synthetic base apk")]);
         fs::write(&corpus_mpp, b"synthetic-mpp").unwrap();
-        let oracle = test_oracle();
 
         let tools: Vec<(&str, Vec<Value>)> = vec![
             (
@@ -2321,16 +2241,6 @@ mod tests {
                     "1.97.1",
                 )],
             ),
-            (
-                "host.python-oracle",
-                vec![exec(
-                    "python",
-                    "/bin/sh",
-                    &["-c", "echo Python 3.12.14"],
-                    "Python 3.12.14",
-                    "3.12.14",
-                )],
-            ),
         ];
 
         let mut resources = Vec::new();
@@ -2347,13 +2257,13 @@ mod tests {
             "id": "corpus.single-apk",
             "kind": "artifact-corpus",
             "owner": "test-benchmark-owner",
-            "probes": [apk_container("single-apk", &corpus_a, "APK", &oracle)]
+            "probes": [apk_container("single-apk", &corpus_a, "APK")]
         }));
         resources.push(json!({
             "id": "corpus.split-apk",
             "kind": "artifact-corpus",
             "owner": "test-benchmark-owner",
-            "probes": [apk_container("split-apk", &corpus_b, "APKM", &oracle)]
+            "probes": [apk_container("split-apk", &corpus_b, "APKM")]
         }));
         resources.push(json!({
             "id": "corpus.mpp",
@@ -2451,34 +2361,7 @@ mod tests {
         value
     }
 
-    struct TestOracle {
-        program: PathBuf,
-        sha256: String,
-        module_root: PathBuf,
-    }
-
-    fn test_oracle() -> TestOracle {
-        let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
-        let program = env::var_os("APK_LAB_PYTHON")
-            .map(PathBuf::from)
-            .filter(|path| path.is_file())
-            .or_else(|| {
-                let venv = manifest_dir.join(".venv/bin/python");
-                venv.is_file().then_some(venv)
-            })
-            .or_else(|| resolve_program("python3"))
-            .or_else(|| resolve_program("python"))
-            .expect(
-                "plan-001 prerequisite tests require the independent Python oracle (APK_LAB_PYTHON, .venv/bin/python, or python3)",
-            );
-        TestOracle {
-            sha256: sha_of(&program),
-            program,
-            module_root: manifest_dir.to_path_buf(),
-        }
-    }
-
-    fn apk_container(label: &str, path: &Path, expected: &str, oracle: &TestOracle) -> Value {
+    fn apk_container(label: &str, path: &Path, expected: &str) -> Value {
         json!({
             "label": label,
             "type": "apk-container",
@@ -2487,14 +2370,14 @@ mod tests {
             "sizeBytes": fs::metadata(path).unwrap().len(),
             "containerType": expected,
             "oracle": {
-                "program": oracle.program.to_string_lossy().to_string(),
-                "sha256": oracle.sha256.clone(),
-                "moduleRoot": oracle.module_root.to_string_lossy().to_string()
+                "program": "native",
+                "sha256": "0".repeat(64),
+                "moduleRoot": "."
             }
         })
     }
 
-    fn container_spec(label: &str, path: &Path, expected: &str, oracle: &TestOracle) -> ProbeSpec {
+    fn container_spec(label: &str, path: &Path, expected: &str) -> ProbeSpec {
         ProbeSpec {
             label: label.to_string(),
             probe_type: "apk-container".to_string(),
@@ -2508,9 +2391,9 @@ mod tests {
             expected_contains: None,
             container_type: Some(expected.to_string()),
             oracle: Some(OracleSpec {
-                program: oracle.program.to_string_lossy().to_string(),
-                sha256: oracle.sha256.clone(),
-                module_root: oracle.module_root.to_string_lossy().to_string(),
+                program: "native".to_string(),
+                sha256: "0".repeat(64),
+                module_root: ".".to_string(),
             }),
         }
     }
@@ -2634,7 +2517,7 @@ mod tests {
             report["summary"]["total"].as_u64().unwrap() as usize,
             CATALOG.len()
         );
-        assert_eq!(report["summary"]["ready"], json!(11));
+        assert_eq!(report["summary"]["ready"], json!(10));
         assert_eq!(report["summary"]["blocked"], json!(10));
         assert_eq!(report["summary"]["missing"], json!(0));
         assert_eq!(report["summary"]["acceptancePassed"], false);
@@ -3120,7 +3003,6 @@ mod tests {
     #[test]
     fn container_identity_uses_archive_members_not_filename() {
         let dir = TempDir::new("container-identity");
-        let oracle = test_oracle();
 
         let single = dir.join("looks-like-single.apk");
         write_test_zip(&single, &[("AndroidManifest.xml", b"<manifest/>")]);
@@ -3137,7 +3019,7 @@ mod tests {
             (&xapk, "XAPK"),
             (&apks, "APKS"),
         ] {
-            let result = probe_apk_container(&container_spec("identity", path, expected, &oracle));
+            let result = probe_apk_container(&container_spec("identity", path, expected));
             assert_eq!(result.status, "passed", "{expected}: {:?}", result.reason);
             assert_eq!(result.container_type.as_deref(), Some(expected));
         }
@@ -3188,7 +3070,7 @@ mod tests {
     }
 
     #[test]
-    fn container_identity_verifies_hashes_before_oracle_execution() {
+    fn container_identity_verifies_hashes_before_classification() {
         let dir = TempDir::new("identity-hash-order");
         let mut manifest = base_manifest(&dir, "authorized", "available", "2099-11-20T00:00:00Z");
         let corpus = manifest["resources"]
@@ -3198,7 +3080,6 @@ mod tests {
             .find(|resource| resource["id"] == "corpus.single-apk")
             .unwrap();
         corpus["probes"][0]["sha256"] = json!("0".repeat(64));
-        corpus["probes"][0]["oracle"]["program"] = json!("/nonexistent/oracle");
 
         let manifest = manifest_path(&dir, &manifest);
         let out = dir.join("report.json");
