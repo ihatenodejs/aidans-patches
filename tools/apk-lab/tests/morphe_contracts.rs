@@ -44,6 +44,58 @@ fn write_zip(path: &Path, entries: &[(&str, &[u8])]) {
     writer.finish().expect("finish zip");
 }
 
+/// Builds a minimal valid DEX that declares one class per string; each type
+/// descriptor is the corresponding string entry.
+fn mock_dex(strings: &[&str]) -> Vec<u8> {
+    fn uleb128(mut value: u64) -> Vec<u8> {
+        let mut out = Vec::new();
+        loop {
+            let byte = (value & 0x7F) as u8;
+            value >>= 7;
+            out.push(if value == 0 { byte } else { byte | 0x80 });
+            if value == 0 {
+                return out;
+            }
+        }
+    }
+
+    let header_size = 0x70_usize;
+    let string_ids_off = header_size;
+    let data_off = string_ids_off + strings.len() * 4;
+    let mut string_data = Vec::new();
+    let mut offsets = Vec::new();
+    for value in strings {
+        offsets.push(data_off + string_data.len());
+        string_data.extend(uleb128(value.chars().count() as u64));
+        string_data.extend_from_slice(value.as_bytes());
+        string_data.push(0);
+    }
+    let type_ids_off = data_off + string_data.len();
+    let class_defs_off = type_ids_off + strings.len() * 4;
+
+    let mut dex = vec![0_u8; header_size];
+    dex[0..4].copy_from_slice(b"dex\n");
+    dex[4..8].copy_from_slice(b"035\x00");
+    dex[0x38..0x3C].copy_from_slice(&(strings.len() as u32).to_le_bytes());
+    dex[0x3C..0x40].copy_from_slice(&(string_ids_off as u32).to_le_bytes());
+    dex[0x40..0x44].copy_from_slice(&(strings.len() as u32).to_le_bytes());
+    dex[0x44..0x48].copy_from_slice(&(type_ids_off as u32).to_le_bytes());
+    dex[0x60..0x64].copy_from_slice(&(strings.len() as u32).to_le_bytes());
+    dex[0x64..0x68].copy_from_slice(&(class_defs_off as u32).to_le_bytes());
+    for offset in offsets {
+        dex.extend_from_slice(&(offset as u32).to_le_bytes());
+    }
+    dex.extend_from_slice(&string_data);
+    for index in 0..strings.len() {
+        dex.extend_from_slice(&(index as u32).to_le_bytes());
+    }
+    for index in 0..strings.len() {
+        dex.extend_from_slice(&(index as u32).to_le_bytes());
+        dex.extend_from_slice(&[0_u8; 28]);
+    }
+    dex
+}
+
 fn inspect_package(
     path: &Path,
     package_name: &str,
@@ -1464,7 +1516,23 @@ fn dexdump_adapter_verifies_and_extracts_from_dex_members() {
     );
     let dexdump = DexDump::new(write_fake_dexdump(temp.path(), false));
     assert!(dexdump.verify(&apk).is_ok());
+    // Class inventory is read from the DEX tables directly; arbitrary bytes
+    // yield no descriptors and the fake tool's stdout is not parsed.
     let classes = dexdump.class_descriptors(&apk).expect("classes");
+    assert!(classes.is_empty());
+
+    let valid = temp.path().join("valid.apk");
+    write_zip(
+        &valid,
+        &[
+            (
+                "classes.dex",
+                &mock_dex(&["Lapp/aidan/extension/Feature;"])[..],
+            ),
+            ("res/raw/x", b"raw"),
+        ],
+    );
+    let classes = dexdump.class_descriptors(&valid).expect("classes");
     assert_eq!(
         classes.into_iter().collect::<Vec<_>>(),
         vec!["Lapp/aidan/extension/Feature;".to_string()]

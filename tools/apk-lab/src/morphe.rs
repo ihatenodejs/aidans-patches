@@ -20,6 +20,7 @@
 //! executables and fake inspectors; nothing here invokes Python.
 
 use crate::archives;
+use crate::dex_strings;
 use crate::error::Error;
 use crate::inspection;
 use crate::models::{ArtifactInspection, ContainerType, ExitCode};
@@ -35,7 +36,7 @@ use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::fs;
-use std::io::{Cursor, Read, Seek};
+use std::io::{Read, Seek};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, LazyLock, Mutex};
@@ -914,6 +915,38 @@ where
     Ok(())
 }
 
+/// Read one DEX member at a time into memory for direct header/table parsing.
+///
+/// Only the current member's bytes are retained, so peak memory is bounded by
+/// the largest DEX in the archive rather than a full-text `dexdump` capture.
+fn for_each_dex_member<F>(apk_path: &Path, mut visit: F) -> Result<(), String>
+where
+    F: FnMut(&str, Vec<u8>) -> Result<(), String>,
+{
+    let file =
+        fs::File::open(apk_path).map_err(|error| format!("{}: {error}", apk_path.display()))?;
+    let mut archive =
+        ZipArchive::new(file).map_err(|error| format!("invalid zip archive: {error}"))?;
+    for index in 0..archive.len() {
+        let mut member = archive
+            .by_index(index)
+            .map_err(|error| format!("read zip member: {error}"))?;
+        let name = member
+            .name()
+            .map_err(|error| format!("decode zip member name: {error}"))?
+            .to_string();
+        if member.is_dir() || !name.ends_with(".dex") {
+            continue;
+        }
+        let mut bytes = Vec::new();
+        member
+            .read_to_end(&mut bytes)
+            .map_err(|error| format!("read {name}: {error}"))?;
+        visit(&name, bytes)?;
+    }
+    Ok(())
+}
+
 impl DexTool for DexDump {
     fn verify(&self, apk_path: &Path) -> Result<(), String> {
         let directory =
@@ -958,36 +991,18 @@ impl DexTool for DexDump {
         if self.program.is_none() {
             return Ok(BTreeSet::new());
         }
-        let directory =
-            TempDir::new().map_err(|error| format!("create DEX temp directory: {error}"))?;
         let mut classes = BTreeSet::new();
-        for_each_dex_file(apk_path, directory.path(), |name, path| {
-            let program = self.program()?;
-            let mut spec = ProcessSpec::new(program.to_path_buf())
-                .arg(path.to_string_lossy().into_owned())
-                .max_output_bytes(self.max_output_bytes);
-            if let Some(timeout) = self.timeout {
-                spec = spec.timeout(timeout);
+        for_each_dex_member(apk_path, |_name, bytes| {
+            if self
+                .cancellation
+                .as_ref()
+                .is_some_and(Cancellation::is_cancelled)
+            {
+                return Err("dexdump extraction was cancelled".to_string());
             }
-            if let Some(cancellation) = &self.cancellation {
-                spec = spec.cancel(cancellation.shared());
-            }
-            let output = process::run(&spec)
-                .map_err(|error| format!("Could not locate dexdump: {error}"))?;
-            if output.timed_out {
-                return Err(format!("dexdump timed out on {name}"));
-            }
-            if output.cancelled {
-                return Err(format!("dexdump was cancelled on {name}"));
-            }
-            if !output.status.success() {
-                return Err(format!(
-                    "dexdump failed on {name} (exit {}): {}",
-                    output.status.code().unwrap_or(-1),
-                    truncate_chars(&output.stderr.text_lossy(), 300)
-                ));
-            }
-            classes.extend(parse_dexdump_class_descriptors(&output.stdout.text_lossy()));
+            classes.extend(dex_strings::extract_class_descriptors_from_dex_bytes(
+                &bytes,
+            ));
             Ok(())
         })?;
         Ok(classes)
@@ -1049,6 +1064,10 @@ pub fn get_member_hashes(apk_path: &Path) -> Result<BTreeMap<String, String>, Er
 }
 
 /// Maps each split member path to the set of hashes found across split APKs.
+///
+/// Splits are streamed to disk one at a time instead of being buffered whole,
+/// matching the Python oracle's bounded copy loop. A large base split would
+/// otherwise be resident for every case.
 pub fn get_split_container_input_member_hashes(
     container_path: &Path,
 ) -> Result<BTreeMap<String, BTreeSet<String>>, Error> {
@@ -1060,6 +1079,15 @@ pub fn get_split_container_input_member_hashes(
     })?;
     let mut container = ZipArchive::new(file)
         .map_err(|error| Error::invalid_artifact(format!("invalid split container: {error}")))?;
+    let directory = TempDir::new().map_err(|error| {
+        Error::io(
+            format!(
+                "create split temp directory for {}",
+                container_path.display()
+            ),
+            error,
+        )
+    })?;
     let mut hashes_map: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
     for index in 0..container.len() {
         let mut member = container
@@ -1072,11 +1100,15 @@ pub fn get_split_container_input_member_hashes(
         if member.is_dir() || !split_name.ends_with(".apk") {
             continue;
         }
-        let mut bytes = Vec::new();
-        member
-            .read_to_end(&mut bytes)
+        let extracted = directory.path().join(format!("split-{index}.apk"));
+        let mut output = fs::File::create(&extracted)
+            .map_err(|error| Error::io(format!("write {}", extracted.display()), error))?;
+        std::io::copy(&mut member, &mut output)
             .map_err(|error| Error::invalid_artifact(format!("read {split_name}: {error}")))?;
-        let split_hashes = hash_zip_members(Cursor::new(bytes))
+        drop(output);
+        let split_file = fs::File::open(&extracted)
+            .map_err(|error| Error::io(format!("read {}", extracted.display()), error))?;
+        let split_hashes = hash_zip_members(split_file)
             .map_err(|error| Error::invalid_artifact(format!("{split_name}: {error}")))?;
         for (name, hash) in split_hashes {
             hashes_map.entry(name).or_default().insert(hash);

@@ -1,16 +1,24 @@
-//! Direct DEX string-table extraction.
+//! Direct DEX string-table and class-descriptor extraction.
 //!
-//! This ports `apk_lab.dex_strings.extract_strings_from_dex_bytes`. It parses
-//! only the header and `string_ids` table; no decompilation or class parsing is
-//! performed. Truncated or inconsistent entries are skipped exactly as the
-//! Python generator does, and decoding is plain UTF-8 with replacement, matching
-//! Python's `bytes.decode("utf-8", errors="replace")` rather than modified UTF-8.
+//! This ports `apk_lab.dex_strings.extract_strings_from_dex_bytes` and provides
+//! a direct `class_defs` reader used instead of parsing full `dexdump` text.
+//! Truncated or inconsistent entries are skipped exactly as the Python
+//! generator does, and decoding is plain UTF-8 with replacement, matching
+//! Python's `bytes.decode("utf-8", errors="replace")` rather than modified
+//! UTF-8. That is also what the Python oracle sees for `dexdump` stdout: the
+//! tool writes raw descriptor bytes and Python decodes them lossily.
 
 use crate::error::Error;
 
 const DEX_HEADER_BYTES: usize = 0x70;
 const STRING_IDS_SIZE_OFFSET: usize = 0x38;
 const STRING_IDS_OFFSET_OFFSET: usize = 0x3C;
+const TYPE_IDS_SIZE_OFFSET: usize = 0x40;
+const TYPE_IDS_OFFSET_OFFSET: usize = 0x44;
+const CLASS_DEFS_SIZE_OFFSET: usize = 0x60;
+const CLASS_DEFS_OFFSET_OFFSET: usize = 0x64;
+const CLASS_DEF_ITEM_BYTES: usize = 32;
+const TYPE_ID_ITEM_BYTES: usize = 4;
 
 /// Decodes an unsigned LEB128 integer, returning `(value, bytes_read)`.
 ///
@@ -95,6 +103,80 @@ pub fn extract_strings_from_dex_bytes(dex_bytes: &[u8]) -> Vec<String> {
     strings
 }
 
+/// Extracts every `class_def` descriptor from a DEX file.
+///
+/// This reads the header, `class_defs`, `type_ids` and `string_ids` tables
+/// directly, so a full-text `dexdump` capture is not needed. A `class_defs`
+/// list that runs past the end of the file stops the scan, and out-of-range
+/// type or string indices are skipped; a file shorter than the header or
+/// without a `dex\n` magic yields nothing. Descriptors decode as UTF-8 with
+/// replacement, which matches what the Python oracle reads from `dexdump`
+/// stdout (`errors="replace"`).
+#[must_use]
+pub fn extract_class_descriptors_from_dex_bytes(dex_bytes: &[u8]) -> Vec<String> {
+    if dex_bytes.len() < DEX_HEADER_BYTES || !dex_bytes.starts_with(b"dex\n") {
+        return Vec::new();
+    }
+
+    let class_defs_size = read_u32_le(dex_bytes, CLASS_DEFS_SIZE_OFFSET) as usize;
+    let class_defs_off = read_u32_le(dex_bytes, CLASS_DEFS_OFFSET_OFFSET) as usize;
+    let mut descriptors = Vec::new();
+
+    for index in 0..class_defs_size {
+        let Some(class_def_off) = class_defs_off
+            .checked_add(index.saturating_mul(CLASS_DEF_ITEM_BYTES))
+            .filter(|offset| offset.saturating_add(CLASS_DEF_ITEM_BYTES) <= dex_bytes.len())
+        else {
+            break;
+        };
+        let type_index = read_u32_le(dex_bytes, class_def_off) as usize;
+        if let Some(descriptor) = descriptor_for_type(dex_bytes, type_index) {
+            descriptors.push(descriptor);
+        }
+    }
+
+    descriptors
+}
+
+/// Resolves a `type_ids` index to its descriptor string.
+fn descriptor_for_type(dex_bytes: &[u8], type_index: usize) -> Option<String> {
+    let type_ids_size = read_u32_le(dex_bytes, TYPE_IDS_SIZE_OFFSET) as usize;
+    let type_ids_off = read_u32_le(dex_bytes, TYPE_IDS_OFFSET_OFFSET) as usize;
+    if type_index >= type_ids_size {
+        return None;
+    }
+    let entry_off = type_ids_off.checked_add(type_index.checked_mul(TYPE_ID_ITEM_BYTES)?)?;
+    if entry_off.saturating_add(TYPE_ID_ITEM_BYTES) > dex_bytes.len() {
+        return None;
+    }
+    let string_index = read_u32_le(dex_bytes, entry_off) as usize;
+    string_at(dex_bytes, string_index)
+}
+
+/// Reads one entry from the `string_ids` table.
+fn string_at(dex_bytes: &[u8], index: usize) -> Option<String> {
+    let string_ids_size = read_u32_le(dex_bytes, STRING_IDS_SIZE_OFFSET) as usize;
+    let string_ids_off = read_u32_le(dex_bytes, STRING_IDS_OFFSET_OFFSET) as usize;
+    if index >= string_ids_size {
+        return None;
+    }
+    let id_off = string_ids_off.checked_add(index.checked_mul(4)?)?;
+    if id_off.saturating_add(4) > dex_bytes.len() {
+        return None;
+    }
+    let data_off = read_u32_le(dex_bytes, id_off) as usize;
+    if data_off >= dex_bytes.len() {
+        return None;
+    }
+    let (_utf16_size, uleb_len) = read_uleb128(dex_bytes, data_off).ok()?;
+    let str_start = data_off.checked_add(uleb_len)?;
+    let relative_null = dex_bytes
+        .get(str_start..)?
+        .iter()
+        .position(|byte| *byte == 0)?;
+    Some(String::from_utf8_lossy(&dex_bytes[str_start..str_start + relative_null]).into_owned())
+}
+
 fn read_u32_le(data: &[u8], offset: usize) -> u32 {
     let mut bytes = [0_u8; 4];
     bytes.copy_from_slice(&data[offset..offset + 4]);
@@ -147,6 +229,74 @@ mod tests {
         }
         dex.extend_from_slice(&string_data);
         dex
+    }
+
+    /// Extends the base layout with one `type_id` per string and `class_defs`
+    /// for the supplied type indices.
+    fn build_mock_dex_with_class_types(strings: &[&str], class_types: &[u32]) -> Vec<u8> {
+        let mut dex = build_mock_dex(strings);
+        let type_ids_off = dex.len();
+        let class_defs_off = type_ids_off + strings.len() * TYPE_ID_ITEM_BYTES;
+        for string_index in 0..strings.len() {
+            dex.extend_from_slice(&(string_index as u32).to_le_bytes());
+        }
+        dex[0x40..0x44].copy_from_slice(&(strings.len() as u32).to_le_bytes());
+        dex[0x44..0x48].copy_from_slice(&(type_ids_off as u32).to_le_bytes());
+        dex[0x60..0x64].copy_from_slice(&(class_types.len() as u32).to_le_bytes());
+        dex[0x64..0x68].copy_from_slice(&(class_defs_off as u32).to_le_bytes());
+        for type_index in class_types {
+            dex.extend_from_slice(&type_index.to_le_bytes());
+            dex.extend_from_slice(&[0_u8; CLASS_DEF_ITEM_BYTES - TYPE_ID_ITEM_BYTES]);
+        }
+        dex
+    }
+
+    #[test]
+    fn extracts_mock_dex_class_descriptors() {
+        let dex = build_mock_dex_with_class_types(
+            &["Ljava/lang/Object;", "Lcom/example/MyClass;", "not-a-type"],
+            &[0, 1, 1],
+        );
+        assert_eq!(
+            extract_class_descriptors_from_dex_bytes(&dex),
+            vec![
+                "Ljava/lang/Object;",
+                "Lcom/example/MyClass;",
+                "Lcom/example/MyClass;"
+            ]
+        );
+    }
+
+    #[test]
+    fn class_descriptor_reader_skips_bad_indices_and_truncation() {
+        // Type index outside `type_ids_size` is skipped.
+        let dex = build_mock_dex_with_class_types(&["LA;"], &[3]);
+        assert!(extract_class_descriptors_from_dex_bytes(&dex).is_empty());
+
+        // A truncated `class_defs` table yields no descriptors and no panic.
+        let dex = build_mock_dex_with_class_types(&["LA;"], &[0]);
+        let class_defs_size = u32::from_le_bytes(dex[0x60..0x64].try_into().unwrap());
+        assert_eq!(class_defs_size, 1);
+        assert!(extract_class_descriptors_from_dex_bytes(&dex[..0x71]).is_empty());
+
+        // Invalid magic and short inputs yield nothing.
+        assert!(extract_class_descriptors_from_dex_bytes(b"dex\nshort").is_empty());
+        assert!(extract_class_descriptors_from_dex_bytes(&[]).is_empty());
+        let mut bad = dex.clone();
+        bad[0..4].copy_from_slice(b"nope");
+        assert!(extract_class_descriptors_from_dex_bytes(&bad).is_empty());
+    }
+
+    #[test]
+    fn class_descriptor_reader_matches_lossy_utf8() {
+        let dex = build_mock_dex_with_class_types(
+            &["Lh\u{e9}llo;", "Lapp/aidan/extension/\u{1f600};"],
+            &[0, 1],
+        );
+        assert_eq!(
+            extract_class_descriptors_from_dex_bytes(&dex),
+            vec!["Lh\u{e9}llo;", "Lapp/aidan/extension/\u{1f600};"]
+        );
     }
 
     #[test]
