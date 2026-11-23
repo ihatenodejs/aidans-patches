@@ -105,6 +105,9 @@ jobs:
         with:
           bun-version: latest
 
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@1.97.1
+
       - name: Install root dependencies
         run: bun install --frozen-lockfile
 
@@ -272,7 +275,14 @@ jobs:
   gate:
     name: Test & Build Gate
     needs:
-      [detect-changes, test-web, test-android, test-rust, test-native, test-python-free]
+      [
+        detect-changes,
+        test-web,
+        test-android,
+        test-rust,
+        test-native,
+        test-python-free,
+      ]
     if: always()
     runs-on: ubuntu-latest
     steps:

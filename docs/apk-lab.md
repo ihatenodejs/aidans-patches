@@ -584,13 +584,18 @@ Build and run from the repository root:
 cargo build --release --locked --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab-migrate
 MIG=tools/apk-lab/target/release/apk-lab-migrate
 $MIG inventory --check
+$MIG verify-goldens --group all
 $MIG report-check --report TO-RUST.md --data-dir docs/benchmarks/apk-lab
 $MIG prerequisites --manifest .apk-lab-migration/prerequisites.local.json --out .apk-lab-migration/prerequisites.json
 $MIG compare --input docs/benchmarks/apk-lab/paired.json --policy tools/apk-lab/migration/performance-policy.json --out docs/benchmarks/apk-lab/comparison.json
 ```
 
 - `inventory` validates the frozen command/test/consumer contract inventory.
-- `report-check` validates `TO-RUST.md` against the stored paired data and charts.
+- `verify-goldens` executes the native CLI against committed fixtures for core,
+  analysis, patching/device, and acquisition/CI output, exit-code, and file hashes.
+  Python sentinels fail the run if any child invokes an interpreter.
+- `report-check` validates a local, git-excluded `TO-RUST.md` against the stored
+  paired data and charts. The generated report is intentionally not tracked.
 - `prerequisites` inventories host, corpus, device, Play, R2, Worker, and workflow
   resources without live mutation. `--check` is the acceptance form: it exits nonzero
   until every required resource is available, authorized, and identity-stable.

@@ -186,7 +186,7 @@
       ],
       "exit": 1,
       "stdout": "",
-      "stderr": "Error: No PDFBox assets found matching prefix 'assets/com/tom_roush/' in /Users/aidan/Projects/aidans-patches/tools/asset-prep/tests/fixtures/pdfbox/aars/no-assets.aar\n",
+      "stderr": "Error: No PDFBox assets found matching prefix 'assets/com/tom_roush/' in <fixtures>/pdfbox/aars/no-assets.aar\n",
       "outputExists": false
     },
     "synthetic-empty": {
@@ -200,7 +200,7 @@
       ],
       "exit": 1,
       "stdout": "",
-      "stderr": "Error: No PDFBox assets found matching prefix 'assets/com/tom_roush/' in /Users/aidan/Projects/aidans-patches/tools/asset-prep/tests/fixtures/pdfbox/aars/empty.aar\n",
+      "stderr": "Error: No PDFBox assets found matching prefix 'assets/com/tom_roush/' in <fixtures>/pdfbox/aars/empty.aar\n",
       "outputExists": false
     },
     "synthetic-corrupt": {

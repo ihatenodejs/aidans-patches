@@ -66,7 +66,8 @@ describe('Python-free gate scanning', () => {
           'const result = Bun.spawnSync(["python3", "-m", "pytest"]);\n',
         'docs/guide.md':
           'Run `pytest -q` before committing; see tools/apk-lab/apk_lab/cli.py.\n',
-        '.github/AGENTS.md': 'Python scripts follow Ruff formatting/lint rules.\n',
+        '.github/AGENTS.md':
+          'Python scripts follow Ruff formatting/lint rules.\n',
       });
 
       const found = scanRepository(root);

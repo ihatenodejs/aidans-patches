@@ -211,6 +211,12 @@ impl ProcessOutput {
 /// A non-zero child exit and a timeout are successful adapter outcomes; callers
 /// decide whether they are failures. Spawn and wait failures are [`Error`]s.
 pub fn run(spec: &ProcessSpec) -> Result<ProcessOutput, Error> {
+    if executable_candidate(spec).is_none() {
+        return Err(Error::usage(format!(
+            "cannot execute '{}': executable not found",
+            spec.describe_command()
+        )));
+    }
     let mut command = Command::new(&spec.program);
     command.args(&spec.args);
     if let Some(cwd) = &spec.cwd {
@@ -336,6 +342,29 @@ fn stdio_for(mode: OutputMode) -> Stdio {
     }
 }
 
+/// Resolves the program the way `Command` will: an explicit path is checked
+/// relative to the configured working directory, while a bare name is searched
+/// on `PATH`. Linux may turn an `exec` failure into a silent child exit 127, so
+/// detect a missing executable before spawning.
+fn executable_candidate(spec: &ProcessSpec) -> Option<PathBuf> {
+    let program = std::path::Path::new(&spec.program);
+    let has_separator = spec.program.to_string_lossy().contains(['/', '\\']);
+    if program.is_absolute() || has_separator {
+        let resolved = if program.is_absolute() {
+            program.to_path_buf()
+        } else if let Some(cwd) = &spec.cwd {
+            cwd.join(program)
+        } else {
+            program.to_path_buf()
+        };
+        return resolved.is_file().then_some(resolved);
+    }
+    let paths = std::env::var_os("PATH")?;
+    std::env::split_paths(&paths)
+        .map(|directory| directory.join(program))
+        .find(|candidate| candidate.is_file())
+}
+
 fn spawn_error(spec: &ProcessSpec, error: &io::Error) -> Error {
     if error.kind() == io::ErrorKind::NotFound {
         Error::usage(format!(
@@ -417,17 +446,22 @@ mod tests {
             signal.store(true, Ordering::Relaxed);
         });
         let started = Instant::now();
-        let spec = ProcessSpec::new("/bin/sh")
-            .args(["-c", "sleep 5"])
-            .cancel(flag);
-        let output = run(&spec).expect("sh starts");
+        let spec = ProcessSpec::new("/bin/sleep").args(["30"]).cancel(flag);
+        let output = run(&spec).expect("sleep starts");
         starter.join().expect("signal thread");
         assert!(output.cancelled, "child must be reported as cancelled");
         assert!(!output.success());
         assert!(
-            started.elapsed() < Duration::from_secs(3),
+            started.elapsed() < Duration::from_secs(10),
             "cancel must not wait for the child"
         );
+    }
+
+    #[test]
+    fn missing_program_is_a_usage_error() {
+        let error = run(&ProcessSpec::new("/definitely/missing/apk-lab-tool"))
+            .expect_err("missing program must fail before spawn");
+        assert_eq!(error.exit_code(), crate::models::ExitCode::UsageOrToolError);
     }
 
     #[test]

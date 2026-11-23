@@ -199,7 +199,7 @@ for argument in "$@"; do
     file:*)
       password_file=${{argument#file:}}
       if [ -f "$password_file" ]; then
-        mode=$(stat -f %Lp "$password_file" 2>/dev/null || stat -c %a "$password_file" 2>/dev/null)
+        mode=$(stat -c %a "$password_file" 2>/dev/null || stat -f %Lp "$password_file" 2>/dev/null)
         printf 'secret-mode %s\n' "$mode" >> {log}
       fi
       ;;
@@ -263,7 +263,7 @@ while [ $# -gt 0 ]; do
       ;;
     -storepass:file|-keypass:file)
       password_file=$2
-      mode=$(stat -f %Lp "$password_file" 2>/dev/null || stat -c %a "$password_file" 2>/dev/null)
+      mode=$(stat -c %a "$password_file" 2>/dev/null || stat -f %Lp "$password_file" 2>/dev/null)
       printf 'secret-mode %s\n' "$mode" >> {log}
       shift 2
       ;;

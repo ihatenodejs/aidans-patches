@@ -118,3 +118,8 @@ _deps/
 *.a
 *.o
 *.obj
+
+# Frozen native asset baseline captures are committed test fixtures.
+!tools/asset-prep/tests/fixtures/baseline/captures/
+!tools/asset-prep/tests/fixtures/baseline/captures/**
+!tools/asset-prep/tests/fixtures/font/*.ttf

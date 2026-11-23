@@ -325,7 +325,12 @@ fn zero_assets_removes_existing_output_and_fails() {
     let message = error_message(result);
     assert_eq!(stdout, expected.stdout);
     assert_eq!(stderr, "");
-    assert_eq!(format!("{message}\n"), expected.stderr);
+    assert_eq!(
+        format!("{message}\n"),
+        expected
+            .stderr
+            .replace("<fixtures>", &fixture_root().display().to_string())
+    );
     assert!(!output.exists());
     assert!(!expected.output_exists);
     assert_eq!(expected.exit, 1);
@@ -345,7 +350,12 @@ fn empty_aar_fails_without_leaving_output() {
     ));
     let message = error_message(result);
     assert_eq!(stdout, expected.stdout);
-    assert_eq!(format!("{message}\n"), expected.stderr);
+    assert_eq!(
+        format!("{message}\n"),
+        expected
+            .stderr
+            .replace("<fixtures>", &fixture_root().display().to_string())
+    );
     assert!(!output.exists());
 }
 

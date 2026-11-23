@@ -69,6 +69,7 @@ restored baseline archive plus a Python 3.12 interpreter.
 ```sh
 MIG=tools/apk-lab/target/release/apk-lab-migrate
 $MIG inventory --check
+$MIG verify-goldens --group all
 $MIG prerequisites --manifest .apk-lab-migration/prerequisites.local.json \
   --out .apk-lab-migration/prerequisites.json
 $MIG capture --engine python --profile offline \
@@ -91,6 +92,7 @@ $MIG compare --input .apk-lab-migration/paired.json \
   --policy tools/apk-lab/migration/performance-policy.json \
   --out .apk-lab-migration/comparison.json
 $MIG report-check --report TO-RUST.md --data-dir docs/benchmarks/apk-lab
+# TO-RUST.md is a local generated report; it is excluded through .git/info/exclude.
 $MIG preflight icons --manifest .apk-lab-migration/icons-reference/proof.local.json \
   --out .apk-lab-migration/icons-proof.json
 $MIG preflight icons --check --report .apk-lab-migration/icons-proof.json

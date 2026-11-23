@@ -510,7 +510,11 @@ mod tests {
 
         let error = read_manifest_components(&apk, &root.join("missing-aapt2"), None)
             .expect_err("missing tool must fail");
-        assert_eq!(error.exit_code(), crate::models::ExitCode::UsageOrToolError);
+        assert_eq!(
+            error.exit_code(),
+            crate::models::ExitCode::UsageOrToolError,
+            "{error:?}"
+        );
 
         let failing = root.join("aapt2");
         write_executable(
