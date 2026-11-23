@@ -1469,6 +1469,7 @@ async function runTest(domain: AuditDomain = 'all'): Promise<PhaseResult> {
       'test',
       '--timeout=30000',
       'scripts/dependencies',
+      'scripts/reconcile-release-notes.test.ts',
     ]);
     const dtPassed = dtRes.code === 0;
     const dtSummaryMatch = dtRes.stdout.match(/([0-9]+ pass[^\n]*)/);
