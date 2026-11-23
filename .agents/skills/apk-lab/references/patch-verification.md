@@ -89,16 +89,21 @@ Orchestrates automated patch testing and R2 fixture reconciliation in GitHub Act
 ### Subcommands
 
 1. **`matrix`**: Analyzes Git diff between commits to generate a dynamic matrix of affected packages.
+
    ```bash
    tools/apk-lab/target/release/apk-lab ci matrix \
      --patches-list patches-list.json \
      --output-file "$GITHUB_OUTPUT"
    ```
+
 2. **`start`**: Registers a test run with dispatch metadata.
+
    ```bash
    tools/apk-lab/target/release/apk-lab ci start --package com.example.app --request-id 12345 --git-revision abc1234 --patches-list patches-list.json
    ```
+
 3. **`run`**: Downloads test fixtures from R2, verifies patch bundle compatibility, checks targets, and updates status.
+
    ```bash
    tools/apk-lab/target/release/apk-lab ci run --package com.example.app --mpp patches/build/libs/patches-1.0.0.mpp --patches-list patches-list.json
    ```

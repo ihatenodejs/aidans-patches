@@ -1,3 +1,73 @@
+## [1.10.0-dev.11](https://github.com/ihatenodejs/aidans-patches/compare/v1.10.0-dev.10...v1.10.0-dev.11) (2026-11-23)
+
+### 🐛 Bug Fixes
+
+* **release:** install Bun before the release preflight ([8d13254](https://github.com/ihatenodejs/aidans-patches/commit/8d1325447c36bd9a8495e741df2c1bc12d7e41df))
+* **sezzle:** correct shortcut filter and strip Braze banner ([4d071a3](https://github.com/ihatenodejs/aidans-patches/commit/4d071a3a50f6b2d383918ec9cb9076f827ea0734))
+
+### ✨ New Features
+
+* **release:** reconcile missing channel notes before release ([d8c0896](https://github.com/ihatenodejs/aidans-patches/commit/d8c0896eaaff1c9516bfb87be35bf34f5a03a47c))
+* **release:** retry superseded release runs once ([4dbf1df](https://github.com/ihatenodejs/aidans-patches/commit/4dbf1df65616a0e6eccd30be0b061cbcd9dec0cd))
+
+## [1.10.0-dev.10](https://github.com/ihatenodejs/aidans-patches/compare/v1.10.0-dev.9...v1.10.0-dev.10) (2026-11-23)
+
+### 🚀 Updated App Support
+
+* **sezzle:** update to 5.3.24 ([4ddd356](https://github.com/ihatenodejs/aidans-patches/commit/4ddd356bc8b2cbbd5296949b7bd2664ebc5cb4ca))
+
+## [1.10.0-dev.9](https://github.com/ihatenodejs/aidans-patches/compare/v1.10.0-dev.8...v1.10.0-dev.9) (2026-11-23)
+
+### 🚀 Updated App Support
+
+* **nhl:** support 17.2.0 ([bd64492](https://github.com/ihatenodejs/aidans-patches/commit/bd644924c6c0ed3acd02438bf85ffdb4c764ab9f))
+
+## [1.10.0-dev.8](https://github.com/ihatenodejs/aidans-patches/compare/v1.10.0-dev.7...v1.10.0-dev.8) (2026-11-23)
+
+### 🚀 Updated App Support
+
+* **credit-karma:** support 26.47 ([55e9dfe](https://github.com/ihatenodejs/aidans-patches/commit/55e9dfe4f4b302584998c346335e134687c9d721))
+
+## [1.10.0-dev.7](https://github.com/ihatenodejs/aidans-patches/compare/v1.10.0-dev.6...v1.10.0-dev.7) (2026-11-23)
+
+### 🚀 Updated App Support
+
+* **blackjack:** support 2.23.01 ([dd02445](https://github.com/ihatenodejs/aidans-patches/commit/dd024454c81eb2999dd903e5b34fa683b86c0328))
+
+## [1.10.0-dev.6](https://github.com/ihatenodejs/aidans-patches/compare/v1.10.0-dev.5...v1.10.0-dev.6) (2026-11-23)
+
+### 🚀 Updated App Support
+
+* **navigate360-student:** update patches for 26.23.8 ([073bcc3](https://github.com/ihatenodejs/aidans-patches/commit/073bcc39bb715b33f38375ca4d81d789671f17d6))
+
+## [1.10.0-dev.5](https://github.com/ihatenodejs/aidans-patches/compare/v1.10.0-dev.4...v1.10.0-dev.5) (2026-11-23)
+
+### 🚀 Updated App Support
+
+* **365pay:** add support for 10.2606.1 ([136aab6](https://github.com/ihatenodejs/aidans-patches/commit/136aab641fceac46d64e80197712a4cd068166fe))
+
+## [1.10.0-dev.4](https://github.com/ihatenodejs/aidans-patches/compare/v1.10.0-dev.3...v1.10.0-dev.4) (2026-11-23)
+
+### ✨ New Features
+
+* **geocaching:** update patches for 10.24.0 ([31ef2e1](https://github.com/ihatenodejs/aidans-patches/commit/31ef2e125c650a22e436d1f8ddb8d6926fb4ac18))
+
+## [1.10.0-dev.3](https://github.com/ihatenodejs/aidans-patches/compare/v1.10.0-dev.2...v1.10.0-dev.3) (2026-11-22)
+
+### 🐛 Bug Fixes
+
+* **aftership:** harden byte patch bounds ([d8acd66](https://github.com/ihatenodejs/aidans-patches/commit/d8acd66abd4a0291fc7f00248eac2f5a378ad3f2))
+
+### 🚀 Updated App Support
+
+* **sidelineswap:** support 2.3.2 compose rewrite ([84d1f94](https://github.com/ihatenodejs/aidans-patches/commit/84d1f9470bd505aa0a5ab568a5e55398781b1245))
+
+## [1.10.0-dev.2](https://github.com/ihatenodejs/aidans-patches/compare/v1.10.0-dev.1...v1.10.0-dev.2) (2026-11-22)
+
+### ✨ New Features
+
+* **canvas:** added splash screen and landing logo theming to Change App Icon patch ([9926d0d](https://github.com/ihatenodejs/aidans-patches/commit/9926d0dd1e52bd1c7be19683c8094d9176faba39))
+
 ## [1.10.0-dev.1](https://github.com/ihatenodejs/aidans-patches/compare/v1.9.3...v1.10.0-dev.1) (2026-11-21)
 
 ### 🐛 Bug Fixes

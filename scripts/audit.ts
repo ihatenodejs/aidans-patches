@@ -1108,12 +1108,13 @@ async function runTest(domain: AuditDomain = 'all'): Promise<PhaseResult> {
     });
   }
 
-  // 7. Adobe Scan Extension Java Unit Tests (Gradle)
+  // 7. Morphe Patch & Extension Unit Tests (Gradle)
   if (shouldRunDomain(domain, 'android')) {
     process.stdout.write(
-      `  ${sym.arrow} Running Extension unit tests (Gradle)... `,
+      `  ${sym.arrow} Running patch and extension unit tests (Gradle)... `,
     );
     const extTestRes = await execCommand('./gradlew', [
+      ':patches:test',
       ':extensions:extension:testReleaseUnitTest',
       '--console=plain',
     ]);
@@ -1123,7 +1124,7 @@ async function runTest(domain: AuditDomain = 'all'): Promise<PhaseResult> {
       printRawCommandOutput(extTestRes.stdout, extTestRes.stderr);
     }
     results.push({
-      title: 'Extension Unit Tests (Gradle)',
+      title: 'Morphe Patch & Extension Unit Tests (Gradle)',
       tool: 'gradle test',
       domain: 'android',
       success: extTestPassed,
@@ -1165,12 +1166,14 @@ async function runTest(domain: AuditDomain = 'all'): Promise<PhaseResult> {
     const dtRes = await execCommand('bun', [
       'test',
       '--timeout=30000',
+      'scripts/release-retry.test.ts',
       'scripts/dependencies',
       'scripts/check-no-python.test.ts',
       'scripts/rust-projects.test.ts',
       'scripts/generate-patches-readme.test.ts',
       'scripts/hooks.test.ts',
       'scripts/install-hooks.test.ts',
+      'scripts/reconcile-release-notes.test.ts',
     ]);
     const dtPassed = dtRes.code === 0;
     const dtSummaryMatch = dtRes.stdout.match(/([0-9]+ pass[^\n]*)/);

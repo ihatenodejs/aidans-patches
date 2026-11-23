@@ -27,6 +27,7 @@ dependencies {
     compileOnly(libs.gson)
     patchListGeneratorClasspath(libs.gson)
     pdfboxConfig(libs.pdfbox.android)
+    testImplementation(libs.junit)
 }
 
 val assetPrepDir = rootProject.file("tools/asset-prep")

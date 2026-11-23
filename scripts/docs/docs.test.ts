@@ -31,7 +31,6 @@ function collectMarkdownFiles(dir: string): string[] {
     dist: true,
     '.git': true,
     '.astro': true,
-    '.agents': true,
     '.omp': true,
   };
 
