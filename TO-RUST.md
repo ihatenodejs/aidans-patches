@@ -157,6 +157,9 @@ Added:
   narrow historical exclusions for plans, immutable migration evidence, changelog,
   and frozen oracle fixtures. Ordinary `bun run audit` runs it on every check.
 
+Cutover code revision:
+`5f42d6b373f021feb7cf2c6f7ba5ea68e9a2f1c9`.
+
 Verification at the cutover revision:
 
 - `bun run audit`: all 35 checks pass across format, lint, typecheck, and tests,
