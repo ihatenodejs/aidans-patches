@@ -197,7 +197,7 @@
       ],
       "targets": [
         {
-          "version": "26.19.22",
+          "version": "26.23.8",
           "versionCodes": null,
           "isExperimental": false,
           "minSdk": 31,
@@ -209,9 +209,9 @@
         "Remove Web Telemetry"
       ],
       "supportedVersions": [
-        "26.19.22"
+        "26.23.8"
       ],
-      "latestSupportedVersion": "26.19.22"
+      "latestSupportedVersion": "26.23.8"
     },
     {
       "packageName": "com.eumlab.android.prometronome",
@@ -3329,7 +3329,7 @@
           ],
           "targets": [
             {
-              "version": "26.19.22",
+              "version": "26.23.8",
               "versionCodes": null,
               "isExperimental": false,
               "minSdk": 31,
@@ -3487,7 +3487,7 @@
           ],
           "targets": [
             {
-              "version": "26.19.22",
+              "version": "26.23.8",
               "versionCodes": null,
               "isExperimental": false,
               "minSdk": 31,
