@@ -4,7 +4,10 @@
 //! Behavior follows `.github/scripts/sync_app_icons.py`:
 //! * packages come from `patches-list.json` compatible packages, deduplicated
 //!   by first occurrence and sorted by package name;
-//! * `--check-only` only reports missing files and always succeeds;
+//! * `--check-only` reports missing files and always succeeds, preserving the
+//!   discovery contract for workflows that branch on `has_missing`;
+//! * `--check-only --strict` reports the same outputs but fails verification
+//!   when any icon is missing, and never creates the icon directory;
 //! * per-package network/image failures are soft failures;
 //! * image conversion reuses the proven Pillow-compatible
 //!   [`crate::transform_icon`] and [`crate::write_icon_if_changed`] path. An
@@ -98,8 +101,17 @@ pub fn run_with_play_base(
     stderr: &mut dyn Write,
 ) -> Result<()> {
     const VALUE_FLAGS: &[&str] = &["--patches-list", "--icons-dir"];
-    const BOOL_FLAGS: &[&str] = &["--check-only", "--download-missing", "--sync-all"];
+    const BOOL_FLAGS: &[&str] = &[
+        "--check-only",
+        "--download-missing",
+        "--sync-all",
+        "--strict",
+    ];
     let options = cli::parse(args, VALUE_FLAGS, BOOL_FLAGS)?;
+    let strict = options.has("--strict");
+    if strict && !options.has("--check-only") {
+        return Err(AssetError::usage("--strict requires --check-only"));
+    }
 
     let selected_modes = [
         options.has("--check-only"),
@@ -126,12 +138,16 @@ pub fn run_with_play_base(
         .unwrap_or_else(|| root.join("site").join("public").join("icons"));
 
     let packages = load_unique_packages(&patches_list_path)?;
-    fs::create_dir_all(&icons_dir).map_err(|err| {
-        AssetError::failure(format!(
-            "failed to create icons directory {}: {err}",
-            icons_dir.display()
-        ))
-    })?;
+    // Discovery and strict verification are read-only: never create or mutate
+    // the icon directory. Mutating modes below own directory creation.
+    if !options.has("--check-only") {
+        fs::create_dir_all(&icons_dir).map_err(|err| {
+            AssetError::failure(format!(
+                "failed to create icons directory {}: {err}",
+                icons_dir.display()
+            ))
+        })?;
+    }
 
     let mut missing = Vec::new();
     for package in packages.keys() {
@@ -156,6 +172,13 @@ pub fn run_with_play_base(
                 missing.len(),
                 missing.join(", ")
             )?;
+            if strict {
+                return Err(AssetError::failure(format!(
+                    "Missing icons for {} package(s): {}",
+                    missing.len(),
+                    missing.join(", ")
+                )));
+            }
         } else {
             writeln!(
                 stdout,

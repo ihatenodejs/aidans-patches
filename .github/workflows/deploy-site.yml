@@ -44,7 +44,7 @@ jobs:
         working-directory: site
         run: bun install --frozen-lockfile
 
-      - name: Verify Application Icons Present
+      - name: Verify Application Icons Present (strict)
         working-directory: site
         run: bun run check:icons
 

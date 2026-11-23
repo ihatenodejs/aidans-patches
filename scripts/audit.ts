@@ -1119,6 +1119,7 @@ async function runTest(domain: AuditDomain = 'all'): Promise<PhaseResult> {
       'scripts/asset-prep.ts',
       'icons',
       '--check-only',
+      '--strict',
     ]);
     const iconPassed = iconRes.code === 0;
     console.log(iconPassed ? sym.ok : sym.err);

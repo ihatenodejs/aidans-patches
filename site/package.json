@@ -10,7 +10,7 @@
     "astro": "astro",
     "test": "bun test",
     "check": "astro check",
-    "check:icons": "bun ../scripts/asset-prep.ts icons --check-only"
+    "check:icons": "bun ../scripts/asset-prep.ts icons --check-only --strict"
   },
   "dependencies": {
     "@astrojs/check": "^0.9.4",
