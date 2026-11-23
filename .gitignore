@@ -59,9 +59,8 @@ nbdist/
 bin/
 out/
 
-# Track the apk-lab migration binary source despite the build-output `bin/` rule
+# Track the apk-lab binary source despite the build-output `bin/` rule
 !tools/apk-lab/src/bin/
-!tools/apk-lab/src/bin/apk-lab-migrate.rs
 
 # Node
 node_modules/

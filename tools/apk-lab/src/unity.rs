@@ -1,6 +1,6 @@
 //! Unity serialized-file heuristics.
 //!
-//! This is the same deliberately narrow scanner as `apk_lab.unity`, not a
+//! This is the same deliberately narrow scanner as the retired Python implementation, not a
 //! general Unity parser. It reads the big-endian `SerializedFile` header,
 //! tolerates unsupported or out-of-range object-table metadata, and finds
 //! GameObject names by checking a little-endian length prefix followed by the

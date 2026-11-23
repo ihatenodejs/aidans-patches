@@ -1,6 +1,6 @@
 //! Transactional deployment and the developer loop.
 //!
-//! Native port of the deployment half of `apk_lab.deployment`. Patch selection
+//! Native port of the deployment half of the retired Python implementation. Patch selection
 //! and application stay behind [`PatchEngine`] because that is Morphe's
 //! contract; everything else (bundle/artifact discovery, signing negotiation,
 //! alignment, reinspection, data-preserving install and launch) lives here.

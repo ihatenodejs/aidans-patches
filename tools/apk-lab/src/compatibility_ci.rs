@@ -1,6 +1,6 @@
 //! Compatibility CI orchestration.
 //!
-//! Native port of the stateful half of `apk_lab.compatibility_ci`: matrix
+//! Native port of the stateful half of the retired Python implementation: matrix
 //! selection, target-version ordering, fixture reconciliation, Morphe
 //! invocation and the Worker callback contract.
 //!

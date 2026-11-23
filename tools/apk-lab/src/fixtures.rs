@@ -1,6 +1,6 @@
 //! Cloudflare R2 fixture slots.
 //!
-//! Native port of `apk_lab.fixtures`. Object keys, S3 user-metadata names and
+//! Native port of the retired Python implementation. Object keys, S3 user-metadata names and
 //! rotation rules are byte-for-byte compatible with the Python oracle:
 //!
 //! * every slot lives at `fixtures/{package}/{role}`,

@@ -1,6 +1,6 @@
 //! Artifact comparison, class-source diffing and summary formatting.
 //!
-//! Native port of `apk_lab.comparison`.
+//! Native port of the retired Python implementation.
 //!
 //! The comparison model mirrors Python's `ArtifactComparison.to_dict` field
 //! names and order. Split materialization is shared within one invocation: the
@@ -213,51 +213,6 @@ fn hashes_for_materialized(
             (name, values)
         })
         .collect())
-}
-
-/// Extracts SHA-256 hashes for members matching `prefix` from an APK or every
-/// split member of a container.
-pub fn extract_artifact_content_hashes(
-    artifact_path: &Path,
-    inspection: &ArtifactInspection,
-    prefix: &str,
-) -> Result<BTreeMap<String, Vec<String>>, Error> {
-    let materialized = archives::materialize_artifact_apks(
-        artifact_path,
-        &inspection.splits,
-        inspection.container_type == ContainerType::Apk,
-    )?;
-    hashes_for_materialized(materialized.as_slice(), prefix)
-}
-
-/// Materializes the base APK from a split container, or returns the artifact
-/// path for a plain APK.
-pub fn materialize_base_apk(
-    artifact_path: &Path,
-    inspection: &ArtifactInspection,
-    dest_dir: &Path,
-) -> Result<PathBuf, Error> {
-    if inspection.container_type == ContainerType::Apk || inspection.splits.is_empty() {
-        return Ok(artifact_path.to_path_buf());
-    }
-    let base_splits: Vec<&SplitInfo> = inspection
-        .splits
-        .iter()
-        .filter(|split| split.is_base)
-        .collect();
-    if base_splits.len() != 1 {
-        return Err(Error::invalid_artifact(format!(
-            "Expected exactly 1 base split in {}, found {}",
-            artifact_path.display(),
-            base_splits.len()
-        )));
-    }
-    archives::safe_extract_member(
-        artifact_path,
-        &base_splits[0].filename,
-        dest_dir.join(&base_splits[0].filename),
-    )
-    .map_err(Error::from)
 }
 
 /// Locates decompiled Java/Kotlin source for an FQCN under `sources_dir`.

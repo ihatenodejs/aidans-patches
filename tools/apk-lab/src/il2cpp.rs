@@ -1,6 +1,6 @@
 //! Unity IL2CPP `global-metadata.dat` parsing and symbol lookup.
 //!
-//! Ports the supported layouts and query behavior of `apk_lab.il2cpp` (v29 and
+//! Ports the supported layouts and query behavior of the retired Python implementation (v29 and
 //! v31 metadata, subversion 0). Strings are addressed relative to the string
 //! table and decoded as UTF-8 with replacement. Unsupported layouts are
 //! reported, never guessed. Table iteration is bounded by both the declared

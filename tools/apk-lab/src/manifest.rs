@@ -1,6 +1,6 @@
 //! AndroidManifest component queries through `aapt2 dump xmltree`.
 //!
-//! Native port of `apk_lab.manifest_inspection`.
+//! Native port of the retired Python implementation.
 //!
 //! Parsing mirrors the Python oracle line for line: element depth comes from
 //! leading-whitespace character count, attributes only apply while the current

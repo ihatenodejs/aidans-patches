@@ -1,6 +1,6 @@
 //! ARM64 instruction encoding and formatting.
 //!
-//! This ports the Python oracle's `apk_lab.asm` behavior: the same accepted
+//! This ports the retired Python implementation's behavior: the same accepted
 //! mnemonics, signed 26-bit branch bounds, alignment checks, register aliases,
 //! and output formats. Every arithmetic operation that can overflow is checked
 //! or performed in a widened type; malformed input becomes an [`Error`].

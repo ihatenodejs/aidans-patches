@@ -1,6 +1,6 @@
 //! Direct DEX string-table and class-descriptor extraction.
 //!
-//! This ports `apk_lab.dex_strings.extract_strings_from_dex_bytes` and provides
+//! This ports the retired Python implementation's string-table extraction and provides
 //! a direct `class_defs` reader used instead of parsing full `dexdump` text.
 //! Truncated or inconsistent entries are skipped exactly as the Python
 //! generator does, and decoding is plain UTF-8 with replacement, matching

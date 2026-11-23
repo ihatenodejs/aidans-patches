@@ -1,6 +1,6 @@
 //! Managed `analyze` orchestration and native-library extraction.
 //!
-//! Native port of the `apk_lab.cli.analyze` orchestration.
+//! Native port of the retired Python implementation's `analyze` orchestration.
 //!
 //! The workspace layout, config digest and marker come from
 //! [`crate::workspace`]. This module owns the command-specific behavior:

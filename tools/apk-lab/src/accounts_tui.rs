@@ -1,6 +1,6 @@
 //! Interactive Google Play account management.
 //!
-//! Native port of `apk_lab.play_accounts_tui`.
+//! Native port of the retired Python implementation.
 //!
 //! All interaction goes through the [`Ui`] trait so the flows can be driven by
 //! a synthetic terminal in tests. [`TerminalUi`] is the dialoguer-backed
@@ -258,12 +258,6 @@ pub fn run<U: Ui, C: AccountChecker>(ui: &mut U, checker: &C) -> Result<(), TuiE
     }
 
     Ok(())
-}
-
-/// Runs the terminal TUI with the production metadata checker.
-pub fn run_interactive() -> Result<(), TuiError> {
-    let mut ui = TerminalUi;
-    run(&mut ui, &GpapiChecker)
 }
 
 /// Compatibility entry point name retained for callers and tests.

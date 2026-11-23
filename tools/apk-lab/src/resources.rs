@@ -1,6 +1,6 @@
 //! Resource queries and safe extraction across base and configuration splits.
 //!
-//! Native port of `apk_lab.resources`.
+//! Native port of the retired Python implementation.
 //!
 //! Query normalization, `aapt2 dump resources` parsing, raw ZIP member
 //! enumeration, duplicate grouping, Morphe guidance and deterministic ordering
@@ -433,14 +433,6 @@ pub fn parse_aapt2_resource_dump(
     }
 
     entries
-}
-
-/// Enumerates manifest, `res/`, `assets/` and `lib/` members of one split.
-pub fn enumerate_raw_zip_members(
-    materialized: &MaterializedApk,
-) -> Result<Vec<ResourceEntry>, Error> {
-    let report = archives::inspect_safe_zip_path(&materialized.path)?;
-    Ok(raw_entries_from_report(&report, materialized))
 }
 
 fn raw_entries_from_report(

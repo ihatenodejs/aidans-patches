@@ -1,6 +1,6 @@
 //! Static Smali snippet validation.
 //!
-//! Ports the non-assembler passes of `apk_lab.smali`: directive and label
+//! Ports the non-assembler passes of the retired Python implementation: directive and label
 //! handling, register/format constraints, invoke return and `move-result`
 //! sequencing, and CFG reachability/loop findings. Warnings stay warnings.
 //! The external `smali assemble` oracle is represented by

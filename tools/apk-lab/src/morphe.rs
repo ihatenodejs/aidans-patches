@@ -1,7 +1,7 @@
 //! Native Morphe patch selection, command construction, execution and
 //! postcondition verification.
 //!
-//! The module mirrors the Python oracle in `apk_lab/morphe.py`:
+//! The module mirrors the retired Python implementation:
 //!
 //! * patches-list metadata is parsed in document order;
 //! * `check --all` selects every compatible patch while the deployment

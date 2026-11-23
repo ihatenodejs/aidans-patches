@@ -1,6 +1,6 @@
 //! Version-1 Google Play account storage.
 //!
-//! Native port of `apk_lab.google_play_accounts`.
+//! Native port of the retired Python implementation.
 //!
 //! The persisted contract is intentionally the same as the retired Python
 //! implementation: a JSON object with an integer `version` of `1` and an

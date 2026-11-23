@@ -14,13 +14,10 @@ name = "apk-lab"
 path = "src/bin/apk-lab.rs"
 
 [dependencies]
-asset-prep = { path = "../asset-prep" }
 async-trait = "0.1.83"
 chrono = { version = "0.4.39", default-features = false, features = ["clock"] }
 dialoguer = { version = "=0.12.0", default-features = false, features = ["password"] }
-flate2 = "=1.1.11"
 gpapi = "=6.1.0"
-png = "0.18.1"
 regex = "=1.13.2"
 ring = "0.17.14"
 rust-s3 = { version = "=0.38.0", default-features = false, features = ["tokio-rustls-tls-ring"] }
@@ -35,6 +32,3 @@ zip = { version = "=9.8.1", default-features = false, features = ["deflate-flate
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
-
-[patch.crates-io]
-turbojpeg-sys = { path = "../asset-prep/vendor/turbojpeg-sys" }

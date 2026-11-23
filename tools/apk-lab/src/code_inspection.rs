@@ -1,6 +1,6 @@
 //! Class localization, method extraction and unified-diff behavior.
 //!
-//! Native port of `apk_lab.code_inspection`.
+//! Native port of the retired Python implementation.
 //!
 //! Classes are located across every `classes*.dex` member of every
 //! materialized split before any decompiler runs, matching the Python oracle's

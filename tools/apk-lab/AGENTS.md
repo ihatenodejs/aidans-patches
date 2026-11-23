@@ -13,7 +13,7 @@ Run from the repository root:
 cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- <subcommand> [flags]
 
 # CI/release: build once, execute the release binary
-cargo build --release --locked --manifest-path tools/apk-lab/Cargo.toml --bins
+cargo build --release --locked --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab
 tools/apk-lab/target/release/apk-lab <subcommand>
 
 # Tests
