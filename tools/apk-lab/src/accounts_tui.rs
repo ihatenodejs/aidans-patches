@@ -681,11 +681,9 @@ impl OAuthExchanger for GpapiExchanger {
             .map_err(|error| format!("Cannot start OAuth exchange runtime: {error}"))?;
         runtime.block_on(async {
             let mut api = gpapi::Gpapi::new(device, email);
-            api.request_aas_token(oauth_token)
-                .await
-                .map_err(|error| {
-                    crate::play::gpapi_error_message("OAuth token exchange failed", &error)
-                })?;
+            api.request_aas_token(oauth_token).await.map_err(|error| {
+                crate::play::gpapi_error_message("OAuth token exchange failed", &error)
+            })?;
             api.get_aas_token()
                 .map(str::to_string)
                 .filter(|token| !token.trim().is_empty())

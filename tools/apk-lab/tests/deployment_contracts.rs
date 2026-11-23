@@ -8,8 +8,8 @@
 #![cfg(unix)]
 
 use apk_lab::deployment::{
-    self, DeployOptions, DeployResult, DeploymentTools, InstallMode, PatchBuildRequest, PatchEngine,
-    INLINE_PASSWORD_DEPRECATION, MORPHE_KEYSTORE_SHA256, PASSWORD_FILE_PREFIX,
+    self, DeployOptions, DeployResult, DeploymentTools, InstallMode, PatchBuildRequest,
+    PatchEngine, INLINE_PASSWORD_DEPRECATION, MORPHE_KEYSTORE_SHA256, PASSWORD_FILE_PREFIX,
 };
 use apk_lab::error::Error;
 use apk_lab::inspection::InspectionOptions;

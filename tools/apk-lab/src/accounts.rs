@@ -370,8 +370,7 @@ pub fn load_accounts_from_path(
 /// descriptor-based [`read_private_file`] so an attacker cannot swap the path
 /// between a metadata check and the read.
 pub fn check_accounts_file_permissions(path: &Path) -> Result<(), AccountsError> {
-    check_private_file(path, "Accounts file")
-        .map_err(|error| AccountsError::new(error.to_string()))
+    check_private_file(path, "Accounts file").map_err(|error| AccountsError::new(error.to_string()))
 }
 
 /// Atomically writes the file with mode `0600`, creating parents with `0700`.

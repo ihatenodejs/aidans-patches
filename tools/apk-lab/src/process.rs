@@ -733,8 +733,14 @@ mod tests {
 
         let environment = output.stdout.text_lossy();
         assert!(!environment.contains("APKEEP_ACCOUNTS="), "{environment}");
-        assert!(!environment.contains("APKEEP_ACCOUNTS_FILE="), "{environment}");
-        assert!(!environment.contains("APK_LAB_TEST_REMOVED="), "{environment}");
+        assert!(
+            !environment.contains("APKEEP_ACCOUNTS_FILE="),
+            "{environment}"
+        );
+        assert!(
+            !environment.contains("APK_LAB_TEST_REMOVED="),
+            "{environment}"
+        );
         assert!(environment.lines().any(|line| line.starts_with("PATH=")));
     }
 

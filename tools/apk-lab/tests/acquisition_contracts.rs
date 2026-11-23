@@ -837,8 +837,7 @@ fn authentication_deadline_returns_infrastructure_with_stage() {
     fs::create_dir_all(&out).expect("out dir");
     let badger = FakeBadger::base("base.apk");
     let inspector = FakeInspector::new("1.0.0", 100);
-    let backend =
-        FakePlayBackend::new("1.0.0", 100, DownloadBehavior::WriteBase).pending_open();
+    let backend = FakePlayBackend::new("1.0.0", 100, DownloadBehavior::WriteBase).pending_open();
     let provider = PlayAcquirer {
         backend: &backend,
         badger: &badger,
@@ -866,8 +865,7 @@ fn details_deadline_returns_infrastructure_with_stage() {
     fs::create_dir_all(&out).expect("out dir");
     let badger = FakeBadger::base("base.apk");
     let inspector = FakeInspector::new("1.0.0", 100);
-    let backend =
-        FakePlayBackend::new("1.0.0", 100, DownloadBehavior::WriteBase).pending_details();
+    let backend = FakePlayBackend::new("1.0.0", 100, DownloadBehavior::WriteBase).pending_details();
     let provider = PlayAcquirer {
         backend: &backend,
         badger: &badger,
@@ -1041,9 +1039,8 @@ fn redactor_removes_raw_and_percent_encoded_credentials_before_truncation() {
     let uppercase = percent_encode(token, true);
     let lowercase = percent_encode(token, false);
     let slash_only = token.replace('/', "%2F");
-    let text = format!(
-        "raw {token} upper {uppercase} lower {lowercase} slash {slash_only} email {EMAIL}"
-    );
+    let text =
+        format!("raw {token} upper {uppercase} lower {lowercase} slash {slash_only} email {EMAIL}");
     let diagnostic = sanitize_diagnostic(&text, &redactor);
     for secret in [
         token,
@@ -1064,7 +1061,10 @@ fn redactor_removes_raw_and_percent_encoded_credentials_before_truncation() {
     // happen first or the replacement would be sliced in half.
     let boundary = format!("{} {token} {}", "a".repeat(280), "b".repeat(400));
     let diagnostic = sanitize_diagnostic(&boundary, &redactor);
-    assert!(!diagnostic.contains(token), "leaked across boundary: {diagnostic}");
+    assert!(
+        !diagnostic.contains(token),
+        "leaked across boundary: {diagnostic}"
+    );
     assert!(diagnostic.chars().count() <= STDERR_DIAGNOSTIC_LIMIT);
 }
 
@@ -1754,8 +1754,8 @@ fn host_inspection_failure_stays_infrastructure() {
     let out = dir.path().join("out");
     fs::create_dir_all(&out).expect("out dir");
     let badger = FakeBadger::base("base.apk");
-    let inspector = FakeInspector::new("1.0.0", 100)
-        .failing(Error::infrastructure("inspection host crashed"));
+    let inspector =
+        FakeInspector::new("1.0.0", 100).failing(Error::infrastructure("inspection host crashed"));
     let backend = FakePlayBackend::new("1.0.0", 100, DownloadBehavior::WriteBase);
     let provider = play_provider(&badger, &inspector, &backend);
 
@@ -1763,10 +1763,15 @@ fn host_inspection_failure_stays_infrastructure() {
         .download(&request(&out), PlayAuth::Dispenser)
         .expect_err("host inspection failure");
     assert!(
-        error.message().contains("Failed to inspect downloaded APKM"),
+        error
+            .message()
+            .contains("Failed to inspect downloaded APKM"),
         "{error}"
     );
-    assert!(error.message().contains("inspection host crashed"), "{error}");
+    assert!(
+        error.message().contains("inspection host crashed"),
+        "{error}"
+    );
     assert_eq!(error.exit_code(), ExitCode::InfrastructureFailure);
 
     let acquirer = Acquirer {
@@ -1813,7 +1818,15 @@ fn malformed_artifact_stays_invalid_artifact() {
 fn package_names_are_validated_before_output_paths_are_created() {
     let dir = TempDir::new().expect("temp dir");
     for (index, name) in [
-        "../../x", "/abs", "a/b", "a\\b", "..", ".", "", "nul\0", "nested/../../escape",
+        "../../x",
+        "/abs",
+        "a/b",
+        "a\\b",
+        "..",
+        ".",
+        "",
+        "nul\0",
+        "nested/../../escape",
     ]
     .into_iter()
     .enumerate()
@@ -1876,8 +1889,8 @@ fn dispenser_response_is_hard_bounded() {
     assert_eq!(body.len(), limit);
 
     let oversized = vec![b'x'; limit + 1];
-    let error = read_dispenser_response(Cursor::new(oversized), limit)
-        .expect_err("limit + 1 must fail");
+    let error =
+        read_dispenser_response(Cursor::new(oversized), limit).expect_err("limit + 1 must fail");
     assert_eq!(error.exit_code(), ExitCode::InfrastructureFailure);
     assert!(
         error.message().contains(&format!("{limit}-byte limit")),
@@ -1885,8 +1898,7 @@ fn dispenser_response_is_hard_bounded() {
     );
 
     let mut endless = EndlessStream { served: 0 };
-    let error =
-        read_dispenser_response(&mut endless, limit).expect_err("endless stream must fail");
+    let error = read_dispenser_response(&mut endless, limit).expect_err("endless stream must fail");
     assert_eq!(error.exit_code(), ExitCode::InfrastructureFailure);
     assert!(error.message().contains("exceeded"), "{error}");
     assert_eq!(

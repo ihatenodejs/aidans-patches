@@ -17,9 +17,9 @@ use apk_lab::accounts::{
     DEFAULT_TIMEZONE,
 };
 use apk_lab::accounts_tui::{
-    add_account, check_accounts, delete_account, exchange_oauth_for_aas_with, run_play_accounts_tui,
-    sync_github_secret, view_accounts, AccountChecker, MetadataVersion, OAuthExchanger, SyncOptions,
-    TuiError, Ui,
+    add_account, check_accounts, delete_account, exchange_oauth_for_aas_with,
+    run_play_accounts_tui, sync_github_secret, view_accounts, AccountChecker, MetadataVersion,
+    OAuthExchanger, SyncOptions, TuiError, Ui,
 };
 use serde_json::{json, Value};
 use tempfile::TempDir;
@@ -628,7 +628,10 @@ fn oauth_exchange_uses_injected_seam_and_never_spawns_argv() {
     let script = temp.path().join("apkeep");
     fs::write(
         &script,
-        format!("#!/bin/sh\nprintf '%s\\n' \"$@\" > '{}'\n", marker.display()),
+        format!(
+            "#!/bin/sh\nprintf '%s\\n' \"$@\" > '{}'\n",
+            marker.display()
+        ),
     )
     .unwrap();
     fs::set_permissions(&script, fs::Permissions::from_mode(0o755)).unwrap();
@@ -670,7 +673,9 @@ fn oauth_exchange_failure_redacts_encoded_forms_and_offers_fallback() {
     );
     let exchanger = FakeExchanger::failure(error);
     let mut ui = ScriptedUi {
-        passwords: [Some("fallback-aas-token".to_string())].into_iter().collect(),
+        passwords: [Some("fallback-aas-token".to_string())]
+            .into_iter()
+            .collect(),
         ..ScriptedUi::default()
     };
 

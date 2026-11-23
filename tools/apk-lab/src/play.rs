@@ -127,7 +127,10 @@ fn dispenser_http_error(error: &ureq::Error, timeout: Duration) -> String {
         }
         ureq::Error::HostNotFound => "dispenser host could not be resolved".to_string(),
         ureq::Error::Io(error) => {
-            format!("dispenser HTTP request failed: network error ({:?})", error.kind())
+            format!(
+                "dispenser HTTP request failed: network error ({:?})",
+                error.kind()
+            )
         }
         _ => "dispenser HTTP request failed".to_string(),
     }
@@ -316,11 +319,9 @@ impl PlayBackend for GpapiBackend {
                     let oauth_token = auth
                         .oauth_token
                         .ok_or_else(|| "OAuth mode requires an OAuth token".to_string())?;
-                    api.request_aas_token(oauth_token)
-                        .await
-                        .map_err(|error| {
-                            gpapi_error_message("OAuth token exchange failed", &error)
-                        })?;
+                    api.request_aas_token(oauth_token).await.map_err(|error| {
+                        gpapi_error_message("OAuth token exchange failed", &error)
+                    })?;
                 }
                 Mode::Dispenser => {
                     let auth_token = self.dispense(auth.dispenser_url, auth.timeout)?;
@@ -515,12 +516,8 @@ mod tests {
         let http = FakeHttp {
             result: Ok("not json".to_string()),
         };
-        let error = dispense_auth_token(
-            &http,
-            DEFAULT_DISPENSER_URL,
-            Duration::from_secs(5),
-        )
-        .unwrap_err();
+        let error =
+            dispense_auth_token(&http, DEFAULT_DISPENSER_URL, Duration::from_secs(5)).unwrap_err();
         assert!(error.contains("valid JSON"), "unexpected error: {error}");
     }
 
@@ -529,12 +526,8 @@ mod tests {
         let http = FakeHttp {
             result: Ok(r#"{"token":"ignored"}"#.to_string()),
         };
-        let error = dispense_auth_token(
-            &http,
-            DEFAULT_DISPENSER_URL,
-            Duration::from_secs(5),
-        )
-        .unwrap_err();
+        let error =
+            dispense_auth_token(&http, DEFAULT_DISPENSER_URL, Duration::from_secs(5)).unwrap_err();
         assert!(error.contains("authToken"), "unexpected error: {error}");
     }
 
@@ -543,12 +536,8 @@ mod tests {
         let http = FakeHttp {
             result: Ok(r#"{"authToken":"   "}"#.to_string()),
         };
-        let error = dispense_auth_token(
-            &http,
-            DEFAULT_DISPENSER_URL,
-            Duration::from_secs(5),
-        )
-        .unwrap_err();
+        let error =
+            dispense_auth_token(&http, DEFAULT_DISPENSER_URL, Duration::from_secs(5)).unwrap_err();
         assert!(error.contains("authToken"), "unexpected error: {error}");
     }
 
@@ -557,12 +546,8 @@ mod tests {
         let http = FakeHttp {
             result: Err("connection refused".to_string()),
         };
-        let error = dispense_auth_token(
-            &http,
-            DEFAULT_DISPENSER_URL,
-            Duration::from_secs(5),
-        )
-        .unwrap_err();
+        let error =
+            dispense_auth_token(&http, DEFAULT_DISPENSER_URL, Duration::from_secs(5)).unwrap_err();
         assert!(error.contains("connection refused"));
     }
 
