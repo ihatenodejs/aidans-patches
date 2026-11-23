@@ -32,7 +32,7 @@ private fun HermesBundleEditor.stubComponent(functionName: String) {
 @Suppress("unused")
 val cleanHomePatch = rawResourcePatch(
     name = "Clean Home",
-    description = "Removes shortcuts, store/brand carousels, and promotional banners from the Home tab.",
+    description = "Removes store/brand carousels and promotional banners from the Home tab, with an optional shortcut-row cleanup.",
     default = true
 ) {
     category("Interface")
@@ -40,9 +40,9 @@ val cleanHomePatch = rawResourcePatch(
 
     val removeShortcuts = booleanOption(
         key = "removeShortcuts",
-        default = true,
+        default = false,
         title = "Remove Shortcuts",
-        description = "Removes the Your Shortcuts row and its quick-action pills."
+        description = "Hides the Your Shortcuts row and its quick-action pills. Disabled by default so the Home tab keeps its shortcuts."
     )
 
     val removeBrands = booleanOption(
@@ -81,7 +81,8 @@ val cleanHomePatch = rawResourcePatch(
                 "ShopTabAlert",
                 "EarnSpendPill",
                 "VcRewardsPill",
-                "RewardChip"
+                "RewardChip",
+                "StoreHeaderList"
             )) {
                 editor.stubComponent(component)
             }
@@ -89,7 +90,6 @@ val cleanHomePatch = rawResourcePatch(
 
         if (removeBrands.value != false) {
             for (component in listOf(
-                "StoreHeaderList",
                 "CategoryStoresList",
                 "StoresCarousel",
                 "RecommendationsCarousel",

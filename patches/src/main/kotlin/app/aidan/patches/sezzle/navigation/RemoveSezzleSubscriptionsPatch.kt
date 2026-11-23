@@ -3,6 +3,7 @@ package app.aidan.patches.sezzle.navigation
 import app.aidan.patches.sezzle.shared.Constants.COMPATIBILITY_SEZZLE
 import app.aidan.patches.shared.HermesBundleEditor
 import app.morphe.patcher.patch.PatchException
+import app.morphe.patcher.patch.booleanOption
 import app.morphe.patcher.patch.rawResourcePatch
 
 private const val ACCOUNT_SUBSCRIPTIONS_JUMP_OFFSET = 0x1322
@@ -63,14 +64,23 @@ private const val HELP_PRIORITY_SUPPORT_CLOSURE_INDEX = 73095
 private val EXPECTED_HELP_PRIORITY_SUPPORT_BYTES = byteArrayOf(0x34, 0x01, 0x00, 0x3b, 0x02, 0x01)
 private val HIDDEN_HELP_PRIORITY_SUPPORT_BYTES = byteArrayOf(0x08, 0x02, 0x00, 0x00, 0x76.toByte(), 0x02)
 
+private val LOAD_CONST_NULL_RET_R0 = byteArrayOf(0x94.toByte(), 0x00, 0x76, 0x00)
+
 @Suppress("unused")
 val removeSezzleSubscriptionsPatch = rawResourcePatch(
     name = "Remove Sezzle Subscriptions",
-    description = "Removes references to Sezzle Anywhere and Sezzle Premium subscriptions in Account benefits, Wallet, and Orders help.",
+    description = "Removes references to Sezzle Anywhere and Sezzle Premium subscriptions in Account benefits, the Home gift card carousel, Wallet, and Orders help.",
     default = false
 ) {
     category("Interface")
     compatibleWith(COMPATIBILITY_SEZZLE)
+
+    val removeHomeGiftCards = booleanOption(
+        key = "removeHomeGiftCards",
+        default = true,
+        title = "Remove Gift Cards from Home",
+        description = "Hides the Home Most Popular Gift Cards carousel. Gift cards require an active Sezzle Anywhere subscription."
+    )
 
     execute {
         val bundleFile = get("assets/index.android.bundle")
@@ -155,7 +165,23 @@ val removeSezzleSubscriptionsPatch = rawResourcePatch(
             throw PatchException("Unexpected bytecode at GiftCardsSection")
         }
 
-        // 4. Orders Tab -> Help modal -> Remove Priority Customer Support
+        // 4. Home -> Remove Most Popular Gift Cards carousel
+        if (removeHomeGiftCards.value == true) {
+            val homeGiftCardComponents = listOf("HorizontalGiftCardStoresList")
+            for (component in homeGiftCardComponents) {
+                val offsets = editor.findFunctionOffsetsByName(component)
+                if (offsets.isEmpty()) {
+                    throw PatchException("$component not found")
+                }
+                for (offset in offsets) {
+                    if (!editor.matchesBytes(offset, LOAD_CONST_NULL_RET_R0)) {
+                        editor.patchBytes(offset, LOAD_CONST_NULL_RET_R0)
+                    }
+                }
+            }
+        }
+
+        // 5. Orders Tab -> Help modal -> Remove Priority Customer Support
         if (editor.functionCount <= HELP_PRIORITY_SUPPORT_CLOSURE_INDEX) {
             throw PatchException(
                 "Bundle function count (${editor.functionCount}) insufficient for priority support closure"

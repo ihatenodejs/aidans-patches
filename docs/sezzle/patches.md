@@ -312,20 +312,22 @@ Modifies `assets/index.android.bundle`:
 - **Default State:** `false` (Disabled by default)
 - **Type:** Raw Binary / Asset Patch (`rawResourcePatch`)
 - **Dependencies:** None
+- **Options:** `removeHomeGiftCards` (Boolean, default: `true`)
 
 #### 1. Motivation & Purpose
 
-Removes references to Sezzle's subscription plans (Sezzle Anywhere and Sezzle Premium) across the Account menu benefits list, Wallet promotional surfaces, and Orders customer support entry points.
+Removes references to Sezzle's subscription plans (Sezzle Anywhere and Sezzle Premium) across the Account menu benefits list, the Home gift card carousel, Wallet promotional surfaces, and Orders customer support entry points. Gift cards require an active Anywhere subscription, so the Home carousel is removed by default; disable `removeHomeGiftCards` to keep it.
 
 #### 2. Technical Implementation & Injection Points
 
 Modifies `assets/index.android.bundle`:
 
 1. **Account Menu Benefits & Anywhere Banner:** In `AccountView` (`0x12c11ea`), patches the conditional subscriptions branch at offset `+0x133c` (`b0 0c 44` -> `7e 7e 7e`), bypassing the entire subscription array construction and jumping directly to `+0x14ce`, eliminating Sezzle Anywhere and Sezzle Premium benefit entries while preserving remaining benefits (Sezzle Mobile, Sezzle Points, Sezzle Spend, Sezzle Up, Sezzle Balance). Additionally, at offset `+0x11eb`, replaces the Anywhere banner short-circuit evaluation prologue (`10 19 50 b2 06 19 10 19 48` -> `96 19 7e 7e 7e 7e 7e 7e 7e`), forcing condition register `r25` to `false` so that the conditional jump at `+0x11f4` (`b2 2c 19` -> `JmpFalse +0x2c`) always triggers and skips over the entire `sezzleAnywhereBanner` JSX container, passing `false` to the JSX array and cleanly eliminating the "Pay later anywhere Visa is accepted" card banner from the Account screen.
-2. **Wallet Screen Banner:** Neutralizes `WalletBanner` prologue (`34 0e 00 40` -> `93 01 76 01`) and `WalletBannerCarousel` prologue (`34 07 00 40` -> `93 01 76 01`), returning `undefined` to cleanly unmount single and carousel promotional Anywhere subscription banners (`wallet-banner-box`).
-3. **Wallet Screen Gift Cards:** Neutralizes `GiftCardsSection` prologue (`34 05 00 40` -> `93 01 76 01`), returning `undefined` to cleanly unmount the Gift cards section (all gift cards require an active Anywhere subscription).
-4. **Orders Tab Help:** In `GetHelpScreen`'s priority support closure `#64670` (`0x16ed5a8`), replaces the prologue (`34 01 00 3b 02 01` -> `08 02 00 00 76 02`), returning an empty array `[]` so "Priority Customer Support" (an Anywhere-only feature/ad) is never mounted in the Help options list.
-5. Recomputes Hermes footer hash.
+2. **Home Gift Cards Carousel (`removeHomeGiftCards`, default enabled):** Stubs `HorizontalGiftCardStoresList` with `LoadConstNull; Ret`, unmounting the `carousel-giftcards` store carousel on Home. Set `removeHomeGiftCards=false` to keep the carousel.
+3. **Wallet Screen Banner:** Neutralizes `WalletBanner` prologue (`34 0e 00 40` -> `93 01 76 01`) and `WalletBannerCarousel` prologue (`34 07 00 40` -> `93 01 76 01`), returning `undefined` to cleanly unmount single and carousel promotional Anywhere subscription banners (`wallet-banner-box`).
+4. **Wallet Screen Gift Cards:** Neutralizes `GiftCardsSection` prologue (`34 05 00 40` -> `93 01 76 01`), returning `undefined` to cleanly unmount the Gift cards section (all gift cards require an active Anywhere subscription).
+5. **Orders Tab Help:** In `GetHelpScreen`'s priority support closure `#64670` (`0x16ed5a8`), replaces the prologue (`34 01 00 3b 02 01` -> `08 02 00 00 76 02`), returning an empty array `[]` so "Priority Customer Support" (an Anywhere-only feature/ad) is never mounted in the Help options list.
+6. Recomputes Hermes footer hash.
 
 > **5.3.24 implementation note:** The Account benefit entries are removed by stubbing the anonymous subscription-section builder (`#82424`) and skipping the `AccountView` Anywhere row at `+0x1343`; the offset details in item 1 reflect an earlier revision.
 
@@ -397,21 +399,21 @@ The previous revision replaced `StoreRoot`'s feed composition with a synthetic d
 - **Type:** Raw Binary / Asset Patch (`rawResourcePatch`)
 - **Dependencies:** None
 - **Options:**
-  - `removeShortcuts` (Boolean, default: `true`)
+  - `removeShortcuts` (Boolean, default: `false`)
   - `removeBrands` (Boolean, default: `true`)
   - `removePromotions` (Boolean, default: `true`)
   - `removeSezzleSpendBanner` (Boolean, default: `false`)
 
 #### 1. Motivation & Purpose
 
-Trims Sezzle's stock Home (the Shop tab renamed by Rename Shop to Home) by unmounting the commercial shortcut row, store/brand carousels, and promotional banners while keeping the account header and the real Sezzle Spend balance notification.
+Trims Sezzle's stock Home (the Shop tab renamed by Rename Shop to Home) by unmounting store/brand carousels and promotional banners while keeping the account header, the **Your Shortcuts** row, and the real Sezzle Spend balance notification. The shortcuts row remains available through the opt-in `removeShortcuts` option.
 
 #### 2. Technical Implementation & Injection Points
 
 Modifies `assets/index.android.bundle`. For each configured component, the first four bytes are replaced with `LoadConstNull r0; Ret r0`, so the component renders nothing and the rest of its original body is unreachable:
 
-1. **Shortcuts (`removeShortcuts`):** `ShopTabShortcutsRow`, `ShopTabShortcutsRowView`, `ShopTabAlert`, `EarnSpendPill`, `VcRewardsPill`, and `RewardChip`.
-2. **Store and brand sections (`removeBrands`):** `StoreHeaderList`, `CategoryStoresList`, `StoresCarousel`, `RecommendationsCarousel`, circular brand lists/items, category rows, `ShopByCategoryScreen`, Braze content cards, and store carousels.
+1. **Shortcuts (`removeShortcuts`):** `ShopTabShortcutsRow`, `ShopTabShortcutsRowView`, `ShopTabAlert`, `EarnSpendPill`, `VcRewardsPill`, `RewardChip`, and `StoreHeaderList`. `StoreHeaderList` renders the **Your Shortcuts** row; it belongs here so `removeBrands` cannot remove the shortcuts row.
+2. **Store and brand sections (`removeBrands`):** `CategoryStoresList`, `StoresCarousel`, `RecommendationsCarousel`, circular brand lists/items, category rows, `ShopByCategoryScreen`, Braze content cards, and store carousels.
 3. **Promotional banners (`removePromotions`):** `ShopDealsAd`, `NativeAdCard`, `CtaBanner`, `UnlockSpendingPowerBanner`, Amazon spend banners, `RewardsView`, `CashbackRewards`, and `SezzleSpendAnywhereView`.
 4. **Sezzle Spend balance banner (`removeSezzleSpendBanner`, opt-in):** `SpendPill` and `ShopSpendCta`. Leave this disabled by default: the banner reports real spendable balance (`shop-spend-cta-pill`), not a marketing promotion.
 5. Recomputes Hermes footer hash.
