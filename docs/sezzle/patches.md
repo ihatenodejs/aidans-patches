@@ -327,6 +327,8 @@ Modifies `assets/index.android.bundle`:
 4. **Orders Tab Help:** In `GetHelpScreen`'s priority support closure `#64670` (`0x16ed5a8`), replaces the prologue (`34 01 00 3b 02 01` -> `08 02 00 00 76 02`), returning an empty array `[]` so "Priority Customer Support" (an Anywhere-only feature/ad) is never mounted in the Help options list.
 5. Recomputes Hermes footer hash.
 
+> **5.3.24 implementation note:** The Account benefit entries are removed by stubbing the anonymous subscription-section builder (`#82424`) and skipping the `AccountView` Anywhere row at `+0x1343`; the offset details in item 1 reflect an earlier revision.
+
 Note: To remove the "Pay Later Anywhere" shortcut on the home screen carousel, configure the `hidePayLaterAnywhere` option (enabled by default) in [Configure Shortcuts](#patch-configure-shortcuts).
 
 ---

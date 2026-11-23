@@ -44,6 +44,21 @@ private val HIDDEN_WALLET_BANNER_CAROUSEL_BYTES = byteArrayOf(0x93.toByte(), 0x0
 private val EXPECTED_GIFT_CARDS_SECTION_PROLOGUE_BYTES = byteArrayOf(0x34, 0x05, 0x00, 0x40)
 private val HIDDEN_GIFT_CARDS_SECTION_BYTES = byteArrayOf(0x93.toByte(), 0x01, 0x76.toByte(), 0x01)
 
+private const val SUBSCRIPTION_SECTION_BUILDER_INDEX = 82424
+private val EMPTY_SECTION_BUILDER_BYTES = byteArrayOf(
+    0x08, 0x00, 0x00, 0x00, 0x76.toByte(), 0x00
+)
+
+private const val ACCOUNT_ANYWHERE_ROW_OFFSET = 0x1343
+private val EXPECTED_ACCOUNT_ANYWHERE_ROW_BYTES = byteArrayOf(
+    0x02, 0x6a, 0xa4.toByte(), 0x48, 0x00, 0x00
+)
+private val HIDDEN_ACCOUNT_ANYWHERE_ROW_BYTES = byteArrayOf(
+    0x08, 0x08, 0x00, 0x00,
+    0x10, 0x69, 0x08,
+    0xae.toByte(), 0x50
+)
+
 private const val HELP_PRIORITY_SUPPORT_CLOSURE_INDEX = 73095
 private val EXPECTED_HELP_PRIORITY_SUPPORT_BYTES = byteArrayOf(0x34, 0x01, 0x00, 0x3b, 0x02, 0x01)
 private val HIDDEN_HELP_PRIORITY_SUPPORT_BYTES = byteArrayOf(0x08, 0x02, 0x00, 0x00, 0x76.toByte(), 0x02)
@@ -82,6 +97,27 @@ val removeSezzleSubscriptionsPatch = rawResourcePatch(
             editor.patchBytes(accountAnywhereBannerOffset, HIDDEN_ACCOUNT_ANYWHERE_BANNER_BYTES)
         } else if (!editor.matchesBytes(accountAnywhereBannerOffset, HIDDEN_ACCOUNT_ANYWHERE_BANNER_BYTES)) {
             throw PatchException("Unexpected bytecode at AccountView Anywhere banner condition")
+        }
+
+        // Stub the Account tab's subscription-section builder so the generic
+        // Benefits list does not receive the Anywhere/Premium rows.
+        if (editor.functionCount <= SUBSCRIPTION_SECTION_BUILDER_INDEX) {
+            throw PatchException(
+                "Bundle function count (${editor.functionCount}) insufficient for subscription section builder"
+            )
+        }
+        val sectionBuilder = editor.getFunctionHeader(SUBSCRIPTION_SECTION_BUILDER_INDEX)
+        if (!editor.matchesBytes(sectionBuilder.codeOffset, EMPTY_SECTION_BUILDER_BYTES)) {
+            editor.patchBytes(sectionBuilder.codeOffset, EMPTY_SECTION_BUILDER_BYTES)
+        }
+
+        // Skip the AccountView Anywhere row object directly. The line is also
+        // reached outside the subscription jump block, so patch it in place.
+        val anywhereRowOffset = accountViewOffset + ACCOUNT_ANYWHERE_ROW_OFFSET
+        if (editor.matchesBytes(anywhereRowOffset, EXPECTED_ACCOUNT_ANYWHERE_ROW_BYTES)) {
+            editor.patchBytes(anywhereRowOffset, HIDDEN_ACCOUNT_ANYWHERE_ROW_BYTES)
+        } else if (!editor.matchesBytes(anywhereRowOffset, HIDDEN_ACCOUNT_ANYWHERE_ROW_BYTES)) {
+            throw PatchException("Unexpected bytecode at AccountView Anywhere row")
         }
 
         // 2. Wallet Screen -> Remove Anywhere Promotional Banner (both single banner and carousel)
