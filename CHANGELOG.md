@@ -1,3 +1,9 @@
+## [1.10.0-dev.7](https://github.com/ihatenodejs/aidans-patches/compare/v1.10.0-dev.6...v1.10.0-dev.7) (2026-11-23)
+
+### 🚀 Updated App Support
+
+* **blackjack:** support 2.23.01 ([dd02445](https://github.com/ihatenodejs/aidans-patches/commit/dd024454c81eb2999dd903e5b34fa683b86c0328))
+
 ## [1.10.0-dev.6](https://github.com/ihatenodejs/aidans-patches/compare/v1.10.0-dev.5...v1.10.0-dev.6) (2026-11-23)
 
 ### 🚀 Updated App Support
