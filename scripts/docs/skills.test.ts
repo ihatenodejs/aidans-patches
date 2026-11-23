@@ -65,7 +65,6 @@ function logicalCommands(content: string): string[] {
 }
 
 const skillFiles = readSkillFiles();
-const allSkillText = [...skillFiles.values()].join('\n');
 const bashCommands = [...skillFiles.values()]
   .flatMap((content) => fencedBlocks(content))
   .filter((block) => block.language === 'bash')
