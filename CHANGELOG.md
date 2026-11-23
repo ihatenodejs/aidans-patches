@@ -1,3 +1,14 @@
+## [1.10.0-dev.12](https://github.com/ihatenodejs/aidans-patches/compare/v1.10.0-dev.11...v1.10.0-dev.12) (2026-11-23)
+
+### 🐛 Bug Fixes
+
+* **ci:** authenticate release pushes with the ruleset bypass deploy key ([291cf37](https://github.com/ihatenodejs/aidans-patches/commit/291cf37f7d6c5aa17c55d2cbc9c923af16bbaa11))
+* **sezzle:** hide Get Rewards header pill ([0708514](https://github.com/ihatenodejs/aidans-patches/commit/0708514674ffacf5319ff9e59dfcf36b03c9f867))
+* **sezzle:** hide Pay Later Anywhere variants and add shortcut options ([1488561](https://github.com/ihatenodejs/aidans-patches/commit/1488561178fbedf77cbc0ab61c39da4631d8991a))
+* **sezzle:** remove Anywhere and Premium account benefit rows ([e0d12c3](https://github.com/ihatenodejs/aidans-patches/commit/e0d12c3226aef146772e35740a8fa99af5773c93))
+* **sezzle:** restore Home and add clean Home options ([0d66382](https://github.com/ihatenodejs/aidans-patches/commit/0d66382b4e792752391c2262a95b55fe3df23d2b))
+* **sezzle:** restore Home shortcuts and add gift card toggle ([a0f5d73](https://github.com/ihatenodejs/aidans-patches/commit/a0f5d731e3e72285d0f4d50a65bd4050de0d0c92))
+
 ## [1.10.0-dev.11](https://github.com/ihatenodejs/aidans-patches/compare/v1.10.0-dev.10...v1.10.0-dev.11) (2026-11-23)
 
 ### 🐛 Bug Fixes
