@@ -1,3 +1,9 @@
+## [1.10.0-dev.10](https://github.com/ihatenodejs/aidans-patches/compare/v1.10.0-dev.9...v1.10.0-dev.10) (2026-11-23)
+
+### 🚀 Updated App Support
+
+* **sezzle:** update to 5.3.24 ([4ddd356](https://github.com/ihatenodejs/aidans-patches/commit/4ddd356bc8b2cbbd5296949b7bd2664ebc5cb4ca))
+
 ## [1.10.0-dev.9](https://github.com/ihatenodejs/aidans-patches/compare/v1.10.0-dev.8...v1.10.0-dev.9) (2026-11-23)
 
 ### 🚀 Updated App Support
