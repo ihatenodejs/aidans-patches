@@ -18,7 +18,8 @@ This document details the binary bytecode, asset, and resource patches available
 | [Remove Rewards](#patch-remove-rewards)                                                         | `navigation/RemoveRewardsPatch.kt`                 | `rawResourcePatch`      | `true`  | None                                       | None                                   | Removes Rewards bottom navigation tab while keeping Account Sezzle Points accessible.                                                                                         |
 | [Remove Sezzle Subscriptions](#patch-remove-sezzle-subscriptions)                               | `navigation/RemoveSezzleSubscriptionsPatch.kt`     | `rawResourcePatch`      | `false` | None                                       | None                                   | Removes references to Sezzle Anywhere and Sezzle Premium subscriptions in Account benefits, Wallet, and Orders help.                                                          |
 | [Replace AI Discover with Products](#patch-replace-ai-discover-with-products)                   | `navigation/ReplaceAiDiscoverWithProductsPatch.kt` | `rawResourcePatch`      | `true`  | None                                       | `removeProductsTab` (default: `false`) | Replaces AI Discover tab with original non-AI Products tab and removes AI search callouts.                                                                                    |
-| [Replace Shop with Home](#patch-replace-shop-with-home)                                         | `navigation/ReplaceShopWithHomePatch.kt`           | `rawResourcePatch`      | `true`  | None                                       | None                                   | Replaces commercial Shop tab with custom personal finance dashboard Home tab.                                                                                                 |
+| [Rename Shop to Home](#patch-rename-shop-to-home)                                               | `navigation/ReplaceShopWithHomePatch.kt`           | `rawResourcePatch`      | `true`  | None                                       | None                                   | Renames the Shop bottom navigation tab to Home.                                                                                                                               |
+| [Clean Home](#patch-clean-home)                                                                 | `navigation/CleanHomePatch.kt`                     | `rawResourcePatch`      | `true`  | None                                       | 4 boolean options                      | Removes shortcuts, store/brand carousels, and promotional banners from the Home tab.                                                                                          |
 | [Patch Consent Screen](#patch-patch-consent-screen)                                             | `security/PatchConsentScreenPatch.kt`              | `bytecodePatch`         | `true`  | `Clean Authentication`, `ConsentGate.java` | None                                   | Injects native `ConsentGate` modal dialog into `MainActivity.onCreate` before auth.                                                                                           |
 | [Suppress In-App Updates and Rating Prompts](#patch-suppress-in-app-updates-and-rating-prompts) | `security/SuppressUpdatesAndIntegrityPatch.kt`     | `rawResourcePatch`      | `true`  | None                                       | 3 boolean options (default: `true`)    | Neutralizes Hermes update selectors/sagas, update modal, store URLs, trustFall, and rating prompts.                                                                           |
 
@@ -354,9 +355,9 @@ Modifies `assets/index.android.bundle`:
 
 ---
 
-### Patch: Replace Shop with Home
+### Patch: Rename Shop to Home
 
-- **Name:** Replace Shop with Home
+- **Name:** Rename Shop to Home
 - **Target Package:** `com.sezzle.sezzlemobile`
 - **Supported Versions:** `5.3.24`
 - **Default State:** `true` (Enabled by default)
@@ -365,16 +366,52 @@ Modifies `assets/index.android.bundle`:
 
 #### 1. Motivation & Purpose
 
-Replaces the commercial "Shop" tab and store feeds with a clean personal finance dashboard.
+Renames the Shop bottom navigation tab to Home. The tab still hosts Sezzle's stock store screen.
 
 #### 2. Technical Implementation & Injection Points
 
 Modifies `assets/index.android.bundle`:
 
 1. Changes the bottom navigation tab label from `"Shop"` to `"Home"` in `ProtectedStack`.
-2. In `StoreRoot` (`func #49969`), redirects dependency slots 17–19 from the commercial feed modules to `OrdersListHeader` (module `12387`), `PaymentStreakBanner` (module `10041`), and `ShopTabShortcutsRow` (module `12816`).
-3. Disables the Liquid Glass `StoreRoot` branch so the deterministic standard layout is used, and replaces the commercial feed composition with a 4-child dashboard: existing header, `OrdersListHeader`, `PaymentStreakBanner`, and `ShopTabShortcutsRow`.
-4. Recomputes Hermes footer hash.
+2. Recomputes Hermes footer hash.
+
+#### 3. Why StoreRoot Is Not Rewritten
+
+The previous revision replaced `StoreRoot`'s feed composition with a synthetic dashboard. That wiring does not hold on 5.3.24:
+
+- The synthetic layout passed empty props to `OrdersListHeader` and `ShopTabShortcutsRow`, so the Home content area rendered blank.
+- `PaymentStreakBanner`'s spending-power branch dereferences `props.sezzleUpCreditLimit.available_credit_limit_in_cents` without a guard. Mounting it from the synthetic layout produced `Cannot read property 'available_credit_limit_in_cents' of undefined` and the app's `Something went wrong` boundary.
+- The StoreRoot dependency table does not map cleanly to the module wrappers assumed by the old layout, so slot substitution alone cannot supply the missing props.
+
+---
+
+### Patch: Clean Home
+
+- **Name:** Clean Home
+- **Target Package:** `com.sezzle.sezzlemobile`
+- **Supported Versions:** `5.3.24`
+- **Default State:** `true` (Enabled by default)
+- **Type:** Raw Binary / Asset Patch (`rawResourcePatch`)
+- **Dependencies:** None
+- **Options:**
+  - `removeShortcuts` (Boolean, default: `true`)
+  - `removeBrands` (Boolean, default: `true`)
+  - `removePromotions` (Boolean, default: `true`)
+  - `removeSezzleSpendBanner` (Boolean, default: `false`)
+
+#### 1. Motivation & Purpose
+
+Trims Sezzle's stock Home (the Shop tab renamed by Rename Shop to Home) by unmounting the commercial shortcut row, store/brand carousels, and promotional banners while keeping the account header and the real Sezzle Spend balance notification.
+
+#### 2. Technical Implementation & Injection Points
+
+Modifies `assets/index.android.bundle`. For each configured component, the first four bytes are replaced with `LoadConstNull r0; Ret r0`, so the component renders nothing and the rest of its original body is unreachable:
+
+1. **Shortcuts (`removeShortcuts`):** `ShopTabShortcutsRow`, `ShopTabShortcutsRowView`, `ShopTabAlert`, `EarnSpendPill`, `VcRewardsPill`, and `RewardChip`.
+2. **Store and brand sections (`removeBrands`):** `StoreHeaderList`, `CategoryStoresList`, `StoresCarousel`, `RecommendationsCarousel`, circular brand lists/items, category rows, `ShopByCategoryScreen`, Braze content cards, and store carousels.
+3. **Promotional banners (`removePromotions`):** `ShopDealsAd`, `NativeAdCard`, `CtaBanner`, `UnlockSpendingPowerBanner`, Amazon spend banners, `RewardsView`, `CashbackRewards`, and `SezzleSpendAnywhereView`.
+4. **Sezzle Spend balance banner (`removeSezzleSpendBanner`, opt-in):** `SpendPill` and `ShopSpendCta`. Leave this disabled by default: the banner reports real spendable balance (`shop-spend-cta-pill`), not a marketing promotion.
+5. Recomputes Hermes footer hash.
 
 ---
 

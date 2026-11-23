@@ -102,6 +102,7 @@ See [Sezzle Patch Specifications](patches.md) for full technical implementation 
 9. **`Remove Promos & Giveaways` (`rawResourcePatch`):** Suppresses deal popups, giveaway flows, Knot card-linking dialogs, and marketing banners.
 10. **`Remove Rewards` (`rawResourcePatch`):** Removes the Rewards bottom tab while retaining Account access to Sezzle Points.
 11. **`Replace AI Discover with Products` (`rawResourcePatch`):** Restores the original non-AI Products tab.
-12. **`Replace Shop with Home` (`rawResourcePatch`):** Replaces commercial store feeds with a clean personal finance dashboard.
-13. **`Patch Consent Screen` (`bytecodePatch`):** Injects native `ConsentGate` modal dialog into `MainActivity.onCreate`.
-14. **`Suppress In-App Updates and Rating Prompts` (`rawResourcePatch`):** Neutralizes Hermes update sagas, update modals, store URLs, trustFall checks, and rating prompts.
+12. **`Rename Shop to Home` (`rawResourcePatch`):** Renames the Shop bottom navigation tab to Home; the stock store screen remains.
+13. **`Clean Home` (`rawResourcePatch`):** Unmounts Home shortcut rows, store/brand carousels, and promotional banners; the real Sezzle Spend balance banner stays visible unless the opt-in removal option is enabled.
+14. **`Patch Consent Screen` (`bytecodePatch`):** Injects native `ConsentGate` modal dialog into `MainActivity.onCreate`.
+15. **`Suppress In-App Updates and Rating Prompts` (`rawResourcePatch`):** Neutralizes Hermes update sagas, update modals, store URLs, trustFall checks, and rating prompts.
