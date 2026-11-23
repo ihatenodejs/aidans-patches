@@ -1,3 +1,9 @@
+## [1.10.0-dev.9](https://github.com/ihatenodejs/aidans-patches/compare/v1.10.0-dev.8...v1.10.0-dev.9) (2026-11-23)
+
+### 🚀 Updated App Support
+
+* **nhl:** support 17.2.0 ([bd64492](https://github.com/ihatenodejs/aidans-patches/commit/bd644924c6c0ed3acd02438bf85ffdb4c764ab9f))
+
 ## [1.10.0-dev.8](https://github.com/ihatenodejs/aidans-patches/compare/v1.10.0-dev.7...v1.10.0-dev.8) (2026-11-23)
 
 ### 🚀 Updated App Support
