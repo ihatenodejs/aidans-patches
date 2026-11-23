@@ -15,7 +15,7 @@ Applies Morphe patches from a `.mpp` bundle to an APK or split container (APKM/X
 3. **Keystore Negotiation & Signing**:
    - Signs the aligned APK using `apksigner`.
    - **Automatic Keystore Negotiation**: If `--keystore` is omitted, `apk-lab` inspects the installed package signature on the target device via ADB. If the installed app signature matches Morphe's bundled key (`6959a7790bff42cc...`), Morphe's cached keystore (`morphe-data/morphe.keystore`) is used automatically with alias `Morphe` and password `Morphe`, avoiding `INSTALL_FAILED_UPDATE_INCOMPATIBLE`. Otherwise, it defaults to the standard Android debug keystore (`~/.android/debug.keystore`, auto-created with secure `0600` permissions if absent).
-   - Explicit credentials can be provided via `--keystore PATH`, `--ks-alias ALIAS`, `--ks-pass PASS`, and `--key-pass PASS`.
+   - Explicit credentials can be provided via `--keystore PATH`, `--ks-alias ALIAS`, `--ks-pass-file PATH`, and `--key-pass-file PATH`. The file forms must point at a `0600` regular file and are mutually exclusive with the inline `--ks-pass`/`--key-pass` flags.
 4. **ADB Streaming Install**:
    - Default / `--reinstall`: Runs `adb install -r` (preserves existing app data and sandbox).
    - `--clean-install`: Attempts `adb uninstall <package>` first (clears app data; uninstall failure is ignored), then `adb install`.
@@ -45,8 +45,8 @@ cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-la
   --all \
   --keystore /path/to/custom.keystore \
   --ks-alias mykey \
-  --ks-pass secretpass \
-  --key-pass secretpass
+  --ks-pass-file /path/to/ks.pass \
+  --key-pass-file /path/to/key.pass
 
 # Clean install (destructively clears existing app data before installing)
 cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- deploy path/to/app.apkm \
@@ -71,8 +71,10 @@ cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-la
 - `--keystore PATH`: Custom signing keystore. When supplied, `--ks-alias` and `--ks-pass` default to `androiddebugkey` and `android` only if omitted; `--key-pass` defaults to the store password.
 - `--out PATH`: Copy the patched, signed APK to a specific output path.
 - `--ks-alias ALIAS`: Keystore key alias (default: the negotiation-selected alias).
-- `--ks-pass PASS`: Keystore password (default: the negotiation-selected password).
-- `--key-pass PASS`: Key password (default: the keystore password).
+- `--ks-pass PASS`: Keystore password (default: the negotiation-selected password). Inline values are visible in process listings; prefer `--ks-pass-file`.
+- `--key-pass PASS`: Key password (default: the keystore password). Inline values are visible in process listings; prefer `--key-pass-file`.
+- `--ks-pass-file PATH`: Read the keystore password from a `0600` regular file. Mutually exclusive with `--ks-pass`.
+- `--key-pass-file PATH`: Read the key password from a `0600` regular file. Mutually exclusive with `--key-pass`.
 
 ### Exit Codes
 

@@ -26,6 +26,7 @@
 //! as soon as the tool exits. Diagnostics redact before truncating so a secret
 //! straddling the truncation boundary cannot leak.
 
+use crate::acquisition::read_private_file;
 use crate::device::{self, AdbClient, AdbRunner};
 use crate::error::Error;
 use crate::inspection::{self, InspectionOptions};
@@ -54,6 +55,22 @@ const DEFAULT_DEBUG_PASSWORD: &str = "android";
 const MORPHE_ALIAS: &str = "Morphe";
 const MORPHE_PASSWORD: &str = "Morphe";
 const STAGE_PREFIX: &str = "apk-lab-stage-";
+
+/// Prefix identifying a password supplied as a private file path through
+/// `--ks-pass-file`/`--key-pass-file`. The value is `file:` plus the path; the
+/// secret itself is read from that file only when signing starts.
+pub const PASSWORD_FILE_PREFIX: &str = "file:";
+
+/// One-line notice emitted when an inline password flag is used.
+pub const INLINE_PASSWORD_DEPRECATION: &str = "warning: --ks-pass/--key-pass values are visible in process listings; prefer --ks-pass-file/--key-pass-file";
+
+/// Credential-carrying variables deployment children never receive.
+pub const CHILD_SECRET_ENV: &[&str] = &[
+    "APKEEP_AAS_TOKEN",
+    "APKEEP_OAUTH_TOKEN",
+    "APKEEP_KS_PASS",
+    "APKEEP_KEY_PASS",
+];
 
 /// Install behavior. The default preserves application data.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -240,6 +257,28 @@ impl std::fmt::Debug for DeployOptions {
     }
 }
 
+impl DeployOptions {
+    /// Path supplied through `--ks-pass-file`, when the password source is a
+    /// private file rather than an inline value.
+    #[must_use]
+    pub fn ks_pass_file(&self) -> Option<&Path> {
+        self.ks_pass
+            .as_deref()
+            .and_then(|value| value.strip_prefix(PASSWORD_FILE_PREFIX))
+            .map(Path::new)
+    }
+
+    /// Path supplied through `--key-pass-file`, when the password source is a
+    /// private file rather than an inline value.
+    #[must_use]
+    pub fn key_pass_file(&self) -> Option<&Path> {
+        self.key_pass
+            .as_deref()
+            .and_then(|value| value.strip_prefix(PASSWORD_FILE_PREFIX))
+            .map(Path::new)
+    }
+}
+
 /// Resolves a patch bundle from `--mpp` or builds it with `--build`.
 pub enum BundleSource {
     Existing(PathBuf),
@@ -298,9 +337,11 @@ pub fn build_patch_bundle(repo_root: &Path) -> Result<PathBuf, Error> {
             gradlew.display()
         )));
     }
-    let spec = ProcessSpec::new(gradlew)
-        .arg(":patches:buildAndroid")
-        .cwd(repo_root);
+    let spec = scrub_child_environment(
+        ProcessSpec::new(gradlew)
+            .arg(":patches:buildAndroid")
+            .cwd(repo_root),
+    );
     let output = process::run(&spec)?;
     if !output.success() {
         let detail = diagnostic_text(&spec, &output, DIAGNOSTIC_CHAR_LIMIT);
@@ -589,13 +630,17 @@ pub fn deploy_artifact(
         ));
     }
 
+    let store_password =
+        resolve_password_source(options.ks_pass.as_deref(), "--ks-pass-file", "--ks-pass")?;
+    let key_password =
+        resolve_password_source(options.key_pass.as_deref(), "--key-pass-file", "--key-pass")?;
     let credentials = resolve_signing_keystore(
         Some(&options.package_name),
         Some(serial.as_str()),
         options.keystore.as_deref(),
         options.ks_alias.as_deref(),
-        options.ks_pass.as_deref(),
-        options.key_pass.as_deref(),
+        store_password.as_deref(),
+        key_password.as_deref(),
         tools,
         &adb,
     )?;
@@ -804,6 +849,37 @@ pub fn parse_launcher_activity(badging: &str, package_name: &str) -> Result<Stri
     })
 }
 
+/// Resolves a password value that may be marked as a private file source.
+///
+/// `file:<path>` is produced by `--ks-pass-file`/`--key-pass-file`; the file is
+/// read through the shared descriptor-checked reader and must be a 0600 regular
+/// file. Inline values are returned unchanged.
+fn resolve_password_source(
+    value: Option<&str>,
+    file_flag: &str,
+    inline_flag: &str,
+) -> Result<Option<String>, Error> {
+    let Some(value) = value else {
+        return Ok(None);
+    };
+    let Some(path) = value.strip_prefix(PASSWORD_FILE_PREFIX) else {
+        return Ok(Some(value.to_string()));
+    };
+    if path.is_empty() {
+        return Err(Error::usage(format!("{file_flag} requires a path")));
+    }
+    let secret = read_private_file(Path::new(path), &format!("{inline_flag} file"))
+        .map_err(|error| Error::usage(error.to_string()))?;
+    let secret = secret.trim_end_matches(['\r', '\n']).to_string();
+    if secret.is_empty() {
+        return Err(Error::usage(format!(
+            "{file_flag} file {} is empty",
+            Path::new(path).display()
+        )));
+    }
+    Ok(Some(secret))
+}
+
 #[allow(clippy::too_many_arguments)]
 fn resolve_signing_keystore(
     package_name: Option<&str>,
@@ -943,9 +1019,19 @@ pub fn ensure_debug_keystore(
     Ok(path)
 }
 
+/// Applies the deployment environment policy: keystore password variables are
+/// removed from every child, while PATH/HOME/JAVA_HOME/ANDROID_*/TMPDIR survive.
+fn scrub_child_environment(mut spec: ProcessSpec) -> ProcessSpec {
+    for variable in CHILD_SECRET_ENV {
+        spec = spec.remove_env(*variable);
+    }
+    spec
+}
+
 /// Propagates the caller-owned cancellation flag, if any, to a child spec.
 /// Process-wide signal termination is applied by the adapter regardless.
 fn with_cancel(spec: ProcessSpec, tools: &DeploymentTools) -> ProcessSpec {
+    let spec = scrub_child_environment(spec);
     match &tools.cancel {
         Some(flag) => spec.cancel(Arc::clone(flag)),
         None => spec,
@@ -1201,6 +1287,9 @@ pub fn parse_deploy_args(args: &[String]) -> Result<DeployOptions, Error> {
     let mut ks_alias = None;
     let mut ks_pass = None;
     let mut key_pass = None;
+    let mut ks_pass_file = None;
+    let mut key_pass_file = None;
+    let mut inline_password = false;
 
     let mut index = 0;
     while index < args.len() {
@@ -1220,8 +1309,20 @@ pub fn parse_deploy_args(args: &[String]) -> Result<DeployOptions, Error> {
             "--out" => out = Some(PathBuf::from(value(inline, args, &mut index, flag)?)),
             "--keystore" => keystore = Some(PathBuf::from(value(inline, args, &mut index, flag)?)),
             "--ks-alias" => ks_alias = Some(value(inline, args, &mut index, flag)?),
-            "--ks-pass" => ks_pass = Some(value(inline, args, &mut index, flag)?),
-            "--key-pass" => key_pass = Some(value(inline, args, &mut index, flag)?),
+            "--ks-pass" => {
+                ks_pass = Some(value(inline, args, &mut index, flag)?);
+                inline_password = true;
+            }
+            "--key-pass" => {
+                key_pass = Some(value(inline, args, &mut index, flag)?);
+                inline_password = true;
+            }
+            "--ks-pass-file" => {
+                ks_pass_file = Some(PathBuf::from(value(inline, args, &mut index, flag)?));
+            }
+            "--key-pass-file" => {
+                key_pass_file = Some(PathBuf::from(value(inline, args, &mut index, flag)?));
+            }
             value if value.starts_with('-') => {
                 return Err(Error::usage(format!("unrecognized option '{value}'")))
             }
@@ -1243,6 +1344,23 @@ pub fn parse_deploy_args(args: &[String]) -> Result<DeployOptions, Error> {
             "--reinstall and --clean-install are mutually exclusive",
         ));
     }
+    if ks_pass.is_some() && ks_pass_file.is_some() {
+        return Err(Error::usage(
+            "--ks-pass and --ks-pass-file are mutually exclusive",
+        ));
+    }
+    if key_pass.is_some() && key_pass_file.is_some() {
+        return Err(Error::usage(
+            "--key-pass and --key-pass-file are mutually exclusive",
+        ));
+    }
+    if inline_password {
+        eprintln!("{INLINE_PASSWORD_DEPRECATION}");
+    }
+    let ks_pass = ks_pass
+        .or_else(|| ks_pass_file.map(|path| format!("{PASSWORD_FILE_PREFIX}{}", path.display())));
+    let key_pass = key_pass
+        .or_else(|| key_pass_file.map(|path| format!("{PASSWORD_FILE_PREFIX}{}", path.display())));
     let artifact = artifact.ok_or_else(|| Error::usage("the artifact argument is required"))?;
     Ok(DeployOptions {
         artifact,

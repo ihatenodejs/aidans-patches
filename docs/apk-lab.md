@@ -230,8 +230,8 @@ cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-la
   --all \
   --keystore /path/to/custom.keystore \
   --ks-alias mykey \
-  --ks-pass secretpass \
-  --key-pass secretpass
+  --ks-pass-file /path/to/ks.pass \
+  --key-pass-file /path/to/key.pass
 
 # Perform a clean install (destructively uninstalls first, clearing app data)
 cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- deploy path/to/app.apkm \
@@ -246,7 +246,8 @@ cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-la
 - `--all` selects all compatible patches marked `default: true` for the package, transitively resolving dependencies.
 - `--build` compiles the latest `.mpp` patch bundle via Gradle (`./gradlew :patches:buildAndroid`) automatically before deploying, making `--mpp` optional.
 - **Automatic Keystore Negotiation**: If `--keystore` is omitted, `apk-lab` inspects the installed package signature on the target device via ADB. If the installed app matches Morphe's bundled key signature, Morphe's cached keystore (`morphe-data/morphe.keystore`) is used automatically, preventing `INSTALL_FAILED_UPDATE_INCOMPATIBLE`. Otherwise, it falls back to the standard Android debug keystore (`~/.android/debug.keystore`, auto-created with permissions `0600` if absent).
-- Custom keystores and credentials can be specified using `--keystore PATH`, `--ks-alias ALIAS`, `--ks-pass PASS`, and `--key-pass PASS`.
+- Custom keystores and credentials can be specified using `--keystore PATH`, `--ks-alias ALIAS`, `--ks-pass-file PATH`, and `--key-pass-file PATH`.
+- `--ks-pass-file`/`--key-pass-file` read the secret from a `0600` regular file and are mutually exclusive with the inline `--ks-pass`/`--key-pass` forms. The inline forms still work but print a one-line note that their values are visible in process listings; prefer the file forms in automation.
 - Installs use data-preserving `adb install -r` by default (and with explicit `--reinstall`). `--clean-install` attempts `adb uninstall <package>` first (clearing app data; uninstall failure is ignored) before installing.
 - Staging occurs in a temporary directory inside the final output's parent directory, so the final `fs::rename` stays on one filesystem and is atomic. Failures before destination replacement leave existing files untouched; installation or launch failures occur after the destination file has already been replaced.
 - When `--out PATH` is specified, the resolved output destination must not be identical to or alias the input artifact; deployment fails immediately before staging or device communication to prevent clobbering input files.

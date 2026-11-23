@@ -8,8 +8,8 @@
 #![cfg(unix)]
 
 use apk_lab::deployment::{
-    self, DeployOptions, DeployResult, DeploymentTools, InstallMode, PatchBuildRequest,
-    PatchEngine, MORPHE_KEYSTORE_SHA256,
+    self, DeployOptions, DeployResult, DeploymentTools, InstallMode, PatchBuildRequest, PatchEngine,
+    INLINE_PASSWORD_DEPRECATION, MORPHE_KEYSTORE_SHA256, PASSWORD_FILE_PREFIX,
 };
 use apk_lab::error::Error;
 use apk_lab::inspection::InspectionOptions;
@@ -696,6 +696,114 @@ fn secret_files(root: &Path) -> Vec<PathBuf> {
         }
     }
     found
+}
+
+#[test]
+fn deploy_reads_private_password_files_and_keeps_values_off_argv() {
+    let fixture = Fixture::new();
+    let output = fixture.root.join("out.apk");
+    let store_file = fixture.root.join("store.pass");
+    let key_file = fixture.root.join("key.pass");
+    fs::write(&store_file, "store-file-secret").expect("store password file");
+    fs::write(&key_file, "key-file-secret").expect("key password file");
+    for path in [&store_file, &key_file] {
+        fs::set_permissions(path, fs::Permissions::from_mode(0o600)).expect("private mode");
+    }
+
+    let mut options = fixture.options(Some(output));
+    options.ks_pass = Some(format!("{PASSWORD_FILE_PREFIX}{}", store_file.display()));
+    options.key_pass = Some(format!("{PASSWORD_FILE_PREFIX}{}", key_file.display()));
+
+    deploy(&fixture, &options, &FakeEngine::new(&fixture)).expect("deploy with private files");
+
+    let lines = fixture.lines();
+    let sign = lines
+        .iter()
+        .find(|line| line.starts_with("apksigner sign "))
+        .expect("apksigner sign");
+    assert!(sign.contains("--ks-pass file:"), "{sign}");
+    assert!(sign.contains("--key-pass file:"), "{sign}");
+    assert!(!sign.contains("store-file-secret"), "{sign}");
+    assert!(!sign.contains("key-file-secret"), "{sign}");
+    assert!(
+        lines
+            .iter()
+            .all(|line| !line.contains("store-file-secret") && !line.contains("key-file-secret")),
+        "password file contents must never reach argv: {lines:?}"
+    );
+}
+
+#[test]
+fn deploy_rejects_insecure_password_files_and_conflicting_flags() {
+    let fixture = Fixture::new();
+    let insecure = fixture.root.join("insecure.pass");
+    fs::write(&insecure, "secret").expect("insecure password file");
+    fs::set_permissions(&insecure, fs::Permissions::from_mode(0o644)).expect("chmod");
+
+    let mut options = fixture.options(Some(fixture.root.join("out.apk")));
+    options.ks_pass = Some(format!("{PASSWORD_FILE_PREFIX}{}", insecure.display()));
+    let error = deploy(&fixture, &options, &FakeEngine::new(&fixture))
+        .expect_err("insecure password file must be rejected");
+    assert!(matches!(error, Error::Usage(_)), "{error:?}");
+    assert!(
+        error.message().contains("insecure permissions"),
+        "{}",
+        error.message()
+    );
+
+    let error = deployment::parse_deploy_args(&[
+        "input.apk".to_string(),
+        "--ks-pass".to_string(),
+        "inline".to_string(),
+        "--ks-pass-file".to_string(),
+        "file".to_string(),
+    ])
+    .expect_err("inline and file flags are mutually exclusive");
+    assert!(error.message().contains("mutually exclusive"));
+
+    let error = deployment::parse_deploy_args(&[
+        "input.apk".to_string(),
+        "--key-pass".to_string(),
+        "inline".to_string(),
+        "--key-pass-file".to_string(),
+        "file".to_string(),
+    ])
+    .expect_err("inline and file flags are mutually exclusive");
+    assert!(error.message().contains("mutually exclusive"));
+}
+
+#[test]
+fn deploy_password_file_flags_parse_and_inline_flags_stay_compatible() {
+    let parsed = deployment::parse_deploy_args(&[
+        "input.apk".to_string(),
+        "--ks-pass-file".to_string(),
+        "/tmp/store.pass".to_string(),
+        "--key-pass-file".to_string(),
+        "/tmp/key.pass".to_string(),
+    ])
+    .expect("parse file flags");
+    assert_eq!(
+        parsed.ks_pass.as_deref(),
+        Some(format!("{PASSWORD_FILE_PREFIX}/tmp/store.pass").as_str())
+    );
+    assert_eq!(
+        parsed.key_pass.as_deref(),
+        Some(format!("{PASSWORD_FILE_PREFIX}/tmp/key.pass").as_str())
+    );
+    assert_eq!(parsed.ks_pass_file(), Some(Path::new("/tmp/store.pass")));
+    assert_eq!(parsed.key_pass_file(), Some(Path::new("/tmp/key.pass")));
+
+    let inline = deployment::parse_deploy_args(&[
+        "input.apk".to_string(),
+        "--ks-pass".to_string(),
+        "inline-store".to_string(),
+        "--key-pass".to_string(),
+        "inline-key".to_string(),
+    ])
+    .expect("inline flags still parse");
+    assert_eq!(inline.ks_pass.as_deref(), Some("inline-store"));
+    assert_eq!(inline.key_pass.as_deref(), Some("inline-key"));
+    assert!(INLINE_PASSWORD_DEPRECATION.contains("process listings"));
 }
 
 #[test]

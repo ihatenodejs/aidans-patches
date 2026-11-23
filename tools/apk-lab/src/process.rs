@@ -23,6 +23,11 @@ use wait_timeout::ChildExt;
 /// Default retained bytes per captured stream.
 pub const DEFAULT_MAX_OUTPUT_BYTES: usize = 1024 * 1024;
 
+/// Environment variables that every child loses unless a caller re-adds them
+/// explicitly. They carry account documents or paths to them and must never be
+/// inherited by third-party tools.
+pub const DEFAULT_REMOVED_ENV: &[&str] = &["APKEEP_ACCOUNTS", "APKEEP_ACCOUNTS_FILE"];
+
 const CANCEL_POLL_INTERVAL: Duration = Duration::from_millis(10);
 const TERMINATED_REAP_GRACE: Duration = Duration::from_secs(5);
 const READER_DRAIN_GRACE: Duration = Duration::from_secs(2);
@@ -124,6 +129,10 @@ pub struct ProcessSpec {
     pub stderr: OutputMode,
     pub max_output_bytes: usize,
     pub secrets: Vec<String>,
+    /// Variables removed from the inherited environment before spawning.
+    /// Starts with [`DEFAULT_REMOVED_ENV`]; callers add tool-specific names
+    /// with [`ProcessSpec::remove_env`].
+    pub remove_env: Vec<OsString>,
 }
 
 impl fmt::Debug for ProcessSpec {
@@ -144,6 +153,7 @@ impl fmt::Debug for ProcessSpec {
             .field("stderr", &self.stderr)
             .field("max_output_bytes", &self.max_output_bytes)
             .field("secrets", &secrets)
+            .field("remove_env", &self.remove_env)
             .finish()
     }
 }
@@ -162,6 +172,7 @@ impl ProcessSpec {
             stderr: OutputMode::Captured,
             max_output_bytes: DEFAULT_MAX_OUTPUT_BYTES,
             secrets: Vec::new(),
+            remove_env: DEFAULT_REMOVED_ENV.iter().map(OsString::from).collect(),
         }
     }
 
@@ -226,6 +237,16 @@ impl ProcessSpec {
     #[must_use]
     pub fn secret(mut self, secret: impl Into<String>) -> Self {
         self.secrets.push(secret.into());
+        self
+    }
+
+    /// Removes one more variable from the child's inherited environment. The
+    /// default account variables are always removed; tools that need PATH,
+    /// HOME, JAVA_HOME, ANDROID_*, or TMPDIR keep them because the environment
+    /// is never cleared wholesale.
+    #[must_use]
+    pub fn remove_env(mut self, variable: impl Into<OsString>) -> Self {
+        self.remove_env.push(variable.into());
         self
     }
 
@@ -300,6 +321,9 @@ pub fn run(spec: &ProcessSpec) -> Result<ProcessOutput, Error> {
     }
     let mut command = Command::new(&spec.program);
     command.args(&spec.args);
+    for variable in &spec.remove_env {
+        command.env_remove(variable);
+    }
     #[cfg(unix)]
     {
         use std::os::unix::process::CommandExt;
@@ -690,6 +714,28 @@ mod tests {
         let output = read_bounded(&mut exact, 4).expect("bounded read");
         assert_eq!(output.bytes, b"0123");
         assert!(!output.truncated);
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn child_environment_removes_account_material_and_keeps_path() {
+        let _lock = test_child_lock();
+        std::env::set_var("APKEEP_ACCOUNTS", r#"{"version":1,"accounts":[]}"#);
+        std::env::set_var("APKEEP_ACCOUNTS_FILE", "/tmp/accounts.json");
+        std::env::set_var("APK_LAB_TEST_REMOVED", "sentinel");
+        let spec = ProcessSpec::new("/bin/sh")
+            .args(["-c", "env"])
+            .remove_env("APK_LAB_TEST_REMOVED");
+        let output = run(&spec).expect("env child runs");
+        std::env::remove_var("APKEEP_ACCOUNTS");
+        std::env::remove_var("APKEEP_ACCOUNTS_FILE");
+        std::env::remove_var("APK_LAB_TEST_REMOVED");
+
+        let environment = output.stdout.text_lossy();
+        assert!(!environment.contains("APKEEP_ACCOUNTS="), "{environment}");
+        assert!(!environment.contains("APKEEP_ACCOUNTS_FILE="), "{environment}");
+        assert!(!environment.contains("APK_LAB_TEST_REMOVED="), "{environment}");
+        assert!(environment.lines().any(|line| line.starts_with("PATH=")));
     }
 
     #[test]

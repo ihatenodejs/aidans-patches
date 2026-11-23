@@ -296,7 +296,7 @@ Options:
 ";
 
 const DEPLOY_HELP: &str = "\
-Usage: apk-lab deploy artifact [--mpp MPP | --build] [--package NAME] [--all | -e NAME] [-O KEY=VALUE] [--device SERIAL] [--launch] [--reinstall | --clean-install] [--out APK] [--keystore KS] [--ks-alias ALIAS] [--ks-pass PASS] [--key-pass PASS]
+Usage: apk-lab deploy artifact [--mpp MPP | --build] [--package NAME] [--all | -e NAME] [-O KEY=VALUE] [--device SERIAL] [--launch] [--reinstall | --clean-install] [--out APK] [--keystore KS] [--ks-alias ALIAS] [--ks-pass PASS | --ks-pass-file PATH] [--key-pass PASS | --key-pass-file PATH]
 
 Apply patches, sign with a debug or custom key, and install to a device.
 
@@ -315,8 +315,11 @@ Options:
   --out APK           Path to write signed output APK
   --keystore KS       Path to custom keystore for signing
   --ks-alias ALIAS    Keystore key alias
-  --ks-pass PASS      Keystore password
-  --key-pass PASS     Key password
+  --ks-pass PASS      Keystore password (visible in process listings)
+  --key-pass PASS     Key password (visible in process listings)
+  --ks-pass-file PATH Read the keystore password from a 0600 regular file
+  --key-pass-file PATH
+                      Read the key password from a 0600 regular file
   -h, --help          Print help
 ";
 

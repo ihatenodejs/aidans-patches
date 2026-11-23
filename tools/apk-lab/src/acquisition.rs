@@ -83,6 +83,20 @@ pub const FIXED_ZIP_MONTH: u8 = 1;
 pub const FIXED_ZIP_DAY: u8 = 1;
 /// Maximum retained diagnostic characters, applied after redaction.
 pub const STDERR_DIAGNOSTIC_LIMIT: usize = 300;
+
+/// Credential-carrying variables that acquisition children never receive.
+/// [`crate::process::DEFAULT_REMOVED_ENV`] always removes the account document
+/// and file path; these are the provider-specific additions.
+pub const CHILD_SECRET_ENV: &[&str] = &["APKEEP_AAS_TOKEN", "APKEEP_OAUTH_TOKEN"];
+
+/// Applies the acquisition environment policy to a child specification.
+fn scrub_child_environment(mut spec: ProcessSpec) -> ProcessSpec {
+    for variable in CHILD_SECRET_ENV {
+        spec = spec.remove_env(*variable);
+    }
+    spec
+}
+
 /// Default bound for one provider subprocess.
 pub const DOWNLOAD_TIMEOUT: Duration = Duration::from_secs(180);
 /// The one deadline that bounds authentication, details, and download for a
@@ -377,23 +391,41 @@ impl Redactor {
     }
 
     pub fn push_token(&mut self, token: &str) {
-        if !token.is_empty() {
-            self.replacements
-                .push((token.to_string(), "[REDACTED_TOKEN]".to_string()));
-        }
+        self.push_variants(token, "[REDACTED_TOKEN]");
     }
 
     pub fn push_email(&mut self, email: &str) {
         if !email.is_empty() {
-            self.replacements
-                .push((email.to_string(), redacted_email(email)));
+            let replacement = redacted_email(email);
+            self.push_variants(email, &replacement);
         }
     }
 
     pub fn push_secret(&mut self, secret: &str) {
-        if !secret.is_empty() {
-            self.replacements
-                .push((secret.to_string(), "[REDACTED]".to_string()));
+        self.push_variants(secret, "[REDACTED]");
+    }
+
+    /// Registers the raw secret plus every normalization an upstream library or
+    /// URL builder may produce: RFC 3986 percent-encoding with uppercase and
+    /// lowercase hex, and the slash-only form used by AAS tokens
+    /// (`aas_et%2F...`). Replacement values never contain a variant.
+    fn push_variants(&mut self, secret: &str, replacement: &str) {
+        if secret.is_empty() {
+            return;
+        }
+        let mut variants = vec![
+            secret.to_string(),
+            percent_encode(secret, true),
+            percent_encode(secret, false),
+            secret.replace('/', "%2F"),
+            secret.replace('/', "%2f"),
+        ];
+        variants.sort_by_key(|variant| std::cmp::Reverse(variant.len()));
+        variants.dedup();
+        for variant in variants {
+            if variant != replacement {
+                self.replacements.push((variant, replacement.to_string()));
+            }
         }
     }
 
@@ -407,6 +439,27 @@ impl Redactor {
         }
         redacted
     }
+}
+
+/// Percent-encodes every byte outside the RFC 3986 unreserved set
+/// (`ALPHA / DIGIT / "-" / "." / "_" / "~"`). Hex digits are uppercase when
+/// `uppercase` is true and lowercase otherwise.
+#[must_use]
+pub fn percent_encode(input: &str, uppercase: bool) -> String {
+    const UPPER: &[u8; 16] = b"0123456789ABCDEF";
+    const LOWER: &[u8; 16] = b"0123456789abcdef";
+    let digits = if uppercase { UPPER } else { LOWER };
+    let mut encoded = String::with_capacity(input.len());
+    for byte in input.bytes() {
+        if byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'.' | b'_' | b'~') {
+            encoded.push(char::from(byte));
+        } else {
+            encoded.push('%');
+            encoded.push(char::from(digits[usize::from(byte >> 4)]));
+            encoded.push(char::from(digits[usize::from(byte & 0x0f)]));
+        }
+    }
+    encoded
 }
 
 /// Redacts first, then truncates. Truncating first could slice a secret in half
@@ -475,16 +528,11 @@ pub fn load_accounts(
     let Some(path) = target else {
         return Ok(None);
     };
-    if !path.exists() {
-        return Ok(None);
-    }
-    check_accounts_file_permissions(&path)?;
-    let raw = fs::read_to_string(&path).map_err(|error| {
-        Error::usage(format!(
-            "Failed to read accounts file {}: {error}",
-            path.display()
-        ))
-    })?;
+    let raw = match read_private_file(&path, "Accounts file") {
+        Ok(raw) => raw,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(Error::usage(error.to_string())),
+    };
     parse_accounts_document(&raw, &path.display().to_string()).map(Some)
 }
 
@@ -516,31 +564,99 @@ fn expand_home(path: PathBuf, home: Option<&Path>) -> PathBuf {
     }
 }
 
-fn check_accounts_file_permissions(path: &Path) -> Result<(), Error> {
-    let metadata = fs::symlink_metadata(path).map_err(|error| {
-        Error::usage(format!(
-            "Failed to inspect accounts file {}: {error}",
-            path.display()
-        ))
-    })?;
-    if metadata.file_type().is_symlink() {
-        return Err(Error::usage(format!(
-            "Accounts file cannot be a symlink: {}",
-            path.display()
-        )));
-    }
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let mode = metadata.permissions().mode() & 0o777;
-        if mode & 0o077 != 0 {
-            return Err(Error::usage(format!(
-                "Accounts file {} has insecure permissions {mode:04o}; must not be group/world readable (expected 0600)",
-                path.display()
-            )));
+/// Opens and validates one private file descriptor without consuming it.
+///
+/// On Unix the descriptor is opened with `O_NOFOLLOW | O_CLOEXEC` (plus
+/// `O_NONBLOCK` so a FIFO cannot stall the open), then `fstat` validates the
+/// *opened* object: regular file, owned by the effective uid, and no group or
+/// world permission bits. A symlink swapped in after any earlier metadata check
+/// is therefore rejected instead of followed.
+#[cfg(unix)]
+fn open_private_file(path: &Path, label: &str) -> io::Result<File> {
+    use std::os::unix::fs::MetadataExt;
+
+    let mut options = std::fs::OpenOptions::new();
+    options
+        .read(true)
+        .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC | libc::O_NONBLOCK);
+    let file = match options.open(path) {
+        Ok(file) => file,
+        Err(error) if error.raw_os_error() == Some(libc::ELOOP) => {
+            return Err(io::Error::new(
+                io::ErrorKind::PermissionDenied,
+                format!("{label} cannot be a symlink: {}", path.display()),
+            ))
         }
+        Err(error) => return Err(error),
+    };
+    let metadata = file.metadata()?;
+    if !metadata.file_type().is_file() {
+        return Err(io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            format!("{label} must be a regular file: {}", path.display()),
+        ));
     }
-    Ok(())
+    // `geteuid` cannot fail and has no side effects.
+    let effective_uid = unsafe { libc::geteuid() };
+    if metadata.uid() != effective_uid {
+        return Err(io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            format!(
+                "{label} {} is owned by uid {} but the effective uid is {effective_uid}",
+                path.display(),
+                metadata.uid()
+            ),
+        ));
+    }
+    let mode = metadata.mode() & 0o777;
+    if mode & 0o077 != 0 {
+        return Err(io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            format!(
+                "{label} {} has insecure permissions {mode:04o}; must not be group/world readable (expected 0600)",
+                path.display()
+            ),
+        ));
+    }
+    Ok(file)
+}
+
+/// Non-Unix fallback: best-effort regular-file check.
+#[cfg(not(unix))]
+fn open_private_file(path: &Path, label: &str) -> io::Result<File> {
+    let file = File::open(path)?;
+    if !file.metadata()?.is_file() {
+        return Err(io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            format!("{label} must be a regular file: {}", path.display()),
+        ));
+    }
+    Ok(file)
+}
+
+/// Validates a private file without reading its contents.
+///
+/// # Errors
+///
+/// `NotFound` is passed through; policy violations are `PermissionDenied`.
+pub fn check_private_file(path: &Path, label: &str) -> io::Result<()> {
+    open_private_file(path, label).map(|_| ())
+}
+
+/// Reads one private file from a single checked descriptor.
+///
+/// The descriptor and policy checks are shared with [`check_private_file`]; the
+/// same descriptor supplies the bytes, so there is no path-based reopen.
+///
+/// # Errors
+///
+/// `NotFound` is passed through so callers can treat a missing configuration as
+/// absent. Policy violations are `PermissionDenied` with an actionable message.
+pub fn read_private_file(path: &Path, label: &str) -> io::Result<String> {
+    let mut file = open_private_file(path, label)?;
+    let mut content = String::new();
+    file.read_to_string(&mut content)?;
+    Ok(content)
 }
 
 /// Parses and validates a version-1 accounts document, normalizing emails to
@@ -882,11 +998,13 @@ impl HostApkBadger {
 impl ApkBadger for HostApkBadger {
     fn badging(&self, apk: &Path) -> Result<AndroidManifestInfo, Error> {
         let aapt2 = find_build_tools_bin(&self.env, "aapt2")?;
-        let spec = ProcessSpec::new(aapt2)
-            .arg("dump")
-            .arg("badging")
-            .arg(apk.to_string_lossy().into_owned())
-            .timeout(self.timeout);
+        let spec = scrub_child_environment(
+            ProcessSpec::new(aapt2)
+                .arg("dump")
+                .arg("badging")
+                .arg(apk.to_string_lossy().into_owned())
+                .timeout(self.timeout),
+        );
         let output = process::run(&spec)?;
         if output.timed_out {
             return Err(Error::usage(format!(
@@ -942,9 +1060,11 @@ impl CommandRunner for HostCommandRunner {
         timeout: Duration,
         secrets: &[String],
     ) -> Result<CommandOutcome, String> {
-        let mut spec = ProcessSpec::new(program.to_path_buf())
-            .args(args.iter().cloned())
-            .timeout(timeout);
+        let mut spec = scrub_child_environment(
+            ProcessSpec::new(program.to_path_buf())
+                .args(args.iter().cloned())
+                .timeout(timeout),
+        );
         if let Some(cwd) = cwd {
             spec = spec.cwd(cwd);
         }

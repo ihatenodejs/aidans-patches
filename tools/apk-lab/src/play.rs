@@ -87,6 +87,52 @@ const DISPENSER_PROFILE: &str = include_str!("aurora-profile.json");
 
 type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + 'a>>;
 
+/// Stable message for a gpapi failure.
+///
+/// Only [`Error::kind`](gpapi::error::Error::kind) is inspected, when the
+/// underlying boxed error is a gpapi error. Raw `Display` output is deliberately
+/// never interpolated because reqwest errors can embed request URLs containing
+/// OAuth or AAS material.
+#[must_use]
+pub fn gpapi_error_message(stage: &str, error: &(dyn std::error::Error + 'static)) -> String {
+    use gpapi::error::ErrorKind;
+
+    let kind = error
+        .downcast_ref::<gpapi::error::Error>()
+        .map(gpapi::error::Error::kind);
+    let detail = match kind {
+        Some(ErrorKind::FileExists) => "the destination file already exists",
+        Some(ErrorKind::DirectoryExists) => "the destination directory already exists",
+        Some(ErrorKind::DirectoryMissing) => "the destination directory is missing",
+        Some(ErrorKind::InvalidApp) => "the application id was rejected",
+        Some(ErrorKind::Authentication) => "authentication was rejected",
+        Some(ErrorKind::TermsOfService) => "the account requires Terms of Service acceptance",
+        Some(ErrorKind::PermissionDenied) => "the account lacks permission for this request",
+        Some(ErrorKind::InvalidResponse) => "the provider returned an invalid response",
+        Some(ErrorKind::LoginRequired) => "the session requires a login",
+        Some(ErrorKind::IO(_)) => "a local file operation failed",
+        Some(ErrorKind::Str(_) | ErrorKind::Other(_)) | None => "the provider reported a failure",
+    };
+    format!("{stage}: {detail}")
+}
+
+/// Maps a ureq failure to a stable message without its URL or request body.
+fn dispenser_http_error(error: &ureq::Error, timeout: Duration) -> String {
+    match error {
+        ureq::Error::Timeout(_) => {
+            format!("dispenser HTTP request exceeded the {timeout:?} timeout")
+        }
+        ureq::Error::StatusCode(status) => {
+            format!("dispenser HTTP request was rejected with status {status}")
+        }
+        ureq::Error::HostNotFound => "dispenser host could not be resolved".to_string(),
+        ureq::Error::Io(error) => {
+            format!("dispenser HTTP request failed: network error ({:?})", error.kind())
+        }
+        _ => "dispenser HTTP request failed".to_string(),
+    }
+}
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Mode {
@@ -210,12 +256,7 @@ impl DispenserHttp for UreqDispenserHttp {
             .header("user-agent", user_agent)
             .header("content-type", "application/json")
             .send(body)
-            .map_err(|error| match error {
-                ureq::Error::Timeout(_) => {
-                    format!("dispenser HTTP request exceeded the {timeout:?} timeout")
-                }
-                other => format!("dispenser HTTP request failed: {other}"),
-            })?;
+            .map_err(|error| dispenser_http_error(&error, timeout))?;
         let reader = response
             .body_mut()
             .with_config()
@@ -277,7 +318,9 @@ impl PlayBackend for GpapiBackend {
                         .ok_or_else(|| "OAuth mode requires an OAuth token".to_string())?;
                     api.request_aas_token(oauth_token)
                         .await
-                        .map_err(|error| format!("OAuth token exchange failed: {error}"))?;
+                        .map_err(|error| {
+                            gpapi_error_message("OAuth token exchange failed", &error)
+                        })?;
                 }
                 Mode::Dispenser => {
                     let auth_token = self.dispense(auth.dispenser_url, auth.timeout)?;
@@ -286,12 +329,14 @@ impl PlayBackend for GpapiBackend {
             }
 
             if let Err(error) = api.login().await {
-                if auth.mode != Mode::Dispenser || !error.to_string().contains("Terms of Service") {
-                    return Err(format!("Play login failed: {error}"));
+                if auth.mode != Mode::Dispenser
+                    || !matches!(error.kind(), gpapi::error::ErrorKind::TermsOfService)
+                {
+                    return Err(gpapi_error_message("Play login failed", &error));
                 }
-                api.accept_tos()
-                    .await
-                    .map_err(|error| format!("Play Terms of Service acceptance failed: {error}"))?;
+                api.accept_tos().await.map_err(|error| {
+                    gpapi_error_message("Play Terms of Service acceptance failed", error.as_ref())
+                })?;
                 // gpapi documents accept_tos as making the API ready; a second
                 // login would request the same ToS token again.
             }
@@ -315,7 +360,9 @@ impl PlaySession for GpapiSession {
                 .api
                 .details(package)
                 .await
-                .map_err(|error| format!("Play details request failed: {error}"))?
+                .map_err(|error| {
+                    gpapi_error_message("Play details request failed", error.as_ref())
+                })?
                 .ok_or_else(|| "Play details response was empty".to_string())?;
 
             let app = response
@@ -348,7 +395,7 @@ impl PlaySession for GpapiSession {
                 .download(package, version_code, true, false, false, dest, None)
                 .await
                 .map(|_| ())
-                .map_err(|error| format!("Play download failed: {error}"))
+                .map_err(|error| gpapi_error_message("Play download failed", &error))
         })
     }
 }

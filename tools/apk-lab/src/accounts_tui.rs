@@ -12,7 +12,6 @@
 //! are truncated or displayed.
 
 use std::fmt;
-use std::fs;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -23,6 +22,7 @@ use crate::accounts::{
     load_accounts, save_accounts, Account, AccountsError, AccountsFile, DEFAULT_DEVICE,
     DEFAULT_LOCALE, DEFAULT_TIMEZONE,
 };
+use crate::acquisition::Redactor;
 
 pub const CHECK_PACKAGE: &str = "com.adobe.scan.android";
 pub const DEFAULT_SECRET_REPOSITORY: &str = "ihatenodejs/aidans-patches";
@@ -118,7 +118,7 @@ impl AccountChecker for GpapiChecker {
             api.set_aas_token(&account.aas_token);
             api.login()
                 .await
-                .map_err(|error| format!("Login failed: {error}"))?;
+                .map_err(|error| crate::play::gpapi_error_message("Login failed", &error))?;
             match api.details(package).await {
                 Ok(Some(details)) => {
                     let app = details
@@ -145,7 +145,10 @@ impl AccountChecker for GpapiChecker {
                     }
                 }
                 Ok(None) => Err("Empty details response".to_string()),
-                Err(error) => Err(format!("Details call failed: {error}")),
+                Err(error) => Err(crate::play::gpapi_error_message(
+                    "Details call failed",
+                    error.as_ref(),
+                )),
             }
         })
     }
@@ -346,7 +349,7 @@ pub fn add_account<U: Ui>(
     ui.message("2. Retrieve the master oauth_token from the flow.");
 
     let methods = vec![
-        "Exchange one-use OAuth token via apkeep".to_string(),
+        "Exchange one-use OAuth token via Google Play".to_string(),
         "Enter pre-generated AAS token directly".to_string(),
     ];
     let Some(method) = ui.select("Token input method:", &methods)? else {
@@ -363,7 +366,13 @@ pub fn add_account<U: Ui>(
             ui.message("Canceled: OAuth token required.");
             return Ok(None);
         }
-        match exchange_oauth_for_aas(ui, email.trim(), oauth_token.trim())? {
+        match exchange_oauth_for_aas_with(
+            ui,
+            &device,
+            email.trim(),
+            oauth_token.trim(),
+            &GpapiExchanger,
+        )? {
             Some(token) => token,
             None => return Ok(None),
         }
@@ -514,6 +523,18 @@ impl Default for SyncOptions {
     }
 }
 
+/// Removes account and token variables from a directly spawned `gh` child.
+/// `gh` only needs PATH/HOME; the accounts document travels on stdin.
+fn scrub_child_environment(command: &mut Command) {
+    for variable in crate::process::DEFAULT_REMOVED_ENV
+        .iter()
+        .copied()
+        .chain(["APKEEP_AAS_TOKEN", "APKEEP_OAUTH_TOKEN"])
+    {
+        command.env_remove(variable);
+    }
+}
+
 /// Synchronizes the accounts document into the repository secret via stdin.
 pub fn sync_github_secret<U: Ui>(
     ui: &mut U,
@@ -530,11 +551,13 @@ pub fn sync_github_secret<U: Ui>(
         return Ok(());
     };
 
-    let auth = Command::new(&gh)
+    let mut auth_command = Command::new(&gh);
+    auth_command
         .args(["auth", "status"])
         .stdout(Stdio::null())
-        .stderr(Stdio::piped())
-        .output()?;
+        .stderr(Stdio::piped());
+    scrub_child_environment(&mut auth_command);
+    let auth = auth_command.output()?;
     if !auth.status.success() {
         let detail = redact_all(
             &String::from_utf8_lossy(&auth.stderr),
@@ -548,7 +571,8 @@ pub fn sync_github_secret<U: Ui>(
     }
 
     let payload = accounts.to_minified_json()?;
-    let mut child = Command::new(&gh)
+    let mut secret_command = Command::new(&gh);
+    secret_command
         .args([
             "secret",
             "set",
@@ -558,8 +582,9 @@ pub fn sync_github_secret<U: Ui>(
         ])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()?;
+        .stderr(Stdio::piped());
+    scrub_child_environment(&mut secret_command);
+    let mut child = secret_command.spawn()?;
     let mut stdin = child
         .stdin
         .take()
@@ -612,56 +637,12 @@ pub fn resolve_gh_binary() -> Option<PathBuf> {
     find_on_path("gh")
 }
 
-/// `APKEEP_BIN`, the APK Lab tool cache, then `apkeep` on `PATH`.
-#[must_use]
-pub fn resolve_apkeep_binary() -> Option<PathBuf> {
-    if let Ok(value) = std::env::var("APKEEP_BIN") {
-        let path = PathBuf::from(value);
-        if is_executable(&path) {
-            return Some(path);
-        }
-    }
-
-    if let Ok(home) = std::env::var("HOME") {
-        let cache = PathBuf::from(home)
-            .join(".cache")
-            .join("aidans-patches")
-            .join("apk-lab")
-            .join("tools")
-            .join("apkeep");
-        if let Some(found) = find_named_recursive(&cache, "apkeep") {
-            return Some(found);
-        }
-    }
-
-    find_on_path("apkeep")
-}
-
+/// Looks up an executable on `PATH`.
 fn find_on_path(program: &str) -> Option<PathBuf> {
     let path = std::env::var_os("PATH")?;
     std::env::split_paths(&path)
         .map(|directory| directory.join(program))
         .find(|candidate| is_executable(candidate))
-}
-
-fn find_named_recursive(root: &Path, name: &str) -> Option<PathBuf> {
-    if !root.is_dir() {
-        return None;
-    }
-    let entries = fs::read_dir(root).ok()?;
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if path.is_dir() {
-            if let Some(found) = find_named_recursive(&path, name) {
-                return Some(found);
-            }
-        } else if path.file_name().and_then(|value| value.to_str()) == Some(name)
-            && is_executable(&path)
-        {
-            return Some(path);
-        }
-    }
-    None
 }
 
 fn is_executable(path: &Path) -> bool {
@@ -679,78 +660,86 @@ fn is_executable(path: &Path) -> bool {
     }
 }
 
-/// Exchanges a one-use OAuth token through apkeep and returns an AAS token.
+/// One-use OAuth to AAS exchange seam. Production uses [`GpapiExchanger`];
+/// tests inject a fake so no network or subprocess is involved.
+pub trait OAuthExchanger {
+    /// Exchanges `oauth_token` for an AAS token. Errors must not contain the
+    /// OAuth token or email verbatim; the caller redacts them again.
+    fn exchange(&self, device: &str, email: &str, oauth_token: &str) -> Result<String, String>;
+}
+
+/// Native gpapi-backed exchange. The token stays in memory and is never placed
+/// on a process argument list or in a child environment.
+#[derive(Debug, Default, Clone, Copy)]
+pub struct GpapiExchanger;
+
+impl OAuthExchanger for GpapiExchanger {
+    fn exchange(&self, device: &str, email: &str, oauth_token: &str) -> Result<String, String> {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .map_err(|error| format!("Cannot start OAuth exchange runtime: {error}"))?;
+        runtime.block_on(async {
+            let mut api = gpapi::Gpapi::new(device, email);
+            api.request_aas_token(oauth_token)
+                .await
+                .map_err(|error| {
+                    crate::play::gpapi_error_message("OAuth token exchange failed", &error)
+                })?;
+            api.get_aas_token()
+                .map(str::to_string)
+                .filter(|token| !token.trim().is_empty())
+                .ok_or_else(|| "OAuth exchange completed without an AAS token".to_string())
+        })
+    }
+}
+
+/// Exchanges a one-use OAuth token through the native gpapi path. Kept as a
+/// compatibility entry point; [`exchange_oauth_for_aas_with`] accepts the
+/// account device and an injected exchanger.
 pub fn exchange_oauth_for_aas<U: Ui>(
     ui: &mut U,
     email: &str,
     oauth_token: &str,
 ) -> Result<Option<String>, TuiError> {
-    let Some(apkeep) = resolve_apkeep_binary() else {
-        ui.message("Notice: apkeep executable not found on host/cache.");
-        ui.message("You can exchange manually with:");
-        ui.message(&format!("  apkeep -e {email} --oauth-token [OAUTH_TOKEN]"));
-        let Some(token) = ui.password("Or enter pre-generated AAS token:")? else {
-            return Ok(None);
-        };
-        if token.trim().is_empty() {
-            return Err(TuiError::new("AAS token cannot be empty"));
-        }
-        return Ok(Some(token.trim().to_string()));
-    };
-
-    let output = Command::new(&apkeep)
-        .args(["-e", email, "--oauth-token", oauth_token])
-        .output()?;
-    if !output.status.success() {
-        let sanitized = output
-            .stderr
-            .iter()
-            .map(|byte| char::from(*byte))
-            .collect::<String>()
-            .replace(oauth_token, "[REDACTED_OAUTH_TOKEN]");
-        return Err(TuiError::new(format!(
-            "Failed to exchange oauth token with apkeep: {}",
-            truncate(sanitized.trim(), DIAGNOSTIC_LIMIT)
-        )));
-    }
-
-    let combined = format!(
-        "{}\n{}",
-        String::from_utf8_lossy(&output.stdout),
-        String::from_utf8_lossy(&output.stderr)
-    );
-    if let Some(token) = extract_aas_token(&combined) {
-        return Ok(Some(token));
-    }
-
-    ui.message("Could not automatically extract AAS token from apkeep output.");
-    let Some(token) = ui.password("Please enter the AAS token returned:")? else {
-        return Ok(None);
-    };
-    if token.trim().is_empty() {
-        return Err(TuiError::new("AAS token cannot be empty"));
-    }
-    Ok(Some(token.trim().to_string()))
+    exchange_oauth_for_aas_with(ui, DEFAULT_DEVICE, email, oauth_token, &GpapiExchanger)
 }
 
-fn extract_aas_token(output: &str) -> Option<String> {
-    for line in output.lines() {
-        let lower = line.to_lowercase();
-        if lower.contains("aas_token") || lower.contains("aas token") {
-            if let Some((_, value)) = line.split_once(':') {
-                let value = value.trim();
-                if !value.is_empty() {
-                    return Some(value.to_string());
-                }
+/// Exchanges a one-use OAuth token and falls back to an interactive AAS prompt.
+///
+/// On failure the redacted diagnostic is shown and the user may paste a
+/// pre-generated AAS token. The printed `apkeep` command is documentation text
+/// with a literal `[OAUTH_TOKEN]` placeholder; no token is ever passed to a
+/// child process.
+pub fn exchange_oauth_for_aas_with<U: Ui>(
+    ui: &mut U,
+    device: &str,
+    email: &str,
+    oauth_token: &str,
+    exchanger: &dyn OAuthExchanger,
+) -> Result<Option<String>, TuiError> {
+    match exchanger.exchange(device, email, oauth_token) {
+        Ok(token) => Ok(Some(token)),
+        Err(error) => {
+            let mut redactor = Redactor::default();
+            redactor.push_token(oauth_token);
+            redactor.push_email(email);
+            let diagnostic = redactor.redact(&error);
+            ui.message(&format!(
+                "OAuth exchange failed: {}",
+                truncate(diagnostic.trim(), DIAGNOSTIC_LIMIT)
+            ));
+            ui.message("You can exchange manually with:");
+            ui.message("  apkeep -e [EMAIL] --oauth-token [OAUTH_TOKEN]");
+            let Some(token) = ui.password("Or enter pre-generated AAS token:")? else {
+                return Ok(None);
+            };
+            if token.trim().is_empty() {
+                return Err(TuiError::new("AAS token cannot be empty"));
             }
-        } else if line.trim().starts_with("aas_et/") {
-            return Some(line.trim().to_string());
+            Ok(Some(token.trim().to_string()))
         }
     }
-    output
-        .split_whitespace()
-        .find(|word| word.starts_with("aas_et/"))
-        .map(str::to_string)
 }
 
 fn truncate(text: &str, limit: usize) -> String {
@@ -760,18 +749,6 @@ fn truncate(text: &str, limit: usize) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn extracts_aas_token_from_labelled_output() {
-        assert_eq!(
-            extract_aas_token("aas_token: aas_et/example\n"),
-            Some("aas_et/example".to_string())
-        );
-        assert_eq!(
-            extract_aas_token("noise aas_et/other noise\n"),
-            Some("aas_et/other".to_string())
-        );
-    }
 
     #[test]
     fn diagnostics_redact_before_truncating() {

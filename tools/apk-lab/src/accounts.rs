@@ -20,6 +20,8 @@ use std::path::{Path, PathBuf};
 
 use tempfile::NamedTempFile;
 
+use crate::acquisition::{check_private_file, read_private_file};
+
 pub const ACCOUNTS_VERSION: u32 = 1;
 pub const DEFAULT_DEVICE: &str = "px_9a";
 pub const DEFAULT_LOCALE: &str = "en_US";
@@ -356,42 +358,20 @@ pub fn load_accounts_from_path(
     path: &Path,
     require_enabled: bool,
 ) -> Result<Option<AccountsFile>, AccountsError> {
-    if !path.exists() {
-        return Ok(None);
-    }
-    check_accounts_file_permissions(path)?;
-    let content = fs::read_to_string(path).map_err(|error| {
-        AccountsError::new(format!(
-            "Failed to read accounts file {}: {error}",
-            path.display()
-        ))
-    })?;
+    let content = match read_private_file(path, "Accounts file") {
+        Ok(content) => content,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(AccountsError::new(error.to_string())),
+    };
     AccountsFile::from_json(&content, require_enabled).map(Some)
 }
 
-/// Rejects symlinks and any group/world permission bit.
+/// Rejects symlinks and any group/world permission bit. Delegates to the
+/// descriptor-based [`read_private_file`] so an attacker cannot swap the path
+/// between a metadata check and the read.
 pub fn check_accounts_file_permissions(path: &Path) -> Result<(), AccountsError> {
-    let metadata =
-        fs::symlink_metadata(path).map_err(|error| AccountsError::from_io("stat", path, error))?;
-    if metadata.file_type().is_symlink() {
-        return Err(AccountsError::new(format!(
-            "Accounts file cannot be a symlink: {}",
-            path.display()
-        )));
-    }
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let mode = metadata.permissions().mode();
-        if mode & 0o077 != 0 {
-            return Err(AccountsError::new(format!(
-                "Accounts file {} has insecure permissions {:#o}; must not be group/world readable (expected 0600)",
-                path.display(),
-                mode & 0o777
-            )));
-        }
-    }
-    Ok(())
+    check_private_file(path, "Accounts file")
+        .map_err(|error| AccountsError::new(error.to_string()))
 }
 
 /// Atomically writes the file with mode `0600`, creating parents with `0700`.

@@ -6,11 +6,11 @@
 
 use apk_lab::acquisition::{
     acquire_artifact, apkmirror_mapping, build_apkeep_args, build_apkmirror_args, load_accounts,
-    normalize_apks_to_apkm, parse_accounts_document, AccountConfig, AccountsEnvironment,
-    AcquiredArtifact, Acquirer, ApkBadger, ApkeepAcquirer, ApkeepProvider, ApkeepTool,
-    ApkmirrorAcquirer, ApkmirrorProvider, ArtifactInspector, ArtifactVersion, CommandOutcome,
-    CommandRunner, NodeRuntime, PlayAcquirer, PlayAuth, PlayProvider, ProviderRequest, RetryPolicy,
-    STDERR_DIAGNOSTIC_LIMIT,
+    normalize_apks_to_apkm, parse_accounts_document, percent_encode, sanitize_diagnostic,
+    AccountConfig, AccountsEnvironment, AcquiredArtifact, Acquirer, ApkBadger, ApkeepAcquirer,
+    ApkeepProvider, ApkeepTool, ApkmirrorAcquirer, ApkmirrorProvider, ArtifactInspector,
+    ArtifactVersion, CommandOutcome, CommandRunner, NodeRuntime, PlayAcquirer, PlayAuth,
+    PlayProvider, ProviderRequest, Redactor, RetryPolicy, STDERR_DIAGNOSTIC_LIMIT,
 };
 use apk_lab::error::Error;
 use apk_lab::models::{AndroidManifestInfo, ExitCode};
@@ -1029,6 +1029,43 @@ fn apkeep_redacts_credentials_before_truncation() {
     assert!(!message.contains(&account.aas_token), "{message}");
     assert!(message.chars().count() <= STDERR_DIAGNOSTIC_LIMIT + 120);
     assert_eq!(dir_entries(&out), Vec::<String>::new());
+}
+
+#[test]
+fn redactor_removes_raw_and_percent_encoded_credentials_before_truncation() {
+    let token = "aas_et/SECRET+Value/=";
+    let mut redactor = Redactor::default();
+    redactor.push_token(token);
+    redactor.push_email(EMAIL);
+
+    let uppercase = percent_encode(token, true);
+    let lowercase = percent_encode(token, false);
+    let slash_only = token.replace('/', "%2F");
+    let text = format!(
+        "raw {token} upper {uppercase} lower {lowercase} slash {slash_only} email {EMAIL}"
+    );
+    let diagnostic = sanitize_diagnostic(&text, &redactor);
+    for secret in [
+        token,
+        uppercase.as_str(),
+        lowercase.as_str(),
+        slash_only.as_str(),
+        EMAIL,
+    ] {
+        assert!(
+            !diagnostic.contains(secret),
+            "leaked {secret:?} in {diagnostic}"
+        );
+    }
+    assert!(diagnostic.contains("[REDACTED_TOKEN]"), "{diagnostic}");
+    assert!(diagnostic.contains("Pr***@Example.com"), "{diagnostic}");
+
+    // The secret begins just before the truncation boundary; redaction must
+    // happen first or the replacement would be sliced in half.
+    let boundary = format!("{} {token} {}", "a".repeat(280), "b".repeat(400));
+    let diagnostic = sanitize_diagnostic(&boundary, &redactor);
+    assert!(!diagnostic.contains(token), "leaked across boundary: {diagnostic}");
+    assert!(diagnostic.chars().count() <= STDERR_DIAGNOSTIC_LIMIT);
 }
 
 #[test]

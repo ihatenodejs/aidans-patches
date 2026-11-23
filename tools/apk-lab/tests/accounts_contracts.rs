@@ -17,8 +17,9 @@ use apk_lab::accounts::{
     DEFAULT_TIMEZONE,
 };
 use apk_lab::accounts_tui::{
-    add_account, check_accounts, delete_account, run_play_accounts_tui, sync_github_secret,
-    view_accounts, AccountChecker, MetadataVersion, SyncOptions, TuiError, Ui,
+    add_account, check_accounts, delete_account, exchange_oauth_for_aas_with, run_play_accounts_tui,
+    sync_github_secret, view_accounts, AccountChecker, MetadataVersion, OAuthExchanger, SyncOptions,
+    TuiError, Ui,
 };
 use serde_json::{json, Value};
 use tempfile::TempDir;
@@ -354,6 +355,23 @@ fn rejects_insecure_permissions_and_symlinks_preserving_existing_files() {
     assert_eq!(fs::read(&real).unwrap(), original_bytes);
 }
 
+#[test]
+fn rejects_non_regular_account_files() {
+    let (temp, _guard) = fixture();
+    let directory = temp.path().join("accounts-directory");
+    fs::create_dir(&directory).unwrap();
+    let error = load_accounts_from_path(&directory, true).unwrap_err();
+    assert!(
+        error.to_string().contains("regular file"),
+        "unexpected error: {error}"
+    );
+    let error = check_accounts_file_permissions(&directory).unwrap_err();
+    assert!(
+        error.to_string().contains("regular file"),
+        "unexpected error: {error}"
+    );
+}
+
 // --- TUI synthetic input ---------------------------------------------------
 
 #[derive(Default)]
@@ -601,6 +619,114 @@ fn tui_check_uses_real_checker_and_redacts_failures() {
         .joined()
         .contains("Authenticated successfully (tested com.adobe.scan.android v1.2.3)"));
     assert!(success.joined().contains("2 success, 0 failures"));
+}
+
+#[test]
+fn oauth_exchange_uses_injected_seam_and_never_spawns_argv() {
+    let (temp, guard) = fixture();
+    let marker = temp.path().join("apkeep-invoked");
+    let script = temp.path().join("apkeep");
+    fs::write(
+        &script,
+        format!("#!/bin/sh\nprintf '%s\\n' \"$@\" > '{}'\n", marker.display()),
+    )
+    .unwrap();
+    fs::set_permissions(&script, fs::Permissions::from_mode(0o755)).unwrap();
+    guard.set("APKEEP_BIN", &script);
+
+    let exchanger = FakeExchanger::success("aas_et/exchanged-token");
+    let mut ui = ScriptedUi::default();
+    let token = exchange_oauth_for_aas_with(
+        &mut ui,
+        DEFAULT_DEVICE,
+        "user@example.com",
+        "oauth-token-value",
+        &exchanger,
+    )
+    .unwrap();
+    assert_eq!(token.as_deref(), Some("aas_et/exchanged-token"));
+    assert!(
+        !marker.exists(),
+        "OAuth exchange must not invoke a subprocess: {:?}",
+        fs::read_to_string(&marker)
+    );
+    assert_eq!(
+        exchanger.seen.lock().unwrap().as_slice(),
+        &[(
+            DEFAULT_DEVICE.to_string(),
+            "user@example.com".to_string(),
+            "oauth-token-value".to_string()
+        )]
+    );
+}
+
+#[test]
+fn oauth_exchange_failure_redacts_encoded_forms_and_offers_fallback() {
+    let (_temp, _guard) = fixture();
+    let oauth_token = "oauth+token/Value";
+    let error = format!(
+        "exchange rejected for {oauth_token} ({}, {}) and user@example.com (user%40example.com)",
+        "oauth%2Btoken%2FValue", "oauth%2btoken%2fValue"
+    );
+    let exchanger = FakeExchanger::failure(error);
+    let mut ui = ScriptedUi {
+        passwords: [Some("fallback-aas-token".to_string())].into_iter().collect(),
+        ..ScriptedUi::default()
+    };
+
+    let token = exchange_oauth_for_aas_with(
+        &mut ui,
+        DEFAULT_DEVICE,
+        "user@example.com",
+        oauth_token,
+        &exchanger,
+    )
+    .unwrap();
+    assert_eq!(token.as_deref(), Some("fallback-aas-token"));
+    let output = ui.joined();
+    for leaked in [
+        oauth_token,
+        "oauth%2Btoken%2FValue",
+        "oauth%2btoken%2fValue",
+        "user@example.com",
+        "user%40example.com",
+    ] {
+        assert!(!output.contains(leaked), "leaked {leaked:?} in {output}");
+    }
+    assert!(output.contains("[REDACTED_TOKEN]"), "{output}");
+    assert!(output.contains("[OAUTH_TOKEN]"), "{output}");
+}
+
+struct FakeExchanger {
+    result: Result<String, String>,
+    seen: Mutex<Vec<(String, String, String)>>,
+}
+
+impl FakeExchanger {
+    fn success(token: &str) -> Self {
+        Self {
+            result: Ok(token.to_string()),
+            seen: Mutex::new(Vec::new()),
+        }
+    }
+
+    fn failure(message: impl Into<String>) -> Self {
+        Self {
+            result: Err(message.into()),
+            seen: Mutex::new(Vec::new()),
+        }
+    }
+}
+
+impl OAuthExchanger for FakeExchanger {
+    fn exchange(&self, device: &str, email: &str, oauth_token: &str) -> Result<String, String> {
+        self.seen.lock().unwrap().push((
+            device.to_string(),
+            email.to_string(),
+            oauth_token.to_string(),
+        ));
+        self.result.clone()
+    }
 }
 
 #[test]
