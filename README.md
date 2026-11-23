@@ -45,7 +45,7 @@ My [Morphe](https://morphe.software) patches
 
 <!-- PATCHES_START EXPANDED -->
 
-> **[v1.10.0-dev.4](https://github.com/ihatenodejs/aidans-patches/releases/tag/v1.10.0-dev.4)**&nbsp;&nbsp;•&nbsp;&nbsp;`dev`&nbsp;&nbsp;•&nbsp;&nbsp;80 patches total
+> **[v1.10.0-dev.5](https://github.com/ihatenodejs/aidans-patches/releases/tag/v1.10.0-dev.5)**&nbsp;&nbsp;•&nbsp;&nbsp;`dev`&nbsp;&nbsp;•&nbsp;&nbsp;80 patches total
 
 <details open>
 <summary>📦 SidelineSwap&nbsp;&nbsp;•&nbsp;&nbsp;4 patches&nbsp;&nbsp;<a href="https://patch.p0ntus.com/status"><img src="https://worker.patch.p0ntus.com/badges/tests/com.sidelineswap.android.svg" alt="Tests Passing" align="absmiddle"></a></summary>
@@ -187,15 +187,15 @@ My [Morphe](https://morphe.software) patches
 
 **🎯 Supported versions:**
 
-| 10.2605.0 |
-| :-------: |
+| 10.2605.0 | 10.2606.1 |
+| :-------: | :-------: |
 
-| 💊&nbsp;Patch                 | 📜&nbsp;Description                                                                                                                                                                   | ⚙️&nbsp;Options                                                                                                                                      |
-| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Display Cutout Adaptation** | Dynamically adjusts header height and top padding on devices with camera cutouts or tall status bars so location selectors and action icons clear the camera hole.                    |                                                                                                                                                      |
-| **Remove Ads**                | Removes in-app promotional message campaigns and popups (OneSignal In-App Messages), neutralizes in-app review and rating prompts, and zeroes Google Play and Huawei Advertising IDs. | • Remove In-App Messages<br>• Remove Review Prompts<br>• Zero Advertising ID                                                                         |
-| **Remove Tracking**           | Neutralizes diagnostic telemetry, event logging, and user tracking (Firebase Analytics, Crashlytics, Instana APM, Branch Metrics, and OneSignal session and outcome tracking).        | • Disable Firebase Analytics<br>• Disable Firebase Crashlytics<br>• Disable Instana APM<br>• Disable Branch Metrics<br>• Disable OneSignal Telemetry |
-| **Unlock Developer Tools**    | Exposes the internal developer and diagnostics screen (Environment Settings) on the Welcome Screen, and allows booting directly with Debug Messages or Demo Mode enabled.             | • Unlock Developer Settings<br>• Start with Debug Messages<br>• Start in Demo Mode                                                                   |
+| 💊&nbsp;Patch                 | 📜&nbsp;Description                                                                                                                                                                       | ⚙️&nbsp;Options                                                                                                                                      |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Display Cutout Adaptation** | Dynamically adjusts header height and top padding on devices with camera cutouts or tall status bars so location selectors and action icons clear the camera hole.                        |                                                                                                                                                      |
+| **Remove Ads**                | Removes in-app promotional message campaigns and popups (OneSignal In-App Messages), neutralizes in-app review and rating prompts, and zeroes Google Play and Huawei Advertising IDs.     | • Remove In-App Messages<br>• Remove Review Prompts<br>• Zero Advertising ID                                                                         |
+| **Remove Tracking**           | Neutralizes diagnostic telemetry, event logging, and user tracking (Firebase Analytics, Crashlytics, Instana APM, Branch Metrics, and OneSignal session and outcome tracking).            | • Disable Firebase Analytics<br>• Disable Firebase Crashlytics<br>• Disable Instana APM<br>• Disable Branch Metrics<br>• Disable OneSignal Telemetry |
+| **Unlock Developer Tools**    | Exposes the internal developer and diagnostics screen (Environment Settings) with a single Welcome Screen logo tap, and allows booting directly with Debug Messages or Demo Mode enabled. | • Start with Debug Messages<br>• Start in Demo Mode                                                                                                  |
 
 </details>
 

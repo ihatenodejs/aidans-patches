@@ -1,3 +1,9 @@
+## [1.10.0-dev.5](https://github.com/ihatenodejs/aidans-patches/compare/v1.10.0-dev.4...v1.10.0-dev.5) (2026-11-23)
+
+### 🚀 Updated App Support
+
+* **365pay:** add support for 10.2606.1 ([136aab6](https://github.com/ihatenodejs/aidans-patches/commit/136aab641fceac46d64e80197712a4cd068166fe))
+
 ## [1.10.0-dev.4](https://github.com/ihatenodejs/aidans-patches/compare/v1.10.0-dev.3...v1.10.0-dev.4) (2026-11-23)
 
 ### ✨ New Features
