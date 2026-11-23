@@ -1,17 +1,29 @@
 {
   "schemaVersion": 1,
   "kind": "apk-lab-migration-execution-checkpoint",
-  "status": "plans-001-007-011-complete",
-  "activePlan": "006",
-  "completedPlans": ["001", "007", "011"],
+  "status": "plans-001-011-complete",
+  "activePlan": null,
+  "completedPlans": [
+    "001",
+    "010",
+    "011",
+    "002",
+    "003",
+    "004",
+    "005",
+    "006",
+    "007",
+    "008",
+    "009"
+  ],
   "implementationBaseRevision": "3a9efadb7b02c745b00f121443a436681136412f",
   "initialSourceRevision": "66ff5ed",
-  "currentSourceRevision": "295cde7abd498ac5c8905777a1eac043ce6b5899",
+  "currentSourceRevision": "2440ce1d4f2edeecf88e611b50ee7f65b0f79e68",
   "sourceRevisionNote": "A concurrent user release commit (chore: Release v1.10.0-dev.1 [skip ci]) advanced HEAD during plan 001. The scoped migration tools/docs/workflow diff from the initial observation is empty. The actual Python report metadata reports patch bundle 1.10.0-dev.1, while the pinned MPP artifact remains the patches-1.9.3 file with SHA-256 c837d80450b29613219226bdacb6b6fd86de1bde8c04719bbb5af591fcaaeaf0; report versions are never inferred from filenames. The private baseline archive includes the root release metadata and separates executed-source identity from manifest/policy digests.",
   "initialWorktreeDirty": false,
-  "currentWorktreeDirty": true,
+  "currentWorktreeDirty": false,
   "productionPythonChanged": true,
-  "productionPythonChangedNote": "The user approved the narrow APK Lab stdout-flush correction, verified in plan 001. Plan 007 subsequently replaced the README generator after frozen-fixture tests and current-inventory byte parity; APK Lab remains the independent Python oracle.",
+  "productionPythonChangedNote": "The user approved the narrow APK Lab stdout-flush correction, verified in plan 001. Plan 007 subsequently replaced the README generator after frozen-fixture tests and current-inventory byte parity. Plan 009 retired the Python APK Lab implementation after the accepted parity and performance evidence.",
   "acceptedOracleCapture": true,
   "oracleCaptureEvidence": {
     "artifact": "docs/benchmarks/apk-lab/python-contracts.json",
@@ -66,7 +78,7 @@
       "morphe.small": 47104.915,
       "morphe.large": 142986.775
     },
-    "comparisonStatus": "Python baseline only. No Rust candidate exists yet, so no improvement, regression, or ratio is claimed."
+    "comparisonStatus": "Final paired measurements and the policy verdict are recorded in the local-only TO-RUST.md and docs/benchmarks/apk-lab/comparison.json; all 17 workloads passed wall, CPU and RSS policy."
   },
   "provenanceCheck": {
     "measuredCodeMatchesSourceArchive": true,
@@ -276,12 +288,7 @@
       "stops": []
     }
   ],
-  "pendingEvidence": [
-    "Native parity groups (plans 002-005)",
-    "Native Play delivery and icon pixel proofs (plans 010, 011)",
-    "Paired Python/Rust measurements, TO-RUST.md, and Python-generated charts (plan 008)",
-    "Consumer cutover and Python-free proof (plan 009)"
-  ],
+  "pendingEvidence": [],
   "sideEffects": {
     "deviceMutation": false,
     "externalCloudMutation": false,
