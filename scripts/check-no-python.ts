@@ -36,16 +36,6 @@ export const HISTORICAL_EXCLUSIONS: readonly HistoricalExclusion[] = [
     reason: 'immutable measured migration evidence',
   },
   {
-    prefix: 'tools/apk-lab/migration/',
-    reason:
-      'plan-008 measurement harness, contracts and synthetic fixtures; oracle paths reference archived evidence only',
-  },
-  {
-    prefix: 'tools/apk-lab/src/migration/',
-    reason:
-      'plan-008 measurement harness; oracle paths reference archived evidence only',
-  },
-  {
     prefix: 'tools/asset-prep/tests/fixtures/',
     reason: 'frozen Pillow oracle capture inputs and contracts from plan 006',
   },

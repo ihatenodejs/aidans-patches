@@ -13,10 +13,10 @@ use apk_lab::acquisition::{
     STDERR_DIAGNOSTIC_LIMIT,
 };
 use apk_lab::error::Error;
-use apk_lab::migration::play::{
+use apk_lab::models::{AndroidManifestInfo, ExitCode};
+use apk_lab::play::{
     AccountConfig as PlayAccountConfig, AuthContext, PlayBackend, PlaySession, VersionInfo,
 };
-use apk_lab::models::{AndroidManifestInfo, ExitCode};
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::fs;

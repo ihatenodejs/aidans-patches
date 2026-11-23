@@ -137,7 +137,7 @@
     }
   },
   "reproduction": {
-    "benchPrepare": "tools/apk-lab/target/release/apk-lab-migrate bench --engine python --profile local --manifest .apk-lab-migration/assets-baseline.manifest.local.json --policy .apk-lab-migration/assets-baseline.policy.local.json --out .apk-lab-migration/assets-baseline.pins.local.json --repo-root .",
+    "benchPrepare": "Historical prepare used the retired migration harness with .apk-lab-migration/assets-baseline.manifest.local.json; pinned outputs remain in the private archive.",
     "benchTimed": "The timed run must wait for the quiet window. image-convert has no current production CLI flag and must not be compared against a fabricated native benchmark; a future native bench child is required.",
     "pythonOracle": [
       ".apk-lab-migration/icons-reference/.venv/bin/python .apk-lab-migration/assets-baseline/asset_oracle.py font-transform --scripts-dir .github/scripts --output OUT --cache-dir CACHE",

@@ -1,3 +1,0 @@
-# Synthetic consumer fixture
-
-Use `from apk_lab.cli import main` from harness code.

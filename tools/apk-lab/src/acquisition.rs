@@ -14,15 +14,14 @@
 //!
 //! Secrets are centralized in [`Redactor`], which runs before diagnostic
 //! truncation. Account files are read only from explicit inputs; OAuth and AAS
-//! material never appears in a subprocess argv. The native Play path reuses the
-//! provider seams proven by `migration::play`.
+//! material never appears in a subprocess argv.
 
 use crate::archives;
 use crate::error::Error;
 use crate::inspection::{self, InspectionOptions};
-pub use crate::migration::play::AccountConfig;
-use crate::migration::play::{AccountsFile, AuthContext, GpapiBackend, Mode, PlayBackend};
 use crate::models::{AndroidManifestInfo, ContainerType, ExitCode};
+pub use crate::play::AccountConfig;
+use crate::play::{AccountsFile, AuthContext, GpapiBackend, Mode, PlayBackend};
 use crate::process::{self, ProcessSpec};
 use crate::tools::{
     default_repo_root, find_build_tools_bin, ToolEnvironment, ToolManager, ToolType,

@@ -862,7 +862,7 @@ fn captured_workload_semantics_match_the_recorded_contracts() {
     let corpus: Value = serde_json::from_slice(
         &fs::read(
             Path::new(env!("CARGO_MANIFEST_DIR"))
-                .join("../../tools/apk-lab/migration/fixtures/icons/required-corpus.json"),
+                .join("tests/fixtures/baseline/required-corpus.json"),
         )
         .expect("plan 011 icon corpus"),
     )

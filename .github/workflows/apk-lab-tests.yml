@@ -216,9 +216,6 @@ jobs:
       - name: Build native apk-lab release binaries
         run: cargo build --release --locked --manifest-path tools/apk-lab/Cargo.toml --bins
 
-      - name: Verify native APK Lab goldens
-        run: ./tools/apk-lab/target/release/apk-lab-migrate verify-goldens --group all
-
       - name: Audit rust domain
         run: bun scripts/audit.ts all --domain rust
 

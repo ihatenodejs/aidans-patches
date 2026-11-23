@@ -122,8 +122,6 @@ describe('Python-free gate scanning', () => {
         'docs/benchmarks/apk-lab/baseline.json':
           '{"oracle":"tools/apk-lab/.venv/bin/python"}\n',
         'plans/009-retire.md': 'Run `pytest` first.\n',
-        'tools/apk-lab/migration/contracts.json':
-          '{"pythonVersion":">=3.12"}\n',
       });
 
       for (const relPath of [
@@ -131,7 +129,6 @@ describe('Python-free gate scanning', () => {
         'CHANGELOG.md',
         'docs/benchmarks/apk-lab/baseline.json',
         'plans/009-retire.md',
-        'tools/apk-lab/migration/contracts.json',
       ]) {
         expect(isHistoricallyExcluded(relPath)).toBe(true);
       }

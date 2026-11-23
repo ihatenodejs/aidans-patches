@@ -31,7 +31,7 @@ cargo test --locked --manifest-path tools/apk-lab/Cargo.toml
 - `src/compatibility_ci.rs`, `src/fixtures.rs`, `src/acquisition.rs`, `src/accounts.rs`: package matrix, R2 fixture lifecycle, result reporting, and Play delivery.
 - `src/asm.rs`, `src/il2cpp.rs`, `src/unity.rs`, `src/smali.rs`, `src/resources.rs`, `src/code_inspection.rs`, `src/dex_strings.rs`, `src/manifest.rs`: targeted reverse-engineering utilities.
 - `src/deployment.rs`, `src/device.rs`: patch/sign/install/launch and runtime health monitoring.
-- `src/bin/apk-lab-migrate.rs`, `src/migration/`: migration inventory, parity, benchmark, and report verification. Not part of the production CLI.
+- `src/play.rs`: native Play provider boundary used by acquisition.
 - `tests/`: behavior tests mirroring module boundaries.
 
 ## Runtime and Dependency Rules

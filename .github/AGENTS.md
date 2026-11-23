@@ -4,7 +4,7 @@ Scope: CI workflows, release/deploy automation, issue templates, and Bun/native 
 
 ## Workflow Map
 
-- `workflows/apk-lab-tests.yml`: installs locked root/Worker/site dependencies, runs format/lint/typecheck/tests including the Python-free gate and native APK Lab goldens, then the clean Gradle patch build gate.
+- `workflows/apk-lab-tests.yml`: installs locked root/Worker/site dependencies, runs format/lint/typecheck/tests including the Python-free gate, then the clean Gradle patch build gate.
 - `workflows/apk-compatibility.yml`: builds `.mpp`/metadata, computes affected packages, reconciles private fixtures, runs real compatibility checks, and reports terminal status.
 - `workflows/release.yml`: Java/Node release pipeline and semantic-release, gated by paths to patch build inputs; site and Worker deploy handoffs trigger only on published releases.
 - `workflows/deploy-worker.yml`: Worker typecheck/test and conditional Wrangler deployment.

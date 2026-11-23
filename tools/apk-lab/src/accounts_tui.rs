@@ -266,7 +266,7 @@ pub fn run_interactive() -> Result<(), TuiError> {
     run(&mut ui, &GpapiChecker)
 }
 
-/// Compatibility entry point name used by the migration inventory.
+/// Compatibility entry point name retained for callers and tests.
 pub fn run_play_accounts_tui<U: Ui, C: AccountChecker>(
     ui: &mut U,
     checker: &C,

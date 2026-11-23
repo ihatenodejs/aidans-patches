@@ -4,8 +4,7 @@
 //! values or typed errors, and side effects (subprocesses, filesystem writes)
 //! stay in the module that owns the invariant.
 //!
-//! The migration sanitizer tests build a complete benchmark-result fixture with
-//! nested `serde_json::json!` literals; expansion depth needs more than the
+//! Tests build nested JSON fixtures; expansion depth needs more than the
 //! default.
 #![recursion_limit = "256"]
 
@@ -27,9 +26,9 @@ pub mod fixtures;
 pub mod il2cpp;
 pub mod inspection;
 pub mod manifest;
-pub mod migration;
 pub mod models;
 pub mod morphe;
+pub mod play;
 pub mod process;
 pub mod resources;
 pub mod smali;

@@ -2,7 +2,7 @@
 //! icon module.
 //!
 //! All fixtures are frozen, offline and read-only. The public manifest is
-//! shared with the migration harness; these tests never rewrite it.
+//! shared with the native asset tests; these tests never rewrite it.
 
 use std::collections::{BTreeMap, HashSet};
 use std::fmt::Write as _;

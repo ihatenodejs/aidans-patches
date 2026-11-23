@@ -563,49 +563,26 @@ tools/apk-lab/target/release/apk-lab inspect app.apkm --json
 ```
 
 Archive limits, workspace markers, tool-cache layout, exit codes, and `--json`
-modes are kept in parity with the recorded baseline by the migration harness.
+modes are covered by the native test suite and recorded compatibility evidence.
 `ci` preserves the original request-ID, saved-submission, 2xx-only marker, and
 Worker payload semantics. Acquisition keeps the serialized
 `apkeep`/`goopdl`/`apkmirror`/`manual` source labels while using native delivery
 with no Python subprocess.
 
-## 5. Migration Harness and Historical Evidence
+## 5. Migration Evidence
 
-`tools/apk-lab/src/bin/apk-lab-migrate.rs` is an auxiliary migration, verification,
-and benchmark binary under `tools/apk-lab/Cargo.toml`. It is **not** the production
-`apk-lab` CLI. The Python oracle and its package were retired after plan 008 accepted
-the measured parity/performance evidence; the frozen source archive under
-`.apk-lab-migration/baseline-source` is the rollback authority, and the harness never
-invokes Python from repository commands.
+The native implementation was validated against an independent Python oracle during
+the Rust migration. The accepted parity and performance evidence is committed under
+`docs/benchmarks/apk-lab/`; `TO-RUST.md` is a local-only report excluded through
+`.git/info/exclude`. The historical migration harness and Python implementation were
+retired after acceptance.
 
-Build and run from the repository root:
+Normal development uses the production `apk-lab` binary and its native test suite.
+There is no repository command that invokes Python. Generated migration output
+(`.apk-lab-migration/`) and private corpus manifests
+(`docs/benchmarks/apk-lab/*.local.json`) remain ignored. Public files contain only
+sanitized identities and hashes, never proprietary APK bytes or credentials.
 
-```bash
-cargo build --release --locked --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab-migrate
-MIG=tools/apk-lab/target/release/apk-lab-migrate
-$MIG inventory --check
-$MIG verify-goldens --group all
-$MIG report-check --report TO-RUST.md --data-dir docs/benchmarks/apk-lab
-$MIG prerequisites --manifest .apk-lab-migration/prerequisites.local.json --out .apk-lab-migration/prerequisites.json
-$MIG compare --input docs/benchmarks/apk-lab/paired.json --policy tools/apk-lab/migration/performance-policy.json --out docs/benchmarks/apk-lab/comparison.json
-```
-
-- `inventory` validates the frozen command/test/consumer contract inventory.
-- `verify-goldens` executes the native CLI against committed fixtures for core,
-  analysis, patching/device, and acquisition/CI output, exit-code, and file hashes.
-  Python sentinels fail the run if any child invokes an interpreter.
-- `report-check` validates a local, git-excluded `TO-RUST.md` against the stored
-  paired data and charts. The generated report is intentionally not tracked.
-- `prerequisites` inventories host, corpus, device, Play, R2, Worker, and workflow
-  resources without live mutation. `--check` is the acceptance form: it exits nonzero
-  until every required resource is available, authorized, and identity-stable.
-- `compare` recomputes paired statistics and applies the frozen performance policy.
-- `capture`, `verify`, `parity`, and `bench --engine python` target the archived
-  baseline for historical reconstruction only; they are not part of normal
-  development or CI.
-- Generated migration output (`.apk-lab-migration/`) and private corpus manifests
-  (`docs/benchmarks/apk-lab/*.local.json`) are ignored. Public files contain only
-  sanitized identities and hashes, never proprietary APK bytes or credentials.
-- Authorized device, Play, R2, Worker, and compatibility-workflow evidence was
-  captured during plans 008/010/011. Normal report verification does not contact live
-  services; rerun those scenarios when changing an entrypoint or delivery behavior.
+Authorized device, Play, R2, Worker, and compatibility-workflow evidence was captured
+during the migration. Rerun those scenarios when changing an entrypoint or delivery
+behavior; report viewing does not contact live services.

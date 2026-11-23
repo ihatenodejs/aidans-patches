@@ -1,6 +1,0 @@
-[project]
-name = "inventory-mini"
-version = "0.0.0"
-
-[project.scripts]
-apk-lab = "apk_lab.cli:main"

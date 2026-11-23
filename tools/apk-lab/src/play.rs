@@ -1,10 +1,9 @@
-//! Native Play delivery probe for the migration spike (plan 010).
+//! Native Play delivery provider boundary.
 //!
-//! This command is development-only. It performs a real Play delivery through
-//! `gpapi` for one explicitly selected authentication mode, or through an
-//! injectable backend in tests. It never shells out to Python and never logs,
-//! prints, or serializes an account token, OAuth token, email address, or
-//! dispenser auth token.
+//! The acquisition orchestrator uses these types for direct AAS, OAuth, and
+//! dispenser authentication. Tests inject deterministic backends; production
+//! uses the `gpapi` implementation. Tokens, email addresses, and dispenser auth
+//! material are never logged, printed, or serialized.
 //!
 //! The provider boundary is deliberately small: [`PlayBackend`] opens one
 //! authenticated session per enabled account, and [`PlaySession`] resolves
@@ -38,7 +37,7 @@ const REPORT_KIND: &str = "apk-lab-play-delivery-probe";
 ///
 /// The values are a pinned Pixel 4a property set; the dispenser rejects
 /// abbreviated profiles with HTTP 500.
-const DISPENSER_PROFILE: &str = include_str!("../../migration/fixtures/play/aurora-profile.json");
+const DISPENSER_PROFILE: &str = include_str!("aurora-profile.json");
 
 type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + 'a>>;
 
@@ -907,7 +906,7 @@ impl Sanitizer {
 
 fn print_usage() {
     println!(
-        "apk-lab-migrate play --package PKG --output DIR [options]\n\
+        "native Play delivery probe --package PKG --output DIR [options]\n\
          \n\
          Development-only native Play delivery probe. It downloads into a fresh\n\
          directory under --output and reports base/split files plus observed\n\
