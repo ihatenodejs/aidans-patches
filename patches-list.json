@@ -417,10 +417,10 @@
       ],
       "targets": [
         {
-          "version": "2.22.09",
+          "version": "2.23.01",
           "versionCodes": null,
           "isExperimental": false,
-          "minSdk": 25,
+          "minSdk": 32,
           "description": null
         }
       ],
@@ -433,9 +433,9 @@
         "Skip to Next Level"
       ],
       "supportedVersions": [
-        "2.22.09"
+        "2.23.01"
       ],
-      "latestSupportedVersion": "2.22.09"
+      "latestSupportedVersion": "2.23.01"
     }
   ],
   "patches": [
@@ -515,10 +515,10 @@
           ],
           "targets": [
             {
-              "version": "2.22.09",
+              "version": "2.23.01",
               "versionCodes": null,
               "isExperimental": false,
-              "minSdk": 25,
+              "minSdk": 32,
               "description": null
             }
           ]
@@ -1732,10 +1732,10 @@
           ],
           "targets": [
             {
-              "version": "2.22.09",
+              "version": "2.23.01",
               "versionCodes": null,
               "isExperimental": false,
-              "minSdk": 25,
+              "minSdk": 32,
               "description": null
             }
           ]
@@ -2215,10 +2215,10 @@
           ],
           "targets": [
             {
-              "version": "2.22.09",
+              "version": "2.23.01",
               "versionCodes": null,
               "isExperimental": false,
-              "minSdk": 25,
+              "minSdk": 32,
               "description": null
             }
           ]
@@ -2417,10 +2417,10 @@
           ],
           "targets": [
             {
-              "version": "2.22.09",
+              "version": "2.23.01",
               "versionCodes": null,
               "isExperimental": false,
-              "minSdk": 25,
+              "minSdk": 32,
               "description": null
             }
           ]
@@ -3049,10 +3049,10 @@
           ],
           "targets": [
             {
-              "version": "2.22.09",
+              "version": "2.23.01",
               "versionCodes": null,
               "isExperimental": false,
-              "minSdk": 25,
+              "minSdk": 32,
               "description": null
             }
           ]
@@ -3557,10 +3557,10 @@
           ],
           "targets": [
             {
-              "version": "2.22.09",
+              "version": "2.23.01",
               "versionCodes": null,
               "isExperimental": false,
-              "minSdk": 25,
+              "minSdk": 32,
               "description": null
             }
           ]
