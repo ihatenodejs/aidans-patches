@@ -4123,6 +4123,25 @@
       "classification": "native-rust-port",
       "supported": true,
       "notes": "Native account TUI."
+    },
+    {
+      "path": "TO-RUST.md",
+      "interfaces": [
+        "apk_lab.cli"
+      ],
+      "classification": "documented-python-api",
+      "supported": true,
+      "notes": "Measured migration report describing the retained Python oracle."
+    },
+    {
+      "path": "docs/benchmarks/apk-lab/paired.json",
+      "interfaces": [
+        "apk_lab.cli",
+        "apk_lab.tools"
+      ],
+      "classification": "benchmark-evidence",
+      "supported": true,
+      "notes": "Raw paired benchmark data records the Python oracle command and tool identity."
     }
   ],
   "wireSchemas": [

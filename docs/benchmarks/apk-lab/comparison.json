@@ -1,0 +1,1875 @@
+{
+  "acceptance": {
+    "reasons": [],
+    "valid": true
+  },
+  "generatedAtEpochSeconds": 1795420848,
+  "input": {
+    "kind": "apk-lab-paired-benchmark-result",
+    "sha256": "e221eac0c7355232a098bb38e6152bb4a1d02f06046fae6e9ebcf1a89d386ebd"
+  },
+  "kind": "apk-lab-benchmark-comparison",
+  "method": {
+    "blockingRules": "A lower bound above ratioMax and an absolute difference above the floor blocks. An interval crossing ratioMax is inconclusive and blocks. Non-blocking metrics require explanation.",
+    "bootstrap": {
+      "confidence": 0.95,
+      "resamples": 2000,
+      "seed": "policy seed XOR workload id/metric FNV-1a",
+      "statistic": "median of paired rust/python ratios"
+    },
+    "noiseBudget": {
+      "ratioMax": 1.05,
+      "rssFloorBytes": 1048576,
+      "wallFloorMs": 5.0
+    },
+    "ratio": "rust median / python median; identical workloads, inputs, argv, options, jobs, and sandbox layout"
+  },
+  "policy": {
+    "cachePolicy": "warm-file-cache-no-eviction",
+    "id": "apk-lab-performance-policy-v1",
+    "order": "alternating-randomized-fixed-seed",
+    "schemaVersion": 1,
+    "seed": 20261120,
+    "sha256": "7f33adfeccf23363546584d082b94af061b5173c1dc7920d2386f379da0c77d0"
+  },
+  "schemaVersion": 1,
+  "status": "pass",
+  "workloads": [
+    {
+      "category": "startup",
+      "costly": false,
+      "id": "startup.help",
+      "measuredPairs": 30,
+      "metrics": {
+        "cpu": {
+          "absoluteDifference": -200.0,
+          "bootstrap": {
+            "confidence": 0.95,
+            "interval": {
+              "high": 0.0,
+              "low": 0.0
+            },
+            "resamples": 2000,
+            "seed": 15806647965484636523
+          },
+          "budget": {
+            "absoluteNoiseFloor": null,
+            "blockOnWorse": true,
+            "ratioMax": 1.05,
+            "requiresExplanation": true
+          },
+          "metric": "cpu",
+          "python": {
+            "count": 30,
+            "median": 200.0,
+            "p95": 220.0
+          },
+          "ratio": 0.0,
+          "rust": {
+            "count": 30,
+            "median": 0.0,
+            "p95": 0.0
+          },
+          "unit": "milliseconds",
+          "verdict": "pass"
+        },
+        "rss": {
+          "absoluteDifference": -36454400.0,
+          "bootstrap": {
+            "confidence": 0.95,
+            "interval": {
+              "high": 0.021570383472656794,
+              "low": 0.01754342358337032
+            },
+            "resamples": 2000,
+            "seed": 7783976712419196029
+          },
+          "budget": {
+            "absoluteNoiseFloor": 1048576.0,
+            "blockOnWorse": true,
+            "ratioMax": 1.05,
+            "requiresExplanation": false
+          },
+          "metric": "rss",
+          "python": {
+            "count": 30,
+            "median": 37257216.0,
+            "p95": 38092800.0
+          },
+          "ratio": 0.021547933157431837,
+          "rust": {
+            "count": 30,
+            "median": 802816.0,
+            "p95": 851968.0
+          },
+          "unit": "bytes",
+          "verdict": "pass"
+        },
+        "wallTime": {
+          "absoluteDifference": -210.604042,
+          "bootstrap": {
+            "confidence": 0.95,
+            "interval": {
+              "high": 0.024611791683413903,
+              "low": 0.024044912570361524
+            },
+            "resamples": 2000,
+            "seed": 6216640609205228386
+          },
+          "budget": {
+            "absoluteNoiseFloor": 5.0,
+            "blockOnWorse": true,
+            "ratioMax": 1.05,
+            "requiresExplanation": false
+          },
+          "metric": "wallTime",
+          "python": {
+            "count": 30,
+            "median": 215.923271,
+            "p95": 225.525834
+          },
+          "ratio": 0.024634811131589423,
+          "rust": {
+            "count": 30,
+            "median": 5.319229,
+            "p95": 5.357
+          },
+          "unit": "milliseconds",
+          "verdict": "pass"
+        }
+      },
+      "reasons": [],
+      "sampleClass": "local",
+      "size": "small",
+      "verdict": "pass"
+    },
+    {
+      "category": "inspection",
+      "costly": false,
+      "id": "inspect.small",
+      "measuredPairs": 30,
+      "metrics": {
+        "cpu": {
+          "absoluteDifference": -270.0,
+          "bootstrap": {
+            "confidence": 0.95,
+            "interval": {
+              "high": 0.5759477459016393,
+              "low": 0.5606060606060607
+            },
+            "resamples": 2000,
+            "seed": 5187695366879644634
+          },
+          "budget": {
+            "absoluteNoiseFloor": null,
+            "blockOnWorse": true,
+            "ratioMax": 1.05,
+            "requiresExplanation": true
+          },
+          "metric": "cpu",
+          "python": {
+            "count": 30,
+            "median": 635.0,
+            "p95": 700.0
+          },
+          "ratio": 0.5748031496062992,
+          "rust": {
+            "count": 30,
+            "median": 365.0,
+            "p95": 380.0
+          },
+          "unit": "milliseconds",
+          "verdict": "pass"
+        },
+        "rss": {
+          "absoluteDifference": -26812416.0,
+          "bootstrap": {
+            "confidence": 0.95,
+            "interval": {
+              "high": 0.847700499011804,
+              "low": 0.8264330883857327
+            },
+            "resamples": 2000,
+            "seed": 14549105592283780964
+          },
+          "budget": {
+            "absoluteNoiseFloor": 1048576.0,
+            "blockOnWorse": true,
+            "ratioMax": 1.05,
+            "requiresExplanation": false
+          },
+          "metric": "rss",
+          "python": {
+            "count": 30,
+            "median": 172933120.0,
+            "p95": 179306496.0
+          },
+          "ratio": 0.8449549976314543,
+          "rust": {
+            "count": 30,
+            "median": 146120704.0,
+            "p95": 147554304.0
+          },
+          "unit": "bytes",
+          "verdict": "pass"
+        },
+        "wallTime": {
+          "absoluteDifference": -317.8351459999999,
+          "bootstrap": {
+            "confidence": 0.95,
+            "interval": {
+              "high": 0.4739191589239914,
+              "low": 0.45950589060352465
+            },
+            "resamples": 2000,
+            "seed": 12812229984590624981
+          },
+          "budget": {
+            "absoluteNoiseFloor": 5.0,
+            "blockOnWorse": true,
+            "ratioMax": 1.05,
+            "requiresExplanation": false
+          },
+          "metric": "wallTime",
+          "python": {
+            "count": 30,
+            "median": 595.7206669999999,
+            "p95": 636.602958
+          },
+          "ratio": 0.466469498866656,
+          "rust": {
+            "count": 30,
+            "median": 277.88552100000004,
+            "p95": 299.458334
+          },
+          "unit": "milliseconds",
+          "verdict": "pass"
+        }
+      },
+      "reasons": [],
+      "sampleClass": "local",
+      "size": "small",
+      "verdict": "pass"
+    },
+    {
+      "category": "inspection",
+      "costly": false,
+      "id": "inspect.large",
+      "measuredPairs": 30,
+      "metrics": {
+        "cpu": {
+          "absoluteDifference": -270.00000000000006,
+          "bootstrap": {
+            "confidence": 0.95,
+            "interval": {
+              "high": 0.645861470191009,
+              "low": 0.6216216216216215
+            },
+            "resamples": 2000,
+            "seed": 823412855993527534
+          },
+          "budget": {
+            "absoluteNoiseFloor": null,
+            "blockOnWorse": true,
+            "ratioMax": 1.05,
+            "requiresExplanation": true
+          },
+          "metric": "cpu",
+          "python": {
+            "count": 30,
+            "median": 720.0,
+            "p95": 770.0
+          },
+          "ratio": 0.6249999999999999,
+          "rust": {
+            "count": 30,
+            "median": 449.99999999999994,
+            "p95": 470.0
+          },
+          "unit": "milliseconds",
+          "verdict": "pass"
+        },
+        "rss": {
+          "absoluteDifference": -29392896.0,
+          "bootstrap": {
+            "confidence": 0.95,
+            "interval": {
+              "high": 0.9025065305536604,
+              "low": 0.8958306435714154
+            },
+            "resamples": 2000,
+            "seed": 10184796693109133744
+          },
+          "budget": {
+            "absoluteNoiseFloor": 1048576.0,
+            "blockOnWorse": true,
+            "ratioMax": 1.05,
+            "requiresExplanation": false
+          },
+          "metric": "rss",
+          "python": {
+            "count": 30,
+            "median": 296271872.0,
+            "p95": 298516480.0
+          },
+          "ratio": 0.9007907979870596,
+          "rust": {
+            "count": 30,
+            "median": 266878976.0,
+            "p95": 267927552.0
+          },
+          "unit": "bytes",
+          "verdict": "pass"
+        },
+        "wallTime": {
+          "absoluteDifference": -295.626937,
+          "bootstrap": {
+            "confidence": 0.95,
+            "interval": {
+              "high": 0.5730940827254112,
+              "low": 0.5648119182440894
+            },
+            "resamples": 2000,
+            "seed": 784417148775124585
+          },
+          "budget": {
+            "absoluteNoiseFloor": 5.0,
+            "blockOnWorse": true,
+            "ratioMax": 1.05,
+            "requiresExplanation": false
+          },
+          "metric": "wallTime",
+          "python": {
+            "count": 30,
+            "median": 683.3795205,
+            "p95": 709.583666
+          },
+          "ratio": 0.5674044537013603,
+          "rust": {
+            "count": 30,
+            "median": 387.7525835,
+            "p95": 420.604125
+          },
+          "unit": "milliseconds",
+          "verdict": "pass"
+        }
+      },
+      "reasons": [],
+      "sampleClass": "local",
+      "size": "large",
+      "verdict": "pass"
+    },
+    {
+      "category": "splits",
+      "costly": false,
+      "id": "splits.small",
+      "measuredPairs": 30,
+      "metrics": {
+        "cpu": {
+          "absoluteDifference": -180.0,
+          "bootstrap": {
+            "confidence": 0.95,
+            "interval": {
+              "high": 0.8511595707857392,
+              "low": 0.8254010695187166
+            },
+            "resamples": 2000,
+            "seed": 3962727738759566637
+          },
+          "budget": {
+            "absoluteNoiseFloor": null,
+            "blockOnWorse": true,
+            "ratioMax": 1.05,
+            "requiresExplanation": true
+          },
+          "metric": "cpu",
+          "python": {
+            "count": 30,
+            "median": 1100.0,
+            "p95": 1180.0
+          },
+          "ratio": 0.8363636363636363,
+          "rust": {
+            "count": 30,
+            "median": 920.0,
+            "p95": 980.0
+          },
+          "unit": "milliseconds",
+          "verdict": "pass"
+        },
+        "rss": {
+          "absoluteDifference": -25403392.0,
+          "bootstrap": {
+            "confidence": 0.95,
+            "interval": {
+              "high": 0.9172958833358784,
+              "low": 0.8829161198210522
+            },
+            "resamples": 2000,
+            "seed": 14605203151104634815
+          },
+          "budget": {
+            "absoluteNoiseFloor": 1048576.0,
+            "blockOnWorse": true,
+            "ratioMax": 1.05,
+            "requiresExplanation": false
+          },
+          "metric": "rss",
+          "python": {
+            "count": 30,
+            "median": 239034368.0,
+            "p95": 244957184.0
+          },
+          "ratio": 0.8937249391685801,
+          "rust": {
+            "count": 30,
+            "median": 213630976.0,
+            "p95": 215826432.0
+          },
+          "unit": "bytes",
+          "verdict": "pass"
+        },
+        "wallTime": {
+          "absoluteDifference": -216.7400419999999,
+          "bootstrap": {
+            "confidence": 0.95,
+            "interval": {
+              "high": 0.7503643899911939,
+              "low": 0.7325150024388993
+            },
+            "resamples": 2000,
+            "seed": 11951213436439823352
+          },
+          "budget": {
+            "absoluteNoiseFloor": 5.0,
+            "blockOnWorse": true,
+            "ratioMax": 1.05,
+            "requiresExplanation": false
+          },
+          "metric": "wallTime",
+          "python": {
+            "count": 30,
+            "median": 841.091021,
+            "p95": 879.7190830000001
+          },
+          "ratio": 0.7423108360587292,
+          "rust": {
+            "count": 30,
+            "median": 624.350979,
+            "p95": 659.308166
+          },
+          "unit": "milliseconds",
+          "verdict": "pass"
+        }
+      },
+      "reasons": [],
+      "sampleClass": "local",
+      "size": "small",
+      "verdict": "pass"
+    },
+    {
+      "category": "splits",
+      "costly": false,
+      "id": "splits.large",
+      "measuredPairs": 30,
+      "metrics": {
+        "cpu": {
+          "absoluteDifference": -190.00000000000045,
+          "bootstrap": {
+            "confidence": 0.95,
+            "interval": {
+              "high": 0.9579958286850658,
+              "low": 0.9330749354005167
+            },
+            "resamples": 2000,
+            "seed": 4449424027482256001
+          },
+          "budget": {
+            "absoluteNoiseFloor": null,
+            "blockOnWorse": true,
+            "ratioMax": 1.05,
+            "requiresExplanation": true
+          },
+          "metric": "cpu",
+          "python": {
+            "count": 30,
+            "median": 3850.0000000000005,
+            "p95": 3979.999999999999
+          },
+          "ratio": 0.9506493506493505,
+          "rust": {
+            "count": 30,
+            "median": 3660.0,
+            "p95": 3780.000000000001
+          },
+          "unit": "milliseconds",
+          "verdict": "pass"
+        },
+        "rss": {
+          "absoluteDifference": -47570944.0,
+          "bootstrap": {
+            "confidence": 0.95,
+            "interval": {
+              "high": 0.7894227732123051,
+              "low": 0.7812554931628555
+            },
+            "resamples": 2000,
+            "seed": 15122307533415906187
+          },
+          "budget": {
+            "absoluteNoiseFloor": 1048576.0,
+            "blockOnWorse": true,
+            "ratioMax": 1.05,
+            "requiresExplanation": false
+          },
+          "metric": "rss",
+          "python": {
+            "count": 30,
+            "median": 225222656.0,
+            "p95": 227213312.0
+          },
+          "ratio": 0.788782599207071,
+          "rust": {
+            "count": 30,
+            "median": 177651712.0,
+            "p95": 178864128.0
+          },
+          "unit": "bytes",
+          "verdict": "pass"
+        },
+        "wallTime": {
+          "absoluteDifference": -194.08131250000042,
+          "bootstrap": {
+            "confidence": 0.95,
+            "interval": {
+              "high": 0.9367919858722902,
+              "low": 0.9275087902022334
+            },
+            "resamples": 2000,
+            "seed": 1485630415448890172
+          },
+          "budget": {
+            "absoluteNoiseFloor": 5.0,
+            "blockOnWorse": true,
+            "ratioMax": 1.05,
+            "requiresExplanation": false
+          },
+          "metric": "wallTime",
+          "python": {
+            "count": 30,
+            "median": 2917.4041875000003,
+            "p95": 3004.999084
+          },
+          "ratio": 0.9334746575974741,
+          "rust": {
+            "count": 30,
+            "median": 2723.322875,
+            "p95": 2829.45025
+          },
+          "unit": "milliseconds",
+          "verdict": "pass"
+        }
+      },
+      "reasons": [],
+      "sampleClass": "local",
+      "size": "large",
+      "verdict": "pass"
+    },
+    {
+      "category": "dex",
+      "costly": false,
+      "id": "dex.small",
+      "measuredPairs": 30,
+      "metrics": {
+        "cpu": {
+          "absoluteDifference": -440.0,
+          "bootstrap": {
+            "confidence": 0.95,
+            "interval": {
+              "high": 0.5425531914893617,
+              "low": 0.5312635692574903
+            },
+            "resamples": 2000,
+            "seed": 1121753112692025443
+          },
+          "budget": {
+            "absoluteNoiseFloor": null,
+            "blockOnWorse": true,
+            "ratioMax": 1.05,
+            "requiresExplanation": true
+          },
+          "metric": "cpu",
+          "python": {
+            "count": 30,
+            "median": 950.0,
+            "p95": 980.0
+          },
+          "ratio": 0.5368421052631579,
+          "rust": {
+            "count": 30,
+            "median": 510.0,
+            "p95": 530.0
+          },
+          "unit": "milliseconds",
+          "verdict": "pass"
+        },
+        "rss": {
+          "absoluteDifference": -25419776.0,
+          "bootstrap": {
+            "confidence": 0.95,
+            "interval": {
+              "high": 0.8550605687791304,
+              "low": 0.8266757754252805
+            },
+            "resamples": 2000,
+            "seed": 10203155107417399061
+          },
+          "budget": {
+            "absoluteNoiseFloor": 1048576.0,
+            "blockOnWorse": true,
+            "ratioMax": 1.05,
+            "requiresExplanation": false
+          },
+          "metric": "rss",
+          "python": {
+            "count": 30,
+            "median": 172466176.0,
+            "p95": 179699712.0
+          },
+          "ratio": 0.8526100793236119,
+          "rust": {
+            "count": 30,
+            "median": 147046400.0,
+            "p95": 148258816.0
+          },
+          "unit": "bytes",
+          "verdict": "pass"
+        },
+        "wallTime": {
+          "absoluteDifference": -459.44868700000006,
+          "bootstrap": {
+            "confidence": 0.95,
+            "interval": {
+              "high": 0.4913897886402685,
+              "low": 0.48628740073500154
+            },
+            "resamples": 2000,
+            "seed": 5233743260356375978
+          },
+          "budget": {
+            "absoluteNoiseFloor": 5.0,
+            "blockOnWorse": true,
+            "ratioMax": 1.05,
+            "requiresExplanation": false
+          },
+          "metric": "wallTime",
+          "python": {
+            "count": 30,
+            "median": 899.922041,
+            "p95": 920.323833
+          },
+          "ratio": 0.4894572351073241,
+          "rust": {
+            "count": 30,
+            "median": 440.473354,
+            "p95": 457.023333
+          },
+          "unit": "milliseconds",
+          "verdict": "pass"
+        }
+      },
+      "reasons": [],
+      "sampleClass": "local",
+      "size": "small",
+      "verdict": "pass"
+    },
+    {
+      "category": "dex",
+      "costly": false,
+      "id": "dex.large",
+      "measuredPairs": 30,
+      "metrics": {
+        "cpu": {
+          "absoluteDifference": -685.0000000000005,
+          "bootstrap": {
+            "confidence": 0.95,
+            "interval": {
+              "high": 0.8571428571428573,
+              "low": 0.8361648340860003
+            },
+            "resamples": 2000,
+            "seed": 15100126890199466763
+          },
+          "budget": {
+            "absoluteNoiseFloor": null,
+            "blockOnWorse": true,
+            "ratioMax": 1.05,
+            "requiresExplanation": true
+          },
+          "metric": "cpu",
+          "python": {
+            "count": 30,
+            "median": 4510.0,
+            "p95": 4700.0
+          },
+          "ratio": 0.8481152993348114,
+          "rust": {
+            "count": 30,
+            "median": 3824.9999999999995,
+            "p95": 4060.000000000001
+          },
+          "unit": "milliseconds",
+          "verdict": "pass"
+        },
+        "rss": {
+          "absoluteDifference": -45588480.0,
+          "bootstrap": {
+            "confidence": 0.95,
+            "interval": {
+              "high": 0.797886550271851,
+              "low": 0.7926568991215552
+            },
+            "resamples": 2000,
+            "seed": 7322620341858091549
+          },
+          "budget": {
+            "absoluteNoiseFloor": 1048576.0,
+            "blockOnWorse": true,
+            "ratioMax": 1.05,
+            "requiresExplanation": false
+          },
+          "metric": "rss",
+          "python": {
+            "count": 30,
+            "median": 224878592.0,
+            "p95": 226607104.0
+          },
+          "ratio": 0.797275144803468,
+          "rust": {
+            "count": 30,
+            "median": 179290112.0,
+            "p95": 179847168.0
+          },
+          "unit": "bytes",
+          "verdict": "pass"
+        },
+        "wallTime": {
+          "absoluteDifference": -712.7849375000001,
+          "bootstrap": {
+            "confidence": 0.95,
+            "interval": {
+              "high": 0.81197299222482,
+              "low": 0.7929759870851355
+            },
+            "resamples": 2000,
+            "seed": 8541838967630854082
+          },
+          "budget": {
+            "absoluteNoiseFloor": 5.0,
+            "blockOnWorse": true,
+            "ratioMax": 1.05,
+            "requiresExplanation": false
+          },
+          "metric": "wallTime",
+          "python": {
+            "count": 30,
+            "median": 3597.710896,
+            "p95": 3726.447625
+          },
+          "ratio": 0.8018782058634875,
+          "rust": {
+            "count": 30,
+            "median": 2884.9259585,
+            "p95": 3234.5212920000004
+          },
+          "unit": "milliseconds",
+          "verdict": "pass"
+        }
+      },
+      "reasons": [],
+      "sampleClass": "local",
+      "size": "large",
+      "verdict": "pass"
+    },
+    {
+      "category": "unity",
+      "costly": false,
+      "id": "unity.small",
+      "measuredPairs": 30,
+      "metrics": {
+        "cpu": {
+          "absoluteDifference": -215.0,
+          "bootstrap": {
+            "confidence": 0.95,
+            "interval": {
+              "high": 0.0,
+              "low": 0.0
+            },
+            "resamples": 2000,
+            "seed": 10983729568061214215
+          },
+          "budget": {
+            "absoluteNoiseFloor": null,
+            "blockOnWorse": true,
+            "ratioMax": 1.05,
+            "requiresExplanation": true
+          },
+          "metric": "cpu",
+          "python": {
+            "count": 30,
+            "median": 215.0,
+            "p95": 220.0
+          },
+          "ratio": 0.0,
+          "rust": {
+            "count": 30,
+            "median": 0.0,
+            "p95": 0.0
+          },
+          "unit": "milliseconds",
+          "verdict": "pass"
+        },
+        "rss": {
+          "absoluteDifference": -36757504.0,
+          "bootstrap": {
+            "confidence": 0.95,
+            "interval": {
+              "high": 0.023830603345671032,
+              "low": 0.021853146853146852
+            },
+            "resamples": 2000,
+            "seed": 1618378692984039201
+          },
+          "budget": {
+            "absoluteNoiseFloor": 1048576.0,
+            "blockOnWorse": true,
+            "ratioMax": 1.05,
+            "requiresExplanation": false
+          },
+          "metric": "rss",
+          "python": {
+            "count": 30,
+            "median": 37617664.0,
+            "p95": 38322176.0
+          },
+          "ratio": 0.022865853658536585,
+          "rust": {
+            "count": 30,
+            "median": 860160.0,
+            "p95": 1179648.0
+          },
+          "unit": "bytes",
+          "verdict": "pass"
+        },
+        "wallTime": {
+          "absoluteDifference": -216.7237715,
+          "bootstrap": {
+            "confidence": 0.95,
+            "interval": {
+              "high": 0.02441048797034319,
+              "low": 0.022893057101344896
+            },
+            "resamples": 2000,
+            "seed": 10428685326478915278
+          },
+          "budget": {
+            "absoluteNoiseFloor": 5.0,
+            "blockOnWorse": true,
+            "ratioMax": 1.05,
+            "requiresExplanation": false
+          },
+          "metric": "wallTime",
+          "python": {
+            "count": 30,
+            "median": 222.066792,
+            "p95": 234.442667
+          },
+          "ratio": 0.02406042097460479,
+          "rust": {
+            "count": 30,
+            "median": 5.3430205,
+            "p95": 7.789209
+          },
+          "unit": "milliseconds",
+          "verdict": "pass"
+        }
+      },
+      "reasons": [],
+      "sampleClass": "local",
+      "size": "small",
+      "verdict": "pass"
+    },
+    {
+      "category": "unity",
+      "costly": false,
+      "id": "unity.large",
+      "measuredPairs": 30,
+      "metrics": {
+        "cpu": {
+          "absoluteDifference": -200.0,
+          "bootstrap": {
+            "confidence": 0.95,
+            "interval": {
+              "high": 0.09523809523809523,
+              "low": 0.09090909090909091
+            },
+            "resamples": 2000,
+            "seed": 15609026244970933279
+          },
+          "budget": {
+            "absoluteNoiseFloor": null,
+            "blockOnWorse": true,
+            "ratioMax": 1.05,
+            "requiresExplanation": true
+          },
+          "metric": "cpu",
+          "python": {
+            "count": 30,
+            "median": 220.0,
+            "p95": 230.0
+          },
+          "ratio": 0.09090909090909091,
+          "rust": {
+            "count": 30,
+            "median": 20.0,
+            "p95": 30.0
+          },
+          "unit": "milliseconds",
+          "verdict": "pass"
+        },
+        "rss": {
+          "absoluteDifference": -29843456.0,
+          "bootstrap": {
+            "confidence": 0.95,
+            "interval": {
+              "high": 0.252749524584125,
+              "low": 0.2461611912543767
+            },
+            "resamples": 2000,
+            "seed": 7831229425561283737
+          },
+          "budget": {
+            "absoluteNoiseFloor": 1048576.0,
+            "blockOnWorse": true,
+            "ratioMax": 1.05,
+            "requiresExplanation": false
+          },
+          "metric": "rss",
+          "python": {
+            "count": 30,
+            "median": 39706624.0,
+            "p95": 42434560.0
+          },
+          "ratio": 0.24840107282855375,
+          "rust": {
+            "count": 30,
+            "median": 9863168.0,
+            "p95": 11976704.0
+          },
+          "unit": "bytes",
+          "verdict": "pass"
+        },
+        "wallTime": {
+          "absoluteDifference": -194.1314375,
+          "bootstrap": {
+            "confidence": 0.95,
+            "interval": {
+              "high": 0.15264492679708935,
+              "low": 0.14936570487045686
+            },
+            "resamples": 2000,
+            "seed": 13806238075807587158
+          },
+          "budget": {
+            "absoluteNoiseFloor": 5.0,
+            "blockOnWorse": true,
+            "ratioMax": 1.05,
+            "requiresExplanation": false
+          },
+          "metric": "wallTime",
+          "python": {
+            "count": 30,
+            "median": 228.691104,
+            "p95": 246.262542
+          },
+          "ratio": 0.15111941783271116,
+          "rust": {
+            "count": 30,
+            "median": 34.5596665,
+            "p95": 36.499875
+          },
+          "unit": "milliseconds",
+          "verdict": "pass"
+        }
+      },
+      "reasons": [],
+      "sampleClass": "local",
+      "size": "large",
+      "verdict": "pass"
+    },
+    {
+      "category": "il2cpp",
+      "costly": false,
+      "id": "il2cpp.small",
+      "measuredPairs": 30,
+      "metrics": {
+        "cpu": {
+          "absoluteDifference": -210.0,
+          "bootstrap": {
+            "confidence": 0.95,
+            "interval": {
+              "high": 0.0,
+              "low": 0.0
+            },
+            "resamples": 2000,
+            "seed": 13311732083361340178
+          },
+          "budget": {
+            "absoluteNoiseFloor": null,
+            "blockOnWorse": true,
+            "ratioMax": 1.05,
+            "requiresExplanation": true
+          },
+          "metric": "cpu",
+          "python": {
+            "count": 30,
+            "median": 210.0,
+            "p95": 220.0
+          },
+          "ratio": 0.0,
+          "rust": {
+            "count": 30,
+            "median": 0.0,
+            "p95": 0.0
+          },
+          "unit": "milliseconds",
+          "verdict": "pass"
+        },
+        "rss": {
+          "absoluteDifference": -37060608.0,
+          "bootstrap": {
+            "confidence": 0.95,
+            "interval": {
+              "high": 0.02307076686275232,
+              "low": 0.02108127169125243
+            },
+            "resamples": 2000,
+            "seed": 4257079007519946364
+          },
+          "budget": {
+            "absoluteNoiseFloor": 1048576.0,
+            "blockOnWorse": true,
+            "ratioMax": 1.05,
+            "requiresExplanation": false
+          },
+          "metric": "rss",
+          "python": {
+            "count": 30,
+            "median": 37896192.0,
+            "p95": 38567936.0
+          },
+          "ratio": 0.02204928664072633,
+          "rust": {
+            "count": 30,
+            "median": 835584.0,
+            "p95": 1310720.0
+          },
+          "unit": "bytes",
+          "verdict": "pass"
+        },
+        "wallTime": {
+          "absoluteDifference": -217.6502915,
+          "bootstrap": {
+            "confidence": 0.95,
+            "interval": {
+              "high": 0.024427788156357235,
+              "low": 0.02377187783284201
+            },
+            "resamples": 2000,
+            "seed": 6938265553249801117
+          },
+          "budget": {
+            "absoluteNoiseFloor": 5.0,
+            "blockOnWorse": true,
+            "ratioMax": 1.05,
+            "requiresExplanation": false
+          },
+          "metric": "wallTime",
+          "python": {
+            "count": 30,
+            "median": 223.00397900000002,
+            "p95": 229.882584
+          },
+          "ratio": 0.02400713890401032,
+          "rust": {
+            "count": 30,
+            "median": 5.3536875,
+            "p95": 7.898458000000001
+          },
+          "unit": "milliseconds",
+          "verdict": "pass"
+        }
+      },
+      "reasons": [],
+      "sampleClass": "local",
+      "size": "small",
+      "verdict": "pass"
+    },
+    {
+      "category": "il2cpp",
+      "costly": false,
+      "id": "il2cpp.large",
+      "measuredPairs": 30,
+      "metrics": {
+        "cpu": {
+          "absoluteDifference": -370.0,
+          "bootstrap": {
+            "confidence": 0.95,
+            "interval": {
+              "high": 0.11904761904761904,
+              "low": 0.11766334440753046
+            },
+            "resamples": 2000,
+            "seed": 2403580402063918886
+          },
+          "budget": {
+            "absoluteNoiseFloor": null,
+            "blockOnWorse": true,
+            "ratioMax": 1.05,
+            "requiresExplanation": true
+          },
+          "metric": "cpu",
+          "python": {
+            "count": 30,
+            "median": 420.0,
+            "p95": 430.0
+          },
+          "ratio": 0.11904761904761904,
+          "rust": {
+            "count": 30,
+            "median": 50.0,
+            "p95": 50.0
+          },
+          "unit": "milliseconds",
+          "verdict": "pass"
+        },
+        "rss": {
+          "absoluteDifference": -38141952.0,
+          "bootstrap": {
+            "confidence": 0.95,
+            "interval": {
+              "high": 0.6162483487450462,
+              "low": 0.6131416541834163
+            },
+            "resamples": 2000,
+            "seed": 11764999423586270792
+          },
+          "budget": {
+            "absoluteNoiseFloor": 1048576.0,
+            "blockOnWorse": true,
+            "ratioMax": 1.05,
+            "requiresExplanation": false
+          },
+          "metric": "rss",
+          "python": {
+            "count": 30,
+            "median": 99270656.0,
+            "p95": 100483072.0
+          },
+          "ratio": 0.6157781812180227,
+          "rust": {
+            "count": 30,
+            "median": 61128704.0,
+            "p95": 61194240.0
+          },
+          "unit": "bytes",
+          "verdict": "pass"
+        },
+        "wallTime": {
+          "absoluteDifference": -370.4139795,
+          "bootstrap": {
+            "confidence": 0.95,
+            "interval": {
+              "high": 0.1325456420034103,
+              "low": 0.12983085066862216
+            },
+            "resamples": 2000,
+            "seed": 3464961842417691537
+          },
+          "budget": {
+            "absoluteNoiseFloor": 5.0,
+            "blockOnWorse": true,
+            "ratioMax": 1.05,
+            "requiresExplanation": false
+          },
+          "metric": "wallTime",
+          "python": {
+            "count": 30,
+            "median": 426.878792,
+            "p95": 439.033958
+          },
+          "ratio": 0.13227364197563604,
+          "rust": {
+            "count": 30,
+            "median": 56.4648125,
+            "p95": 58.219208
+          },
+          "unit": "milliseconds",
+          "verdict": "pass"
+        }
+      },
+      "reasons": [],
+      "sampleClass": "local",
+      "size": "large",
+      "verdict": "pass"
+    },
+    {
+      "category": "resources",
+      "costly": false,
+      "id": "resources.small",
+      "measuredPairs": 30,
+      "metrics": {
+        "cpu": {
+          "absoluteDifference": -425.0,
+          "bootstrap": {
+            "confidence": 0.95,
+            "interval": {
+              "high": 0.5729483282674772,
+              "low": 0.5510204081632653
+            },
+            "resamples": 2000,
+            "seed": 5772967990458853167
+          },
+          "budget": {
+            "absoluteNoiseFloor": null,
+            "blockOnWorse": true,
+            "ratioMax": 1.05,
+            "requiresExplanation": true
+          },
+          "metric": "cpu",
+          "python": {
+            "count": 30,
+            "median": 960.0,
+            "p95": 1130.0
+          },
+          "ratio": 0.5572916666666666,
+          "rust": {
+            "count": 30,
+            "median": 535.0,
+            "p95": 720.0
+          },
+          "unit": "milliseconds",
+          "verdict": "pass"
+        },
+        "rss": {
+          "absoluteDifference": -101449728.0,
+          "bootstrap": {
+            "confidence": 0.95,
+            "interval": {
+              "high": 0.5966007426531394,
+              "low": 0.5883834192337094
+            },
+            "resamples": 2000,
+            "seed": 14854361189099592777
+          },
+          "budget": {
+            "absoluteNoiseFloor": 1048576.0,
+            "blockOnWorse": true,
+            "ratioMax": 1.05,
+            "requiresExplanation": false
+          },
+          "metric": "rss",
+          "python": {
+            "count": 30,
+            "median": 248700928.0,
+            "p95": 257753088.0
+          },
+          "ratio": 0.592081425606904,
+          "rust": {
+            "count": 30,
+            "median": 147251200.0,
+            "p95": 148717568.0
+          },
+          "unit": "bytes",
+          "verdict": "pass"
+        },
+        "wallTime": {
+          "absoluteDifference": -429.3299999999999,
+          "bootstrap": {
+            "confidence": 0.95,
+            "interval": {
+              "high": 0.5262699015092864,
+              "low": 0.5169969962066983
+            },
+            "resamples": 2000,
+            "seed": 15737472172400091974
+          },
+          "budget": {
+            "absoluteNoiseFloor": 5.0,
+            "blockOnWorse": true,
+            "ratioMax": 1.05,
+            "requiresExplanation": false
+          },
+          "metric": "wallTime",
+          "python": {
+            "count": 30,
+            "median": 888.0573125,
+            "p95": 1073.760959
+          },
+          "ratio": 0.516551472571766,
+          "rust": {
+            "count": 30,
+            "median": 458.72731250000004,
+            "p95": 700.939792
+          },
+          "unit": "milliseconds",
+          "verdict": "pass"
+        }
+      },
+      "reasons": [],
+      "sampleClass": "local",
+      "size": "small",
+      "verdict": "pass"
+    },
+    {
+      "category": "resources",
+      "costly": false,
+      "id": "resources.large",
+      "measuredPairs": 30,
+      "metrics": {
+        "cpu": {
+          "absoluteDifference": -605.0,
+          "bootstrap": {
+            "confidence": 0.95,
+            "interval": {
+              "high": 0.8786943509165732,
+              "low": 0.8627875454019056
+            },
+            "resamples": 2000,
+            "seed": 6545659726844762503
+          },
+          "budget": {
+            "absoluteNoiseFloor": null,
+            "blockOnWorse": true,
+            "ratioMax": 1.05,
+            "requiresExplanation": true
+          },
+          "metric": "cpu",
+          "python": {
+            "count": 30,
+            "median": 4750.0,
+            "p95": 5060.000000000001
+          },
+          "ratio": 0.8726315789473684,
+          "rust": {
+            "count": 30,
+            "median": 4145.0,
+            "p95": 4340.0
+          },
+          "unit": "milliseconds",
+          "verdict": "pass"
+        },
+        "rss": {
+          "absoluteDifference": -79798272.0,
+          "bootstrap": {
+            "confidence": 0.95,
+            "interval": {
+              "high": 0.6914771127166648,
+              "low": 0.6875222693227852
+            },
+            "resamples": 2000,
+            "seed": 15627052925477011105
+          },
+          "budget": {
+            "absoluteNoiseFloor": 1048576.0,
+            "blockOnWorse": true,
+            "ratioMax": 1.05,
+            "requiresExplanation": false
+          },
+          "metric": "rss",
+          "python": {
+            "count": 30,
+            "median": 258334720.0,
+            "p95": 261177344.0
+          },
+          "ratio": 0.6911051212938005,
+          "rust": {
+            "count": 30,
+            "median": 178536448.0,
+            "p95": 179568640.0
+          },
+          "unit": "bytes",
+          "verdict": "pass"
+        },
+        "wallTime": {
+          "absoluteDifference": -616.1051874999998,
+          "bootstrap": {
+            "confidence": 0.95,
+            "interval": {
+              "high": 0.8412243792963112,
+              "low": 0.8346874688254204
+            },
+            "resamples": 2000,
+            "seed": 11501441691604952398
+          },
+          "budget": {
+            "absoluteNoiseFloor": 5.0,
+            "blockOnWorse": true,
+            "ratioMax": 1.05,
+            "requiresExplanation": false
+          },
+          "metric": "wallTime",
+          "python": {
+            "count": 30,
+            "median": 3826.841375,
+            "p95": 4070.38725
+          },
+          "ratio": 0.8390042525606383,
+          "rust": {
+            "count": 30,
+            "median": 3210.7361875,
+            "p95": 3379.647584
+          },
+          "unit": "milliseconds",
+          "verdict": "pass"
+        }
+      },
+      "reasons": [],
+      "sampleClass": "local",
+      "size": "large",
+      "verdict": "pass"
+    },
+    {
+      "category": "code",
+      "costly": false,
+      "id": "code.small",
+      "measuredPairs": 30,
+      "metrics": {
+        "cpu": {
+          "absoluteDifference": -575.0000000000005,
+          "bootstrap": {
+            "confidence": 0.95,
+            "interval": {
+              "high": 0.7799964799436789,
+              "low": 0.7554780876494023
+            },
+            "resamples": 2000,
+            "seed": 8577481674610846425
+          },
+          "budget": {
+            "absoluteNoiseFloor": null,
+            "blockOnWorse": true,
+            "ratioMax": 1.05,
+            "requiresExplanation": true
+          },
+          "metric": "cpu",
+          "python": {
+            "count": 30,
+            "median": 2435.0000000000005,
+            "p95": 2540.0000000000005
+          },
+          "ratio": 0.7638603696098561,
+          "rust": {
+            "count": 30,
+            "median": 1860.0,
+            "p95": 1980.0
+          },
+          "unit": "milliseconds",
+          "verdict": "pass"
+        },
+        "rss": {
+          "absoluteDifference": -206381056.0,
+          "bootstrap": {
+            "confidence": 0.95,
+            "interval": {
+              "high": 0.7281666596984382,
+              "low": 0.7203539412138367
+            },
+            "resamples": 2000,
+            "seed": 17662811124911802499
+          },
+          "budget": {
+            "absoluteNoiseFloor": 1048576.0,
+            "blockOnWorse": true,
+            "ratioMax": 1.05,
+            "requiresExplanation": false
+          },
+          "metric": "rss",
+          "python": {
+            "count": 30,
+            "median": 743890944.0,
+            "p95": 747651072.0
+          },
+          "ratio": 0.722565440990232,
+          "rust": {
+            "count": 30,
+            "median": 537509888.0,
+            "p95": 543621120.0
+          },
+          "unit": "bytes",
+          "verdict": "pass"
+        },
+        "wallTime": {
+          "absoluteDifference": -530.0393750000001,
+          "bootstrap": {
+            "confidence": 0.95,
+            "interval": {
+              "high": 0.7267564258955652,
+              "low": 0.7193161042297249
+            },
+            "resamples": 2000,
+            "seed": 2539297949285732004
+          },
+          "budget": {
+            "absoluteNoiseFloor": 5.0,
+            "blockOnWorse": true,
+            "ratioMax": 1.05,
+            "requiresExplanation": false
+          },
+          "metric": "wallTime",
+          "python": {
+            "count": 30,
+            "median": 1920.507354,
+            "p95": 2005.81325
+          },
+          "ratio": 0.7240107548164066,
+          "rust": {
+            "count": 30,
+            "median": 1390.467979,
+            "p95": 1428.2425
+          },
+          "unit": "milliseconds",
+          "verdict": "pass"
+        }
+      },
+      "reasons": [],
+      "sampleClass": "local",
+      "size": "small",
+      "verdict": "pass"
+    },
+    {
+      "category": "code",
+      "costly": false,
+      "id": "code.large",
+      "measuredPairs": 30,
+      "metrics": {
+        "cpu": {
+          "absoluteDifference": -890.0000000000009,
+          "bootstrap": {
+            "confidence": 0.95,
+            "interval": {
+              "high": 0.8990944372574383,
+              "low": 0.8738355525059962
+            },
+            "resamples": 2000,
+            "seed": 15649677551858658285
+          },
+          "budget": {
+            "absoluteNoiseFloor": null,
+            "blockOnWorse": true,
+            "ratioMax": 1.05,
+            "requiresExplanation": true
+          },
+          "metric": "cpu",
+          "python": {
+            "count": 30,
+            "median": 7950.000000000002,
+            "p95": 9209.999999999998
+          },
+          "ratio": 0.8880503144654087,
+          "rust": {
+            "count": 30,
+            "median": 7060.000000000001,
+            "p95": 7550.000000000001
+          },
+          "unit": "milliseconds",
+          "verdict": "pass"
+        },
+        "rss": {
+          "absoluteDifference": -203685888.0,
+          "bootstrap": {
+            "confidence": 0.95,
+            "interval": {
+              "high": 0.8097591633971857,
+              "low": 0.8027635924785985
+            },
+            "resamples": 2000,
+            "seed": 7845127415519949695
+          },
+          "budget": {
+            "absoluteNoiseFloor": 1048576.0,
+            "blockOnWorse": true,
+            "ratioMax": 1.05,
+            "requiresExplanation": false
+          },
+          "metric": "rss",
+          "python": {
+            "count": 30,
+            "median": 1093591040.0,
+            "p95": 1113473024.0
+          },
+          "ratio": 0.8137458331772726,
+          "rust": {
+            "count": 30,
+            "median": 889905152.0,
+            "p95": 894877696.0
+          },
+          "unit": "bytes",
+          "verdict": "pass"
+        },
+        "wallTime": {
+          "absoluteDifference": -829.3677704999991,
+          "bootstrap": {
+            "confidence": 0.95,
+            "interval": {
+              "high": 0.8775383270708166,
+              "low": 0.863200474770656
+            },
+            "resamples": 2000,
+            "seed": 17687634257147824056
+          },
+          "budget": {
+            "absoluteNoiseFloor": 5.0,
+            "blockOnWorse": true,
+            "ratioMax": 1.05,
+            "requiresExplanation": false
+          },
+          "metric": "wallTime",
+          "python": {
+            "count": 30,
+            "median": 6252.243708,
+            "p95": 7564.605416
+          },
+          "ratio": 0.8673487776174192,
+          "rust": {
+            "count": 30,
+            "median": 5422.875937500001,
+            "p95": 5670.992125
+          },
+          "unit": "milliseconds",
+          "verdict": "pass"
+        }
+      },
+      "reasons": [],
+      "sampleClass": "local",
+      "size": "large",
+      "verdict": "pass"
+    },
+    {
+      "category": "morphe",
+      "costly": true,
+      "id": "morphe.small",
+      "measuredPairs": 10,
+      "metrics": {
+        "cpu": {
+          "absoluteDifference": -3419.999999999971,
+          "bootstrap": {
+            "confidence": 0.95,
+            "interval": {
+              "high": 0.9699632907278132,
+              "low": 0.9472257189890578
+            },
+            "resamples": 2000,
+            "seed": 2490192948216939165
+          },
+          "budget": {
+            "absoluteNoiseFloor": null,
+            "blockOnWorse": true,
+            "ratioMax": 1.05,
+            "requiresExplanation": true
+          },
+          "metric": "cpu",
+          "python": {
+            "count": 10,
+            "median": 103605.00000000003,
+            "p95": 106900.00000000004
+          },
+          "ratio": 0.9669900101346462,
+          "rust": {
+            "count": 10,
+            "median": 100185.00000000006,
+            "p95": 102210.00000000004
+          },
+          "unit": "milliseconds",
+          "verdict": "pass"
+        },
+        "rss": {
+          "absoluteDifference": -409509888.0,
+          "bootstrap": {
+            "confidence": 0.95,
+            "interval": {
+              "high": 0.8122388421623203,
+              "low": 0.7466663000788683
+            },
+            "resamples": 2000,
+            "seed": 11544832829918806223
+          },
+          "budget": {
+            "absoluteNoiseFloor": 1048576.0,
+            "blockOnWorse": true,
+            "ratioMax": 1.05,
+            "requiresExplanation": false
+          },
+          "metric": "rss",
+          "python": {
+            "count": 10,
+            "median": 1891704832.0,
+            "p95": 2016083968.0
+          },
+          "ratio": 0.7835233694640158,
+          "rust": {
+            "count": 10,
+            "median": 1482194944.0,
+            "p95": 1499627520.0
+          },
+          "unit": "bytes",
+          "verdict": "pass"
+        },
+        "wallTime": {
+          "absoluteDifference": -5313.4898539999995,
+          "bootstrap": {
+            "confidence": 0.95,
+            "interval": {
+              "high": 0.88891440938629,
+              "low": 0.8623144064096616
+            },
+            "resamples": 2000,
+            "seed": 2990975616195610632
+          },
+          "budget": {
+            "absoluteNoiseFloor": 5.0,
+            "blockOnWorse": true,
+            "ratioMax": 1.05,
+            "requiresExplanation": false
+          },
+          "metric": "wallTime",
+          "python": {
+            "count": 10,
+            "median": 46366.9244585,
+            "p95": 48926.46275
+          },
+          "ratio": 0.885403444027094,
+          "rust": {
+            "count": 10,
+            "median": 41053.4346045,
+            "p95": 41662.176208
+          },
+          "unit": "milliseconds",
+          "verdict": "pass"
+        }
+      },
+      "reasons": [],
+      "sampleClass": "costly",
+      "size": "small",
+      "verdict": "pass"
+    },
+    {
+      "category": "morphe",
+      "costly": true,
+      "id": "morphe.large",
+      "measuredPairs": 10,
+      "metrics": {
+        "cpu": {
+          "absoluteDifference": -25940.0,
+          "bootstrap": {
+            "confidence": 0.95,
+            "interval": {
+              "high": 0.8929415885804356,
+              "low": 0.878807304573842
+            },
+            "resamples": 2000,
+            "seed": 4823137655459464689
+          },
+          "budget": {
+            "absoluteNoiseFloor": null,
+            "blockOnWorse": true,
+            "ratioMax": 1.05,
+            "requiresExplanation": true
+          },
+          "metric": "cpu",
+          "python": {
+            "count": 10,
+            "median": 228359.99999999983,
+            "p95": 230949.99999999977
+          },
+          "ratio": 0.8864074268698545,
+          "rust": {
+            "count": 10,
+            "median": 202419.99999999983,
+            "p95": 205029.9999999998
+          },
+          "unit": "milliseconds",
+          "verdict": "pass"
+        },
+        "rss": {
+          "absoluteDifference": -288317440.0,
+          "bootstrap": {
+            "confidence": 0.95,
+            "interval": {
+              "high": 0.9139123481467443,
+              "low": 0.8381658882071008
+            },
+            "resamples": 2000,
+            "seed": 13908467105718379419
+          },
+          "budget": {
+            "absoluteNoiseFloor": 1048576.0,
+            "blockOnWorse": true,
+            "ratioMax": 1.05,
+            "requiresExplanation": false
+          },
+          "metric": "rss",
+          "python": {
+            "count": 10,
+            "median": 2529853440.0,
+            "p95": 2786885632.0
+          },
+          "ratio": 0.8860339356259309,
+          "rust": {
+            "count": 10,
+            "median": 2241536000.0,
+            "p95": 2472919040.0
+          },
+          "unit": "bytes",
+          "verdict": "pass"
+        },
+        "wallTime": {
+          "absoluteDifference": -23757.631812000007,
+          "bootstrap": {
+            "confidence": 0.95,
+            "interval": {
+              "high": 0.8321710226708041,
+              "low": 0.8287108141531898
+            },
+            "resamples": 2000,
+            "seed": 12869332305863765452
+          },
+          "budget": {
+            "absoluteNoiseFloor": 5.0,
+            "blockOnWorse": true,
+            "ratioMax": 1.05,
+            "requiresExplanation": false
+          },
+          "metric": "wallTime",
+          "python": {
+            "count": 10,
+            "median": 141387.436187,
+            "p95": 142427.76362500002
+          },
+          "ratio": 0.831967871738066,
+          "rust": {
+            "count": 10,
+            "median": 117629.804375,
+            "p95": 120646.129792
+          },
+          "unit": "milliseconds",
+          "verdict": "pass"
+        }
+      },
+      "reasons": [],
+      "sampleClass": "costly",
+      "size": "large",
+      "verdict": "pass"
+    }
+  ]
+}
