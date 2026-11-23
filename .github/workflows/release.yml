@@ -168,6 +168,11 @@ jobs:
             npm install
           fi
 
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
       # Semantic release runs its own Gradle build command on main.
       - name: Reconcile release channel notes
         run: bun scripts/reconcile-release-notes.ts --ref "${{ github.ref_name }}" --remote origin
