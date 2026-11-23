@@ -1468,6 +1468,7 @@ async function runTest(domain: AuditDomain = 'all'): Promise<PhaseResult> {
     const dtRes = await execCommand('bun', [
       'test',
       '--timeout=30000',
+      'scripts/release-retry.test.ts',
       'scripts/dependencies',
       'scripts/reconcile-release-notes.test.ts',
     ]);
