@@ -32,10 +32,6 @@ export const HISTORICAL_EXCLUSIONS: readonly HistoricalExclusion[] = [
     reason: 'local advisor plans, ignored by git',
   },
   {
-    prefix: 'docs/benchmarks/',
-    reason: 'immutable measured migration evidence',
-  },
-  {
     prefix: 'tools/asset-prep/tests/fixtures/',
     reason: 'frozen Pillow oracle capture inputs and contracts from plan 006',
   },

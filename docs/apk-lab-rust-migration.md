@@ -94,6 +94,10 @@ repository toolchain.
 
 ## Correctness and integration evidence
 
+The counts and checks in this section describe the measured/cutover revision. The
+migration-only golden runner and harness were removed afterward; they are historical,
+not current commands.
+
 - Native APK Lab tests: 693 passed at the measured revision.
 - Core parity: 8/8 with four approved native-only CLI text/flag differences.
 - Analysis parity: synthetic 22/22 and real pinned tools 22/22, with one approved

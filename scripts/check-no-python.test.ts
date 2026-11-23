@@ -120,15 +120,12 @@ describe('Python-free gate scanning', () => {
         'docs/apk-lab-rust-migration.md':
           'The retired oracle ran python3.12 -m venv for chart rendering.\n',
         'CHANGELOG.md': 'Historic uv run --project tools/apk-lab release\n',
-        'docs/benchmarks/apk-lab/baseline.json':
-          '{"oracle":"tools/apk-lab/.venv/bin/python"}\n',
         'plans/009-retire.md': 'Run `pytest` first.\n',
       });
 
       for (const relPath of [
         'docs/apk-lab-rust-migration.md',
         'CHANGELOG.md',
-        'docs/benchmarks/apk-lab/baseline.json',
         'plans/009-retire.md',
       ]) {
         expect(isHistoricallyExcluded(relPath)).toBe(true);
