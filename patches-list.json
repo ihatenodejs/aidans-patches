@@ -179,7 +179,7 @@
       ],
       "targets": [
         {
-          "version": "26.40",
+          "version": "26.47",
           "versionCodes": null,
           "isExperimental": false,
           "minSdk": 32,
@@ -190,9 +190,9 @@
         "Remove Tracking"
       ],
       "supportedVersions": [
-        "26.40"
+        "26.47"
       ],
-      "latestSupportedVersion": "26.40"
+      "latestSupportedVersion": "26.47"
     },
     {
       "packageName": "com.eab.se",
@@ -2656,7 +2656,7 @@
     },
     {
       "name": "Remove Tracking",
-      "description": "Neutralizes Google Play Advertising ID tracking, Firebase Analytics, Datadog telemetry, Kochava attribution, New Relic, Luciq, root/emulator checks, and integrity attestation.",
+      "description": "Neutralizes Google Play Advertising ID tracking, Firebase Analytics, Crashlytics, Datadog telemetry, Kochava attribution, New Relic, Segment, Qualtrics, root/emulator checks, and integrity attestation.",
       "default": true,
       "category": "Privacy",
       "dependencies": [],
@@ -2672,7 +2672,7 @@
           ],
           "targets": [
             {
-              "version": "26.40",
+              "version": "26.47",
               "versionCodes": null,
               "isExperimental": false,
               "minSdk": 32,
@@ -2746,9 +2746,18 @@
           "values": null
         },
         {
-          "key": "disableLuciqTelemetry",
-          "title": "Disable Luciq Telemetry & Session Recording",
-          "description": "Neutralizes Luciq APM session updates, auto screen recording, and diagnostic screenshot collection.",
+          "key": "disableSegmentAnalytics",
+          "title": "Disable Segment Analytics",
+          "description": "Blocks Segment event, screen, identity, and lifecycle collection used by the Intuit UXFabric clickstream.",
+          "required": false,
+          "type": "kotlin.Boolean",
+          "default": true,
+          "values": null
+        },
+        {
+          "key": "disableQualtrics",
+          "title": "Disable Qualtrics Feedback Tracking",
+          "description": "Blocks Qualtrics project initialization, intercept evaluation, and view-visit tracking.",
           "required": false,
           "type": "kotlin.Boolean",
           "default": true,
