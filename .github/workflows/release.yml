@@ -133,7 +133,6 @@ jobs:
           restore-keys: |
             emoji-font-
 
-
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@1.97.1
         with:
