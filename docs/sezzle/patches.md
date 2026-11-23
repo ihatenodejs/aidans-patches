@@ -298,8 +298,9 @@ Removes the commercial Rewards bottom tab while preserving access to Sezzle Poin
 Modifies `assets/index.android.bundle`:
 
 1. Unmounts `EarnTab` in `ProtectedStack` by stubbing `useIsShowEarnTabEnabled` and `useCachedIsShowEarnTabEnabled` to return `false`.
-2. The Home `customer/points` shortcut is hidden by the default `hideRewards` option in [Configure Shortcuts](#patch-configure-shortcuts). The Account > Sezzle Points entry remains functional.
-3. Recomputes Hermes footer hash.
+2. Stubs `useEarnButtonOnShopFeature` to return `undefined`, so StoreRoot does not build the Home header's **Get Rewards** pill.
+3. The Home `customer/points` shortcut is hidden by the default `hideRewards` option in [Configure Shortcuts](#patch-configure-shortcuts). The Account > Sezzle Points entry remains functional.
+4. Recomputes Hermes footer hash.
 
 ---
 
