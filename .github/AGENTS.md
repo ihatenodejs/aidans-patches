@@ -35,9 +35,9 @@ Repository-wide dependency checks via `scripts/deps.ts` enforce the same hold in
 
 Generator and automation code is Bun/TypeScript or native Rust. Validate paths and input shape, fail with actionable errors, and never print secret values. Do not introduce a Python runtime, package manager, hook framework, or interpreter requirement.
 
-## Required Status Checks (Operator Action)
+## Required Status Checks
 
-Branch protection on `main`/`dev` currently requires no status checks, so the aggregate `Test & Build Gate` job cannot block merges until an operator enables it. Requiring that single check is an administrative action in repository settings; do not encode branch protection or rulesets in workflow files. The gate fails when a run has no executed domain job (docs-only changes must still run `Web Verification`), so once enabled it cannot pass on an unverified change.
+Repository ruleset `Require verification gate` (branch target, active) requires the aggregate `Test & Build Gate` GitHub Actions check on `main` and `dev`; the `Lock main`/`Lock dev` rulesets keep blocking deletions and non-fast-forward pushes. `strict_required_status_checks_policy` is off, so branches need not be up to date before merge. This setting lives in repository settings, not in workflow files: the workflow must keep the exact job name `Test & Build Gate`, or the requirement silently stops matching. The gate fails when a run has no executed domain job (docs-only changes must still run `Web Verification`), so it cannot pass on an unverified change.
 
 ## Release and Generated Assets
 
