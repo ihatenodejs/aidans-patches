@@ -52,6 +52,11 @@ jobs:
         with:
           bun-version: latest
 
+      # Unavoidable pre-release invariant: no Python runtime requirements may
+      # enter the release. Uses only the checkout and Bun, no root install.
+      - name: Enforce Python-free repository
+        run: bun scripts/check-no-python.ts
+
       - name: Cache font assets
         uses: actions/cache@v6
         with:

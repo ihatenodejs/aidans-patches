@@ -15,6 +15,8 @@ Scope: CI workflows, release/deploy automation, issue templates, and Bun/native 
 
 Use pinned actions and least-privilege `permissions`. Preserve path filters and release handoffs when moving generated inputs; they determine whether metadata reaches Worker/site.
 
+In `workflows/apk-lab-tests.yml`, the `core` filter covers dependency policy, `scripts/**`, `.github/**` (every workflow, template, and Dependabot config), `.agents/**` (skills), `skills-lock.json`, `.editorconfig`, and `.gitattributes`; any core hit forces a full run of every domain job. The `docs` filter covers `docs/**`, root `*.md`, and `.markdownlint-cli2.jsonc` and routes docs-only changes to `Web Verification` (markdown lint and documentation tests). `test-python-free` runs unconditionally, and `Test & Build Gate` fails when no domain job executed.
+
 ## Generator Scripts
 
 - `../scripts/generate-patches-readme.ts`: generates the README patch block and template repository/add-source URLs using Bun and installed Prettier. Rejects malformed boundaries and formats before publishing; release callers use this entrypoint.
@@ -32,6 +34,10 @@ Use pinned actions and least-privilege `permissions`. Preserve path filters and 
 Repository-wide dependency checks via `scripts/deps.ts` enforce the same hold in `dependency-policy.json`. When modifying dependency holds, keep Dependabot ignores and `dependency-policy.json` aligned so external automation does not open PRs for held packages.
 
 Generator and automation code is Bun/TypeScript or native Rust. Validate paths and input shape, fail with actionable errors, and never print secret values. Do not introduce a Python runtime, package manager, hook framework, or interpreter requirement; `scripts/check-no-python.ts` enforces this.
+
+## Required Status Checks (Operator Action)
+
+Branch protection on `main`/`dev` currently requires no status checks, so the aggregate `Test & Build Gate` job cannot block merges until an operator enables it. Requiring that single check is an administrative action in repository settings; do not encode branch protection or rulesets in workflow files. The gate fails when a run has no executed domain job (docs-only changes must still run `Web Verification`), so once enabled it cannot pass on an unverified change.
 
 ## Release and Generated Assets
 

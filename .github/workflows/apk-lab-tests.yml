@@ -23,6 +23,7 @@ jobs:
     outputs:
       core: ${{ steps.filter.outputs.core }}
       web: ${{ steps.filter.outputs.web }}
+      docs: ${{ steps.filter.outputs.docs }}
       android: ${{ steps.filter.outputs.android }}
       rust: ${{ steps.filter.outputs.rust }}
       native: ${{ steps.filter.outputs.native }}
@@ -43,7 +44,11 @@ jobs:
               - 'bun.lock'
               - 'dependency-policy.json'
               - 'scripts/**'
-              - '.github/workflows/apk-lab-tests.yml'
+              - '.github/**'
+              - '.agents/**'
+              - 'skills-lock.json'
+              - '.editorconfig'
+              - '.gitattributes'
               - '.prettierrc.json'
               - '.oxlintrc.json'
             web:
@@ -54,6 +59,7 @@ jobs:
               - 'bun.lock'
               - '.prettierrc.json'
               - '.oxlintrc.json'
+            docs:
               - 'docs/**'
               - '*.md'
               - '.markdownlint-cli2.jsonc'
@@ -94,7 +100,7 @@ jobs:
   test-web:
     name: Web Verification
     needs: detect-changes
-    if: needs.detect-changes.outputs.is_full_run == 'true' || needs.detect-changes.outputs.web == 'true'
+    if: needs.detect-changes.outputs.is_full_run == 'true' || needs.detect-changes.outputs.web == 'true' || needs.detect-changes.outputs.docs == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -210,19 +216,20 @@ jobs:
             tools/asset-prep -> tools/asset-prep/target
             tools/apk-lab -> tools/apk-lab/target
 
-      - name: Test native apk-lab
-        run: cargo test --locked --manifest-path tools/apk-lab/Cargo.toml
-
       - name: Build native apk-lab release binaries
         run: cargo build --release --locked --manifest-path tools/apk-lab/Cargo.toml --bins
 
+      # audit --domain rust is the single owner of cargo fmt/clippy/check/test
+      # for every registered Rust project, including apk-lab.
       - name: Audit rust domain
         run: bun scripts/audit.ts all --domain rust
 
   test-python-free:
     name: Python-Free Verification
     needs: detect-changes
-    if: needs.detect-changes.outputs.is_full_run == 'true' || needs.detect-changes.outputs.web == 'true' || needs.detect-changes.outputs.rust == 'true' || needs.detect-changes.outputs.android == 'true'
+    # Unconditional: any change can introduce Python, including docs-, skill-,
+    # or workflow-only changes. Checkout + Bun are the only prerequisites.
+    if: always()
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -284,6 +291,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Aggregate Verification Status
+        env:
+          FULL_RUN: ${{ needs.detect-changes.outputs.is_full_run }}
+          CORE_CHANGED: ${{ needs.detect-changes.outputs.core }}
+          WEB_CHANGED: ${{ needs.detect-changes.outputs.web }}
+          DOCS_CHANGED: ${{ needs.detect-changes.outputs.docs }}
+          ANDROID_CHANGED: ${{ needs.detect-changes.outputs.android }}
+          RUST_CHANGED: ${{ needs.detect-changes.outputs.rust }}
+          NATIVE_CHANGED: ${{ needs.detect-changes.outputs.native }}
+          DETECT_RESULT: ${{ needs.detect-changes.result }}
+          WEB_RESULT: ${{ needs.test-web.result }}
+          ANDROID_RESULT: ${{ needs.test-android.result }}
+          RUST_RESULT: ${{ needs.test-rust.result }}
+          NATIVE_RESULT: ${{ needs.test-native.result }}
+          PYTHON_FREE_RESULT: ${{ needs.test-python-free.result }}
         run: |
           echo "### Test & Build Gate Verification Summary" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
@@ -291,44 +312,89 @@ jobs:
           echo "| :--- | :--- | :--- |" >> "$GITHUB_STEP_SUMMARY"
 
           FAILED=0
+          DOMAIN_RUN=0
 
           check_job() {
             local name="$1"
             local result="$2"
-            local icon="⚪"
-            local outcome="Skipped (unaffected)"
+            local detail="$3"
+            local icon outcome
 
-            if [ "$result" = "success" ]; then
-              icon="🟢"
-              outcome="Passed"
-            elif [ "$result" = "failure" ]; then
-              icon="🔴"
-              outcome="Failed"
-              FAILED=1
-            elif [ "$result" = "cancelled" ]; then
-              icon="🟡"
-              outcome="Cancelled"
-              FAILED=1
-            elif [ "$result" = "skipped" ]; then
-              icon="⚪"
-              outcome="Skipped (unaffected)"
-            fi
+            case "$result" in
+              success)
+                icon="🟢"
+                outcome="Passed"
+                ;;
+              failure)
+                icon="🔴"
+                outcome="Failed"
+                FAILED=1
+                ;;
+              cancelled)
+                icon="🟡"
+                outcome="Cancelled"
+                FAILED=1
+                ;;
+              skipped)
+                icon="⚪"
+                outcome="Skipped ($detail)"
+                ;;
+              *)
+                icon="🔴"
+                outcome="Unexpected status '$result'"
+                FAILED=1
+                ;;
+            esac
 
             echo "| **$name** | $icon $result | $outcome |" >> "$GITHUB_STEP_SUMMARY"
           }
 
-          check_job "Detect Changes" "${{ needs.detect-changes.result }}"
-          check_job "Web (TypeScript / Site / Worker)" "${{ needs.test-web.result }}"
-          check_job "Android (Patches / Extension)" "${{ needs.test-android.result }}"
-          check_job "Rust (Play Metadata / Native)" "${{ needs.test-rust.result }}"
-          check_job "Native (Adobe Scan C++)" "${{ needs.test-native.result }}"
-          check_job "Python-Free Repository" "${{ needs.test-python-free.result }}"
+          count_domain() {
+            case "$1" in
+              success | failure | cancelled) DOMAIN_RUN=$((DOMAIN_RUN + 1)) ;;
+            esac
+          }
+
+          check_job "Detect Changes" "$DETECT_RESULT" "change detection did not complete"
+          check_job "Web (TypeScript / Site / Worker)" "$WEB_RESULT" \
+            "is_full_run=$FULL_RUN web=$WEB_CHANGED docs=$DOCS_CHANGED"
+          check_job "Android (Patches / Extension)" "$ANDROID_RESULT" \
+            "is_full_run=$FULL_RUN android=$ANDROID_CHANGED"
+          check_job "Rust (Play Metadata / Native)" "$RUST_RESULT" \
+            "is_full_run=$FULL_RUN rust=$RUST_CHANGED"
+          check_job "Native (Adobe Scan C++)" "$NATIVE_RESULT" \
+            "is_full_run=$FULL_RUN native=$NATIVE_CHANGED"
+          check_job "Python-Free Repository" "$PYTHON_FREE_RESULT" \
+            "this job runs unconditionally; a skip is a workflow configuration error"
+
+          count_domain "$WEB_RESULT"
+          count_domain "$ANDROID_RESULT"
+          count_domain "$RUST_RESULT"
+          count_domain "$NATIVE_RESULT"
 
           echo "" >> "$GITHUB_STEP_SUMMARY"
 
           if [ "$FAILED" -ne 0 ]; then
             echo "❌ **One or more required verification jobs failed or were cancelled.**" >> "$GITHUB_STEP_SUMMARY"
             exit 1
-          else
-            echo "✅ **All required domain verification gates passed cleanly.**" >> "$GITHUB_STEP_SUMMARY"
           fi
+
+          # Zero-check guard: a green gate must include at least one domain job.
+          # Docs-only changes (docs/**, *.md, markdownlint config) are the sole
+          # allowance: they need only Web Verification, which runs the markdown
+          # lint and Documentation & Link Integrity tests. They must still run
+          # Web, so an all-skipped docs change fails here instead of passing.
+          if [ "$DOMAIN_RUN" -eq 0 ]; then
+            echo "❌ **No domain verification job ran; only the Python-free check executed.**" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            if [ "$DOCS_CHANGED" = "true" ]; then
+              echo "This is a docs-only change, but Web Verification was skipped. Docs-only runs must execute Web Verification for markdown and documentation tests." >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "Add the changed paths to a domain filter (or to the core filter) so this change cannot merge unverified." >> "$GITHUB_STEP_SUMMARY"
+            fi
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "Detected changes: core=$CORE_CHANGED web=$WEB_CHANGED docs=$DOCS_CHANGED android=$ANDROID_CHANGED rust=$RUST_CHANGED native=$NATIVE_CHANGED is_full_run=$FULL_RUN." >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+
+          echo "✅ **All required domain verification gates passed cleanly.**" >> "$GITHUB_STEP_SUMMARY"
