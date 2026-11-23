@@ -36,6 +36,8 @@ use serde::{Deserialize, Serialize};
 use std::fs::{self, File};
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::AtomicBool;
+use std::sync::Arc;
 use tempfile::NamedTempFile;
 use zip::write::SimpleFileOptions;
 use zip::{CompressionMethod, ZipArchive, ZipWriter};
@@ -152,6 +154,9 @@ pub struct DeploymentTools {
     pub keytool: Option<PathBuf>,
     pub morphe_keystore: Option<PathBuf>,
     pub home: Option<PathBuf>,
+    /// Optional caller-owned cancellation, propagated to every deployment
+    /// child. The process-wide signal flag is always consulted by the adapter.
+    pub cancel: Option<Arc<AtomicBool>>,
 }
 
 impl DeploymentTools {
@@ -174,6 +179,7 @@ impl DeploymentTools {
             keytool,
             morphe_keystore,
             home: std::env::var_os("HOME").map(PathBuf::from),
+            cancel: None,
         })
     }
 }
@@ -767,13 +773,16 @@ fn resolve_launch_component(
     tools: &DeploymentTools,
 ) -> Result<String, Error> {
     let aapt2 = tools::find_build_tools_bin(&tools.inspection.env, "aapt2")?;
-    let spec = ProcessSpec::new(aapt2)
-        .args([
-            "dump".to_string(),
-            "badging".to_string(),
-            apk.to_string_lossy().into_owned(),
-        ])
-        .timeout(tools.inspection.timeout);
+    let spec = with_cancel(
+        ProcessSpec::new(aapt2)
+            .args([
+                "dump".to_string(),
+                "badging".to_string(),
+                apk.to_string_lossy().into_owned(),
+            ])
+            .timeout(tools.inspection.timeout),
+        tools,
+    );
     let output = process::run(&spec)?;
     if !output.success() {
         return Err(Error::infrastructure(format!(
@@ -893,31 +902,37 @@ pub fn ensure_debug_keystore(
 
     let mut store_password = secret_file(parent, DEFAULT_DEBUG_PASSWORD)?;
     let mut key_password = secret_file(parent, DEFAULT_DEBUG_PASSWORD)?;
-    let spec = ProcessSpec::new(keytool)
-        .args([
-            "-genkeypair".to_string(),
-            "-keystore".to_string(),
-            path.to_string_lossy().into_owned(),
-            "-storepass:file".to_string(),
-            store_password.path().to_string_lossy().into_owned(),
-            "-alias".to_string(),
-            DEFAULT_DEBUG_ALIAS.to_string(),
-            "-keypass:file".to_string(),
-            key_password.path().to_string_lossy().into_owned(),
-            "-dname".to_string(),
-            "CN=Android Debug,O=Android,C=US".to_string(),
-            "-keyalg".to_string(),
-            "RSA".to_string(),
-            "-keysize".to_string(),
-            "2048".to_string(),
-            "-validity".to_string(),
-            "10000".to_string(),
-        ])
-        .secret(DEFAULT_DEBUG_PASSWORD);
+    let spec = with_cancel(
+        ProcessSpec::new(keytool)
+            .args([
+                "-genkeypair".to_string(),
+                "-keystore".to_string(),
+                path.to_string_lossy().into_owned(),
+                "-storepass:file".to_string(),
+                store_password.path().to_string_lossy().into_owned(),
+                "-alias".to_string(),
+                DEFAULT_DEBUG_ALIAS.to_string(),
+                "-keypass:file".to_string(),
+                key_password.path().to_string_lossy().into_owned(),
+                "-dname".to_string(),
+                "CN=Android Debug,O=Android,C=US".to_string(),
+                "-keyalg".to_string(),
+                "RSA".to_string(),
+                "-keysize".to_string(),
+                "2048".to_string(),
+                "-validity".to_string(),
+                "10000".to_string(),
+            ])
+            .secret(DEFAULT_DEBUG_PASSWORD),
+        tools,
+    );
     let output = process::run(&spec)?;
     // Keep the files alive until the child has exited.
     let _ = store_password.flush();
     let _ = key_password.flush();
+    if output.cancelled {
+        return Err(Error::runtime("keytool was cancelled"));
+    }
     if !output.success() {
         return Err(Error::infrastructure(format!(
             "Failed to generate debug keystore via keytool: {}",
@@ -926,6 +941,15 @@ pub fn ensure_debug_keystore(
     }
     set_private_permissions(&path)?;
     Ok(path)
+}
+
+/// Propagates the caller-owned cancellation flag, if any, to a child spec.
+/// Process-wide signal termination is applied by the adapter regardless.
+fn with_cancel(spec: ProcessSpec, tools: &DeploymentTools) -> ProcessSpec {
+    match &tools.cancel {
+        Some(flag) => spec.cancel(Arc::clone(flag)),
+        None => spec,
+    }
 }
 
 /// Aligns to 4 bytes (page-aligned when native libraries were rewritten),
@@ -951,10 +975,13 @@ pub fn zipalign_and_sign(
     if rewritten.is_some() {
         align_args.insert(1, "-p".to_string());
     }
-    let align_spec = ProcessSpec::new(zipalign).args(align_args);
+    let align_spec = with_cancel(ProcessSpec::new(zipalign).args(align_args), tools);
     let align_output = process::run(&align_spec)?;
     if let Some(path) = &rewritten {
         let _ = fs::remove_file(path);
+    }
+    if align_output.cancelled {
+        return Err(Error::runtime("zipalign was cancelled"));
     }
     if !align_output.success() {
         return Err(Error::infrastructure(format!(
@@ -968,24 +995,30 @@ pub fn zipalign_and_sign(
         .ok_or_else(|| Error::usage("Signed APK path has no parent directory"))?;
     let mut store_file = secret_file(parent, credentials.store_password())?;
     let mut key_file = secret_file(parent, credentials.key_password())?;
-    let sign_spec = ProcessSpec::new(apksigner)
-        .args([
-            "sign".to_string(),
-            "--ks".to_string(),
-            credentials.keystore.to_string_lossy().into_owned(),
-            "--ks-key-alias".to_string(),
-            credentials.alias.clone(),
-            "--ks-pass".to_string(),
-            format!("file:{}", store_file.path().display()),
-            "--key-pass".to_string(),
-            format!("file:{}", key_file.path().display()),
-            aligned_and_signed_apk.to_string_lossy().into_owned(),
-        ])
-        .secret(credentials.store_password())
-        .secret(credentials.key_password());
+    let sign_spec = with_cancel(
+        ProcessSpec::new(apksigner)
+            .args([
+                "sign".to_string(),
+                "--ks".to_string(),
+                credentials.keystore.to_string_lossy().into_owned(),
+                "--ks-key-alias".to_string(),
+                credentials.alias.clone(),
+                "--ks-pass".to_string(),
+                format!("file:{}", store_file.path().display()),
+                "--key-pass".to_string(),
+                format!("file:{}", key_file.path().display()),
+                aligned_and_signed_apk.to_string_lossy().into_owned(),
+            ])
+            .secret(credentials.store_password())
+            .secret(credentials.key_password()),
+        tools,
+    );
     let sign_output = process::run(&sign_spec)?;
     let _ = store_file.flush();
     let _ = key_file.flush();
+    if sign_output.cancelled {
+        return Err(Error::runtime("apksigner signing was cancelled"));
+    }
     if !sign_output.success() {
         return Err(Error::infrastructure(format!(
             "apksigner sign failed: {}",
@@ -995,17 +1028,23 @@ pub fn zipalign_and_sign(
     drop(store_file);
     drop(key_file);
 
-    let verify_spec = ProcessSpec::new(tools::find_build_tools_bin(
-        &tools.inspection.env,
-        "apksigner",
-    )?)
-    .args([
-        "verify".to_string(),
-        "--verbose".to_string(),
-        "--print-certs".to_string(),
-        aligned_and_signed_apk.to_string_lossy().into_owned(),
-    ]);
+    let verify_spec = with_cancel(
+        ProcessSpec::new(tools::find_build_tools_bin(
+            &tools.inspection.env,
+            "apksigner",
+        )?)
+        .args([
+            "verify".to_string(),
+            "--verbose".to_string(),
+            "--print-certs".to_string(),
+            aligned_and_signed_apk.to_string_lossy().into_owned(),
+        ]),
+        tools,
+    );
     let verify_output = process::run(&verify_spec)?;
+    if verify_output.cancelled {
+        return Err(Error::runtime("apksigner verification was cancelled"));
+    }
     if !verify_output.success() {
         return Err(Error::infrastructure(format!(
             "apksigner verify failed: {}",

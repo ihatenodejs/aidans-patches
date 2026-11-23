@@ -26,19 +26,45 @@ use crate::process::{self, ProcessSpec};
 use crate::tools::{
     default_repo_root, find_build_tools_bin, ToolEnvironment, ToolManager, ToolType,
 };
+use crate::workspace::validate_package_name;
 use serde::Deserialize;
-use std::future::Future;
 
-/// Drive a Play future without nesting a runtime. `ci run` executes this code
-/// from inside a multi-thread Tokio runtime; `block_in_place` moves the work to
-/// a blocking worker while preserving the existing reqwest/timer context.
-fn run_play<F: Future>(runtime: &tokio::runtime::Runtime, future: F) -> F::Output {
+/// Run one complete Play attempt on a runtime this helper creates and destroys.
+///
+/// `ci run` executes acquisition from inside a multi-thread Tokio runtime, and
+/// dropping a runtime from that asynchronous context can panic. When a handle
+/// exists, enter `block_in_place` and create, drive, and drop the current-thread
+/// runtime inside that blocking scope; otherwise do the same on the caller's
+/// thread. The runtime is dropped before the closure returns on both the success
+/// and error paths, so an attempt never leaks a background reactor.
+fn run_play_attempt<T, F>(operation: F) -> Result<T, Error>
+where
+    F: FnOnce(&tokio::runtime::Runtime) -> Result<T, Error>,
+{
+    let build = || {
+        tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .map_err(|error| {
+                Error::infrastructure(format!("could not create the Play runtime: {error}"))
+            })
+    };
+
     if tokio::runtime::Handle::try_current().is_ok() {
-        tokio::task::block_in_place(|| tokio::runtime::Handle::current().block_on(future))
+        tokio::task::block_in_place(|| {
+            let runtime = build()?;
+            let result = operation(&runtime);
+            drop(runtime);
+            result
+        })
     } else {
-        runtime.block_on(future)
+        let runtime = build()?;
+        let result = operation(&runtime);
+        drop(runtime);
+        result
     }
 }
+
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
@@ -47,7 +73,7 @@ use std::io::{self, Read, Write};
 #[cfg(unix)]
 use std::os::unix::fs::OpenOptionsExt;
 use std::path::{Path, PathBuf};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use zip::write::SimpleFileOptions;
 use zip::{CompressionMethod, DateTime, ZipWriter};
 
@@ -59,6 +85,10 @@ pub const FIXED_ZIP_DAY: u8 = 1;
 pub const STDERR_DIAGNOSTIC_LIMIT: usize = 300;
 /// Default bound for one provider subprocess.
 pub const DOWNLOAD_TIMEOUT: Duration = Duration::from_secs(180);
+/// The one deadline that bounds authentication, details, and download for a
+/// single Play attempt. Expiry is an infrastructure failure so account rotation
+/// and APKMirror fallback still run.
+pub const PLAY_ATTEMPT_TIMEOUT: Duration = Duration::from_secs(180);
 /// `apkeep` gives no timeout in the oracle; the native path still bounds it.
 pub const APKEEP_TIMEOUT: Duration = Duration::from_secs(600);
 /// Android profile sent to `apkeep`, matching the oracle exactly.
@@ -145,12 +175,12 @@ impl Default for RetryPolicy {
 
 /// Manifest reader seam used by normalization.
 pub trait ApkBadger {
-    fn badging(&self, apk: &Path) -> Result<AndroidManifestInfo, String>;
+    fn badging(&self, apk: &Path) -> Result<AndroidManifestInfo, Error>;
 }
 
 /// Narrow version-inspection seam used before promotion.
 pub trait ArtifactInspector {
-    fn version(&self, artifact: &Path) -> Result<ArtifactVersion, String>;
+    fn version(&self, artifact: &Path) -> Result<ArtifactVersion, Error>;
 }
 
 /// The two fields acquisition needs from a full artifact inspection.
@@ -659,7 +689,13 @@ pub fn normalize_apks_to_apkm(
             })?
             .to_string();
         let info = badger.badging(&apk).map_err(|error| {
-            Error::invalid_artifact(format!("Failed to inspect APK badging for {name}: {error}"))
+            error_like(
+                &error,
+                format!(
+                    "Failed to inspect APK badging for {name}: {}",
+                    error.message()
+                ),
+            )
         })?;
 
         match (&common_package, &common_code) {
@@ -844,21 +880,28 @@ impl HostApkBadger {
 }
 
 impl ApkBadger for HostApkBadger {
-    fn badging(&self, apk: &Path) -> Result<AndroidManifestInfo, String> {
-        let aapt2 = find_build_tools_bin(&self.env, "aapt2").map_err(|error| error.message())?;
+    fn badging(&self, apk: &Path) -> Result<AndroidManifestInfo, Error> {
+        let aapt2 = find_build_tools_bin(&self.env, "aapt2")?;
         let spec = ProcessSpec::new(aapt2)
             .arg("dump")
             .arg("badging")
             .arg(apk.to_string_lossy().into_owned())
             .timeout(self.timeout);
-        let output = process::run(&spec).map_err(|error| error.message())?;
+        let output = process::run(&spec)?;
+        if output.timed_out {
+            return Err(Error::usage(format!(
+                "aapt2 badging timed out after {:?}",
+                self.timeout
+            )));
+        }
         if !output.success() {
-            return Err(format!(
+            return Err(Error::usage(format!(
                 "Failed to dump APK badging with aapt2: {}",
                 sanitize_diagnostic(&output.stderr.text_lossy(), &Redactor::default())
-            ));
+            )));
         }
         inspection::parse_badging_text(&output.stdout.text_lossy())
+            .map_err(|error| Error::invalid_artifact(format!("Unparseable aapt2 badging: {error}")))
     }
 }
 
@@ -878,9 +921,8 @@ impl HostArtifactInspector {
 }
 
 impl ArtifactInspector for HostArtifactInspector {
-    fn version(&self, artifact: &Path) -> Result<ArtifactVersion, String> {
-        let inspection = inspection::inspect_artifact_with_options(artifact, &self.options)
-            .map_err(|error| error.message())?;
+    fn version(&self, artifact: &Path) -> Result<ArtifactVersion, Error> {
+        let inspection = inspection::inspect_artifact_with_options(artifact, &self.options)?;
         Ok(ArtifactVersion {
             version_name: inspection.version_name,
             version_code: inspection.version_code,
@@ -1060,7 +1102,10 @@ impl ApkeepProvider for ApkeepAcquirer<'_> {
         normalize_apks_to_apkm(&apks, &staged, self.badger)?;
         validate_version(
             self.inspector.version(&staged).map_err(|error| {
-                Error::invalid_artifact(format!("Failed to inspect downloaded APKM: {error}"))
+                error_like(
+                    &error,
+                    format!("Failed to inspect downloaded APKM: {}", error.message()),
+                )
             })?,
             request,
             VersionLabel::Apkeep,
@@ -1076,6 +1121,9 @@ pub struct PlayAcquirer<'a> {
     pub badger: &'a dyn ApkBadger,
     pub inspector: &'a dyn ArtifactInspector,
     pub dispenser_url: &'a str,
+    /// Total budget shared by authentication, details validation, and download
+    /// for one account attempt.
+    pub attempt_timeout: Duration,
 }
 
 impl PlayProvider for PlayAcquirer<'_> {
@@ -1089,18 +1137,7 @@ impl PlayProvider for PlayAcquirer<'_> {
             ),
         };
         let redactor = Redactor::for_account(&account);
-        let context = AuthContext {
-            mode,
-            oauth_token: None,
-            dispenser_url: self.dispenser_url,
-        };
-
-        let runtime = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .map_err(|error| {
-                Error::infrastructure(format!("could not create the Play runtime: {error}"))
-            })?;
+        let deadline = Instant::now() + self.attempt_timeout;
 
         fs::create_dir_all(request.out_dir).map_err(|error| {
             Error::io(
@@ -1112,53 +1149,27 @@ impl PlayProvider for PlayAcquirer<'_> {
             .prefix(&format!("goopdl-acc-{}-", sanitized_label(&label)))
             .tempdir_in(request.out_dir)
             .map_err(|error| Error::io("create Play attempt directory", error))?;
-
-        let mut session =
-            run_play(&runtime, self.backend.open(&account, &context)).map_err(|error| {
-                Error::infrastructure(format!(
-                    "goopdl [{label}] authentication failed: {}",
-                    sanitize_diagnostic(&error, &redactor)
-                ))
-            })?;
-
-        let details =
-            run_play(&runtime, session.details(request.package_name)).map_err(|error| {
-                Error::infrastructure(format!(
-                    "goopdl [{label}] details request failed: {}",
-                    sanitize_diagnostic(&error, &redactor)
-                ))
-            })?;
-
-        // A latest-version name expectation is checked before any bytes move.
-        // A requested historical code cannot be cross-checked against details;
-        // it is enforced after the download instead.
-        if request.expected_version_code.is_none() {
-            if let Some(expected) = request.expected_version {
-                if details.version_name != expected {
-                    return Err(Error::invalid_artifact(format!(
-                        "goopdl downloaded version '{}' != expected '{expected}'",
-                        details.version_name
-                    )));
-                }
-            }
-        }
-
         let download_dir = attempt.path().join("download");
         fs::create_dir_all(&download_dir)
             .map_err(|error| Error::io("create Play download directory", error))?;
-        let version_code = request
-            .expected_version_code
-            .map(|code| i64::try_from(code).unwrap_or(i64::MAX));
-        run_play(
-            &runtime,
-            session.download(request.package_name, version_code, &download_dir),
-        )
-        .map_err(|error| {
-            Error::infrastructure(format!(
-                "goopdl [{label}] download failed: {}",
-                sanitize_diagnostic(&error, &redactor)
-            ))
-        })?;
+
+        let context = AuthContext {
+            mode,
+            oauth_token: None,
+            dispenser_url: self.dispenser_url,
+            timeout: deadline.saturating_duration_since(Instant::now()),
+        };
+        let play_attempt = PlayAttempt {
+            request,
+            account: &account,
+            context: &context,
+            label: &label,
+            redactor: &redactor,
+            download_dir: &download_dir,
+            deadline,
+        };
+
+        run_play_attempt(|runtime| runtime.block_on(self.play_attempt(&play_attempt)))?;
 
         let apks = collect_apk_files(&download_dir)?;
         if apks.is_empty() {
@@ -1174,13 +1185,104 @@ impl PlayProvider for PlayAcquirer<'_> {
         normalize_apks_to_apkm(&apks, &staged, self.badger)?;
         validate_version(
             self.inspector.version(&staged).map_err(|error| {
-                Error::invalid_artifact(format!("Failed to inspect downloaded APKM: {error}"))
+                error_like(
+                    &error,
+                    format!("Failed to inspect downloaded APKM: {}", error.message()),
+                )
             })?,
             request,
             VersionLabel::Goopdl,
         )?;
         promote(&staged, &advertised_apkm(request))
     }
+}
+
+/// Inputs shared by every stage of one Play attempt.
+#[derive(Clone, Copy)]
+struct PlayAttempt<'a> {
+    request: &'a ProviderRequest<'a>,
+    account: &'a AccountConfig,
+    context: &'a AuthContext<'a>,
+    label: &'a str,
+    redactor: &'a Redactor,
+    download_dir: &'a Path,
+    deadline: Instant,
+}
+
+impl PlayAcquirer<'_> {
+    /// Drives authentication, details validation, and download inside the one
+    /// runtime owned by [`run_play_attempt`], under a single attempt deadline.
+    async fn play_attempt(&self, attempt: &PlayAttempt<'_>) -> Result<(), Error> {
+        let PlayAttempt {
+            request,
+            account,
+            context,
+            label,
+            redactor,
+            download_dir,
+            deadline,
+        } = *attempt;
+        let open = self.backend.open(account, context);
+        let mut session = match tokio::time::timeout(remaining(deadline), open).await {
+            Ok(Ok(session)) => session,
+            Ok(Err(error)) => {
+                return Err(Error::infrastructure(format!(
+                    "goopdl [{label}] authentication failed: {}",
+                    sanitize_diagnostic(&error, redactor)
+                )))
+            }
+            Err(_) => return Err(play_timeout(label, "authentication", self.attempt_timeout)),
+        };
+
+        let details = session.details(request.package_name);
+        let details = match tokio::time::timeout(remaining(deadline), details).await {
+            Ok(Ok(details)) => details,
+            Ok(Err(error)) => {
+                return Err(Error::infrastructure(format!(
+                    "goopdl [{label}] details request failed: {}",
+                    sanitize_diagnostic(&error, redactor)
+                )))
+            }
+            Err(_) => return Err(play_timeout(label, "details", self.attempt_timeout)),
+        };
+
+        // A latest-version name expectation is checked before any bytes move.
+        // A requested historical code cannot be cross-checked against details;
+        // it is enforced after the download instead.
+        if request.expected_version_code.is_none() {
+            if let Some(expected) = request.expected_version {
+                if details.version_name != expected {
+                    return Err(Error::invalid_artifact(format!(
+                        "goopdl downloaded version '{}' != expected '{expected}'",
+                        details.version_name
+                    )));
+                }
+            }
+        }
+
+        let version_code = request
+            .expected_version_code
+            .map(|code| i64::try_from(code).unwrap_or(i64::MAX));
+        let download = session.download(request.package_name, version_code, download_dir);
+        match tokio::time::timeout(remaining(deadline), download).await {
+            Ok(Ok(())) => Ok(()),
+            Ok(Err(error)) => Err(Error::infrastructure(format!(
+                "goopdl [{label}] download failed: {}",
+                sanitize_diagnostic(&error, redactor)
+            ))),
+            Err(_) => Err(play_timeout(label, "download", self.attempt_timeout)),
+        }
+    }
+}
+
+fn remaining(deadline: Instant) -> Duration {
+    deadline.saturating_duration_since(Instant::now())
+}
+
+fn play_timeout(label: &str, stage: &str, timeout: Duration) -> Error {
+    Error::infrastructure(format!(
+        "goopdl [{label}] {stage} timed out after {timeout:?}"
+    ))
 }
 
 /// APKMirror provider. The existing CJS runner and mappings are retained; the
@@ -1272,7 +1374,10 @@ impl ApkmirrorProvider for ApkmirrorAcquirer<'_> {
             normalize_apks_to_apkm(&apks, &staged, self.badger)?;
             validate_version(
                 self.inspector.version(&staged).map_err(|error| {
-                    Error::invalid_artifact(format!("Failed to inspect downloaded APKM: {error}"))
+                    error_like(
+                        &error,
+                        format!("Failed to inspect downloaded APKM: {}", error.message()),
+                    )
                 })?,
                 request,
                 VersionLabel::Apkmirror,
@@ -1285,7 +1390,10 @@ impl ApkmirrorProvider for ApkmirrorAcquirer<'_> {
             normalize_apks_to_apkm(std::slice::from_ref(&downloaded), &staged, self.badger)?;
             validate_version(
                 self.inspector.version(&staged).map_err(|error| {
-                    Error::invalid_artifact(format!("Failed to inspect downloaded APKM: {error}"))
+                    error_like(
+                        &error,
+                        format!("Failed to inspect downloaded APKM: {}", error.message()),
+                    )
                 })?,
                 request,
                 VersionLabel::Apkmirror,
@@ -1297,7 +1405,10 @@ impl ApkmirrorProvider for ApkmirrorAcquirer<'_> {
                 .map_err(|error| Error::io("copy downloaded APK", error))?;
             validate_version(
                 self.inspector.version(&staged).map_err(|error| {
-                    Error::invalid_artifact(format!("Failed to inspect downloaded APK: {error}"))
+                    error_like(
+                        &error,
+                        format!("Failed to inspect downloaded APK: {}", error.message()),
+                    )
                 })?,
                 request,
                 VersionLabel::Apkmirror,
@@ -1327,6 +1438,7 @@ impl Acquirer<'_> {
         accounts: Option<&[AccountConfig]>,
         accounts_error: Option<&str>,
     ) -> Result<AcquiredArtifact, Error> {
+        validate_acquisition_package_name(request.package_name)?;
         let enabled: Vec<&AccountConfig> = accounts
             .unwrap_or_default()
             .iter()
@@ -1448,6 +1560,15 @@ impl Acquirer<'_> {
     }
 }
 
+fn validate_acquisition_package_name(package_name: &str) -> Result<(), Error> {
+    validate_package_name(package_name).map_err(|error| {
+        Error::usage(format!(
+            "Invalid package name {package_name:?}: {}. Package names must be a single path component without separators or NUL bytes",
+            error.message()
+        ))
+    })
+}
+
 /// Production entry point. Account load failures are recorded but do not stop
 /// the dispenser or APKMirror fallbacks, matching the oracle.
 pub fn acquire_artifact(
@@ -1456,6 +1577,7 @@ pub fn acquire_artifact(
     expected_version: Option<&str>,
     expected_version_code: Option<u64>,
 ) -> Result<AcquiredArtifact, Error> {
+    validate_acquisition_package_name(package_name)?;
     fs::create_dir_all(out_dir).map_err(|error| {
         Error::io(
             format!("create output directory {}", out_dir.display()),
@@ -1498,6 +1620,7 @@ pub fn acquire_artifact(
         badger: &badger,
         inspector: &inspector,
         dispenser_url: DEFAULT_DISPENSER_URL,
+        attempt_timeout: PLAY_ATTEMPT_TIMEOUT,
     };
     let apkmirror = ApkmirrorAcquirer {
         runtime: &node,

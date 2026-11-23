@@ -12,8 +12,66 @@
 
 use serde::{Deserialize, Serialize};
 use std::future::Future;
+use std::io::Read;
 use std::path::Path;
 use std::pin::Pin;
+use std::time::Duration;
+
+use crate::error::Error;
+
+/// Hard upper bound for one dispenser HTTP response body.
+///
+/// The dispenser returns a small JSON document; anything larger is hostile or
+/// broken and must not be buffered without limit.
+pub const MAX_DISPENSER_RESPONSE_BYTES: usize = 1024 * 1024;
+
+/// Reads a dispenser response body without ever buffering more than `limit`
+/// bytes. One extra byte is probed to distinguish an exact-limit body from an
+/// oversized one; an endless stream therefore stops at `limit + 1` reads.
+///
+/// # Errors
+///
+/// Returns an infrastructure error when the stream exceeds `limit`, fails to
+/// read, or is not valid UTF-8.
+pub fn read_dispenser_response(mut reader: impl Read, limit: usize) -> Result<String, Error> {
+    let mut bytes = Vec::new();
+    let mut buffer = [0_u8; 8 * 1024];
+    loop {
+        if bytes.len() == limit {
+            let mut probe = [0_u8; 1];
+            return match reader.read(&mut probe) {
+                Ok(0) => String::from_utf8(bytes).map_err(|error| {
+                    Error::infrastructure(format!(
+                        "dispenser response was not valid UTF-8: {error}"
+                    ))
+                }),
+                Ok(_) => Err(Error::infrastructure(format!(
+                    "dispenser response exceeded the {limit}-byte limit"
+                ))),
+                Err(error) => Err(Error::infrastructure(format!(
+                    "dispenser response body could not be read: {error}"
+                ))),
+            };
+        }
+        let remaining = limit - bytes.len();
+        let want = remaining.min(buffer.len());
+        match reader.read(&mut buffer[..want]) {
+            Ok(0) => {
+                return String::from_utf8(bytes).map_err(|error| {
+                    Error::infrastructure(format!(
+                        "dispenser response was not valid UTF-8: {error}"
+                    ))
+                })
+            }
+            Ok(read) => bytes.extend_from_slice(&buffer[..read]),
+            Err(error) => {
+                return Err(Error::infrastructure(format!(
+                    "dispenser response body could not be read: {error}"
+                )))
+            }
+        }
+    }
+}
 
 const DISPENSER_USER_AGENT: &str = "com.aurora.store-4.6.1-70";
 const DEFAULT_DEVICE: &str = "px_9a";
@@ -87,12 +145,15 @@ pub struct VersionInfo {
 }
 
 /// Authentication material supplied to the provider boundary. `oauth_token`
-/// is only present in OAuth mode and is never retained in a report.
+/// is only present in OAuth mode and is never retained in a report. `timeout`
+/// is the remaining attempt budget; the blocking dispenser call enforces it so
+/// an unresponsive HTTP peer cannot outlive the attempt deadline.
 #[derive(Clone, Copy)]
 pub struct AuthContext<'a> {
     pub mode: Mode,
     pub oauth_token: Option<&'a str>,
     pub dispenser_url: &'a str,
+    pub timeout: Duration,
 }
 
 /// Provider seam. `open` performs authentication and returns one session so
@@ -117,24 +178,51 @@ pub trait PlaySession {
     ) -> BoxFuture<'a, Result<(), String>>;
 }
 
-/// Blocking HTTP boundary for the dispenser, injectable in tests.
+/// Blocking HTTP boundary for the dispenser, injectable in tests. `timeout` is
+/// the remaining attempt budget and must bound the whole request, including
+/// reading the response body.
 pub trait DispenserHttp {
-    fn post(&self, url: &str, user_agent: &str, body: &str) -> Result<String, String>;
+    fn post(
+        &self,
+        url: &str,
+        user_agent: &str,
+        body: &str,
+        timeout: Duration,
+    ) -> Result<String, String>;
 }
 
 struct UreqDispenserHttp;
 
 impl DispenserHttp for UreqDispenserHttp {
-    fn post(&self, url: &str, user_agent: &str, body: &str) -> Result<String, String> {
-        let mut response = ureq::post(url)
+    fn post(
+        &self,
+        url: &str,
+        user_agent: &str,
+        body: &str,
+        timeout: Duration,
+    ) -> Result<String, String> {
+        let agent: ureq::Agent = ureq::Agent::config_builder()
+            .timeout_global(Some(timeout))
+            .build()
+            .into();
+        let mut response = agent
+            .post(url)
             .header("user-agent", user_agent)
             .header("content-type", "application/json")
             .send(body)
-            .map_err(|error| format!("dispenser HTTP request failed: {error}"))?;
-        response
+            .map_err(|error| match error {
+                ureq::Error::Timeout(_) => {
+                    format!("dispenser HTTP request exceeded the {timeout:?} timeout")
+                }
+                other => format!("dispenser HTTP request failed: {other}"),
+            })?;
+        let reader = response
             .body_mut()
-            .read_to_string()
-            .map_err(|error| format!("dispenser response body could not be read: {error}"))
+            .with_config()
+            .limit(MAX_DISPENSER_RESPONSE_BYTES as u64 + 1)
+            .reader();
+        read_dispenser_response(reader, MAX_DISPENSER_RESPONSE_BYTES)
+            .map_err(|error| error.message())
     }
 }
 
@@ -155,8 +243,8 @@ impl GpapiBackend {
         Self { http }
     }
 
-    fn dispense(&self, url: &str) -> Result<String, String> {
-        dispense_auth_token(self.http.as_ref(), url)
+    fn dispense(&self, url: &str, timeout: Duration) -> Result<String, String> {
+        dispense_auth_token(self.http.as_ref(), url, timeout)
     }
 }
 
@@ -192,7 +280,7 @@ impl PlayBackend for GpapiBackend {
                         .map_err(|error| format!("OAuth token exchange failed: {error}"))?;
                 }
                 Mode::Dispenser => {
-                    let auth_token = self.dispense(auth.dispenser_url)?;
+                    let auth_token = self.dispense(auth.dispenser_url, auth.timeout)?;
                     api.set_auth_token(auth_token);
                 }
             }
@@ -265,8 +353,12 @@ impl PlaySession for GpapiSession {
     }
 }
 
-fn dispense_auth_token(http: &dyn DispenserHttp, url: &str) -> Result<String, String> {
-    let body = http.post(url, DISPENSER_USER_AGENT, DISPENSER_PROFILE)?;
+fn dispense_auth_token(
+    http: &dyn DispenserHttp,
+    url: &str,
+    timeout: Duration,
+) -> Result<String, String> {
+    let body = http.post(url, DISPENSER_USER_AGENT, DISPENSER_PROFILE, timeout)?;
     let parsed: serde_json::Value = serde_json::from_str(&body)
         .map_err(|error| format!("dispenser response was not valid JSON: {error}"))?;
     parsed
@@ -288,7 +380,13 @@ mod tests {
     }
 
     impl DispenserHttp for FakeHttp {
-        fn post(&self, _url: &str, _user_agent: &str, _body: &str) -> Result<String, String> {
+        fn post(
+            &self,
+            _url: &str,
+            _user_agent: &str,
+            _body: &str,
+            _timeout: Duration,
+        ) -> Result<String, String> {
             self.result.clone()
         }
     }
@@ -360,7 +458,7 @@ mod tests {
             result: Ok(r#"{"authToken":"  ya29.test-token  "}"#.to_string()),
         };
         assert_eq!(
-            dispense_auth_token(&http, DEFAULT_DISPENSER_URL).unwrap(),
+            dispense_auth_token(&http, DEFAULT_DISPENSER_URL, Duration::from_secs(5)).unwrap(),
             "ya29.test-token"
         );
     }
@@ -370,7 +468,12 @@ mod tests {
         let http = FakeHttp {
             result: Ok("not json".to_string()),
         };
-        let error = dispense_auth_token(&http, DEFAULT_DISPENSER_URL).unwrap_err();
+        let error = dispense_auth_token(
+            &http,
+            DEFAULT_DISPENSER_URL,
+            Duration::from_secs(5),
+        )
+        .unwrap_err();
         assert!(error.contains("valid JSON"), "unexpected error: {error}");
     }
 
@@ -379,7 +482,12 @@ mod tests {
         let http = FakeHttp {
             result: Ok(r#"{"token":"ignored"}"#.to_string()),
         };
-        let error = dispense_auth_token(&http, DEFAULT_DISPENSER_URL).unwrap_err();
+        let error = dispense_auth_token(
+            &http,
+            DEFAULT_DISPENSER_URL,
+            Duration::from_secs(5),
+        )
+        .unwrap_err();
         assert!(error.contains("authToken"), "unexpected error: {error}");
     }
 
@@ -388,7 +496,12 @@ mod tests {
         let http = FakeHttp {
             result: Ok(r#"{"authToken":"   "}"#.to_string()),
         };
-        let error = dispense_auth_token(&http, DEFAULT_DISPENSER_URL).unwrap_err();
+        let error = dispense_auth_token(
+            &http,
+            DEFAULT_DISPENSER_URL,
+            Duration::from_secs(5),
+        )
+        .unwrap_err();
         assert!(error.contains("authToken"), "unexpected error: {error}");
     }
 
@@ -397,7 +510,12 @@ mod tests {
         let http = FakeHttp {
             result: Err("connection refused".to_string()),
         };
-        let error = dispense_auth_token(&http, DEFAULT_DISPENSER_URL).unwrap_err();
+        let error = dispense_auth_token(
+            &http,
+            DEFAULT_DISPENSER_URL,
+            Duration::from_secs(5),
+        )
+        .unwrap_err();
         assert!(error.contains("connection refused"));
     }
 
@@ -407,7 +525,9 @@ mod tests {
             result: Ok(r#"{"authToken":"ya29.test-token"}"#.to_string()),
         }));
         assert_eq!(
-            backend.dispense(DEFAULT_DISPENSER_URL).unwrap(),
+            backend
+                .dispense(DEFAULT_DISPENSER_URL, Duration::from_secs(5))
+                .unwrap(),
             "ya29.test-token"
         );
 

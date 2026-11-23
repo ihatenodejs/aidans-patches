@@ -5,7 +5,7 @@
 //! `uv`, `goopdl`, a real device, a network service, or an Android build tool.
 
 use apk_lab::acquisition::{
-    apkmirror_mapping, build_apkeep_args, build_apkmirror_args, load_accounts,
+    acquire_artifact, apkmirror_mapping, build_apkeep_args, build_apkmirror_args, load_accounts,
     normalize_apks_to_apkm, parse_accounts_document, AccountConfig, AccountsEnvironment,
     AcquiredArtifact, Acquirer, ApkBadger, ApkeepAcquirer, ApkeepProvider, ApkeepTool,
     ApkmirrorAcquirer, ApkmirrorProvider, ArtifactInspector, ArtifactVersion, CommandOutcome,
@@ -15,8 +15,11 @@ use apk_lab::acquisition::{
 use apk_lab::error::Error;
 use apk_lab::models::{AndroidManifestInfo, ExitCode};
 use apk_lab::play::{
-    AccountConfig as PlayAccountConfig, AuthContext, PlayBackend, PlaySession, VersionInfo,
+    read_dispenser_response, AccountConfig as PlayAccountConfig, AuthContext, PlayBackend,
+    PlaySession, VersionInfo, MAX_DISPENSER_RESPONSE_BYTES,
 };
+use apk_lab::process::ProcessSpec;
+use apk_lab::workspace::validate_package_name;
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::fs;
@@ -24,7 +27,7 @@ use std::future::Future;
 use std::io::{Cursor, Read, Write};
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tempfile::TempDir;
 use zip::write::SimpleFileOptions;
 use zip::{CompressionMethod, ZipArchive, ZipWriter};
@@ -121,7 +124,7 @@ fn dir_entries(path: &Path) -> Vec<String> {
 #[derive(Default)]
 struct FakeBadger {
     infos: HashMap<String, AndroidManifestInfo>,
-    failures: HashMap<String, String>,
+    failures: HashMap<String, Error>,
 }
 
 impl FakeBadger {
@@ -165,7 +168,7 @@ impl FakeBadger {
 }
 
 impl ApkBadger for FakeBadger {
-    fn badging(&self, apk: &Path) -> Result<AndroidManifestInfo, String> {
+    fn badging(&self, apk: &Path) -> Result<AndroidManifestInfo, Error> {
         let name = apk
             .file_name()
             .map(|name| name.to_string_lossy().into_owned())
@@ -176,13 +179,13 @@ impl ApkBadger for FakeBadger {
         self.infos
             .get(&name)
             .cloned()
-            .ok_or_else(|| format!("no fake badging for {name}"))
+            .ok_or_else(|| Error::invalid_artifact(format!("no fake badging for {name}")))
     }
 }
 
 struct FakeInspector {
     version: ArtifactVersion,
-    failure: Option<String>,
+    failure: Option<Error>,
     seen: RefCell<Vec<PathBuf>>,
 }
 
@@ -200,12 +203,19 @@ impl FakeInspector {
 }
 
 impl ArtifactInspector for FakeInspector {
-    fn version(&self, artifact: &Path) -> Result<ArtifactVersion, String> {
+    fn version(&self, artifact: &Path) -> Result<ArtifactVersion, Error> {
         self.seen.borrow_mut().push(artifact.to_path_buf());
         match &self.failure {
             Some(error) => Err(error.clone()),
             None => Ok(self.version.clone()),
         }
+    }
+}
+
+impl FakeInspector {
+    fn failing(mut self, error: Error) -> Self {
+        self.failure = Some(error);
+        self
     }
 }
 
@@ -443,6 +453,11 @@ struct FakePlayBackend {
     details: Result<VersionInfo, String>,
     behavior: DownloadBehavior,
     download_calls: Cell<usize>,
+    open_calls: Cell<usize>,
+    open_pending: bool,
+    pending_open_attempt: Option<usize>,
+    details_pending: bool,
+    download_pending: bool,
 }
 
 impl FakePlayBackend {
@@ -454,7 +469,36 @@ impl FakePlayBackend {
             }),
             behavior,
             download_calls: Cell::new(0),
+            open_calls: Cell::new(0),
+            open_pending: false,
+            pending_open_attempt: None,
+            details_pending: false,
+            download_pending: false,
         }
+    }
+
+    fn pending_open(mut self) -> Self {
+        self.open_pending = true;
+        self
+    }
+
+    fn pending_open_attempt(mut self, attempt: usize) -> Self {
+        self.pending_open_attempt = Some(attempt);
+        self
+    }
+
+    fn pending_details(mut self) -> Self {
+        self.details_pending = true;
+        self
+    }
+
+    fn pending_download(mut self) -> Self {
+        self.download_pending = true;
+        self
+    }
+
+    fn open_calls(&self) -> usize {
+        self.open_calls.get()
     }
 }
 
@@ -469,6 +513,11 @@ impl PlayBackend for FakePlayBackend {
         _auth: &'a AuthContext<'a>,
     ) -> Pin<Box<dyn Future<Output = Result<Box<dyn PlaySession + 'a>, String>> + 'a>> {
         Box::pin(async move {
+            let attempt = self.open_calls.get();
+            self.open_calls.set(attempt + 1);
+            if self.open_pending || self.pending_open_attempt == Some(attempt) {
+                tokio::time::sleep(Duration::from_secs(3600)).await;
+            }
             Ok(Box::new(FakePlaySession { backend: self }) as Box<dyn PlaySession + 'a>)
         })
     }
@@ -479,7 +528,12 @@ impl PlaySession for FakePlaySession<'_> {
         &'a mut self,
         _package: &'a str,
     ) -> Pin<Box<dyn Future<Output = Result<VersionInfo, String>> + 'a>> {
-        Box::pin(async move { self.backend.details.clone() })
+        Box::pin(async move {
+            if self.backend.details_pending {
+                tokio::time::sleep(Duration::from_secs(3600)).await;
+            }
+            self.backend.details.clone()
+        })
     }
 
     fn download<'a>(
@@ -492,6 +546,9 @@ impl PlaySession for FakePlaySession<'_> {
             self.backend
                 .download_calls
                 .set(self.backend.download_calls.get() + 1);
+            if self.backend.download_pending {
+                tokio::time::sleep(Duration::from_secs(3600)).await;
+            }
             fs::create_dir_all(dest).map_err(|error| error.to_string())?;
             match &self.backend.behavior {
                 DownloadBehavior::WriteBase => fs::write(dest.join("base.apk"), b"play-base")
@@ -677,6 +734,7 @@ fn wrong_version_from_play_details_is_rejected_before_download() {
         badger: &badger,
         inspector: &inspector,
         dispenser_url: "https://dispenser.invalid/api/auth",
+        attempt_timeout: Duration::from_secs(5),
     };
     let mut request = request(&out);
     request.expected_version = Some("1.0.0");
@@ -703,6 +761,7 @@ fn partial_download_leaves_no_advertised_output() {
         badger: &badger,
         inspector: &inspector,
         dispenser_url: "https://dispenser.invalid/api/auth",
+        attempt_timeout: Duration::from_secs(5),
     };
     let error = provider
         .download(&request(&out), PlayAuth::Dispenser)
@@ -718,9 +777,10 @@ fn malformed_download_fails_and_is_removed() {
     let out = dir.path().join("out");
     fs::create_dir_all(&out).expect("out dir");
     let mut badger = FakeBadger::default();
-    badger
-        .failures
-        .insert("base.apk".to_string(), "bad manifest".to_string());
+    badger.failures.insert(
+        "base.apk".to_string(),
+        Error::invalid_artifact("bad manifest"),
+    );
     let inspector = FakeInspector::new("1.0.0", 100);
     let backend = FakePlayBackend::new("1.0.0", 100, DownloadBehavior::WriteBase);
     let provider = PlayAcquirer {
@@ -728,6 +788,7 @@ fn malformed_download_fails_and_is_removed() {
         badger: &badger,
         inspector: &inspector,
         dispenser_url: "https://dispenser.invalid/api/auth",
+        attempt_timeout: Duration::from_secs(5),
     };
     let error = provider
         .download(&request(&out), PlayAuth::Dispenser)
@@ -738,6 +799,188 @@ fn malformed_download_fails_and_is_removed() {
     );
     assert_eq!(error.exit_code(), ExitCode::InvalidArtifact);
     assert_eq!(dir_entries(&out), Vec::<String>::new());
+}
+
+const TEST_ATTEMPT_TIMEOUT: Duration = Duration::from_millis(50);
+
+#[test]
+fn play_download_completes_inside_an_existing_tokio_runtime() {
+    let dir = TempDir::new().expect("temp dir");
+    let out = dir.path().join("out");
+    fs::create_dir_all(&out).expect("out dir");
+    let badger = FakeBadger::base("base.apk");
+    let inspector = FakeInspector::new("1.0.0", 100);
+    let backend = FakePlayBackend::new("1.0.0", 100, DownloadBehavior::WriteBase);
+    let provider = PlayAcquirer {
+        backend: &backend,
+        badger: &badger,
+        inspector: &inspector,
+        dispenser_url: "https://dispenser.invalid/api/auth",
+        attempt_timeout: Duration::from_secs(5),
+    };
+    let account = account("primary", "aas_et/token", true);
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+        .expect("tokio runtime");
+    let path = runtime
+        .block_on(async { provider.download(&request(&out), PlayAuth::Direct(&account)) })
+        .expect("download inside runtime");
+    assert_eq!(path, out.join(format!("{PACKAGE}.apkm")));
+    assert_eq!(backend.open_calls(), 1);
+}
+
+#[test]
+fn authentication_deadline_returns_infrastructure_with_stage() {
+    let dir = TempDir::new().expect("temp dir");
+    let out = dir.path().join("out");
+    fs::create_dir_all(&out).expect("out dir");
+    let badger = FakeBadger::base("base.apk");
+    let inspector = FakeInspector::new("1.0.0", 100);
+    let backend =
+        FakePlayBackend::new("1.0.0", 100, DownloadBehavior::WriteBase).pending_open();
+    let provider = PlayAcquirer {
+        backend: &backend,
+        badger: &badger,
+        inspector: &inspector,
+        dispenser_url: "https://dispenser.invalid/api/auth",
+        attempt_timeout: TEST_ATTEMPT_TIMEOUT,
+    };
+    let account = account("primary", "aas_et/token", true);
+    let started = Instant::now();
+    let error = provider
+        .download(&request(&out), PlayAuth::Direct(&account))
+        .expect_err("authentication hangs");
+    assert!(started.elapsed() < Duration::from_secs(1));
+    assert_eq!(error.exit_code(), ExitCode::InfrastructureFailure);
+    assert!(error.message().contains("authentication"), "{error}");
+    assert!(error.message().contains("timed out"), "{error}");
+    assert_eq!(backend.open_calls(), 1);
+    assert_eq!(backend.download_calls.get(), 0);
+}
+
+#[test]
+fn details_deadline_returns_infrastructure_with_stage() {
+    let dir = TempDir::new().expect("temp dir");
+    let out = dir.path().join("out");
+    fs::create_dir_all(&out).expect("out dir");
+    let badger = FakeBadger::base("base.apk");
+    let inspector = FakeInspector::new("1.0.0", 100);
+    let backend =
+        FakePlayBackend::new("1.0.0", 100, DownloadBehavior::WriteBase).pending_details();
+    let provider = PlayAcquirer {
+        backend: &backend,
+        badger: &badger,
+        inspector: &inspector,
+        dispenser_url: "https://dispenser.invalid/api/auth",
+        attempt_timeout: TEST_ATTEMPT_TIMEOUT,
+    };
+    let account = account("primary", "aas_et/token", true);
+    let started = Instant::now();
+    let error = provider
+        .download(&request(&out), PlayAuth::Direct(&account))
+        .expect_err("details hangs");
+    assert!(started.elapsed() < Duration::from_secs(1));
+    assert_eq!(error.exit_code(), ExitCode::InfrastructureFailure);
+    assert!(error.message().contains("details"), "{error}");
+    assert!(error.message().contains("timed out"), "{error}");
+    assert_eq!(backend.download_calls.get(), 0);
+}
+
+#[test]
+fn download_deadline_returns_infrastructure_with_stage() {
+    let dir = TempDir::new().expect("temp dir");
+    let out = dir.path().join("out");
+    fs::create_dir_all(&out).expect("out dir");
+    let badger = FakeBadger::base("base.apk");
+    let inspector = FakeInspector::new("1.0.0", 100);
+    let backend =
+        FakePlayBackend::new("1.0.0", 100, DownloadBehavior::WriteBase).pending_download();
+    let provider = PlayAcquirer {
+        backend: &backend,
+        badger: &badger,
+        inspector: &inspector,
+        dispenser_url: "https://dispenser.invalid/api/auth",
+        attempt_timeout: TEST_ATTEMPT_TIMEOUT,
+    };
+    let account = account("primary", "aas_et/token", true);
+    let started = Instant::now();
+    let error = provider
+        .download(&request(&out), PlayAuth::Direct(&account))
+        .expect_err("download hangs");
+    assert!(started.elapsed() < Duration::from_secs(1));
+    assert_eq!(error.exit_code(), ExitCode::InfrastructureFailure);
+    assert!(error.message().contains("download"), "{error}");
+    assert!(error.message().contains("timed out"), "{error}");
+    assert_eq!(backend.download_calls.get(), 1);
+}
+
+#[test]
+fn timed_out_first_account_rotates_to_the_second() {
+    let dir = TempDir::new().expect("temp dir");
+    let out = dir.path().join("out");
+    fs::create_dir_all(&out).expect("out dir");
+    let badger = FakeBadger::base("base.apk");
+    let inspector = FakeInspector::new("1.0.0", 100);
+    let backend =
+        FakePlayBackend::new("1.0.0", 100, DownloadBehavior::WriteBase).pending_open_attempt(0);
+    let provider = PlayAcquirer {
+        backend: &backend,
+        badger: &badger,
+        inspector: &inspector,
+        dispenser_url: "https://dispenser.invalid/api/auth",
+        attempt_timeout: TEST_ATTEMPT_TIMEOUT,
+    };
+    let accounts = vec![
+        account("primary", "aas_et/one", true),
+        account("secondary", "aas_et/two", true),
+    ];
+    let acquirer = Acquirer {
+        apkeep: None,
+        play: Some(&provider),
+        apkmirror: None,
+        retry: RetryPolicy::default(),
+    };
+    let acquired = acquirer
+        .acquire(&request(&out), Some(&accounts), None)
+        .expect("second account succeeds");
+    assert_eq!(acquired.source.label(), "goopdl");
+    assert_eq!(backend.open_calls(), 2);
+    assert_eq!(backend.download_calls.get(), 1);
+}
+
+#[test]
+fn timed_out_play_attempt_falls_back_to_apkmirror() {
+    let dir = TempDir::new().expect("temp dir");
+    let out = dir.path().join("out");
+    fs::create_dir_all(&out).expect("out dir");
+    let badger = FakeBadger::base("base.apk");
+    let inspector = FakeInspector::new("1.0.0", 100);
+    let backend = FakePlayBackend::new("1.0.0", 100, DownloadBehavior::WriteBase).pending_open();
+    let provider = PlayAcquirer {
+        backend: &backend,
+        badger: &badger,
+        inspector: &inspector,
+        dispenser_url: "https://dispenser.invalid/api/auth",
+        attempt_timeout: TEST_ATTEMPT_TIMEOUT,
+    };
+    let mirror = ScriptedApkmirror {
+        outcome: Ok(()),
+        calls: Cell::new(0),
+    };
+    let accounts = vec![account("primary", "aas_et/one", true)];
+    let acquirer = Acquirer {
+        apkeep: None,
+        play: Some(&provider),
+        apkmirror: Some(&mirror),
+        retry: RetryPolicy::default(),
+    };
+    let acquired = acquirer
+        .acquire(&request(&out), Some(&accounts), None)
+        .expect("apkmirror fallback succeeds");
+    assert_eq!(acquired.source.label(), "apkmirror");
+    assert_eq!(backend.open_calls(), 1);
+    assert_eq!(mirror.calls.get(), 1);
 }
 
 // ---------------------------------------------------------------------------
@@ -1410,4 +1653,227 @@ fn no_python_uv_or_goopdl_program_is_ever_invoked() {
             "{program}"
         );
     }
+}
+
+// ---------------------------------------------------------------------------
+// Tests: typed inspection seams
+// ---------------------------------------------------------------------------
+
+fn play_provider<'a>(
+    badger: &'a FakeBadger,
+    inspector: &'a FakeInspector,
+    backend: &'a FakePlayBackend,
+) -> PlayAcquirer<'a> {
+    PlayAcquirer {
+        backend,
+        badger,
+        inspector,
+        dispenser_url: "https://dispenser.invalid/api/auth",
+        attempt_timeout: Duration::from_secs(5),
+    }
+}
+
+#[test]
+fn missing_badging_tool_is_a_usage_failure_not_an_invalid_artifact() {
+    let dir = TempDir::new().expect("temp dir");
+    let out = dir.path().join("out");
+    fs::create_dir_all(&out).expect("out dir");
+    let mut badger = FakeBadger::default();
+    badger.failures.insert(
+        "base.apk".to_string(),
+        Error::usage("Android build tool 'aapt2' not found"),
+    );
+    let inspector = FakeInspector::new("1.0.0", 100);
+    let backend = FakePlayBackend::new("1.0.0", 100, DownloadBehavior::WriteBase);
+    let provider = play_provider(&badger, &inspector, &backend);
+
+    let error = provider
+        .download(&request(&out), PlayAuth::Dispenser)
+        .expect_err("missing aapt2");
+    assert!(
+        error.message().contains("Failed to inspect APK badging"),
+        "{error}"
+    );
+    assert!(error.message().contains("aapt2"), "{error}");
+    assert_eq!(error.exit_code(), ExitCode::UsageOrToolError);
+    assert_ne!(error.exit_code(), ExitCode::InvalidArtifact);
+
+    let acquirer = Acquirer {
+        apkeep: None,
+        play: Some(&provider),
+        apkmirror: None,
+        retry: RetryPolicy::default(),
+    };
+    let error = acquirer
+        .acquire(&request(&out), Some(&[] as &[AccountConfig]), None)
+        .expect_err("aggregate keeps usage class");
+    assert_eq!(error.exit_code(), ExitCode::UsageOrToolError);
+    assert!(error.message().contains("aapt2"), "{error}");
+}
+
+#[test]
+fn host_inspection_failure_stays_infrastructure() {
+    let dir = TempDir::new().expect("temp dir");
+    let out = dir.path().join("out");
+    fs::create_dir_all(&out).expect("out dir");
+    let badger = FakeBadger::base("base.apk");
+    let inspector = FakeInspector::new("1.0.0", 100)
+        .failing(Error::infrastructure("inspection host crashed"));
+    let backend = FakePlayBackend::new("1.0.0", 100, DownloadBehavior::WriteBase);
+    let provider = play_provider(&badger, &inspector, &backend);
+
+    let error = provider
+        .download(&request(&out), PlayAuth::Dispenser)
+        .expect_err("host inspection failure");
+    assert!(
+        error.message().contains("Failed to inspect downloaded APKM"),
+        "{error}"
+    );
+    assert!(error.message().contains("inspection host crashed"), "{error}");
+    assert_eq!(error.exit_code(), ExitCode::InfrastructureFailure);
+
+    let acquirer = Acquirer {
+        apkeep: None,
+        play: Some(&provider),
+        apkmirror: None,
+        retry: RetryPolicy::default(),
+    };
+    let error = acquirer
+        .acquire(&request(&out), Some(&[] as &[AccountConfig]), None)
+        .expect_err("aggregate keeps infrastructure class");
+    assert_eq!(error.exit_code(), ExitCode::InfrastructureFailure);
+}
+
+#[test]
+fn malformed_artifact_stays_invalid_artifact() {
+    let dir = TempDir::new().expect("temp dir");
+    let out = dir.path().join("out");
+    fs::create_dir_all(&out).expect("out dir");
+    let mut badger = FakeBadger::default();
+    badger.failures.insert(
+        "base.apk".to_string(),
+        Error::invalid_artifact("malformed AndroidManifest.xml"),
+    );
+    let inspector = FakeInspector::new("1.0.0", 100);
+    let backend = FakePlayBackend::new("1.0.0", 100, DownloadBehavior::WriteBase);
+    let provider = play_provider(&badger, &inspector, &backend);
+
+    let error = provider
+        .download(&request(&out), PlayAuth::Dispenser)
+        .expect_err("malformed artifact");
+    assert!(
+        error.message().contains("malformed AndroidManifest.xml"),
+        "{error}"
+    );
+    assert_eq!(error.exit_code(), ExitCode::InvalidArtifact);
+}
+
+// ---------------------------------------------------------------------------
+// Tests: package-name validation
+// ---------------------------------------------------------------------------
+
+#[test]
+fn package_names_are_validated_before_output_paths_are_created() {
+    let dir = TempDir::new().expect("temp dir");
+    for (index, name) in [
+        "../../x", "/abs", "a/b", "a\\b", "..", ".", "", "nul\0", "nested/../../escape",
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        assert!(
+            validate_package_name(name).is_err(),
+            "{name:?} must be rejected"
+        );
+        let out = dir.path().join(format!("rejected-{index}"));
+        let error = acquire_artifact(name, &out, None, None)
+            .expect_err("invalid package name must fail before path creation");
+        assert_eq!(error.exit_code(), ExitCode::UsageOrToolError, "{name:?}");
+        assert!(error.message().contains("Invalid package name"), "{error}");
+        assert!(!out.exists(), "{name:?} created {}", out.display());
+    }
+    assert!(validate_package_name("com.example.app").is_ok());
+
+    let out = dir.path().join("acquirer-rejected");
+    let acquirer = Acquirer {
+        apkeep: None,
+        play: None,
+        apkmirror: None,
+        retry: RetryPolicy::default(),
+    };
+    let invalid = ProviderRequest {
+        package_name: "../../x",
+        out_dir: &out,
+        expected_version: None,
+        expected_version_code: None,
+    };
+    let error = acquirer
+        .acquire(&invalid, None, None)
+        .expect_err("acquirer validates before routing");
+    assert_eq!(error.exit_code(), ExitCode::UsageOrToolError);
+    assert!(!out.exists());
+}
+
+// ---------------------------------------------------------------------------
+// Tests: dispenser response bound
+// ---------------------------------------------------------------------------
+
+struct EndlessStream {
+    served: usize,
+}
+
+impl Read for EndlessStream {
+    fn read(&mut self, buffer: &mut [u8]) -> std::io::Result<usize> {
+        buffer.fill(b'x');
+        self.served += buffer.len();
+        Ok(buffer.len())
+    }
+}
+
+#[test]
+fn dispenser_response_is_hard_bounded() {
+    let limit = MAX_DISPENSER_RESPONSE_BYTES;
+
+    let exact = vec![b'x'; limit];
+    let body = read_dispenser_response(Cursor::new(exact), limit).expect("exact limit is allowed");
+    assert_eq!(body.len(), limit);
+
+    let oversized = vec![b'x'; limit + 1];
+    let error = read_dispenser_response(Cursor::new(oversized), limit)
+        .expect_err("limit + 1 must fail");
+    assert_eq!(error.exit_code(), ExitCode::InfrastructureFailure);
+    assert!(
+        error.message().contains(&format!("{limit}-byte limit")),
+        "{error}"
+    );
+
+    let mut endless = EndlessStream { served: 0 };
+    let error =
+        read_dispenser_response(&mut endless, limit).expect_err("endless stream must fail");
+    assert_eq!(error.exit_code(), ExitCode::InfrastructureFailure);
+    assert!(error.message().contains("exceeded"), "{error}");
+    assert_eq!(
+        endless.served,
+        limit + 1,
+        "reader must stop after the limit and a single probe byte"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Tests: ProcessSpec Debug redaction
+// ---------------------------------------------------------------------------
+
+#[test]
+fn process_spec_debug_output_redacts_secrets() {
+    let spec = ProcessSpec::new("tool")
+        .arg("--token")
+        .arg("argv-secret-value")
+        .arg("visible")
+        .secret("argv-secret-value")
+        .secret("unreferenced-secret");
+    let rendered = format!("{spec:?}");
+    assert!(!rendered.contains("argv-secret-value"), "{rendered}");
+    assert!(!rendered.contains("unreferenced-secret"), "{rendered}");
+    assert!(rendered.contains("[REDACTED]"), "{rendered}");
+    assert!(rendered.contains("visible"), "{rendered}");
 }

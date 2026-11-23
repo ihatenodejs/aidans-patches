@@ -10,11 +10,12 @@
 
 use crate::error::Error;
 use std::ffi::OsString;
+use std::fmt;
 use std::io::{self, Read};
 use std::path::PathBuf;
-use std::process::{Command, ExitStatus, Stdio};
+use std::process::{Child, Command, ExitStatus, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Once};
 use std::thread;
 use std::time::{Duration, Instant};
 use wait_timeout::ChildExt;
@@ -23,8 +24,66 @@ use wait_timeout::ChildExt;
 pub const DEFAULT_MAX_OUTPUT_BYTES: usize = 1024 * 1024;
 
 const CANCEL_POLL_INTERVAL: Duration = Duration::from_millis(10);
+const TERMINATED_REAP_GRACE: Duration = Duration::from_secs(5);
+const READER_DRAIN_GRACE: Duration = Duration::from_secs(2);
 const READ_BUFFER_BYTES: usize = 8 * 1024;
 const REDACTED: &str = "[REDACTED]";
+
+/// Process-wide termination request, set only by [`install_signal_handlers`]
+/// or [`request_termination`].
+static TERMINATION: AtomicBool = AtomicBool::new(false);
+static SIGNAL_HANDLERS: Once = Once::new();
+
+/// Installs SIGINT/SIGTERM handlers that record a process-wide termination
+/// request. Idempotent; intended to be called once at the binary boundary.
+///
+/// The handler body only stores an atomic flag, which is async-signal-safe. A
+/// second signal after the first exits the process immediately so a cleanup
+/// path stuck after cancellation can still be interrupted.
+pub fn install_signal_handlers() {
+    SIGNAL_HANDLERS.call_once(|| {
+        #[cfg(unix)]
+        unsafe {
+            libc::signal(
+                libc::SIGINT,
+                handle_termination as *const () as libc::sighandler_t,
+            );
+            libc::signal(
+                libc::SIGTERM,
+                handle_termination as *const () as libc::sighandler_t,
+            );
+        }
+    });
+}
+
+/// Whether a termination signal has been received.
+#[must_use]
+pub fn termination_requested() -> bool {
+    TERMINATION.load(Ordering::SeqCst)
+}
+
+/// Requests process-wide termination without a signal. Tests use this to
+/// simulate a signal without installing handlers in the test process.
+#[doc(hidden)]
+pub fn request_termination() {
+    TERMINATION.store(true, Ordering::SeqCst);
+}
+
+#[cfg(unix)]
+extern "C" fn handle_termination(signal: libc::c_int) {
+    if TERMINATION.swap(true, Ordering::SeqCst) {
+        // A second signal must always stop the process, even when cleanup after
+        // the first signal is stuck. `_exit` is async-signal-safe.
+        unsafe {
+            libc::_exit(128 + signal);
+        }
+    }
+}
+
+#[cfg(test)]
+fn clear_termination() {
+    TERMINATION.store(false, Ordering::SeqCst);
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum StdinMode {
@@ -52,7 +111,7 @@ impl BoundedOutput {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct ProcessSpec {
     pub program: OsString,
     pub args: Vec<String>,
@@ -65,6 +124,28 @@ pub struct ProcessSpec {
     pub stderr: OutputMode,
     pub max_output_bytes: usize,
     pub secrets: Vec<String>,
+}
+
+impl fmt::Debug for ProcessSpec {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let cancel = self.cancel.as_ref().map(|_| ());
+        let secrets = if self.secrets.is_empty() {
+            "[]"
+        } else {
+            REDACTED
+        };
+        f.debug_struct("ProcessSpec")
+            .field("command", &self.describe_command())
+            .field("cwd", &self.cwd)
+            .field("timeout", &self.timeout)
+            .field("cancel", &cancel)
+            .field("stdin", &self.stdin)
+            .field("stdout", &self.stdout)
+            .field("stderr", &self.stderr)
+            .field("max_output_bytes", &self.max_output_bytes)
+            .field("secrets", &secrets)
+            .finish()
+    }
 }
 
 impl ProcessSpec {
@@ -248,89 +329,46 @@ pub fn run(spec: &ProcessSpec) -> Result<ProcessOutput, Error> {
         .map(|stream| spawn_reader(stream, spec.max_output_bytes));
 
     let started = Instant::now();
+    let deadline = spec.timeout.map(|limit| started + limit);
     let mut timed_out = false;
     let mut cancelled = false;
-    let status = match (spec.cancel.as_ref(), spec.timeout) {
-        (None, None) => child.wait().map_err(|error| {
-            Error::io(
-                format!("failed while waiting for '{}'", spec.describe_command()),
-                error,
-            )
-        })?,
-        (None, Some(limit)) => match child.wait_timeout(limit) {
-            Ok(Some(status)) => status,
-            Ok(None) => {
-                timed_out = true;
-                terminate_child(&mut child);
-                child.wait().map_err(|error| {
-                    Error::io(
-                        format!("failed to reap timed-out '{}'", spec.describe_command()),
-                        error,
-                    )
-                })?
+    // Every child polls, because termination is process-wide and can arrive at
+    // any moment even when the caller configured no flag or timeout.
+    let status = loop {
+        if cancellation_requested(spec) {
+            cancelled = true;
+            terminate_child(&mut child);
+            break reap_terminated_child(&mut child, spec, "cancelled")?;
+        }
+
+        let slice = match deadline {
+            Some(deadline) => {
+                let remaining = deadline.saturating_duration_since(Instant::now());
+                if remaining.is_zero() {
+                    timed_out = true;
+                    terminate_child(&mut child);
+                    break reap_terminated_child(&mut child, spec, "timed-out")?;
+                }
+                remaining.min(CANCEL_POLL_INTERVAL)
             }
+            None => CANCEL_POLL_INTERVAL,
+        };
+
+        match child.wait_timeout(slice) {
+            Ok(Some(status)) => break status,
+            Ok(None) => {}
             Err(error) => {
                 terminate_child(&mut child);
-                let _ = child.wait();
+                let _ = reap_terminated_child(&mut child, spec, "terminated");
                 return Err(Error::io(
                     format!("failed while waiting for '{}'", spec.describe_command()),
                     error,
                 ));
             }
-        },
-        (Some(flag), timeout) => {
-            let deadline = timeout.map(|limit| started + limit);
-            loop {
-                if flag.load(Ordering::Relaxed) {
-                    cancelled = true;
-                    terminate_child(&mut child);
-                    break child.wait().map_err(|error| {
-                        Error::io(
-                            format!("failed to reap cancelled '{}'", spec.describe_command()),
-                            error,
-                        )
-                    })?;
-                }
-
-                let slice = match deadline {
-                    Some(deadline) => {
-                        let remaining = deadline.saturating_duration_since(Instant::now());
-                        if remaining.is_zero() {
-                            timed_out = true;
-                            terminate_child(&mut child);
-                            break child.wait().map_err(|error| {
-                                Error::io(
-                                    format!(
-                                        "failed to reap timed-out '{}'",
-                                        spec.describe_command()
-                                    ),
-                                    error,
-                                )
-                            })?;
-                        }
-                        remaining.min(CANCEL_POLL_INTERVAL)
-                    }
-                    None => CANCEL_POLL_INTERVAL,
-                };
-
-                match child.wait_timeout(slice) {
-                    Ok(Some(status)) => break status,
-                    Ok(None) => {}
-                    Err(error) => {
-                        terminate_child(&mut child);
-                        let _ = child.wait();
-                        return Err(Error::io(
-                            format!("failed while waiting for '{}'", spec.describe_command()),
-                            error,
-                        ));
-                    }
-                }
-            }
         }
     };
 
-    let stdout = join_reader(stdout_reader, "stdout")?;
-    let stderr = join_reader(stderr_reader, "stderr")?;
+    let (stdout, stderr) = drain_readers(stdout_reader, stderr_reader, child.id(), spec)?;
 
     Ok(ProcessOutput {
         status,
@@ -339,6 +377,80 @@ pub fn run(spec: &ProcessSpec) -> Result<ProcessOutput, Error> {
         timed_out,
         cancelled,
     })
+}
+
+/// A set spec flag or a process-wide termination request both cancel.
+fn cancellation_requested(spec: &ProcessSpec) -> bool {
+    spec.cancel
+        .as_ref()
+        .is_some_and(|flag| flag.load(Ordering::Relaxed))
+        || termination_requested()
+}
+
+/// Reaps a child that has just been signalled. Polling keeps `run` free of an
+/// unconditional blocking wait, even if the kernel delays the SIGKILL.
+fn reap_terminated_child(
+    child: &mut Child,
+    spec: &ProcessSpec,
+    state: &str,
+) -> Result<ExitStatus, Error> {
+    let deadline = Instant::now() + TERMINATED_REAP_GRACE;
+    loop {
+        match child.try_wait() {
+            Ok(Some(status)) => return Ok(status),
+            Ok(None) => {}
+            Err(error) => {
+                return Err(Error::io(
+                    format!("failed to reap {state} '{}'", spec.describe_command()),
+                    error,
+                ));
+            }
+        }
+        if Instant::now() >= deadline {
+            return Err(Error::runtime(format!(
+                "{state} child '{}' did not exit after SIGKILL",
+                spec.describe_command()
+            )));
+        }
+        thread::sleep(CANCEL_POLL_INTERVAL);
+    }
+}
+
+/// Joins reader threads with a bounded grace. A descendant that inherited the
+/// captured pipes and outlived the direct child cannot hold the adapter open:
+/// once the grace expires the process group is killed again and a typed error
+/// naming the stream is returned.
+fn drain_readers(
+    stdout_reader: Option<thread::JoinHandle<io::Result<BoundedOutput>>>,
+    stderr_reader: Option<thread::JoinHandle<io::Result<BoundedOutput>>>,
+    group_leader: u32,
+    spec: &ProcessSpec,
+) -> Result<(BoundedOutput, BoundedOutput), Error> {
+    let deadline = Instant::now() + READER_DRAIN_GRACE;
+    loop {
+        let stdout_done = stdout_reader
+            .as_ref()
+            .is_none_or(thread::JoinHandle::is_finished);
+        let stderr_done = stderr_reader
+            .as_ref()
+            .is_none_or(thread::JoinHandle::is_finished);
+        if stdout_done && stderr_done {
+            break;
+        }
+        if Instant::now() >= deadline {
+            kill_process_group(group_leader);
+            let stream = if stdout_done { "stderr" } else { "stdout" };
+            return Err(Error::runtime(format!(
+                "child {stream} did not close within the drain grace after '{}' exited",
+                spec.describe_command()
+            )));
+        }
+        thread::sleep(CANCEL_POLL_INTERVAL);
+    }
+
+    let stdout = join_reader(stdout_reader, "stdout")?;
+    let stderr = join_reader(stderr_reader, "stderr")?;
+    Ok((stdout, stderr))
 }
 
 fn stdio_for(mode: OutputMode) -> Stdio {
@@ -372,19 +484,27 @@ fn executable_candidate(spec: &ProcessSpec) -> Option<PathBuf> {
         .find(|candidate| candidate.is_file())
 }
 
-fn terminate_child(child: &mut std::process::Child) {
+fn terminate_child(child: &mut Child) {
+    kill_process_group(child.id());
+    let _ = child.kill();
+}
+
+/// Kills the child's process group. Every child is spawned with
+/// `process_group(0)`, so its PID is the group ID.
+fn kill_process_group(pid: u32) {
     #[cfg(unix)]
     {
-        let pid = child.id() as libc::pid_t;
-        if pid > 0 {
-            // The child was started with process_group(0), so its PID is the
-            // process-group ID. SIGKILL the group before reaping the leader.
+        let pgid = pid as libc::pid_t;
+        if pgid > 0 {
             unsafe {
-                libc::kill(-pid, libc::SIGKILL);
+                libc::kill(-pgid, libc::SIGKILL);
             }
         }
     }
-    let _ = child.kill();
+    #[cfg(not(unix))]
+    {
+        let _ = pid;
+    }
 }
 
 fn spawn_error(spec: &ProcessSpec, error: &io::Error) -> Error {
@@ -458,9 +578,39 @@ fn read_bounded<R: Read>(reader: &mut R, limit: usize) -> io::Result<BoundedOutp
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::{Mutex, MutexGuard};
+
+    /// Serializes tests that spawn children or touch the process-global
+    /// termination flag, so one test cannot cancel another's child.
+    static TEST_CHILD_LOCK: Mutex<()> = Mutex::new(());
+
+    fn test_child_lock() -> MutexGuard<'static, ()> {
+        TEST_CHILD_LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
+    struct TerminationGuard;
+
+    impl Drop for TerminationGuard {
+        fn drop(&mut self) {
+            clear_termination();
+        }
+    }
 
     #[test]
-    fn cancellation_kills_and_reaps_the_child() {
+    fn synthetic_termination_is_observed_by_the_adapter() {
+        let _lock = test_child_lock();
+        let _guard = TerminationGuard;
+        request_termination();
+        assert!(termination_requested());
+        assert!(cancellation_requested(&ProcessSpec::new("tool")));
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn cancellation_kills_a_background_descendant() {
+        let _lock = test_child_lock();
         let flag = Arc::new(AtomicBool::new(false));
         let signal = Arc::clone(&flag);
         let starter = std::thread::spawn(move || {
@@ -469,7 +619,7 @@ mod tests {
         });
         let started = Instant::now();
         let spec = ProcessSpec::new("/bin/sh")
-            .args(["-c", "sleep 30"])
+            .args(["-c", "sleep 30 & wait"])
             .cancel(flag);
         let output = run(&spec).expect("sh starts");
         starter.join().expect("signal thread");
@@ -479,6 +629,47 @@ mod tests {
             started.elapsed() < Duration::from_secs(5),
             "cancel must kill descendants holding child pipes"
         );
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn descendant_holding_captured_stdout_is_bounded_by_the_drain_grace() {
+        let _lock = test_child_lock();
+        let directory = tempfile::tempdir().expect("temp dir");
+        let pid_path = directory.path().join("grandchild.pid");
+        let script = format!("sleep 30 & echo $! > '{}'; exit 0", pid_path.display());
+        let started = Instant::now();
+        let error = run(&ProcessSpec::new("/bin/sh").args(["-c", &script]))
+            .expect_err("a descendant holding stdout must not be joined forever");
+        let elapsed = started.elapsed();
+        assert!(
+            elapsed >= Duration::from_secs(1),
+            "the direct child exits first; drain must wait the grace before failing"
+        );
+        assert!(elapsed < READER_DRAIN_GRACE + Duration::from_secs(5));
+        assert!(
+            error.message().contains("stdout"),
+            "error must name the stream: {}",
+            error.message()
+        );
+
+        let pid: libc::pid_t = std::fs::read_to_string(&pid_path)
+            .expect("grandchild pid")
+            .trim()
+            .parse()
+            .expect("numeric pid");
+        let deadline = Instant::now() + Duration::from_secs(3);
+        loop {
+            let alive = unsafe { libc::kill(pid, 0) } == 0;
+            if !alive {
+                break;
+            }
+            assert!(
+                Instant::now() < deadline,
+                "process group kill must reap the descendant"
+            );
+            std::thread::sleep(CANCEL_POLL_INTERVAL);
+        }
     }
 
     #[test]
@@ -520,5 +711,23 @@ mod tests {
             .secret("");
         assert_eq!(spec.redact("abcdef"), REDACTED);
         assert_eq!(spec.redact("abc"), REDACTED);
+    }
+
+    #[test]
+    fn debug_output_redacts_secrets_and_arguments() {
+        let cancel = Arc::new(AtomicBool::new(false));
+        let spec = ProcessSpec::new("tool")
+            .arg("--token")
+            .arg("argv-secret-value")
+            .arg("visible")
+            .secret("argv-secret-value")
+            .secret("unreferenced-secret")
+            .cancel(cancel);
+        let rendered = format!("{spec:?}");
+        assert!(!rendered.contains("argv-secret-value"), "{rendered}");
+        assert!(!rendered.contains("unreferenced-secret"), "{rendered}");
+        assert!(rendered.contains(REDACTED), "{rendered}");
+        assert!(rendered.contains("visible"), "{rendered}");
+        assert!(rendered.contains("cancel: Some"), "{rendered}");
     }
 }

@@ -20,6 +20,8 @@ use std::fs;
 use std::io::{Cursor, Write};
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
 use tempfile::TempDir;
 use zip::write::SimpleFileOptions;
@@ -331,6 +333,7 @@ exit ${{GRADLE_EXIT:-0}}
             keytool: Some(self.keytool.clone()),
             morphe_keystore: None,
             home: Some(self.home.clone()),
+            cancel: None,
         }
     }
 
@@ -574,6 +577,125 @@ fn deploy_preserves_existing_output_when_signing_fails() {
         !lines.iter().any(|line| line.contains(" install")),
         "install must not run after signing failure"
     );
+}
+
+#[test]
+fn deploy_cancellation_kills_signing_and_removes_password_files() {
+    let fixture = Fixture::new();
+    let output = fixture.root.join("cancelled.apk");
+    let mut options = fixture.options(Some(output));
+    options.ks_pass = Some("cancel-store-secret".to_string());
+    options.key_pass = Some("cancel-key-secret".to_string());
+
+    // Slow signing down so cancellation lands while apksigner is running.
+    // `exec` leaves the shell as the only process holding the captured pipes,
+    // so the group kill cannot race a freshly forked `sleep`.
+    let apksigner = fixture.build_tools.join("apksigner");
+    let script = fs::read_to_string(&apksigner).expect("apksigner script");
+    let script = script.replace(
+        "if [ \"$1\" = \"sign\" ]; then\n",
+        &format!(
+            "if [ \"$1\" = \"sign\" ]; then\n  printf 'signing started\\n' >> '{}'\n  exec sleep 30\n",
+            fixture.log.display()
+        ),
+    );
+    write_script(&apksigner, &script);
+
+    let cancel = Arc::new(AtomicBool::new(false));
+    let mut tools = fixture.tools();
+    tools.cancel = Some(Arc::clone(&cancel));
+
+    let log = fixture.log.clone();
+    let signal = Arc::clone(&cancel);
+    let (observed_tx, observed_rx) = std::sync::mpsc::channel();
+    let starter = std::thread::spawn(move || {
+        // The pre-sign phase (adb, patch engine, zipalign) runs under the full
+        // test suite's parallelism, so readiness must not be tightly bounded.
+        let readiness = Duration::from_secs(120);
+        let deadline = std::time::Instant::now() + readiness;
+        loop {
+            let started = fs::read_to_string(&log)
+                .map(|text| text.lines().any(|line| line == "signing started"))
+                .unwrap_or(false);
+            if started {
+                break;
+            }
+            if std::time::Instant::now() >= deadline {
+                let contents = fs::read_to_string(&log)
+                    .unwrap_or_else(|error| format!("<unreadable: {error}>"));
+                panic!(
+                    "apksigner signing did not start within {readiness:?}; log contents:\n{contents}"
+                );
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        let _ = observed_tx.send(std::time::Instant::now());
+        signal.store(true, Ordering::Relaxed);
+    });
+
+    let started = std::time::Instant::now();
+    let result = deployment::deploy_artifact(&options, &tools, &FakeEngine::new(&fixture));
+    let error_instant = std::time::Instant::now();
+    starter.join().expect("signal thread");
+    let sign_started = observed_rx
+        .recv()
+        .expect("starter must report when signing was observed");
+    let error = result.expect_err("cancelled signing must fail");
+
+    assert_eq!(error.exit_code(), ExitCode::RuntimeFailure);
+    assert!(
+        error.message().contains("cancelled"),
+        "unexpected error: {}",
+        error.message()
+    );
+    let cancellation_latency = error_instant.duration_since(sign_started);
+    assert!(
+        cancellation_latency < Duration::from_secs(5),
+        "cancellation took {cancellation_latency:?} after signing started"
+    );
+    assert!(
+        started.elapsed() < Duration::from_secs(150),
+        "cancellation must not wait for the fake tool's sleep"
+    );
+    assert!(
+        !error.message().contains("cancel-store-secret"),
+        "secret leaked: {}",
+        error.message()
+    );
+    assert!(
+        !error.message().contains("cancel-key-secret"),
+        "secret leaked: {}",
+        error.message()
+    );
+
+    let leftovers = secret_files(&fixture.root);
+    assert!(
+        leftovers.is_empty(),
+        "credential files left behind: {leftovers:?}"
+    );
+}
+
+fn secret_files(root: &Path) -> Vec<PathBuf> {
+    let mut found = Vec::new();
+    let mut pending = vec![root.to_path_buf()];
+    while let Some(directory) = pending.pop() {
+        let Ok(entries) = fs::read_dir(&directory) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                pending.push(path);
+            } else if path
+                .file_name()
+                .and_then(|name| name.to_str())
+                .is_some_and(|name| name.starts_with(".apk-lab-secret-"))
+            {
+                found.push(path);
+            }
+        }
+    }
+    found
 }
 
 #[test]

@@ -768,7 +768,16 @@ fn write_python_float(value: f64, out: &mut String) -> Result<(), WorkspaceError
     Ok(())
 }
 
-fn validate_package_name(package_name: &str) -> Result<(), WorkspaceError> {
+/// Rejects package names that cannot be used as a single safe path component.
+///
+/// Dots are legal (`com.example.app`); empty names, `.`/`..`, path separators,
+/// NUL bytes, and multi-component paths are not.
+///
+/// # Errors
+///
+/// Returns [`WorkspaceError::UnsafePath`] when the name is unusable as a
+/// directory or file component.
+pub fn validate_package_name(package_name: &str) -> Result<(), WorkspaceError> {
     validate_component(package_name, "package name")
 }
 

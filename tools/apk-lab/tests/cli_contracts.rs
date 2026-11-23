@@ -10,6 +10,10 @@ use serde_json::{json, Value};
 use std::collections::BTreeMap;
 use std::ffi::OsString;
 use std::fs;
+#[cfg(unix)]
+use std::io::{Cursor, Write};
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
 use std::time::{Duration, Instant};
@@ -483,4 +487,113 @@ fn workspace_root_option_requires_a_value() {
     assert_eq!(output.status.code(), Some(2));
     assert!(output.stdout.is_empty());
     assert!(String::from_utf8_lossy(&output.stderr).contains("--workspace-root"));
+}
+
+#[cfg(unix)]
+fn write_executable(path: &Path, body: &str) {
+    fs::write(path, body).expect("write fake tool");
+    let mut permissions = fs::metadata(path)
+        .expect("fake tool metadata")
+        .permissions();
+    permissions.set_mode(0o755);
+    fs::set_permissions(path, permissions).expect("chmod fake tool");
+}
+
+#[cfg(unix)]
+fn write_minimal_apk(path: &Path) {
+    let mut writer = zip::ZipWriter::new(Cursor::new(Vec::new()));
+    let options = zip::write::SimpleFileOptions::default();
+    writer
+        .start_file("AndroidManifest.xml", options)
+        .expect("manifest member");
+    writer.write_all(b"manifest").expect("write manifest");
+    writer
+        .start_file("classes.dex", options)
+        .expect("dex member");
+    let mut dex = vec![0u8; 0x70];
+    dex[..8].copy_from_slice(b"dex\n035\0");
+    writer.write_all(&dex).expect("write dex");
+    let bytes = writer.finish().expect("finish apk").into_inner();
+    fs::write(path, bytes).expect("write apk");
+}
+
+#[cfg(unix)]
+#[test]
+fn sigint_kills_the_fake_tool_group_and_exits_five() {
+    let directory = tempfile::tempdir().expect("tempdir");
+    let root = directory.path();
+    let sdk = root.join("android sdk");
+    let build_tools = sdk.join("build-tools").join("36.0.0");
+    fs::create_dir_all(&build_tools).expect("build tools");
+    let pid_path = root.join("aapt2.pid");
+    write_executable(
+        &build_tools.join("aapt2"),
+        &format!(
+            "#!/bin/sh\nprintf '%s\\n' \"$$\" > '{}'\nsleep 30\n",
+            pid_path.display()
+        ),
+    );
+
+    let apk = root.join("input.apk");
+    write_minimal_apk(&apk);
+
+    let started = Instant::now();
+    let mut child = Command::new(env!("CARGO_BIN_EXE_apk-lab"))
+        .args(["inspect", apk.to_str().expect("apk path is UTF-8")])
+        .env("ANDROID_HOME", &sdk)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("spawn apk-lab");
+
+    let deadline = Instant::now() + Duration::from_secs(5);
+    while !pid_path.is_file() {
+        assert!(Instant::now() < deadline, "fake aapt2 never started");
+        assert!(
+            child.try_wait().expect("poll child").is_none(),
+            "apk-lab exited before the fake tool started"
+        );
+        std::thread::sleep(Duration::from_millis(10));
+    }
+
+    let signal_result = unsafe { libc::kill(child.id() as libc::pid_t, libc::SIGINT) };
+    assert_eq!(signal_result, 0, "SIGINT must be delivered");
+
+    let output = child.wait_with_output().expect("wait apk-lab");
+    assert_eq!(
+        output.status.code(),
+        Some(5),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(
+        started.elapsed() < Duration::from_secs(10),
+        "SIGINT must not wait for the fake tool's sleep"
+    );
+    assert!(
+        String::from_utf8_lossy(&output.stderr).contains("interrupted"),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+
+    let pid: libc::pid_t = fs::read_to_string(&pid_path)
+        .expect("fake tool pid")
+        .trim()
+        .parse()
+        .expect("numeric pid");
+    let deadline = Instant::now() + Duration::from_secs(5);
+    loop {
+        let result = unsafe { libc::kill(pid, 0) };
+        if result != 0 {
+            let errno = std::io::Error::last_os_error().raw_os_error();
+            assert_eq!(errno, Some(libc::ESRCH), "fake tool still alive");
+            break;
+        }
+        assert!(
+            Instant::now() < deadline,
+            "fake tool process group was not killed"
+        );
+        std::thread::sleep(Duration::from_millis(10));
+    }
 }
