@@ -1,3 +1,9 @@
+## [1.10.0-dev.4](https://github.com/ihatenodejs/aidans-patches/compare/v1.10.0-dev.3...v1.10.0-dev.4) (2026-11-23)
+
+### ✨ New Features
+
+* **geocaching:** update patches for 10.24.0 ([31ef2e1](https://github.com/ihatenodejs/aidans-patches/commit/31ef2e125c650a22e436d1f8ddb8d6926fb4ac18))
+
 ## [1.10.0-dev.3](https://github.com/ihatenodejs/aidans-patches/compare/v1.10.0-dev.2...v1.10.0-dev.3) (2026-11-22)
 
 ### 🐛 Bug Fixes
