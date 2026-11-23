@@ -327,10 +327,10 @@
       ],
       "targets": [
         {
-          "version": "17.0.0",
+          "version": "17.2.0",
           "versionCodes": null,
           "isExperimental": false,
-          "minSdk": 29,
+          "minSdk": 32,
           "description": null
         }
       ],
@@ -342,9 +342,9 @@
         "Web Ad Blocker"
       ],
       "supportedVersions": [
-        "17.0.0"
+        "17.2.0"
       ],
-      "latestSupportedVersion": "17.0.0"
+      "latestSupportedVersion": "17.2.0"
     },
     {
       "packageName": "com.sezzle.sezzlemobile",
@@ -1362,10 +1362,10 @@
           ],
           "targets": [
             {
-              "version": "17.0.0",
+              "version": "17.2.0",
               "versionCodes": null,
               "isExperimental": false,
-              "minSdk": 29,
+              "minSdk": 32,
               "description": null
             }
           ]
@@ -1822,10 +1822,10 @@
           ],
           "targets": [
             {
-              "version": "17.0.0",
+              "version": "17.2.0",
               "versionCodes": null,
               "isExperimental": false,
-              "minSdk": 29,
+              "minSdk": 32,
               "description": null
             }
           ]
@@ -2792,10 +2792,10 @@
           ],
           "targets": [
             {
-              "version": "17.0.0",
+              "version": "17.2.0",
               "versionCodes": null,
               "isExperimental": false,
-              "minSdk": 29,
+              "minSdk": 32,
               "description": null
             }
           ]
@@ -3915,10 +3915,10 @@
           ],
           "targets": [
             {
-              "version": "17.0.0",
+              "version": "17.2.0",
               "versionCodes": null,
               "isExperimental": false,
-              "minSdk": 29,
+              "minSdk": 32,
               "description": null
             }
           ]
@@ -4137,10 +4137,10 @@
           ],
           "targets": [
             {
-              "version": "17.0.0",
+              "version": "17.2.0",
               "versionCodes": null,
               "isExperimental": false,
-              "minSdk": 29,
+              "minSdk": 32,
               "description": null
             }
           ]
