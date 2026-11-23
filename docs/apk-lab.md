@@ -572,10 +572,11 @@ with no Python subprocess.
 ## 5. Migration Evidence
 
 The native implementation was validated against an independent Python oracle during
-the Rust migration. The accepted parity and performance evidence is committed under
-`docs/benchmarks/apk-lab/` and summarized in
-[apk-lab-rust-migration.md](apk-lab-rust-migration.md). The historical migration
-harness and Python implementation were retired after acceptance.
+the Rust migration. The migration summary and static charts are retained under
+[docs/apk-lab-rust-migration.md](apk-lab-rust-migration.md) and
+`docs/benchmarks/apk-lab/charts/`; raw benchmark evidence remains in Git history.
+The historical migration harness and Python implementation were retired after
+acceptance.
 
 Normal development uses the production `apk-lab` binary and its native test suite.
 There is no repository command that invokes Python. Generated migration output

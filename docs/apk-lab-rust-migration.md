@@ -59,8 +59,8 @@ the accepted parity and performance evidence.
 - Pre-registered performance policy: SHA-256
   `7f33adfeccf23363546584d082b94af061b5173c1dc7920d2386f379da0c77d0`. The policy
   file lived alongside the retired harness and is recorded here only by that identity.
-- Raw paired samples: [paired.json](benchmarks/apk-lab/paired.json).
-- Derived comparison: [comparison.json](benchmarks/apk-lab/comparison.json).
+- Raw paired samples and the derived comparison are preserved in Git history and are
+  intentionally omitted from the current documentation tree.
 - Host: macOS arm64, 16 logical CPUs, 32 GiB RAM.
 - Python oracle: 3.12.14. Native binary: release build of the measured revision.
 
@@ -80,8 +80,6 @@ data. No thresholds were changed after observing results.
 
 ## Data and charts
 
-- [paired raw data](benchmarks/apk-lab/paired.json)
-- [comparison summary](benchmarks/apk-lab/comparison.json)
 - [chart manifest](benchmarks/apk-lab/charts/manifest.json)
 - [wall-time chart](benchmarks/apk-lab/charts/wall-time.png)
 - [wall-ratio chart](benchmarks/apk-lab/charts/wall-ratio.png)
@@ -90,8 +88,8 @@ data. No thresholds were changed after observing results.
 
 ![Rust/Python wall ratio](benchmarks/apk-lab/charts/wall-ratio.png)
 
-The charts were rendered outside the checkout from `comparison.json` with Python
-3.12.14 and matplotlib 3.10.5; that rendering environment was not part of the
+The charts were rendered outside the checkout from the archived comparison data with
+Python 3.12.14 and matplotlib 3.10.5; that rendering environment was not part of the
 repository toolchain.
 
 ## Correctness and integration evidence
@@ -136,9 +134,8 @@ All measured workload IDs: `startup.help`, `inspect.small`, `inspect.large`,
 `splits.small`, `splits.large`, `dex.small`, `dex.large`, `unity.small`,
 `unity.large`, `il2cpp.small`, `il2cpp.large`, `resources.small`,
 `resources.large`, `code.small`, `code.large`, `morphe.small`, and `morphe.large`.
-Per-workload results, confidence intervals, and RSS verdicts are in
-[comparison.json](benchmarks/apk-lab/comparison.json). No single aggregate speedup is
-asserted.
+Per-workload results, confidence intervals, and RSS verdicts are preserved in the
+archived comparison data in Git history. No single aggregate speedup is asserted.
 
 ## Python retirement
 
@@ -180,8 +177,9 @@ Verification at the cutover revision:
 - `./gradlew :patches:buildAndroid --no-daemon`, `bun run --cwd site check:icons`, and
   native CLI `--help`/`asm` smoke from the repository root and a temporary directory
   passed.
-- Rollback archive: `.apk-lab-migration/baseline-source/ROLLBACK.md`, aggregate
-  SHA-256 `58d5bdc30913acb840c2afc8fde3eef3b89cb4ddde6cf0c7a8b018a0a23ec279`.
+- Rollback archive: preserved outside the repository; the archived
+  `baseline-source/ROLLBACK.md` records aggregate SHA-256
+  `58d5bdc30913acb840c2afc8fde3eef3b89cb4ddde6cf0c7a8b018a0a23ec279`.
   Rollback is a reviewed source revert/rebuild, not a dormant Python fallback.
 
 No first-party Python runtime, build, release, CI, hook, test, or dependency-management
