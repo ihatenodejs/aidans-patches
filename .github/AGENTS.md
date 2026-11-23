@@ -42,6 +42,8 @@ Python scripts follow Ruff formatting/lint rules, validate paths/input shape, fa
 4. Semantic release updates/commits `CHANGELOG.md`, `gradle.properties`, `patches-bundle.json`, `patches-list.json`, and `README.md`.
 5. The `.mpp` release asset is published/attested; main releases hand off site and Worker deployments.
 
+Release branch pushes authenticate with the write deploy key stored as `RELEASE_DEPLOY_KEY`; that key is the bypass actor on the `Require verification gate` ruleset. A release commit is created locally, so it can never carry the `Test & Build Gate` check before it is pushed, and the ruleset would otherwise reject both `@semantic-release/git` and the backmerge. `release.yml` rewrites `origin` to the SSH URL before semantic-release runs; keep it that way.
+
 ### Release state invariant
 
 semantic-release records each release's channel in a git note on the tag commit

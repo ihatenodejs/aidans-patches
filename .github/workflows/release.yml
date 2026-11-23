@@ -119,6 +119,27 @@ jobs:
         with:
           fetch-depth: 0
 
+      # Release commits are created locally, so they can never carry the
+      # `Test & Build Gate` check before being pushed. Authenticate git with the
+      # deploy key registered as a bypass actor on the verification ruleset.
+      - name: Configure release push key
+        env:
+          RELEASE_DEPLOY_KEY: ${{ secrets.RELEASE_DEPLOY_KEY }}
+        run: |
+          install -d -m 700 "$HOME/.ssh"
+          printf '%s\n' "$RELEASE_DEPLOY_KEY" > "$HOME/.ssh/release_deploy_key"
+          chmod 600 "$HOME/.ssh/release_deploy_key"
+          ssh-keyscan -t ed25519 github.com >> "$HOME/.ssh/known_hosts"
+          test -s "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/known_hosts"
+          {
+            echo 'Host github.com'
+            echo '  IdentityFile ~/.ssh/release_deploy_key'
+            echo '  IdentitiesOnly yes'
+          } >> "$HOME/.ssh/config"
+          chmod 600 "$HOME/.ssh/config"
+          git remote set-url origin "git@github.com:${GITHUB_REPOSITORY}.git"
+
       - name: Setup Java
         uses: actions/setup-java@v6.3.0
         with:
