@@ -18,6 +18,7 @@ use std::fmt::Write as _;
 use std::fs::{self, OpenOptions};
 use std::io::{self, Write};
 use std::path::{Component, Path, PathBuf};
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 /// Marker file written into every managed run directory.
@@ -124,6 +125,9 @@ pub struct RunRequest<'a> {
 #[derive(Debug, Clone)]
 pub struct WorkspaceManager {
     root: PathBuf,
+    /// Serializes publication and empty-parent pruning. Parallel check workers
+    /// share package/version ancestors, so creation must not race cleanup.
+    lifecycle_lock: Arc<Mutex<()>>,
 }
 
 impl WorkspaceManager {
@@ -133,7 +137,10 @@ impl WorkspaceManager {
         let resolved = fs::canonicalize(root)
             .or_else(|_| std::path::absolute(root))
             .unwrap_or_else(|_| root.to_path_buf());
-        Self { root: resolved }
+        Self {
+            root: resolved,
+            lifecycle_lock: Arc::new(Mutex::new(())),
+        }
     }
 
     #[must_use]
@@ -181,6 +188,10 @@ impl WorkspaceManager {
     /// filesystem write, so a failed preflight leaves no partial run.
     pub fn create_run_dir(&self, request: &RunRequest<'_>) -> Result<PathBuf, WorkspaceError> {
         let prepared = self.prepare_run(request)?;
+        let _guard = self
+            .lifecycle_lock
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
         self.publish_run(prepared)
     }
 
@@ -467,12 +478,17 @@ impl WorkspaceManager {
     ) -> Result<EphemeralRun, WorkspaceError> {
         let prepared = self.prepare_run(request)?;
         let marker = prepared.marker.clone();
+        let _guard = self
+            .lifecycle_lock
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
         let path = self.publish_run(prepared)?;
         Ok(EphemeralRun {
             path,
             marker,
             keep: keep_workspace,
             root: self.root.clone(),
+            lifecycle_lock: Arc::clone(&self.lifecycle_lock),
         })
     }
 }
@@ -491,6 +507,7 @@ pub struct EphemeralRun {
     marker: Marker,
     keep: bool,
     root: PathBuf,
+    lifecycle_lock: Arc<Mutex<()>>,
 }
 
 impl EphemeralRun {
@@ -510,6 +527,10 @@ impl Drop for EphemeralRun {
         if self.keep {
             return;
         }
+        let _guard = self
+            .lifecycle_lock
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
         let _ = fs::remove_dir_all(&self.path);
         clean_empty_parents(&self.root, self.path.parent());
     }
@@ -884,13 +905,32 @@ fn ensure_directory_chain(
                 }
             }
             Err(error) if error.kind() == io::ErrorKind::NotFound => {
-                fs::create_dir(&current).map_err(|error| {
-                    WorkspaceError::io(
-                        format!("create workspace directory {}", current.display()),
-                        error,
-                    )
-                })?;
-                created.push(current.clone());
+                match fs::create_dir(&current) {
+                    Ok(()) => created.push(current.clone()),
+                    Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
+                        // A parallel worker can create a shared parent between
+                        // the metadata probe and create_dir. Validate the winner
+                        // instead of failing the check run.
+                        let metadata = fs::symlink_metadata(&current).map_err(|error| {
+                            WorkspaceError::io(
+                                format!("inspect workspace directory {}", current.display()),
+                                error,
+                            )
+                        })?;
+                        if metadata.file_type().is_symlink() || !metadata.is_dir() {
+                            return Err(WorkspaceError::unsafe_path(format!(
+                                "Workspace path {} is not a safe directory",
+                                current.display()
+                            )));
+                        }
+                    }
+                    Err(error) => {
+                        return Err(WorkspaceError::io(
+                            format!("create workspace directory {}", current.display()),
+                            error,
+                        ))
+                    }
+                }
             }
             Err(error) => {
                 return Err(WorkspaceError::io(
