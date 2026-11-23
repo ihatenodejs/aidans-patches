@@ -203,6 +203,9 @@ Modifies `assets/index.android.bundle`:
   - `hideSezzleMobile` (Boolean, default: `true`)
   - `hideAmazonDeals` (Boolean, default: `true`)
   - `hidePayLaterAnywhere` (Boolean, default: `true`)
+  - `hideSezzlePoints` (Boolean, default: `false`)
+  - `hideSezzleSpend` (Boolean, default: `false`)
+  - `hideSezzleUp` (Boolean, default: `false`)
 
 #### 1. Motivation & Purpose
 
@@ -213,9 +216,10 @@ Customizes which items appear in the "Your Shortcuts" carousel on Home and Shop 
 Modifies `assets/index.android.bundle`:
 
 1. Validates Hermes function `#90129` (offset `0x01b6cd83`, capacity 57) and donor function `#85895` (offset `0x01b1aa98`, capacity 154).
-2. Synthesizes a predicate in the donor region filtering targeted shortcut string identifiers (`user_referrals`, `sezzle_mobile`, `offers`, `offer`, `giveaway`, `earn`, `amazon_deals`, `amazonDeals`, `amazon`, `amazonStore`, `deals`, `deal`, `anywhere`, `sezzleAnywhere`, `pay_later_anywhere`, `sezzle_anywhere`). The predicate reads the item's `name` property using the bundle's current `name` identifier rather than a fixed string ID.
-3. Re-points `#90129`'s function header to the synthesized donor logic.
-4. Recomputes Hermes footer hash.
+2. Synthesizes a predicate in the donor region filtering the shortcut item's `name` property. The predicate uses `GetByIdShort` for the bundle's current `name` identifier, `JStrictEqualLong` for the null guard, and short strict-equality jumps for each excluded name. Excluded names are `user_referrals`, `sezzle_mobile`, `offers`, `giveaway`, `earn`, `amazon_deals`, `amazonDeals`, `anywhere`, the cohort-specific `anywhere_{50,75,90,95}_pct_off` variants, and the opt-in `sezzle_points`, `sezzle_spend`, and `sezzle_up`.
+3. The string table has no entries for `anywhere_{50,75,90,95}_pct_off` or `sezzle_points`; the patch repurposes inert Storybook source-path strings as donor storage for these names before adding them to the predicate. The null guard uses the long jump variant because the short `Addr8` offset overflows once several names are excluded.
+4. Re-points `#90129`'s function header to the synthesized donor logic.
+5. Recomputes Hermes footer hash.
 
 ---
 

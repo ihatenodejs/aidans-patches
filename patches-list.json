@@ -1098,6 +1098,33 @@
           "type": "kotlin.Boolean",
           "default": true,
           "values": null
+        },
+        {
+          "key": "hideSezzlePoints",
+          "title": "Hide Sezzle Points",
+          "description": "Hides the Sezzle Points shortcut from the Your Shortcuts carousel.",
+          "required": false,
+          "type": "kotlin.Boolean",
+          "default": false,
+          "values": null
+        },
+        {
+          "key": "hideSezzleSpend",
+          "title": "Hide Sezzle Spend",
+          "description": "Hides the Sezzle Spend shortcut from the Your Shortcuts carousel.",
+          "required": false,
+          "type": "kotlin.Boolean",
+          "default": false,
+          "values": null
+        },
+        {
+          "key": "hideSezzleUp",
+          "title": "Hide Sezzle Up",
+          "description": "Hides the Sezzle Up shortcut from the Your Shortcuts carousel.",
+          "required": false,
+          "type": "kotlin.Boolean",
+          "default": false,
+          "values": null
         }
       ]
     },
