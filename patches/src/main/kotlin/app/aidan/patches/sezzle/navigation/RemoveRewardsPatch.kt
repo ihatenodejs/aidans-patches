@@ -39,6 +39,17 @@ val removeRewardsPatch = rawResourcePatch(
             )
         }
 
+        // StoreRoot reads this hook to build the "Get Rewards" header pill.
+        // Returning undefined leaves the guarded reads empty, so the pill is
+        // not shown even when the Rewards tab entry point is otherwise present.
+        val earnButtonOffset = editor.findFunctionOffsetByName("useEarnButtonOnShopFeature")
+        if (earnButtonOffset != null) {
+            editor.patchBytes(
+                earnButtonOffset,
+                byteArrayOf(0x93.toByte(), 0x00, 0x76, 0x00)
+            )
+        }
+
         editor.updateFooterHash()
         bundleFile.writeBytes(editor.toByteArray())
     }

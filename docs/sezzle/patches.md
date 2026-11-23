@@ -18,7 +18,8 @@ This document details the binary bytecode, asset, and resource patches available
 | [Remove Rewards](#patch-remove-rewards)                                                         | `navigation/RemoveRewardsPatch.kt`                 | `rawResourcePatch`      | `true`  | None                                       | None                                   | Removes Rewards bottom navigation tab while keeping Account Sezzle Points accessible.                                                                                         |
 | [Remove Sezzle Subscriptions](#patch-remove-sezzle-subscriptions)                               | `navigation/RemoveSezzleSubscriptionsPatch.kt`     | `rawResourcePatch`      | `false` | None                                       | None                                   | Removes references to Sezzle Anywhere and Sezzle Premium subscriptions in Account benefits, Wallet, and Orders help.                                                          |
 | [Replace AI Discover with Products](#patch-replace-ai-discover-with-products)                   | `navigation/ReplaceAiDiscoverWithProductsPatch.kt` | `rawResourcePatch`      | `true`  | None                                       | `removeProductsTab` (default: `false`) | Replaces AI Discover tab with original non-AI Products tab and removes AI search callouts.                                                                                    |
-| [Replace Shop with Home](#patch-replace-shop-with-home)                                         | `navigation/ReplaceShopWithHomePatch.kt`           | `rawResourcePatch`      | `true`  | None                                       | None                                   | Replaces commercial Shop tab with custom personal finance dashboard Home tab.                                                                                                 |
+| [Rename Shop to Home](#patch-rename-shop-to-home)                                               | `navigation/ReplaceShopWithHomePatch.kt`           | `rawResourcePatch`      | `true`  | None                                       | None                                   | Renames the Shop bottom navigation tab to Home.                                                                                                                               |
+| [Clean Home](#patch-clean-home)                                                                 | `navigation/CleanHomePatch.kt`                     | `rawResourcePatch`      | `true`  | None                                       | 4 boolean options                      | Removes shortcuts, store/brand carousels, and promotional banners from the Home tab.                                                                                          |
 | [Patch Consent Screen](#patch-patch-consent-screen)                                             | `security/PatchConsentScreenPatch.kt`              | `bytecodePatch`         | `true`  | `Clean Authentication`, `ConsentGate.java` | None                                   | Injects native `ConsentGate` modal dialog into `MainActivity.onCreate` before auth.                                                                                           |
 | [Suppress In-App Updates and Rating Prompts](#patch-suppress-in-app-updates-and-rating-prompts) | `security/SuppressUpdatesAndIntegrityPatch.kt`     | `rawResourcePatch`      | `true`  | None                                       | 3 boolean options (default: `true`)    | Neutralizes Hermes update selectors/sagas, update modal, store URLs, trustFall, and rating prompts.                                                                           |
 
@@ -202,6 +203,9 @@ Modifies `assets/index.android.bundle`:
   - `hideSezzleMobile` (Boolean, default: `true`)
   - `hideAmazonDeals` (Boolean, default: `true`)
   - `hidePayLaterAnywhere` (Boolean, default: `true`)
+  - `hideSezzlePoints` (Boolean, default: `false`)
+  - `hideSezzleSpend` (Boolean, default: `false`)
+  - `hideSezzleUp` (Boolean, default: `false`)
 
 #### 1. Motivation & Purpose
 
@@ -212,9 +216,10 @@ Customizes which items appear in the "Your Shortcuts" carousel on Home and Shop 
 Modifies `assets/index.android.bundle`:
 
 1. Validates Hermes function `#90129` (offset `0x01b6cd83`, capacity 57) and donor function `#85895` (offset `0x01b1aa98`, capacity 154).
-2. Synthesizes a predicate in the donor region filtering targeted shortcut string identifiers (`user_referrals`, `sezzle_mobile`, `offers`, `offer`, `giveaway`, `earn`, `amazon_deals`, `amazonDeals`, `amazon`, `amazonStore`, `deals`, `deal`, `anywhere`, `sezzleAnywhere`, `pay_later_anywhere`, `sezzle_anywhere`). The predicate reads the item's `name` property using the bundle's current `name` identifier rather than a fixed string ID.
-3. Re-points `#90129`'s function header to the synthesized donor logic.
-4. Recomputes Hermes footer hash.
+2. Synthesizes a predicate in the donor region filtering the shortcut item's `name` property. The predicate uses `GetByIdShort` for the bundle's current `name` identifier, `JStrictEqualLong` for the null guard, and short strict-equality jumps for each excluded name. Excluded names are `user_referrals`, `sezzle_mobile`, `offers`, `giveaway`, `earn`, `amazon_deals`, `amazonDeals`, `anywhere`, the cohort-specific `anywhere_{50,75,90,95}_pct_off` variants, and the opt-in `sezzle_points`, `sezzle_spend`, and `sezzle_up`.
+3. The string table has no entries for `anywhere_{50,75,90,95}_pct_off` or `sezzle_points`; the patch repurposes inert Storybook source-path strings as donor storage for these names before adding them to the predicate. The null guard uses the long jump variant because the short `Addr8` offset overflows once several names are excluded.
+4. Re-points `#90129`'s function header to the synthesized donor logic.
+5. Recomputes Hermes footer hash.
 
 ---
 
@@ -297,8 +302,9 @@ Removes the commercial Rewards bottom tab while preserving access to Sezzle Poin
 Modifies `assets/index.android.bundle`:
 
 1. Unmounts `EarnTab` in `ProtectedStack` by stubbing `useIsShowEarnTabEnabled` and `useCachedIsShowEarnTabEnabled` to return `false`.
-2. The Home `customer/points` shortcut is hidden by the default `hideRewards` option in [Configure Shortcuts](#patch-configure-shortcuts). The Account > Sezzle Points entry remains functional.
-3. Recomputes Hermes footer hash.
+2. Stubs `useEarnButtonOnShopFeature` to return `undefined`, so StoreRoot does not build the Home header's **Get Rewards** pill.
+3. The Home `customer/points` shortcut is hidden by the default `hideRewards` option in [Configure Shortcuts](#patch-configure-shortcuts). The Account > Sezzle Points entry remains functional.
+4. Recomputes Hermes footer hash.
 
 ---
 
@@ -310,20 +316,24 @@ Modifies `assets/index.android.bundle`:
 - **Default State:** `false` (Disabled by default)
 - **Type:** Raw Binary / Asset Patch (`rawResourcePatch`)
 - **Dependencies:** None
+- **Options:** `removeHomeGiftCards` (Boolean, default: `true`)
 
 #### 1. Motivation & Purpose
 
-Removes references to Sezzle's subscription plans (Sezzle Anywhere and Sezzle Premium) across the Account menu benefits list, Wallet promotional surfaces, and Orders customer support entry points.
+Removes references to Sezzle's subscription plans (Sezzle Anywhere and Sezzle Premium) across the Account menu benefits list, the Home gift card carousel, Wallet promotional surfaces, and Orders customer support entry points. Gift cards require an active Anywhere subscription, so the Home carousel is removed by default; disable `removeHomeGiftCards` to keep it.
 
 #### 2. Technical Implementation & Injection Points
 
 Modifies `assets/index.android.bundle`:
 
 1. **Account Menu Benefits & Anywhere Banner:** In `AccountView` (`0x12c11ea`), patches the conditional subscriptions branch at offset `+0x133c` (`b0 0c 44` -> `7e 7e 7e`), bypassing the entire subscription array construction and jumping directly to `+0x14ce`, eliminating Sezzle Anywhere and Sezzle Premium benefit entries while preserving remaining benefits (Sezzle Mobile, Sezzle Points, Sezzle Spend, Sezzle Up, Sezzle Balance). Additionally, at offset `+0x11eb`, replaces the Anywhere banner short-circuit evaluation prologue (`10 19 50 b2 06 19 10 19 48` -> `96 19 7e 7e 7e 7e 7e 7e 7e`), forcing condition register `r25` to `false` so that the conditional jump at `+0x11f4` (`b2 2c 19` -> `JmpFalse +0x2c`) always triggers and skips over the entire `sezzleAnywhereBanner` JSX container, passing `false` to the JSX array and cleanly eliminating the "Pay later anywhere Visa is accepted" card banner from the Account screen.
-2. **Wallet Screen Banner:** Neutralizes `WalletBanner` prologue (`34 0e 00 40` -> `93 01 76 01`) and `WalletBannerCarousel` prologue (`34 07 00 40` -> `93 01 76 01`), returning `undefined` to cleanly unmount single and carousel promotional Anywhere subscription banners (`wallet-banner-box`).
-3. **Wallet Screen Gift Cards:** Neutralizes `GiftCardsSection` prologue (`34 05 00 40` -> `93 01 76 01`), returning `undefined` to cleanly unmount the Gift cards section (all gift cards require an active Anywhere subscription).
-4. **Orders Tab Help:** In `GetHelpScreen`'s priority support closure `#64670` (`0x16ed5a8`), replaces the prologue (`34 01 00 3b 02 01` -> `08 02 00 00 76 02`), returning an empty array `[]` so "Priority Customer Support" (an Anywhere-only feature/ad) is never mounted in the Help options list.
-5. Recomputes Hermes footer hash.
+2. **Home Gift Cards Carousel (`removeHomeGiftCards`, default enabled):** Stubs `HorizontalGiftCardStoresList` with `LoadConstNull; Ret`, unmounting the `carousel-giftcards` store carousel on Home. Set `removeHomeGiftCards=false` to keep the carousel.
+3. **Wallet Screen Banner:** Neutralizes `WalletBanner` prologue (`34 0e 00 40` -> `93 01 76 01`) and `WalletBannerCarousel` prologue (`34 07 00 40` -> `93 01 76 01`), returning `undefined` to cleanly unmount single and carousel promotional Anywhere subscription banners (`wallet-banner-box`).
+4. **Wallet Screen Gift Cards:** Neutralizes `GiftCardsSection` prologue (`34 05 00 40` -> `93 01 76 01`), returning `undefined` to cleanly unmount the Gift cards section (all gift cards require an active Anywhere subscription).
+5. **Orders Tab Help:** In `GetHelpScreen`'s priority support closure `#64670` (`0x16ed5a8`), replaces the prologue (`34 01 00 3b 02 01` -> `08 02 00 00 76 02`), returning an empty array `[]` so "Priority Customer Support" (an Anywhere-only feature/ad) is never mounted in the Help options list.
+6. Recomputes Hermes footer hash.
+
+> **5.3.24 implementation note:** The Account benefit entries are removed by stubbing the anonymous subscription-section builder (`#82424`) and skipping the `AccountView` Anywhere row at `+0x1343`; the offset details in item 1 reflect an earlier revision.
 
 Note: To remove the "Pay Later Anywhere" shortcut on the home screen carousel, configure the `hidePayLaterAnywhere` option (enabled by default) in [Configure Shortcuts](#patch-configure-shortcuts).
 
@@ -354,9 +364,9 @@ Modifies `assets/index.android.bundle`:
 
 ---
 
-### Patch: Replace Shop with Home
+### Patch: Rename Shop to Home
 
-- **Name:** Replace Shop with Home
+- **Name:** Rename Shop to Home
 - **Target Package:** `com.sezzle.sezzlemobile`
 - **Supported Versions:** `5.3.24`
 - **Default State:** `true` (Enabled by default)
@@ -365,16 +375,52 @@ Modifies `assets/index.android.bundle`:
 
 #### 1. Motivation & Purpose
 
-Replaces the commercial "Shop" tab and store feeds with a clean personal finance dashboard.
+Renames the Shop bottom navigation tab to Home. The tab still hosts Sezzle's stock store screen.
 
 #### 2. Technical Implementation & Injection Points
 
 Modifies `assets/index.android.bundle`:
 
 1. Changes the bottom navigation tab label from `"Shop"` to `"Home"` in `ProtectedStack`.
-2. In `StoreRoot` (`func #49969`), redirects dependency slots 17–19 from the commercial feed modules to `OrdersListHeader` (module `12387`), `PaymentStreakBanner` (module `10041`), and `ShopTabShortcutsRow` (module `12816`).
-3. Disables the Liquid Glass `StoreRoot` branch so the deterministic standard layout is used, and replaces the commercial feed composition with a 4-child dashboard: existing header, `OrdersListHeader`, `PaymentStreakBanner`, and `ShopTabShortcutsRow`.
-4. Recomputes Hermes footer hash.
+2. Recomputes Hermes footer hash.
+
+#### 3. Why StoreRoot Is Not Rewritten
+
+The previous revision replaced `StoreRoot`'s feed composition with a synthetic dashboard. That wiring does not hold on 5.3.24:
+
+- The synthetic layout passed empty props to `OrdersListHeader` and `ShopTabShortcutsRow`, so the Home content area rendered blank.
+- `PaymentStreakBanner`'s spending-power branch dereferences `props.sezzleUpCreditLimit.available_credit_limit_in_cents` without a guard. Mounting it from the synthetic layout produced `Cannot read property 'available_credit_limit_in_cents' of undefined` and the app's `Something went wrong` boundary.
+- The StoreRoot dependency table does not map cleanly to the module wrappers assumed by the old layout, so slot substitution alone cannot supply the missing props.
+
+---
+
+### Patch: Clean Home
+
+- **Name:** Clean Home
+- **Target Package:** `com.sezzle.sezzlemobile`
+- **Supported Versions:** `5.3.24`
+- **Default State:** `true` (Enabled by default)
+- **Type:** Raw Binary / Asset Patch (`rawResourcePatch`)
+- **Dependencies:** None
+- **Options:**
+  - `removeShortcuts` (Boolean, default: `false`)
+  - `removeBrands` (Boolean, default: `true`)
+  - `removePromotions` (Boolean, default: `true`)
+  - `removeSezzleSpendBanner` (Boolean, default: `false`)
+
+#### 1. Motivation & Purpose
+
+Trims Sezzle's stock Home (the Shop tab renamed by Rename Shop to Home) by unmounting store/brand carousels and promotional banners while keeping the account header, the **Your Shortcuts** row, and the real Sezzle Spend balance notification. The shortcuts row remains available through the opt-in `removeShortcuts` option.
+
+#### 2. Technical Implementation & Injection Points
+
+Modifies `assets/index.android.bundle`. For each configured component, the first four bytes are replaced with `LoadConstNull r0; Ret r0`, so the component renders nothing and the rest of its original body is unreachable:
+
+1. **Shortcuts (`removeShortcuts`):** `ShopTabShortcutsRow`, `ShopTabShortcutsRowView`, `ShopTabAlert`, `EarnSpendPill`, `VcRewardsPill`, `RewardChip`, and `StoreHeaderList`. `StoreHeaderList` renders the **Your Shortcuts** row; it belongs here so `removeBrands` cannot remove the shortcuts row.
+2. **Store and brand sections (`removeBrands`):** `CategoryStoresList`, `StoresCarousel`, `RecommendationsCarousel`, circular brand lists/items, category rows, `ShopByCategoryScreen`, Braze content cards, and store carousels.
+3. **Promotional banners (`removePromotions`):** `ShopDealsAd`, `NativeAdCard`, `CtaBanner`, `UnlockSpendingPowerBanner`, Amazon spend banners, `RewardsView`, `CashbackRewards`, and `SezzleSpendAnywhereView`.
+4. **Sezzle Spend balance banner (`removeSezzleSpendBanner`, opt-in):** `SpendPill` and `ShopSpendCta`. Leave this disabled by default: the banner reports real spendable balance (`shop-spend-cta-pill`), not a marketing promotion.
+5. Recomputes Hermes footer hash.
 
 ---
 
