@@ -42,6 +42,27 @@ Python scripts follow Ruff formatting/lint rules, validate paths/input shape, fa
 4. Semantic release updates/commits `CHANGELOG.md`, `gradle.properties`, `patches-bundle.json`, `patches-list.json`, and `README.md`.
 5. The `.mpp` release asset is published/attested; main releases hand off site and Worker deployments.
 
+### Release state invariant
+
+semantic-release records each release's channel in a git note on the tag commit
+(`refs/notes/semantic-release-<tag>`). A prerelease branch only counts a tag as
+the last release when that note carries the branch channel; a missing note makes
+every later run recompute the same version and fail on the existing tag.
+
+`workflows/release.yml` runs `scripts/reconcile-release-notes.ts` before
+semantic-release. It only fills missing notes on semantic-release tags merged
+into the current branch; it never rewrites existing notes, deletes tags, or
+pushes branches. Manual recovery for the same state:
+
+```bash
+git notes --ref=semantic-release-vX.Y.Z-dev.N add -f -m '{"channels":["dev"]}' vX.Y.Z-dev.N
+git push origin refs/notes/semantic-release-vX.Y.Z-dev.N
+```
+
+Do not rerun a failed release that reports `tag already exists` before
+reconciling its note, and do not delete a tag unless you intend to re-cut that
+version.
+
 Do not hand-edit release-generated files to simulate a release. Do not run release, deployment, fixture mutation, PR creation, or secret/binding changes unless explicitly requested.
 
 ## Secrets and Cloud Boundaries

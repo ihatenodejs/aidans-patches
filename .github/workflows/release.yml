@@ -133,7 +133,6 @@ jobs:
           restore-keys: |
             emoji-font-
 
-
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@1.97.1
         with:
@@ -170,6 +169,9 @@ jobs:
           fi
 
       # Semantic release runs its own Gradle build command on main.
+      - name: Reconcile release channel notes
+        run: bun scripts/reconcile-release-notes.ts --ref "${{ github.ref_name }}" --remote origin
+
       - name: Release
         uses: cycjimmy/semantic-release-action@v8
         id: release
