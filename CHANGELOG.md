@@ -1,3 +1,9 @@
+## [1.10.0-dev.8](https://github.com/ihatenodejs/aidans-patches/compare/v1.10.0-dev.7...v1.10.0-dev.8) (2026-11-23)
+
+### 🚀 Updated App Support
+
+* **credit-karma:** support 26.47 ([55e9dfe](https://github.com/ihatenodejs/aidans-patches/commit/55e9dfe4f4b302584998c346335e134687c9d721))
+
 ## [1.10.0-dev.7](https://github.com/ihatenodejs/aidans-patches/compare/v1.10.0-dev.6...v1.10.0-dev.7) (2026-11-23)
 
 ### 🚀 Updated App Support

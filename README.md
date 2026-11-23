@@ -45,7 +45,7 @@ My [Morphe](https://morphe.software) patches
 
 <!-- PATCHES_START EXPANDED -->
 
-> **[v1.10.0-dev.7](https://github.com/ihatenodejs/aidans-patches/releases/tag/v1.10.0-dev.7)**&nbsp;&nbsp;•&nbsp;&nbsp;`dev`&nbsp;&nbsp;•&nbsp;&nbsp;80 patches total
+> **[v1.10.0-dev.8](https://github.com/ihatenodejs/aidans-patches/releases/tag/v1.10.0-dev.8)**&nbsp;&nbsp;•&nbsp;&nbsp;`dev`&nbsp;&nbsp;•&nbsp;&nbsp;80 patches total
 
 <details open>
 <summary>📦 SidelineSwap&nbsp;&nbsp;•&nbsp;&nbsp;4 patches&nbsp;&nbsp;<a href="https://patch.p0ntus.com/status"><img src="https://worker.patch.p0ntus.com/badges/tests/com.sidelineswap.android.svg" alt="Tests Passing" align="absmiddle"></a></summary>
@@ -282,12 +282,12 @@ My [Morphe](https://morphe.software) patches
 
 **🎯 Supported versions:**
 
-| 26.40 |
+| 26.47 |
 | :---: |
 
-| 💊&nbsp;Patch       | 📜&nbsp;Description                                                                                                                                                             | ⚙️&nbsp;Options                                                                                                                                                                                                                                                                                                                                                |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Remove Tracking** | Neutralizes Google Play Advertising ID tracking, Firebase Analytics, Datadog telemetry, Kochava attribution, New Relic, Luciq, root/emulator checks, and integrity attestation. | • Zero Advertising ID<br>• Disable Firebase Analytics<br>• Disable Crashlytics<br>• Disable Datadog Telemetry<br>• Disable Kochava Tracker<br>• Disable Scribe & Diagnostic Uploads<br>• Disable New Relic Telemetry<br>• Disable Luciq Telemetry & Session Recording<br>• Neutralize Root & Emulator Detection<br>• Neutralize Integrity & Attestation Checks |
+| 💊&nbsp;Patch       | 📜&nbsp;Description                                                                                                                                                                                       | ⚙️&nbsp;Options                                                                                                                                                                                                                                                                                                                                                                       |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Remove Tracking** | Neutralizes Google Play Advertising ID tracking, Firebase Analytics, Crashlytics, Datadog telemetry, Kochava attribution, New Relic, Segment, Qualtrics, root/emulator checks, and integrity attestation. | • Zero Advertising ID<br>• Disable Firebase Analytics<br>• Disable Crashlytics<br>• Disable Datadog Telemetry<br>• Disable Kochava Tracker<br>• Disable Scribe & Diagnostic Uploads<br>• Disable New Relic Telemetry<br>• Disable Segment Analytics<br>• Disable Qualtrics Feedback Tracking<br>• Neutralize Root & Emulator Detection<br>• Neutralize Integrity & Attestation Checks |
 
 </details>
 
