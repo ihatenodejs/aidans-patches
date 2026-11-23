@@ -849,17 +849,12 @@ const DEPENDENCY_PATHS = [
 
 /**
  * Build-independent tool and compiler caches reused across snapshots. Build
- * outputs and Python environments are deliberately absent: both bind absolute
- * source paths and must be created inside the snapshot instead.
+ * outputs are deliberately absent: Cargo artifacts embed absolute source paths
+ * (`CARGO_BIN_EXE`, manifest dirs, debug info), so sharing a `target` directory
+ * between the worktree and a temporary snapshot makes whichever root runs
+ * second execute binaries compiled for the other, deleted root.
  */
-const CACHE_PATHS = [
-  '.tools',
-  '.gradle',
-  'tools/apk-lab/target',
-  'tools/play-metadata/target',
-  'extensions/nhl-adblock-native/target',
-  'local.properties',
-] as const;
+const CACHE_PATHS = ['.tools', '.gradle', 'local.properties'] as const;
 
 function writeSnapshotEntry(
   root: string,

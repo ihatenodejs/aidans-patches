@@ -665,6 +665,13 @@ describe('staged snapshot isolation', () => {
     fs.writeFileSync(path.join(repository, 'untracked.txt'), 'secret\n');
     fs.mkdirSync(path.join(repository, '.tools'));
     fs.writeFileSync(path.join(repository, '.tools', 'tool'), 'artifact\n');
+    fs.mkdirSync(path.join(repository, 'tools', 'apk-lab', 'target', 'debug'), {
+      recursive: true,
+    });
+    fs.writeFileSync(
+      path.join(repository, 'tools', 'apk-lab', 'target', 'debug', 'apk-lab'),
+      'compiled for this root\n',
+    );
     const indexBefore = git(repository, ['ls-files', '-s']);
 
     let observed = false;
@@ -683,6 +690,13 @@ describe('staged snapshot isolation', () => {
       const artifact = path.join(call.snapshotDir, '.tools');
       expect(fs.lstatSync(artifact).isSymbolicLink()).toBe(true);
       expect(fs.readlinkSync(artifact)).toBe(path.join(repository, '.tools'));
+      // Cargo artifacts embed absolute source paths, so a snapshot must never
+      // execute the worktree's compiled binaries (or vice versa).
+      expect(
+        fs.existsSync(
+          path.join(call.snapshotDir, 'tools', 'apk-lab', 'target', 'debug'),
+        ),
+      ).toBe(false);
     });
 
     const result = await run(repository, 'pre-commit', { audit: invoker });
