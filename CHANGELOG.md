@@ -1,3 +1,15 @@
+## [1.10.0-dev.11](https://github.com/ihatenodejs/aidans-patches/compare/v1.10.0-dev.10...v1.10.0-dev.11) (2026-11-23)
+
+### 🐛 Bug Fixes
+
+* **release:** install Bun before the release preflight ([8d13254](https://github.com/ihatenodejs/aidans-patches/commit/8d1325447c36bd9a8495e741df2c1bc12d7e41df))
+* **sezzle:** correct shortcut filter and strip Braze banner ([4d071a3](https://github.com/ihatenodejs/aidans-patches/commit/4d071a3a50f6b2d383918ec9cb9076f827ea0734))
+
+### ✨ New Features
+
+* **release:** reconcile missing channel notes before release ([d8c0896](https://github.com/ihatenodejs/aidans-patches/commit/d8c0896eaaff1c9516bfb87be35bf34f5a03a47c))
+* **release:** retry superseded release runs once ([4dbf1df](https://github.com/ihatenodejs/aidans-patches/commit/4dbf1df65616a0e6eccd30be0b061cbcd9dec0cd))
+
 ## [1.10.0-dev.10](https://github.com/ihatenodejs/aidans-patches/compare/v1.10.0-dev.9...v1.10.0-dev.10) (2026-11-23)
 
 ### 🚀 Updated App Support
