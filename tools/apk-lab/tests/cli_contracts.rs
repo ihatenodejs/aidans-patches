@@ -235,15 +235,15 @@ fn process_preserves_non_zero_exit_status() {
 #[test]
 fn process_timeout_kills_the_child() {
     let started = Instant::now();
-    let spec = ProcessSpec::new("/bin/sleep")
-        .args(["30"])
+    let spec = ProcessSpec::new("/bin/sh")
+        .args(["-c", "sleep 30"])
         .timeout(Duration::from_millis(100));
-    let output = process::run(&spec).expect("sleep starts");
+    let output = process::run(&spec).expect("sh starts");
     assert!(output.timed_out, "child must be reported as timed out");
     assert!(!output.success());
     assert!(
-        started.elapsed() < Duration::from_secs(3),
-        "timeout must not wait for the child"
+        started.elapsed() < Duration::from_secs(5),
+        "timeout must kill descendants holding child pipes"
     );
 }
 

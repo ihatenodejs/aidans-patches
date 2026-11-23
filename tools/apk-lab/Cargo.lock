@@ -42,6 +42,7 @@ dependencies = [
  "dialoguer",
  "flate2",
  "gpapi",
+ "libc",
  "png",
  "regex",
  "ring",

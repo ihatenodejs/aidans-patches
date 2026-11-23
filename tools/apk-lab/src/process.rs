@@ -219,6 +219,13 @@ pub fn run(spec: &ProcessSpec) -> Result<ProcessOutput, Error> {
     }
     let mut command = Command::new(&spec.program);
     command.args(&spec.args);
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        // Keep descendants in a dedicated group so timeout/cancellation can
+        // close inherited pipes instead of waiting for an orphaned grandchild.
+        command.process_group(0);
+    }
     if let Some(cwd) = &spec.cwd {
         command.current_dir(cwd);
     }
@@ -254,7 +261,7 @@ pub fn run(spec: &ProcessSpec) -> Result<ProcessOutput, Error> {
             Ok(Some(status)) => status,
             Ok(None) => {
                 timed_out = true;
-                let _ = child.kill();
+                terminate_child(&mut child);
                 child.wait().map_err(|error| {
                     Error::io(
                         format!("failed to reap timed-out '{}'", spec.describe_command()),
@@ -263,7 +270,7 @@ pub fn run(spec: &ProcessSpec) -> Result<ProcessOutput, Error> {
                 })?
             }
             Err(error) => {
-                let _ = child.kill();
+                terminate_child(&mut child);
                 let _ = child.wait();
                 return Err(Error::io(
                     format!("failed while waiting for '{}'", spec.describe_command()),
@@ -276,7 +283,7 @@ pub fn run(spec: &ProcessSpec) -> Result<ProcessOutput, Error> {
             loop {
                 if flag.load(Ordering::Relaxed) {
                     cancelled = true;
-                    let _ = child.kill();
+                    terminate_child(&mut child);
                     break child.wait().map_err(|error| {
                         Error::io(
                             format!("failed to reap cancelled '{}'", spec.describe_command()),
@@ -290,7 +297,7 @@ pub fn run(spec: &ProcessSpec) -> Result<ProcessOutput, Error> {
                         let remaining = deadline.saturating_duration_since(Instant::now());
                         if remaining.is_zero() {
                             timed_out = true;
-                            let _ = child.kill();
+                            terminate_child(&mut child);
                             break child.wait().map_err(|error| {
                                 Error::io(
                                     format!(
@@ -310,7 +317,7 @@ pub fn run(spec: &ProcessSpec) -> Result<ProcessOutput, Error> {
                     Ok(Some(status)) => break status,
                     Ok(None) => {}
                     Err(error) => {
-                        let _ = child.kill();
+                        terminate_child(&mut child);
                         let _ = child.wait();
                         return Err(Error::io(
                             format!("failed while waiting for '{}'", spec.describe_command()),
@@ -363,6 +370,21 @@ fn executable_candidate(spec: &ProcessSpec) -> Option<PathBuf> {
     std::env::split_paths(&paths)
         .map(|directory| directory.join(program))
         .find(|candidate| candidate.is_file())
+}
+
+fn terminate_child(child: &mut std::process::Child) {
+    #[cfg(unix)]
+    {
+        let pid = child.id() as libc::pid_t;
+        if pid > 0 {
+            // The child was started with process_group(0), so its PID is the
+            // process-group ID. SIGKILL the group before reaping the leader.
+            unsafe {
+                libc::kill(-pid, libc::SIGKILL);
+            }
+        }
+    }
+    let _ = child.kill();
 }
 
 fn spawn_error(spec: &ProcessSpec, error: &io::Error) -> Error {
@@ -446,14 +468,16 @@ mod tests {
             signal.store(true, Ordering::Relaxed);
         });
         let started = Instant::now();
-        let spec = ProcessSpec::new("/bin/sleep").args(["30"]).cancel(flag);
-        let output = run(&spec).expect("sleep starts");
+        let spec = ProcessSpec::new("/bin/sh")
+            .args(["-c", "sleep 30"])
+            .cancel(flag);
+        let output = run(&spec).expect("sh starts");
         starter.join().expect("signal thread");
         assert!(output.cancelled, "child must be reported as cancelled");
         assert!(!output.success());
         assert!(
-            started.elapsed() < Duration::from_secs(10),
-            "cancel must not wait for the child"
+            started.elapsed() < Duration::from_secs(5),
+            "cancel must kill descendants holding child pipes"
         );
     }
 

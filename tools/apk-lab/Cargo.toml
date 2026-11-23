@@ -37,5 +37,8 @@ ureq = { version = "=3.5.2", default-features = false, features = ["rustls", "gz
 wait-timeout = "0.2.1"
 zip = { version = "=9.8.1", default-features = false, features = ["deflate-flate2-zlib-rs", "bzip2", "lzma"] }
 
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
 [patch.crates-io]
 turbojpeg-sys = { path = "../asset-prep/vendor/turbojpeg-sys" }
