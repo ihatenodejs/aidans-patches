@@ -30,7 +30,7 @@ All tools execute directly from the repository root through Cargo:
 cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- <subcommand> [flags]
 
 # CI/release builds once and executes the binary directly
-cargo build --release --locked --manifest-path tools/apk-lab/Cargo.toml --bins
+cargo build --release --locked --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab
 tools/apk-lab/target/release/apk-lab <subcommand> [flags]
 ```
 

@@ -25,7 +25,7 @@ cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-la
 CI and release jobs build once and execute the release binary directly:
 
 ```bash
-cargo build --release --locked --manifest-path tools/apk-lab/Cargo.toml --bins
+cargo build --release --locked --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab
 tools/apk-lab/target/release/apk-lab <subcommand>
 ```
 
@@ -573,9 +573,9 @@ with no Python subprocess.
 
 The native implementation was validated against an independent Python oracle during
 the Rust migration. The accepted parity and performance evidence is committed under
-`docs/benchmarks/apk-lab/`; `TO-RUST.md` is a local-only report excluded through
-`.git/info/exclude`. The historical migration harness and Python implementation were
-retired after acceptance.
+`docs/benchmarks/apk-lab/` and summarized in
+[apk-lab-rust-migration.md](apk-lab-rust-migration.md). The historical migration
+harness and Python implementation were retired after acceptance.
 
 Normal development uses the production `apk-lab` binary and its native test suite.
 There is no repository command that invokes Python. Generated migration output

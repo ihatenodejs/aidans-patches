@@ -67,8 +67,8 @@ export const HISTORICAL_EXCLUSIONS: readonly HistoricalExclusion[] = [
     reason: 'gate fixtures deliberately contain violating sample content',
   },
   {
-    prefix: 'TO-RUST.md',
-    reason: 'migration methodology and external chart recipe',
+    prefix: 'docs/apk-lab-rust-migration.md',
+    reason: 'historical migration report; records retired Python evidence',
   },
   {
     prefix: 'CHANGELOG.md',

@@ -5,6 +5,7 @@ Scope: maintained technical documentation under `docs/`.
 ## Documentation Ownership
 
 - `apk-lab.md`: canonical CLI, toolchain, storage, command, exit-code, compatibility, and safety reference for `tools/apk-lab/`.
+- `apk-lab-rust-migration.md`: historical Python-to-Rust migration report; records measured evidence and the retired harness, not supported entrypoints.
 - `dependencies.md`: canonical CLI, approval model, coverage boundaries, and policy reference for `scripts/deps.ts`.
 - `<app>/architecture.md`: observed target-app architecture, classes/resources/assets, data flow, reverse-engineering evidence, and compatibility-sensitive anchors.
 - `<app>/patches.md`: implemented patch behavior, options, dependencies, affected layers, verification, and user-visible limitations.

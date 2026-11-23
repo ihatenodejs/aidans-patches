@@ -117,7 +117,8 @@ describe('Python-free gate scanning', () => {
   test('honours explicit historical exclusions only', () => {
     withTempRepo((root) => {
       writeTracked(root, {
-        'TO-RUST.md': 'python3.12 -m venv /tmp/to-rust-charts\n',
+        'docs/apk-lab-rust-migration.md':
+          'The retired oracle ran python3.12 -m venv for chart rendering.\n',
         'CHANGELOG.md': 'Historic uv run --project tools/apk-lab release\n',
         'docs/benchmarks/apk-lab/baseline.json':
           '{"oracle":"tools/apk-lab/.venv/bin/python"}\n',
@@ -125,7 +126,7 @@ describe('Python-free gate scanning', () => {
       });
 
       for (const relPath of [
-        'TO-RUST.md',
+        'docs/apk-lab-rust-migration.md',
         'CHANGELOG.md',
         'docs/benchmarks/apk-lab/baseline.json',
         'plans/009-retire.md',
@@ -133,6 +134,19 @@ describe('Python-free gate scanning', () => {
         expect(isHistoricallyExcluded(relPath)).toBe(true);
       }
       expect(scanRepository(root)).toEqual([]);
+    });
+  });
+
+  test('scans the retired local report path instead of excluding it', () => {
+    withTempRepo((root) => {
+      writeTracked(root, {
+        'TO-RUST.md': 'python3.12 -m venv /tmp/to-rust-charts\n',
+      });
+
+      expect(isHistoricallyExcluded('TO-RUST.md')).toBe(false);
+      const text = messages(scanRepository(root)).join('\n');
+      expect(text).toContain('TO-RUST.md');
+      expect(text).toContain('Python interpreter invocation');
     });
   });
 
