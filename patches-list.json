@@ -355,7 +355,7 @@
       "signatures": [],
       "targets": [
         {
-          "version": "5.3.9",
+          "version": "5.3.24",
           "versionCodes": null,
           "isExperimental": false,
           "minSdk": 24,
@@ -375,15 +375,14 @@
         "Replace AI Discover with Products",
         "Replace Shop with Home",
         "Suppress In-App Updates and Rating Prompts",
-        "Suppress Updates and Integrity Checks",
         "Unlock Custom App Icons",
         "Unlock Developer Settings",
         "Unlock Receipt Scanner"
       ],
       "supportedVersions": [
-        "5.3.9"
+        "5.3.24"
       ],
-      "latestSupportedVersion": "5.3.9"
+      "latestSupportedVersion": "5.3.24"
     },
     {
       "packageName": "com.sidelineswap.android",
@@ -872,7 +871,7 @@
     },
     {
       "name": "Clean Authentication",
-      "description": "Shows Google sign-in only and removes the unavailable phone sign-in controls.",
+      "description": "Removes the unavailable phone sign-in controls while keeping Google and Apple sign-in.",
       "default": true,
       "category": "Security",
       "dependencies": [],
@@ -886,7 +885,7 @@
           "signatures": null,
           "targets": [
             {
-              "version": "5.3.9",
+              "version": "5.3.24",
               "versionCodes": null,
               "isExperimental": false,
               "minSdk": 24,
@@ -962,7 +961,7 @@
           "signatures": null,
           "targets": [
             {
-              "version": "5.3.9",
+              "version": "5.3.24",
               "versionCodes": null,
               "isExperimental": false,
               "minSdk": 24,
@@ -1157,7 +1156,7 @@
           "signatures": null,
           "targets": [
             {
-              "version": "5.3.9",
+              "version": "5.3.24",
               "versionCodes": null,
               "isExperimental": false,
               "minSdk": 24,
@@ -1514,7 +1513,7 @@
           "signatures": null,
           "targets": [
             {
-              "version": "5.3.9",
+              "version": "5.3.24",
               "versionCodes": null,
               "isExperimental": false,
               "minSdk": 24,
@@ -1718,7 +1717,7 @@
           "signatures": null,
           "targets": [
             {
-              "version": "5.3.9",
+              "version": "5.3.24",
               "versionCodes": null,
               "isExperimental": false,
               "minSdk": 24,
@@ -2102,7 +2101,7 @@
           "signatures": null,
           "targets": [
             {
-              "version": "5.3.9",
+              "version": "5.3.24",
               "versionCodes": null,
               "isExperimental": false,
               "minSdk": 24,
@@ -2466,7 +2465,7 @@
           "signatures": null,
           "targets": [
             {
-              "version": "5.3.9",
+              "version": "5.3.24",
               "versionCodes": null,
               "isExperimental": false,
               "minSdk": 24,
@@ -2543,7 +2542,7 @@
     },
     {
       "name": "Remove Rewards",
-      "description": "Removes Rewards navigation while keeping Account's Sezzle Points item and routing the Home shortcut to the same page.",
+      "description": "Removes the Rewards bottom navigation tab while keeping Account's Sezzle Points item accessible.",
       "default": true,
       "category": "Interface",
       "dependencies": [],
@@ -2557,7 +2556,7 @@
           "signatures": null,
           "targets": [
             {
-              "version": "5.3.9",
+              "version": "5.3.24",
               "versionCodes": null,
               "isExperimental": false,
               "minSdk": 24,
@@ -2584,7 +2583,7 @@
           "signatures": null,
           "targets": [
             {
-              "version": "5.3.9",
+              "version": "5.3.24",
               "versionCodes": null,
               "isExperimental": false,
               "minSdk": 24,
@@ -3453,7 +3452,7 @@
           "signatures": null,
           "targets": [
             {
-              "version": "5.3.9",
+              "version": "5.3.24",
               "versionCodes": null,
               "isExperimental": false,
               "minSdk": 24,
@@ -3526,7 +3525,7 @@
           "signatures": null,
           "targets": [
             {
-              "version": "5.3.9",
+              "version": "5.3.24",
               "versionCodes": null,
               "isExperimental": false,
               "minSdk": 24,
@@ -3613,7 +3612,7 @@
           "signatures": null,
           "targets": [
             {
-              "version": "5.3.9",
+              "version": "5.3.24",
               "versionCodes": null,
               "isExperimental": false,
               "minSdk": 24,
@@ -3645,54 +3644,6 @@
           "key": "suppressRatingPrompts",
           "title": "Suppress Store Rating Prompts",
           "description": "Suppresses in-app review requests and milestone rating dialogs that redirect to Google Play.",
-          "required": false,
-          "type": "kotlin.Boolean",
-          "default": true,
-          "values": null
-        }
-      ]
-    },
-    {
-      "name": "Suppress Updates and Integrity Checks",
-      "description": "Disables Microsoft CodePush OTA updates and neutralizes Dalvik root and tamper detection SDKs (RootBeer and JailMonkey).",
-      "default": true,
-      "category": "Security",
-      "dependencies": [
-        "Suppress In-App Updates and Rating Prompts"
-      ],
-      "compatiblePackages": [
-        {
-          "packageName": "com.sezzle.sezzlemobile",
-          "name": "Sezzle",
-          "description": null,
-          "apkFileType": "APKM",
-          "appIconColor": "#5C2C94",
-          "signatures": null,
-          "targets": [
-            {
-              "version": "5.3.9",
-              "versionCodes": null,
-              "isExperimental": false,
-              "minSdk": 24,
-              "description": null
-            }
-          ]
-        }
-      ],
-      "options": [
-        {
-          "key": "disableCodePush",
-          "title": "Disable CodePush OTA",
-          "description": "Prevents Microsoft CodePush from downloading remote JavaScript bundles that override local patches.",
-          "required": false,
-          "type": "kotlin.Boolean",
-          "default": true,
-          "values": null
-        },
-        {
-          "key": "bypassRootAndTamperDetection",
-          "title": "Bypass Root & Tamper Detection",
-          "description": "Bypasses RootBeer and JailMonkey checks in Dalvik bytecode so modified or rooted devices are never flagged.",
           "required": false,
           "type": "kotlin.Boolean",
           "default": true,
@@ -3746,7 +3697,7 @@
           "signatures": null,
           "targets": [
             {
-              "version": "5.3.9",
+              "version": "5.3.24",
               "versionCodes": null,
               "isExperimental": false,
               "minSdk": 24,
@@ -3773,7 +3724,7 @@
           "signatures": null,
           "targets": [
             {
-              "version": "5.3.9",
+              "version": "5.3.24",
               "versionCodes": null,
               "isExperimental": false,
               "minSdk": 24,
@@ -4049,7 +4000,7 @@
           "signatures": null,
           "targets": [
             {
-              "version": "5.3.9",
+              "version": "5.3.24",
               "versionCodes": null,
               "isExperimental": false,
               "minSdk": 24,

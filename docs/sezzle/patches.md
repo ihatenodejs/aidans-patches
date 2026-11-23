@@ -4,24 +4,23 @@
 
 This document details the binary bytecode, asset, and resource patches available for **Sezzle: Buy Now, Pay Later** (`com.sezzle.sezzlemobile`).
 
-| Patch Name                                                                                      | Source File                                        | Type                    | Default | Dependencies / Extensions                    | Options                                | Description                                                                                                                                                                   |
-| ----------------------------------------------------------------------------------------------- | -------------------------------------------------- | ----------------------- | ------- | -------------------------------------------- | -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [Remove Ads and Tracking](#patch-remove-ads-and-tracking)                                       | `ads/HideBannerAdsPatch.kt`                        | `compositeFeaturePatch` | `true`  | None                                         | None                                   | Removes all ads (AppLovin MAX, Google Mobile Ads, Rokt, Thanks network, Playtime, InBrain Surveys) and disables analytics and tracking SDKs at both Dalvik and Hermes layers. |
-| [Clean Authentication](#patch-clean-authentication)                                             | `auth/CleanAuthenticationPatch.kt`                 | `rawResourcePatch`      | `true`  | None                                         | `injectPatchWarning` (default: `true`) | Enforces Google sign-in only, removes phone sign-in controls and explanatory text.                                                                                            |
-| [Unlock Custom App Icons](#patch-unlock-custom-app-icons)                                       | `customization/UnlockCustomAppIconsPatch.kt`       | `rawResourcePatch`      | `true`  | None                                         | None                                   | Unlocks Arctic, Peach, Glass, Rainbow, Sand, and Classic launcher icons without Sezzle Premium.                                                                               |
-| [Enable App Debugging](#patch-enable-app-debugging)                                             | `dev/EnableAppDebuggingPatch.kt`                   | `resourcePatch`         | `false` | None                                         | None                                   | Injects `android:debuggable="true"` into `AndroidManifest.xml` for ADB debugging.                                                                                             |
-| [Unlock Developer Settings](#patch-unlock-developer-settings)                                   | `dev/UnlockDevSettingsPatch.kt`                    | `rawResourcePatch`      | `false` | None                                         | None                                   | Unlocks internal Development Settings menu in Account for all authenticated users.                                                                                            |
-| [Unlock Receipt Scanner](#patch-unlock-receipt-scanner)                                         | `features/UnlockReceiptScannerPatch.kt`            | `rawResourcePatch`      | `false` | `Unlock Developer Settings`                  | None                                   | Enables receipt scanner from Developer Settings and forces V2 scanner flow to render.                                                                                         |
-| [Configure Shortcuts](#patch-configure-shortcuts)                                               | `navigation/ConfigureShortcutsPatch.kt`            | `rawResourcePatch`      | `true`  | None                                         | 7 boolean options (default: `true`)    | Customizes items in "Your Shortcuts" carousel (Refer a Friend, Giveaway, Offers, Rewards, Sezzle Mobile, Amazon Deals, Pay Later Anywhere).                                   |
-| [Hide Sezzle Mobile](#patch-hide-sezzle-mobile)                                                 | `navigation/HideSezzleMobilePatch.kt`              | `rawResourcePatch`      | `false` | None                                         | None                                   | Stubs `useIsSezzleMobilePlanEnabled` and hides `MobilePlanSection` in Wallet.                                                                                                 |
-| [Remove Promos & Giveaways](#patch-remove-promos--giveaways)                                    | `navigation/RemovePromosAndGiveawaysPatch.kt`      | `rawResourcePatch`      | `true`  | None                                         | 7 boolean options                      | Blocks deal popups, giveaway screens, Knot linking, wallet marketing, playtime, and referrals.                                                                                |
-| [Remove Rewards](#patch-remove-rewards)                                                         | `navigation/RemoveRewardsPatch.kt`                 | `rawResourcePatch`      | `true`  | None                                         | None                                   | Removes Rewards bottom navigation tab while keeping Account Sezzle Points accessible.                                                                                         |
-| [Remove Sezzle Subscriptions](#patch-remove-sezzle-subscriptions)                               | `navigation/RemoveSezzleSubscriptionsPatch.kt`     | `rawResourcePatch`      | `false` | None                                         | None                                   | Removes references to Sezzle Anywhere and Sezzle Premium subscriptions in Account benefits, Wallet, and Orders help.                                                          |
-| [Replace AI Discover with Products](#patch-replace-ai-discover-with-products)                   | `navigation/ReplaceAiDiscoverWithProductsPatch.kt` | `rawResourcePatch`      | `true`  | None                                         | `removeProductsTab` (default: `false`) | Replaces AI Discover tab with original non-AI Products tab and removes AI search callouts.                                                                                    |
-| [Replace Shop with Home](#patch-replace-shop-with-home)                                         | `navigation/ReplaceShopWithHomePatch.kt`           | `rawResourcePatch`      | `true`  | None                                         | None                                   | Replaces commercial Shop tab with custom personal finance dashboard Home tab.                                                                                                 |
-| [Patch Consent Screen](#patch-patch-consent-screen)                                             | `security/PatchConsentScreenPatch.kt`              | `bytecodePatch`         | `true`  | `Clean Authentication`, `ConsentGate.java`   | None                                   | Injects native `ConsentGate` modal dialog into `MainActivity.onCreate` before auth.                                                                                           |
-| [Suppress In-App Updates and Rating Prompts](#patch-suppress-in-app-updates-and-rating-prompts) | `security/SuppressUpdatesAndIntegrityPatch.kt`     | `rawResourcePatch`      | `true`  | None                                         | 3 boolean options (default: `true`)    | Neutralizes Hermes update selectors/sagas, update modal, store URLs, trustFall, and rating prompts.                                                                           |
-| [Suppress Updates and Integrity Checks](#patch-suppress-updates-and-integrity-checks)           | `security/SuppressUpdatesAndIntegrityPatch.kt`     | `bytecodePatch`         | `true`  | `Suppress In-App Updates and Rating Prompts` | None                                   | Disables CodePush OTA updates (returns `null` in host) and stubs RootBeer / JailMonkey.                                                                                       |
+| Patch Name                                                                                      | Source File                                        | Type                    | Default | Dependencies / Extensions                  | Options                                | Description                                                                                                                                                                   |
+| ----------------------------------------------------------------------------------------------- | -------------------------------------------------- | ----------------------- | ------- | ------------------------------------------ | -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [Remove Ads and Tracking](#patch-remove-ads-and-tracking)                                       | `ads/HideBannerAdsPatch.kt`                        | `compositeFeaturePatch` | `true`  | None                                       | None                                   | Removes all ads (AppLovin MAX, Google Mobile Ads, Rokt, Thanks network, Playtime, InBrain Surveys) and disables analytics and tracking SDKs at both Dalvik and Hermes layers. |
+| [Clean Authentication](#patch-clean-authentication)                                             | `auth/CleanAuthenticationPatch.kt`                 | `rawResourcePatch`      | `true`  | None                                       | `injectPatchWarning` (default: `true`) | Removes the unavailable phone sign-in controls and their explanatory text while keeping Google and Apple sign-in.                                                             |
+| [Unlock Custom App Icons](#patch-unlock-custom-app-icons)                                       | `customization/UnlockCustomAppIconsPatch.kt`       | `rawResourcePatch`      | `true`  | None                                       | None                                   | Unlocks Arctic, Peach, Glass, Rainbow, Sand, and Classic launcher icons without Sezzle Premium.                                                                               |
+| [Enable App Debugging](#patch-enable-app-debugging)                                             | `dev/EnableAppDebuggingPatch.kt`                   | `resourcePatch`         | `false` | None                                       | None                                   | Injects `android:debuggable="true"` into `AndroidManifest.xml` for ADB debugging.                                                                                             |
+| [Unlock Developer Settings](#patch-unlock-developer-settings)                                   | `dev/UnlockDevSettingsPatch.kt`                    | `rawResourcePatch`      | `false` | None                                       | None                                   | Unlocks internal Development Settings menu in Account for all authenticated users.                                                                                            |
+| [Unlock Receipt Scanner](#patch-unlock-receipt-scanner)                                         | `features/UnlockReceiptScannerPatch.kt`            | `rawResourcePatch`      | `false` | `Unlock Developer Settings`                | None                                   | Enables receipt scanner from Developer Settings and forces V2 scanner flow to render.                                                                                         |
+| [Configure Shortcuts](#patch-configure-shortcuts)                                               | `navigation/ConfigureShortcutsPatch.kt`            | `rawResourcePatch`      | `true`  | None                                       | 7 boolean options (default: `true`)    | Customizes items in "Your Shortcuts" carousel (Refer a Friend, Giveaway, Offers, Rewards, Sezzle Mobile, Amazon Deals, Pay Later Anywhere).                                   |
+| [Hide Sezzle Mobile](#patch-hide-sezzle-mobile)                                                 | `navigation/HideSezzleMobilePatch.kt`              | `rawResourcePatch`      | `false` | None                                       | None                                   | Stubs `useIsSezzleMobilePlanEnabled` and hides `MobilePlanSection` in Wallet.                                                                                                 |
+| [Remove Promos & Giveaways](#patch-remove-promos--giveaways)                                    | `navigation/RemovePromosAndGiveawaysPatch.kt`      | `rawResourcePatch`      | `true`  | None                                       | 7 boolean options                      | Blocks deal popups, giveaway screens, Knot linking, wallet marketing, playtime, and referrals.                                                                                |
+| [Remove Rewards](#patch-remove-rewards)                                                         | `navigation/RemoveRewardsPatch.kt`                 | `rawResourcePatch`      | `true`  | None                                       | None                                   | Removes Rewards bottom navigation tab while keeping Account Sezzle Points accessible.                                                                                         |
+| [Remove Sezzle Subscriptions](#patch-remove-sezzle-subscriptions)                               | `navigation/RemoveSezzleSubscriptionsPatch.kt`     | `rawResourcePatch`      | `false` | None                                       | None                                   | Removes references to Sezzle Anywhere and Sezzle Premium subscriptions in Account benefits, Wallet, and Orders help.                                                          |
+| [Replace AI Discover with Products](#patch-replace-ai-discover-with-products)                   | `navigation/ReplaceAiDiscoverWithProductsPatch.kt` | `rawResourcePatch`      | `true`  | None                                       | `removeProductsTab` (default: `false`) | Replaces AI Discover tab with original non-AI Products tab and removes AI search callouts.                                                                                    |
+| [Replace Shop with Home](#patch-replace-shop-with-home)                                         | `navigation/ReplaceShopWithHomePatch.kt`           | `rawResourcePatch`      | `true`  | None                                       | None                                   | Replaces commercial Shop tab with custom personal finance dashboard Home tab.                                                                                                 |
+| [Patch Consent Screen](#patch-patch-consent-screen)                                             | `security/PatchConsentScreenPatch.kt`              | `bytecodePatch`         | `true`  | `Clean Authentication`, `ConsentGate.java` | None                                   | Injects native `ConsentGate` modal dialog into `MainActivity.onCreate` before auth.                                                                                           |
+| [Suppress In-App Updates and Rating Prompts](#patch-suppress-in-app-updates-and-rating-prompts) | `security/SuppressUpdatesAndIntegrityPatch.kt`     | `rawResourcePatch`      | `true`  | None                                       | 3 boolean options (default: `true`)    | Neutralizes Hermes update selectors/sagas, update modal, store URLs, trustFall, and rating prompts.                                                                           |
 
 ---
 
@@ -31,7 +30,7 @@ This document details the binary bytecode, asset, and resource patches available
 
 - **Name:** Remove Ads and Tracking
 - **Target Package:** `com.sezzle.sezzlemobile`
-- **Supported Versions:** `5.3.9`
+- **Supported Versions:** `5.3.24`
 - **Default State:** `true` (Enabled by default)
 - **Type:** Composite Feature Patch (`compositeFeaturePatch`)
 - **Dependencies:** None
@@ -56,7 +55,7 @@ Stubs out entrypoint methods across all advertising and tracking SDKs:
 
 ##### Hermes Raw Resource Layer (`assets/index.android.bundle`)
 
-Applies nine Hermes bytecode substitutions followed by recalculating the trailing bundle SHA-1 footer hash:
+Applies the following Hermes bytecode substitutions followed by recalculating the trailing bundle SHA-1 footer hash:
 
 1. **`canShowAd` Selector:** Forces `canShowAd` selector to return `false` (`LoadConstFalse r1; Ret r1`).
 2. **`shouldShowRokt` Selector:** Forces `shouldShowRokt` selector to return `false` (`LoadConstFalse r1; Ret r1`).
@@ -64,9 +63,10 @@ Applies nine Hermes bytecode substitutions followed by recalculating the trailin
 4. **`isAdEnabledForTrigger` Selector:** Forces `isAdEnabledForTrigger` selector to return `false` (`LoadConstFalse r1; Ret r1`).
 5. **`isRegisteredTrigger` Selector:** Forces `isRegisteredTrigger` selector to return `false` (`LoadConstFalse r1; Ret r1`).
 6. **`isPlacementInCatalog` Selector:** Forces `isPlacementInCatalog` selector to return `false` (`LoadConstFalse r1; Ret r1`).
-7. **`enableThanks` Getter:** Forces `enableThanks` getter to return `false` (`LoadConstFalse r0; Ret r0`).
-8. **`getThanksBaseUrl` Function:** Stubs `getThanksBaseUrl` to return `null` (`LoadConstNull r0; Ret r0`), blocking WebView requests to `https://thanks.is/`.
-9. **`ThanksModal.render()` Method:** Neutralizes `ThanksModal` component's `render()` method to return `null` (`LoadConstNull r0; Ret r0`), preventing the `<ReactNativeModal>` from ever mounting.
+7. **`useShowThanks` Hook:** Forces the Thanks visibility hook to return `false` (`LoadConstFalse r0; Ret r0`), keeping the modal unmounted.
+8. **Thanks Base URL:** Replaces the `https://thanks.is/` loader with `null` (`LoadConstNull r0; Ret r0`).
+
+Selectors are located by their property name in the memoized selector wrappers, so the patch is not tied to fixed byte offsets.
 
 - **Mandatory Rehash:** Recalculates trailing Hermes bundle SHA-1 digest via `editor.updateFooterHash()`.
 
@@ -76,7 +76,7 @@ Applies nine Hermes bytecode substitutions followed by recalculating the trailin
 
 - **Name:** Clean Authentication
 - **Target Package:** `com.sezzle.sezzlemobile`
-- **Supported Versions:** `5.3.9`
+- **Supported Versions:** `5.3.24`
 - **Default State:** `true` (Enabled by default)
 - **Type:** Raw Binary / Asset Patch (`rawResourcePatch`)
 - **Dependencies:** None
@@ -100,7 +100,7 @@ Modifies `assets/index.android.bundle`:
 
 - **Name:** Unlock Custom App Icons
 - **Target Package:** `com.sezzle.sezzlemobile`
-- **Supported Versions:** `5.3.9`
+- **Supported Versions:** `5.3.24`
 - **Default State:** `true` (Enabled by default)
 - **Type:** Raw Binary / Asset Patch (`rawResourcePatch`)
 - **Dependencies:** None
@@ -124,7 +124,7 @@ Modifies `assets/index.android.bundle`:
 
 - **Name:** Enable App Debugging
 - **Target Package:** `com.sezzle.sezzlemobile`
-- **Supported Versions:** `5.3.9`
+- **Supported Versions:** `5.3.24`
 - **Default State:** `false` (Disabled by default)
 - **Type:** Android XML Resource Patch (`resourcePatch`)
 - **Dependencies:** None
@@ -143,7 +143,7 @@ Parses `AndroidManifest.xml` and adds `android:debuggable="true"` to the `<appli
 
 - **Name:** Unlock Developer Settings
 - **Target Package:** `com.sezzle.sezzlemobile`
-- **Supported Versions:** `5.3.9`
+- **Supported Versions:** `5.3.24`
 - **Default State:** `false` (Disabled by default)
 - **Type:** Raw Binary / Asset Patch (`rawResourcePatch`)
 - **Dependencies:** None
@@ -166,7 +166,7 @@ Modifies `assets/index.android.bundle`:
 
 - **Name:** Unlock Receipt Scanner
 - **Target Package:** `com.sezzle.sezzlemobile`
-- **Supported Versions:** `5.3.9`
+- **Supported Versions:** `5.3.24`
 - **Default State:** `false` (Disabled by default)
 - **Type:** Raw Binary / Asset Patch (`rawResourcePatch`)
 - **Dependencies:** `Unlock Developer Settings`
@@ -189,7 +189,7 @@ Modifies `assets/index.android.bundle`:
 
 - **Name:** Configure Shortcuts
 - **Target Package:** `com.sezzle.sezzlemobile`
-- **Supported Versions:** `5.3.9`
+- **Supported Versions:** `5.3.24`
 - **Default State:** `true` (Enabled by default)
 - **Type:** Raw Binary / Asset Patch (`rawResourcePatch`)
 - **Dependencies:** None
@@ -221,7 +221,7 @@ Modifies `assets/index.android.bundle`:
 
 - **Name:** Hide Sezzle Mobile
 - **Target Package:** `com.sezzle.sezzlemobile`
-- **Supported Versions:** `5.3.9`
+- **Supported Versions:** `5.3.24`
 - **Default State:** `false` (Disabled by default)
 - **Type:** Raw Binary / Asset Patch (`rawResourcePatch`)
 - **Dependencies:** None
@@ -244,7 +244,7 @@ Modifies `assets/index.android.bundle`:
 
 - **Name:** Remove Promos & Giveaways
 - **Target Package:** `com.sezzle.sezzlemobile`
-- **Supported Versions:** `5.3.9`
+- **Supported Versions:** `5.3.24`
 - **Default State:** `true` (Enabled by default)
 - **Type:** Raw Binary / Asset Patch (`rawResourcePatch`)
 - **Dependencies:** None
@@ -265,8 +265,9 @@ Suppresses promotional popovers, giveaway entry flows, Knot card-linking dialogs
 
 Modifies `assets/index.android.bundle`:
 
-- **Base Giveaways (Always applied):** Neutralizes `useRoktGiveawaysEnabled`, `useGiveawayShopRoutingEnabled`, `useMarketingGiveaway`, and `useGiveawayScreenStatus`.
-- **Deal Popovers:** Stubs `useSelectPopupOffers`, `useStoreOfferModalConfig`, `useWebviewDealsPopoverConfig`, `useIsNewOfferModalEnabled`, `useSingleMerchantDeal`, and `useIsOffersV2Enabled`.
+- **Base Giveaways (Always applied):** Neutralizes `useRoktGiveawaysEnabled`, `useMarketingGiveaway`, and `useGiveawayScreenStatus`.
+- **Deal Popovers:** Stubs `useSelectPopupOffers`, `useStoreOfferModalConfig`, `useWebviewDealsPopoverConfig`, `useSingleMerchantDeal`, `useIsOffersV2Enabled`, and `useIsOfferSurfaceEnabled`.
+- **Removed upstream in 5.3.24:** `useGiveawayShopRoutingEnabled` and `useIsNewOfferModalEnabled` no longer exist in the bundle, so no patch step is required.
 - **Knot Account Linking:** Stubs `useKnotActivationModalEnabled`, `useKnotActivationModalGate`, and `useKnotBannerVisibility`.
 - **Wallet Marketing:** Stubs `useWalletMarketingMerchants`, `useWalletEmptyStateMarketing`, and `useOfferBoostBanner`.
 - **Playtime Campaigns:** Stubs `usePlaytimeCampaigns`.
@@ -281,7 +282,7 @@ Modifies `assets/index.android.bundle`:
 
 - **Name:** Remove Rewards
 - **Target Package:** `com.sezzle.sezzlemobile`
-- **Supported Versions:** `5.3.9`
+- **Supported Versions:** `5.3.24`
 - **Default State:** `true` (Enabled by default)
 - **Type:** Raw Binary / Asset Patch (`rawResourcePatch`)
 - **Dependencies:** None
@@ -294,8 +295,8 @@ Removes the commercial Rewards bottom tab while preserving access to Sezzle Poin
 
 Modifies `assets/index.android.bundle`:
 
-1. Unmounts `EarnTab` in `ProtectedStack` by stubbing `useIsShowEarnTabEnabled` to return `false`.
-2. Rewires the Home `customer/points` shortcut by conditionally branching in the P2P deep-link dispatcher: if the deep link contains the `send` payload property it jumps directly to native Sezzle Send navigation, otherwise it navigates to `Account > SezzleSpend > SezzlePoints` and jumps to cleanup, keeping both Sezzle Send and Sezzle Points fully functional.
+1. Unmounts `EarnTab` in `ProtectedStack` by stubbing `useIsShowEarnTabEnabled` and `useCachedIsShowEarnTabEnabled` to return `false`.
+2. The Home `customer/points` shortcut is hidden by the default `hideRewards` option in [Configure Shortcuts](#patch-configure-shortcuts). The Account > Sezzle Points entry remains functional.
 3. Recomputes Hermes footer hash.
 
 ---
@@ -304,7 +305,7 @@ Modifies `assets/index.android.bundle`:
 
 - **Name:** Remove Sezzle Subscriptions
 - **Target Package:** `com.sezzle.sezzlemobile`
-- **Supported Versions:** `5.3.9`
+- **Supported Versions:** `5.3.24`
 - **Default State:** `false` (Disabled by default)
 - **Type:** Raw Binary / Asset Patch (`rawResourcePatch`)
 - **Dependencies:** None
@@ -331,7 +332,7 @@ Note: To remove the "Pay Later Anywhere" shortcut on the home screen carousel, c
 
 - **Name:** Replace AI Discover with Products
 - **Target Package:** `com.sezzle.sezzlemobile`
-- **Supported Versions:** `5.3.9`
+- **Supported Versions:** `5.3.24`
 - **Default State:** `true` (Enabled by default)
 - **Type:** Raw Binary / Asset Patch (`rawResourcePatch`)
 - **Dependencies:** None
@@ -356,7 +357,7 @@ Modifies `assets/index.android.bundle`:
 
 - **Name:** Replace Shop with Home
 - **Target Package:** `com.sezzle.sezzlemobile`
-- **Supported Versions:** `5.3.9`
+- **Supported Versions:** `5.3.24`
 - **Default State:** `true` (Enabled by default)
 - **Type:** Raw Binary / Asset Patch (`rawResourcePatch`)
 - **Dependencies:** None
@@ -369,9 +370,9 @@ Replaces the commercial "Shop" tab and store feeds with a clean personal finance
 
 Modifies `assets/index.android.bundle`:
 
-1. Changes bottom navigation tab label from `"Shop"` to `"Home"` using localization string `#58406` (`"navigation.Home"`).
-2. In `StoreRoot` (`func #44055`), replaces commercial feed modules with a 4-component dashboard: `HeaderView`, `OrdersListHeader` ("Total you owe"), `PaymentStreakBanner` (spending power and streak), and `ShopTabShortcutsRow` ("Your Shortcuts").
-3. In `TotalOwedSectionV2`, removes "Shop now" buttons and redundant badges when viewed from Home.
+1. Changes the bottom navigation tab label from `"Shop"` to `"Home"` in `ProtectedStack`.
+2. In `StoreRoot` (`func #49969`), redirects dependency slots 17–19 from the commercial feed modules to `OrdersListHeader` (module `12387`), `PaymentStreakBanner` (module `10041`), and `ShopTabShortcutsRow` (module `12816`).
+3. Disables the Liquid Glass `StoreRoot` branch so the deterministic standard layout is used, and replaces the commercial feed composition with a 4-child dashboard: existing header, `OrdersListHeader`, `PaymentStreakBanner`, and `ShopTabShortcutsRow`.
 4. Recomputes Hermes footer hash.
 
 ---
@@ -380,7 +381,7 @@ Modifies `assets/index.android.bundle`:
 
 - **Name:** Patch Consent Screen
 - **Target Package:** `com.sezzle.sezzlemobile`
-- **Supported Versions:** `5.3.9`
+- **Supported Versions:** `5.3.24`
 - **Default State:** `true` (Enabled by default)
 - **Type:** Dalvik Bytecode Patch (`bytecodePatch`) with Extension DEX (`extendWith`)
 - **Dependencies:** `Clean Authentication`
@@ -402,7 +403,7 @@ Informs users that the app is patched and prevents interaction until acknowledge
 
 - **Name:** Suppress In-App Updates and Rating Prompts
 - **Target Package:** `com.sezzle.sezzlemobile`
-- **Supported Versions:** `5.3.9`
+- **Supported Versions:** `5.3.24`
 - **Default State:** `true` (Enabled by default)
 - **Type:** Raw Binary / Asset Patch (`rawResourcePatch`)
 - **Dependencies:** None
@@ -425,26 +426,5 @@ Modifies `assets/index.android.bundle`:
 4. Forces Hermes `trustFall`, `isJailBroken`, `hookDetected`, and `canMockLocation` to return `false`.
 5. Stubs in-app review rating trigger functions.
 6. Recomputes Hermes footer hash.
-
----
-
-### Patch: Suppress Updates and Integrity Checks
-
-- **Name:** Suppress Updates and Integrity Checks
-- **Target Package:** `com.sezzle.sezzlemobile`
-- **Supported Versions:** `5.3.9`
-- **Default State:** `true` (Enabled by default)
-- **Type:** Dalvik Bytecode Patch (`bytecodePatch`)
-- **Dependencies:** `Suppress In-App Updates and Rating Prompts`
-
-#### 1. Motivation & Purpose
-
-Prevents Microsoft CodePush from downloading remote OTA bundles that would overwrite patched Hermes bytecode, and stubs out Dalvik root detection libraries.
-
-#### 2. Technical Implementation & Injection Points
-
-1. In `MainApplication`, intercepts `CodePush.getJSBundleFile()` and forces it to return `null`, ensuring the React Native host always boots from the patched embedded asset bundle (`assets/index.android.bundle`).
-2. Stubs all root and environment check methods in `RootBeer` (`isRooted`, `isRootedWithoutBusyBoxCheck`, etc.) to return `false`.
-3. Stubs `RootedCheck.isJailBroken()`—the value that `JailMonkeyModule.getConstants()` publishes as `isJailBroken`—to return `false`.
 
 ---
