@@ -1,5 +1,6 @@
 import { env } from 'cloudflare:test';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { AUTHORITY_GATE_KEY } from '../src/app-state';
 import {
   deriveReleaseLineDownloads,
   DOWNLOAD_STATISTICS_KV_KEY,
@@ -8,6 +9,10 @@ import {
 } from '../src/download-statistics';
 import worker, { runScheduledTasks } from '../src/index';
 import type { DownloadStatistics, WorkerEnv } from '../src/types';
+
+beforeEach(async () => {
+  await env.PATCHES_KV.put(AUTHORITY_GATE_KEY, '2000-01-01T00:00:00.000Z');
+});
 
 describe('Download statistics collection and aggregation', () => {
   let originalFetch: typeof globalThis.fetch;
