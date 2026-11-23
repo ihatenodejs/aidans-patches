@@ -20,7 +20,7 @@ Applies Morphe patches from a `.mpp` bundle to an APK or split container (APKM/X
    - Default / `--reinstall`: Runs `adb install -r` (preserves existing app data and sandbox).
    - `--clean-install`: Attempts `adb uninstall <package>` first (clears app data; uninstall failure is ignored), then `adb install`.
 5. **Launcher Activity Execution**: When `--launch` is passed, parses the launchable activity from manifest badging and invokes `adb shell am start -n <package>/<activity>`.
-6. **Atomic File Staging & Input Preservation**: Staging occurs inside a temporary directory in the final output's parent folder, ensuring `os.replace` is same-filesystem atomic. Output paths are checked upfront to guarantee they never alias or overwrite the source artifact. Failures before destination replacement leave existing output files untouched; installation or launch failures occur after the destination file has already been replaced.
+6. **Atomic File Staging & Input Preservation**: Staging occurs inside a temporary directory in the final output's parent folder, so the final `fs::rename` stays on one filesystem and replaces the destination atomically. Output paths are checked upfront to guarantee they never alias or overwrite the source artifact. Failures before destination replacement leave existing output files untouched; installation or launch failures occur after the destination file has already been replaced.
 
 ### CLI Invocation
 
@@ -59,21 +59,20 @@ cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-la
 ### CLI Arguments
 
 - `artifact` (required positional): Path to APK/APKM/XAPK/APKS.
-- `--mpp MPP`: Path to `.mpp` patch bundle (optional if `--build` is specified).
+- `--mpp MPP`: Path to `.mpp` patch bundle (required unless `--build` is specified).
 - `--build`: Automatically compile newest `.mpp` patch bundle via Gradle (`./gradlew :patches:buildAndroid`).
-- `--package PACKAGE` (required): Package name.
-- `--all` or `-e` / `--enable PATCH ...` (one required, mutually exclusive): Select all default patches or specific patches.
+- `--package PACKAGE`: Package name (auto-detected from the artifact when omitted).
+- `--all` or `-e` / `--enable PATCH ...` (mutually exclusive): `--all` selects every compatible patch marked `default: true` plus dependencies, while `-e` selects explicit patch names. When neither is given, `deploy` defaults to `--all`.
 - `-O` / `--option KEY=VALUE ...`: Configuration options for selected patches.
 - `--device SERIAL`: Target specific ADB device serial (required only if multiple devices connected).
 - `--launch`: Cold-launch the main activity after installation.
 - `--reinstall`: Reinstall preserving data (`adb install -r`, default).
 - `--clean-install`: Uninstall before install (`adb uninstall && adb install`).
-- `--keystore PATH`: Custom signing keystore (must use alias `androiddebugkey` and password `android`).
+- `--keystore PATH`: Custom signing keystore. When supplied, `--ks-alias` and `--ks-pass` default to `androiddebugkey` and `android` only if omitted; `--key-pass` defaults to the store password.
 - `--out PATH`: Copy the patched, signed APK to a specific output path.
-- `--keystore PATH`: Custom signing keystore.
-- `--ks-alias ALIAS`: Keystore key alias.
-- `--ks-pass PASS`: Keystore password.
-- `--key-pass PASS`: Key password.
+- `--ks-alias ALIAS`: Keystore key alias (default: the negotiation-selected alias).
+- `--ks-pass PASS`: Keystore password (default: the negotiation-selected password).
+- `--key-pass PASS`: Key password (default: the keystore password).
 
 ### Exit Codes
 

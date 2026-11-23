@@ -74,12 +74,14 @@ Extracts artifacts into a managed run directory under `.apk-lab/<package>/<versi
 # Default: metadata + smali disassembly
 cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- analyze path/to/app.apkm
 
-# Include JADX Java decompilation
+# JADX Java decompilation (replaces the default smali disassembly)
 cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- analyze path/to/app.apkm --jadx
 
-# Include Apktool resource decoding
+# Apktool resource decoding (replaces the default smali disassembly)
 cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- analyze path/to/app.apkm --apktool
 ```
+
+Default Smali disassembly runs only when neither `--jadx` nor `--apktool` is used; add `--smali` alongside either flag to keep it.
 
 The command extracts all native `.so` shared libraries across the base APK and architecture splits into `<workspace>/lib/<arch>/` (e.g. `lib/arm64-v8a/libil2cpp.so`), and prints the exact directory and matching cleanup command upon completion.
 
@@ -131,7 +133,7 @@ cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-la
 
 - `--mpp` is optional: when omitted, `apk-lab` automatically locates and uses the newest compiled `.mpp` bundle in `patches/build/libs/`.
 - `--package` is optional: when omitted, `apk-lab` automatically inspects the artifact and infers its package name.
-- **Pipe Safety**: CLI runners catch `BrokenPipeError` gracefully; piping output to `head`, `tail`, or `less` terminates with exit code 0 rather than raising unhandled broken pipe exceptions.
+- **Pipe Safety**: Output uses fallible writes, and the binary maps a closed pipe (`EPIPE`) to exit code 0; piping to `head`, `tail`, or `less` therefore terminates cleanly instead of panicking on a broken pipe.
 
 ### `clean` — Managed Workspace Cleanup
 
@@ -246,7 +248,7 @@ cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-la
 - **Automatic Keystore Negotiation**: If `--keystore` is omitted, `apk-lab` inspects the installed package signature on the target device via ADB. If the installed app matches Morphe's bundled key signature, Morphe's cached keystore (`morphe-data/morphe.keystore`) is used automatically, preventing `INSTALL_FAILED_UPDATE_INCOMPATIBLE`. Otherwise, it falls back to the standard Android debug keystore (`~/.android/debug.keystore`, auto-created with permissions `0600` if absent).
 - Custom keystores and credentials can be specified using `--keystore PATH`, `--ks-alias ALIAS`, `--ks-pass PASS`, and `--key-pass PASS`.
 - Installs use data-preserving `adb install -r` by default (and with explicit `--reinstall`). `--clean-install` attempts `adb uninstall <package>` first (clearing app data; uninstall failure is ignored) before installing.
-- Staging occurs in a temporary directory inside the final output's parent directory, ensuring `os.replace` is same-filesystem atomic. Failures before destination replacement leave existing files untouched; installation or launch failures occur after the destination file has already been replaced.
+- Staging occurs in a temporary directory inside the final output's parent directory, so the final `fs::rename` stays on one filesystem and is atomic. Failures before destination replacement leave existing files untouched; installation or launch failures occur after the destination file has already been replaced.
 - When `--out PATH` is specified, the resolved output destination must not be identical to or alias the input artifact; deployment fails immediately before staging or device communication to prevent clobbering input files.
 
 ### `dev` — Rapid Patch Build, Deploy & Launch Loop
@@ -316,6 +318,37 @@ cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-la
 - `--device SERIAL`: Target a specific ADB device.
 - `--lines N`: Number of recent logcat lines to inspect (default: `5000`).
 - `--json`: Emit an array of structured crash reports instead of a human-readable summary, including resolved frames with Smali file paths, method signatures, and code snippets when available.
+
+### `ui` — Device UI Hierarchy Inspection & Click Automation
+
+Dumps the current Android UI hierarchy through ADB and filters nodes by text, content description, or clickability; `ui click` clicks the first matching node or direct coordinates.
+
+```bash
+# Dump clickable nodes as JSON
+cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- ui dump --clickable --json
+
+# Click the first node whose text contains "Sign in"
+cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- ui click --text "Sign in"
+
+# Click direct coordinates
+cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- ui click --coords 540,1200
+```
+
+**Arguments:**
+
+- `ui dump`: `--device SERIAL`, `--clickable`, `--text TEXT`, `--desc DESC`, `--json`.
+- `ui click`: `--device SERIAL`, plus either `--coords X,Y` or at least one of `--text TEXT`, `--desc DESC`.
+
+### `selftest` — Native Contract Self-Check
+
+Validates the native exit-code table and JSON envelope without external tools or an artifact.
+
+```bash
+cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- selftest
+cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- selftest --json
+```
+
+`--json [FILE|-]` emits the self-test report as JSON; `-` or no value writes stdout.
 
 ### `inspect-code` — Targeted Class and Method Bytecode/AST Inspection & Diff
 
@@ -553,8 +586,8 @@ Features:
 security and workspace management plus `setup`, `doctor`, `inspect`, `clean`,
 `analyze`, `compare`, `check`, `deploy`, `monitor`, `crash-trace`, `asm`,
 `il2cpp`, `unity`, `inspect-code`, `validate-smali`, `res`, `strings`,
-`manifest`, `fixtures`, `acquire`, `play-accounts`, and the compatibility
-`ci matrix|start|run` entrypoints. It never invokes Python.
+`manifest`, `fixtures`, `acquire`, `play-accounts`, `ui`, `selftest`, and the
+compatibility `ci matrix|start|run` entrypoints. It never invokes Python.
 
 ```bash
 cargo build --release --locked --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab

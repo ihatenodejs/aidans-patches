@@ -16,8 +16,9 @@ subprocesses remain external by design.
 
 ## Architecture
 
-The repository has one host crate, `tools/apk-lab`, with a library and one production
-binary, `apk-lab`. During the migration the crate also built a migration-only binary;
+APK Lab is one host crate, `tools/apk-lab`, with a library and one production
+binary, `apk-lab`; `tools/asset-prep` and `tools/play-metadata` are separate host
+crates. During the migration the crate also built a migration-only binary;
 that binary and the harness behind it were deleted after acceptance. Shared owners are:
 
 - `archives.rs`: one validated ZIP/split materialization and limit policy.

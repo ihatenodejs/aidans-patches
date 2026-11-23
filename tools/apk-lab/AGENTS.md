@@ -28,7 +28,8 @@ cargo test --locked --manifest-path tools/apk-lab/Cargo.toml
 - `src/workspace.rs`, `src/process.rs`: deterministic managed `.apk-lab/` runs, guarded cleanup, and shell-free subprocesses.
 - `src/tools.rs`, `tools.lock.json`: pinned external-tool install and checksum verification.
 - `src/morphe.rs`: isolated patch execution and result validation.
-- `src/compatibility_ci.rs`, `src/fixtures.rs`, `src/acquisition.rs`, `src/accounts.rs`: package matrix, R2 fixture lifecycle, result reporting, and Play delivery.
+- `src/analysis.rs`: managed `analyze` orchestration and native-library extraction.
+- `src/compatibility_ci.rs`, `src/fixtures.rs`, `src/acquisition.rs`, `src/accounts.rs`, `src/accounts_tui.rs`: package matrix, R2 fixture lifecycle, result reporting, Play delivery, and interactive account management.
 - `src/asm.rs`, `src/il2cpp.rs`, `src/unity.rs`, `src/smali.rs`, `src/resources.rs`, `src/code_inspection.rs`, `src/dex_strings.rs`, `src/manifest.rs`: targeted reverse-engineering utilities.
 - `src/deployment.rs`, `src/device.rs`: patch/sign/install/launch and runtime health monitoring.
 - `src/play.rs`: native Play provider boundary used by acquisition.

@@ -65,9 +65,9 @@ cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-la
 ### CLI Arguments
 
 - `artifact` (required positional): Path to APK or split bundle.
-- `--mpp MPP` (required): Path to compiled Morphe patch bundle (`.mpp`).
+- `--mpp MPP` (optional): Path to compiled Morphe patch bundle (`.mpp`). When omitted, the newest bundle in `patches/build/libs/` is used.
 - `--package PACKAGE`: Package name (inferred from artifact manifest if omitted).
-- `--all`: Test all compatible patches declared for this package in `patches-list.json`.
+- `--all`: Test every compatible patch declared for this package in `patches-list.json`, including patches declared with `default: false`, plus their dependencies.
 - `--patch NAME ...`: Repeatable name of specific patch(es) to test.
 - `--force`: Bypass target version compatibility check in Morphe metadata (vital for app updates to establish failing baseline).
 - `--keep-workspace`: Retain ephemeral workspace under `.apk-lab/` instead of cleaning up on exit.

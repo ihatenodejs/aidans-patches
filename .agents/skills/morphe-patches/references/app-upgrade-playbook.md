@@ -39,8 +39,8 @@ cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-la
   path/to/new-version.apkm
 
 # 2. Force-run the current patch bundle against the new APK to capture failing patches.
-# --all means every compatible patch with default = true; add --patch "Name" for
-# any default = false patch that must also be exercised.
+# --all means every compatible patch, including default = false patches; use --patch
+# only for explicit selection.
 cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- check \
   path/to/new-version.apkm \
   --mpp patches/build/libs/patches-<version>.mpp \
@@ -132,7 +132,7 @@ Execute the bundle build, metadata generation, and real-artifact check:
 ./gradlew :patches:buildAndroid
 ./gradlew generatePatchesList
 
-# 2. Execute every compatible default patch with its boolean inversions
+# 2. Execute every compatible patch with its boolean inversions
 cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- check \
   path/to/new-version.apkm \
   --mpp patches/build/libs/patches-<version>.mpp \

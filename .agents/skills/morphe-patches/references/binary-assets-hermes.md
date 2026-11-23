@@ -121,8 +121,6 @@ When app integrity checks, signature validation, or core protections are impleme
 | `RETURN_FALSE` | `mov w0, #0`<br>`ret` | `byteArrayOf(0x00, 0x00, 0x80.toByte(), 0x52, 0xc0.toByte(), 0x03, 0x5f, 0xd6.toByte())` |
 | `NOP`          | `nop`                 | `byteArrayOf(0x1f, 0x20, 0x03, 0xd5.toByte())`                                           |
 
-### Calculating Offsets with APK Lab
-
 ### Assembling & Disassembling ARM64 with Existing Tools
 
 `apk-lab asm` **assembles** one statement at a time; it does not disassemble byte strings. It currently supports `b`, `bl`, `ret`, and `mov`/`movz` immediate forms. Use the NDK's `llvm-objdump` to disassemble the exact library and derive offsets.
