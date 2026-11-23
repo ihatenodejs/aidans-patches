@@ -601,5 +601,6 @@ $MIG compare --input docs/benchmarks/apk-lab/paired.json --policy tools/apk-lab/
 - Generated migration output (`.apk-lab-migration/`) and private corpus manifests
   (`docs/benchmarks/apk-lab/*.local.json`) are ignored. Public files contain only
   sanitized identities and hashes, never proprietary APK bytes or credentials.
-- Live device, Play, R2, Worker, and compatibility-workflow scenarios are pending until
-  the operator grants execution authorization and their prerequisite report is green.
+- Authorized device, Play, R2, Worker, and compatibility-workflow evidence was
+  captured during plans 008/010/011. Normal report verification does not contact live
+  services; rerun those scenarios when changing an entrypoint or delivery behavior.

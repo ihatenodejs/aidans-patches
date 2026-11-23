@@ -88,18 +88,13 @@ plans/
 *.ttf
 patches/src/main/resources/fonts/
 
-# APK Lab & Python
+# APK Lab workspaces and local environments
 .apk-lab/
 .apk-lab-migration/
 docs/benchmarks/apk-lab/*.local.json
 .dev.vars*
-__pycache__/
-*.py[cod]
-*$py.class
-.pytest_cache/
 .venv/
 .tools/
-.ruff_cache/
 
 # Rust & Cargo
 target/

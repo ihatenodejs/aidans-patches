@@ -1,10 +1,10 @@
 # Repository Guidelines
 
-Scope: CI workflows, release/deploy automation, issue templates, and Python generator scripts under `.github/`.
+Scope: CI workflows, release/deploy automation, issue templates, and Bun/native generator scripts under `.github/`.
 
 ## Workflow Map
 
-- `workflows/apk-lab-tests.yml`: installs locked root/Worker/site/Python dependencies, runs format/lint/typecheck/tests, then the clean Gradle patch build gate.
+- `workflows/apk-lab-tests.yml`: installs locked root/Worker/site dependencies, runs format/lint/typecheck/tests including the Python-free gate and native APK Lab goldens, then the clean Gradle patch build gate.
 - `workflows/apk-compatibility.yml`: builds `.mpp`/metadata, computes affected packages, reconciles private fixtures, runs real compatibility checks, and reports terminal status.
 - `workflows/release.yml`: Java/Node release pipeline and semantic-release, gated by paths to patch build inputs; site and Worker deploy handoffs trigger only on published releases.
 - `workflows/deploy-worker.yml`: Worker typecheck/test and conditional Wrangler deployment.
@@ -30,7 +30,8 @@ Use pinned actions and least-privilege `permissions`. Preserve path filters and 
 - `gradle`: Gradle wrapper and plugin dependencies.
 
 Repository-wide dependency checks via `scripts/deps.ts` enforce the same hold in `dependency-policy.json`. When modifying dependency holds, keep Dependabot ignores and `dependency-policy.json` aligned so external automation does not open PRs for held packages.
-Python scripts follow Ruff formatting/lint rules, validate paths/input shape, fail with actionable errors, and must not print secret values.
+
+Generator and automation code is Bun/TypeScript or native Rust. Validate paths and input shape, fail with actionable errors, and never print secret values. Do not introduce a Python runtime, package manager, hook framework, or interpreter requirement; `scripts/check-no-python.ts` enforces this.
 
 ## Release and Generated Assets
 

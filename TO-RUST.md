@@ -20,8 +20,9 @@ binaries: production `apk-lab` and migration-only `apk-lab-migrate`. Shared owne
 - `acquisition.rs`, `fixtures.rs`, `compatibility_ci.rs`: delivery and durable state.
 - `asset-prep`: native font, OCR, PDFBox, and icon preparation.
 
-The Rust core and Python oracle remain independently executable; the oracle is not
-linked into the candidate.
+During migration, the Rust core was measured against an independently executable
+Python oracle. The oracle was never linked into the candidate and was retired after
+the accepted parity and performance evidence.
 
 ## Migration map
 
@@ -33,7 +34,7 @@ linked into the candidate.
 | Font/OCR/PDFBox/icon preparation            | Python            | Rust                            |
 | README generation and hooks                 | Python            | Bun                             |
 | External patch engine, signing, SDK, ADB    | JVM/Android tools | unchanged                       |
-| APK Lab oracle and tests                    | Python            | retained until final retirement |
+| APK Lab oracle and tests                    | Python            | retired after accepted evidence |
 
 ## Clean-code decisions
 

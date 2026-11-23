@@ -213,8 +213,28 @@ jobs:
       - name: Build native apk-lab release binaries
         run: cargo build --release --locked --manifest-path tools/apk-lab/Cargo.toml --bins
 
+      - name: Verify native APK Lab goldens
+        run: ./tools/apk-lab/target/release/apk-lab-migrate verify-goldens --group all
+
       - name: Audit rust domain
         run: bun scripts/audit.ts all --domain rust
+
+  test-python-free:
+    name: Python-Free Verification
+    needs: detect-changes
+    if: needs.detect-changes.outputs.is_full_run == 'true' || needs.detect-changes.outputs.web == 'true' || needs.detect-changes.outputs.rust == 'true' || needs.detect-changes.outputs.android == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Enforce Python-free repository
+        run: bun scripts/check-no-python.ts
 
   test-native:
     name: Native Verification
@@ -251,7 +271,8 @@ jobs:
 
   gate:
     name: Test & Build Gate
-    needs: [detect-changes, test-web, test-android, test-rust, test-native]
+    needs:
+      [detect-changes, test-web, test-android, test-rust, test-native, test-python-free]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -294,6 +315,7 @@ jobs:
           check_job "Android (Patches / Extension)" "${{ needs.test-android.result }}"
           check_job "Rust (Play Metadata / Native)" "${{ needs.test-rust.result }}"
           check_job "Native (Adobe Scan C++)" "${{ needs.test-native.result }}"
+          check_job "Python-Free Repository" "${{ needs.test-python-free.result }}"
 
           echo "" >> "$GITHUB_STEP_SUMMARY"
 

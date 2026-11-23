@@ -66,7 +66,7 @@ export const HISTORICAL_EXCLUSIONS: readonly HistoricalExclusion[] = [
   {
     prefix: 'scripts/hooks.test.ts',
     reason:
-      'proves legacy Python environments do not leak into repo-owned hook snapshots',
+      'exercises legacy pre-commit wrapper migration without requiring the framework',
   },
   {
     prefix: 'scripts/check-no-python.ts',
@@ -187,19 +187,19 @@ const CONTENT_RULES: readonly { pattern: RegExp; message: string }[] = [
     message: 'pip command requirement',
   },
   {
-    pattern: /pypi\.org|\bPyPI\b/,
+    pattern: /pypi\.org|\bpypi\b/i,
     message: 'PyPI requirement',
   },
   {
-    pattern: /\bpytest\b/,
+    pattern: /\bpytest\b/i,
     message: 'pytest requirement',
   },
   {
-    pattern: /\bmypy\b/,
+    pattern: /\bmypy\b/i,
     message: 'mypy requirement',
   },
   {
-    pattern: /\bruff\b/,
+    pattern: /\bruff\b/i,
     message: 'Ruff requirement',
   },
   {

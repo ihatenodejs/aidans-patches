@@ -66,6 +66,7 @@ describe('Python-free gate scanning', () => {
           'const result = Bun.spawnSync(["python3", "-m", "pytest"]);\n',
         'docs/guide.md':
           'Run `pytest -q` before committing; see tools/apk-lab/apk_lab/cli.py.\n',
+        '.github/AGENTS.md': 'Python scripts follow Ruff formatting/lint rules.\n',
       });
 
       const found = scanRepository(root);
@@ -77,6 +78,7 @@ describe('Python-free gate scanning', () => {
       expect(text).toContain('uv command requirement');
       expect(text).toContain('Python version setup requirement');
       expect(text).toContain('pytest requirement');
+      expect(text).toContain('Ruff requirement');
       expect(text).toContain('retired Python APK Lab path');
     });
   });
