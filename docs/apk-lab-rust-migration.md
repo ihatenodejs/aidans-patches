@@ -163,8 +163,10 @@ Added at cutover:
   The harness was retired with the Python implementation.
 - `scripts/check-no-python.ts`: deterministic first-party Python-free gate, with
   narrow historical exclusions for plans, immutable migration evidence, changelog,
-  this migration report, and frozen oracle fixtures. Ordinary `bun run audit` runs it
-  on every check.
+  this migration report, and frozen oracle fixtures. Ordinary `bun run audit` ran it
+  on every check. Removed after the cutover once Python retirement was complete: the
+  scan no longer guarded any behavior, so it was deleted with its CI job and audit
+  stage instead of becoming a maintained allowlist.
 
 Cutover code revision:
 `5f42d6b373f021feb7cf2c6f7ba5ea68e9a2f1c9`.

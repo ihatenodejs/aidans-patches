@@ -224,25 +224,6 @@ jobs:
       - name: Audit rust domain
         run: bun scripts/audit.ts all --domain rust
 
-  test-python-free:
-    name: Python-Free Verification
-    needs: detect-changes
-    # Unconditional: any change can introduce Python, including docs-, skill-,
-    # or workflow-only changes. Checkout + Bun are the only prerequisites.
-    if: always()
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v7
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
-      - name: Enforce Python-free repository
-        run: bun scripts/check-no-python.ts
-
   test-native:
     name: Native Verification
     needs: detect-changes
@@ -285,7 +266,6 @@ jobs:
         test-android,
         test-rust,
         test-native,
-        test-python-free,
       ]
     if: always()
     runs-on: ubuntu-latest
@@ -304,7 +284,6 @@ jobs:
           ANDROID_RESULT: ${{ needs.test-android.result }}
           RUST_RESULT: ${{ needs.test-rust.result }}
           NATIVE_RESULT: ${{ needs.test-native.result }}
-          PYTHON_FREE_RESULT: ${{ needs.test-python-free.result }}
         run: |
           echo "### Test & Build Gate Verification Summary" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
@@ -364,8 +343,6 @@ jobs:
             "is_full_run=$FULL_RUN rust=$RUST_CHANGED"
           check_job "Native (Adobe Scan C++)" "$NATIVE_RESULT" \
             "is_full_run=$FULL_RUN native=$NATIVE_CHANGED"
-          check_job "Python-Free Repository" "$PYTHON_FREE_RESULT" \
-            "this job runs unconditionally; a skip is a workflow configuration error"
 
           count_domain "$WEB_RESULT"
           count_domain "$ANDROID_RESULT"
@@ -385,7 +362,7 @@ jobs:
           # lint and Documentation & Link Integrity tests. They must still run
           # Web, so an all-skipped docs change fails here instead of passing.
           if [ "$DOMAIN_RUN" -eq 0 ]; then
-            echo "❌ **No domain verification job ran; only the Python-free check executed.**" >> "$GITHUB_STEP_SUMMARY"
+            echo "❌ **No domain verification job ran.**" >> "$GITHUB_STEP_SUMMARY"
             echo "" >> "$GITHUB_STEP_SUMMARY"
             if [ "$DOCS_CHANGED" = "true" ]; then
               echo "This is a docs-only change, but Web Verification was skipped. Docs-only runs must execute Web Verification for markdown and documentation tests." >> "$GITHUB_STEP_SUMMARY"

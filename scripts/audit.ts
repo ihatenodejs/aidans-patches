@@ -553,30 +553,7 @@ async function runLint(
     });
   }
 
-  // 2. Python-free gate (first-party sources, manifests and workflows)
-  if (shouldRunDomain(domain, 'web')) {
-    process.stdout.write(
-      `  ${sym.arrow} Checking Python-free repository gate... `,
-    );
-    const noPyRes = await execCommand('bun', ['scripts/check-no-python.ts']);
-    const noPyPassed = noPyRes.code === 0;
-    console.log(noPyPassed ? sym.ok : sym.err);
-    if (!noPyPassed) {
-      printRawCommandOutput(noPyRes.stdout, noPyRes.stderr);
-    }
-    results.push({
-      title: 'Python-Free Gate (check-no-python)',
-      tool: 'check-no-python',
-      domain: 'web',
-      success: noPyPassed,
-      durationMs: noPyRes.durationMs,
-      summary: noPyPassed
-        ? 'No first-party Python requirements'
-        : 'First-party Python requirements detected',
-    });
-  }
-
-  // 3. ktlint (Kotlin)
+  // 2. ktlint (Kotlin)
   if (shouldRunDomain(domain, 'android')) {
     process.stdout.write(`  ${sym.arrow} Linting Kotlin sources (ktlint)... `);
     const ktArgs = autoFix
@@ -620,7 +597,7 @@ async function runLint(
     });
   }
 
-  // 4. Markdown Documentation (markdownlint-cli2)
+  // 3. Markdown Documentation (markdownlint-cli2)
   if (shouldRunDomain(domain, 'web')) {
     process.stdout.write(
       `  ${sym.arrow} Linting Markdown documentation (markdownlint-cli2)... `,
@@ -1168,7 +1145,6 @@ async function runTest(domain: AuditDomain = 'all'): Promise<PhaseResult> {
       '--timeout=30000',
       'scripts/release-retry.test.ts',
       'scripts/dependencies',
-      'scripts/check-no-python.test.ts',
       'scripts/rust-projects.test.ts',
       'scripts/generate-patches-readme.test.ts',
       'scripts/hooks.test.ts',
