@@ -65,7 +65,6 @@ function logicalCommands(content: string): string[] {
 }
 
 const skillFiles = readSkillFiles();
-const allSkillText = [...skillFiles.values()].join('\n');
 const bashCommands = [...skillFiles.values()]
   .flatMap((content) => fencedBlocks(content))
   .filter((block) => block.language === 'bash')
@@ -151,10 +150,14 @@ describe('Morphe patches skill contract', () => {
     expect(hermes).toMatch(/LoadConstTrue.*0x95/);
   });
 
-  test('documents --all as default-enabled patches only', () => {
+  test('documents --all as every compatible patch', () => {
     const skill = skillFiles.get('SKILL.md') ?? '';
     expect(skill).toContain(
+      '--all selects every compatible patch, including patches declared with default = false',
+    );
+    expect(skill).not.toContain(
       '--all selects every compatible patch with default = true',
     );
+    expect(skill).toContain('Use --patch only for explicit selection');
   });
 });

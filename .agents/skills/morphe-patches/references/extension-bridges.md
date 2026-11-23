@@ -92,13 +92,13 @@ public final class ConsentGate {
 
 The public descriptor of a bridge method is an immutable binary contract. Any signature change in Java requires an identical change in the injected Smali:
 
-| Java Method Signature | Smali Invocations Descriptor |
-|---|---|
-| `public static void maybeShow(Activity activity)` | `invoke-static {p0}, Lapp/aidan/extension/sezzle/ConsentGate;->maybeShow(Landroid/app/Activity;)V` |
-| `public static boolean isFeatureAllowed(String key)` | `invoke-static {v0}, Lapp/aidan/extension/shared/FeatureGate;->isFeatureAllowed(Ljava/lang/String;)Z` |
+| Java Method Signature                                         | Smali Invocations Descriptor                                                                                       |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `public static void maybeShow(Activity activity)`             | `invoke-static {p0}, Lapp/aidan/extension/sezzle/ConsentGate;->maybeShow(Landroid/app/Activity;)V`                 |
+| `public static boolean isFeatureAllowed(String key)`          | `invoke-static {v0}, Lapp/aidan/extension/shared/FeatureGate;->isFeatureAllowed(Ljava/lang/String;)Z`              |
 | `public static String transformUrl(String rawUrl, int flags)` | `invoke-static {v0, v1}, Lapp/aidan/extension/web/UrlRouter;->transformUrl(Ljava/lang/String;I)Ljava/lang/String;` |
 
-*Critical*: Never use primitive wrapper types (`java.lang.Boolean`, `java.lang.Integer`) unless nullability is strictly required; prefer primitive `boolean` (`Z`) and `int` (`I`) to avoid unnecessary autoboxing and descriptor complexity.
+_Critical_: Never use primitive wrapper types (`java.lang.Boolean`, `java.lang.Integer`) unless nullability is strictly required; prefer primitive `boolean` (`Z`) and `int` (`I`) to avoid unnecessary autoboxing and descriptor complexity.
 
 ---
 
@@ -326,7 +326,7 @@ Synthetic unit tests under `extensions/extension/src/test/java/` can verify pure
 4. **Run real-artifact patch check**:
 
    ```bash
-   uv run --project tools/apk-lab apk-lab check path/to/app.apkm \
+   cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- check path/to/app.apkm \
      --mpp patches/build/libs/patches-<version>.mpp \
      --package <pkg> \
      --all
@@ -336,12 +336,12 @@ Synthetic unit tests under `extensions/extension/src/test/java/` can verify pure
 5. **Device smoke and monitoring**:
 
    ```bash
-   uv run --project tools/apk-lab apk-lab deploy path/to/app.apkm \
+   cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- deploy path/to/app.apkm \
      --mpp patches/build/libs/patches-<version>.mpp \
      --package <pkg> \
      --all \
      --launch
-   uv run --project tools/apk-lab apk-lab monitor --package <pkg>
+   cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- monitor --package <pkg>
    ```
 
    Exercise the exact changed flow. An ABI/descriptor mismatch typically appears as `NoSuchMethodError`, `NoClassDefFoundError`, or `ClassNotFoundException` at runtime; compile-time checks cannot see the Smali string. Do not declare the bridge verified until this step succeeds.

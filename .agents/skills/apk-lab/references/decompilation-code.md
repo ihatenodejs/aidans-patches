@@ -20,16 +20,16 @@ Unpacks an APK or split container (APKM, XAPK, APKS) into an isolated, reproduci
 
 ```bash
 # Default: metadata extraction + Smali disassembly + native libs
-uv run --project tools/apk-lab apk-lab analyze path/to/app.apkm
+cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- analyze path/to/app.apkm
 
 # Include JADX Java decompilation
-uv run --project tools/apk-lab apk-lab analyze path/to/app.apkm --jadx
+cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- analyze path/to/app.apkm --jadx
 
 # Decompile specific classes only with JADX
-uv run --project tools/apk-lab apk-lab analyze path/to/app.apkm --jadx --class com.example.app.MainActivity
+cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- analyze path/to/app.apkm --jadx --class com.example.app.MainActivity
 
 # Include Apktool resource decoding
-uv run --project tools/apk-lab apk-lab analyze path/to/app.apkm --apktool
+cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- analyze path/to/app.apkm --apktool
 ```
 
 ### CLI Arguments
@@ -67,24 +67,24 @@ Extracts or decompiles **only a single class or method** directly from an APK wi
 
 ```bash
 # Disassemble a specific class to Smali
-uv run --project tools/apk-lab apk-lab inspect-code path/to/app.apkm \
+cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- inspect-code path/to/app.apkm \
   --class com.example.app.MainActivity \
   --format smali
 
 # Extract a specific method by name
-uv run --project tools/apk-lab apk-lab inspect-code path/to/app.apkm \
+cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- inspect-code path/to/app.apkm \
   --class com.example.app.MainActivity \
   --method onCreate \
   --format smali
 
 # Extract a specific method overload using Dalvik descriptor (Smali format only!)
-uv run --project tools/apk-lab apk-lab inspect-code path/to/app.apkm \
+cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- inspect-code path/to/app.apkm \
   --class com.example.app.MainActivity \
   --method "onCreate(Landroid/os/Bundle;)V" \
   --format smali
 
 # Decompile a method to Java and compare against unpatched APK
-uv run --project tools/apk-lab apk-lab inspect-code patched.apk \
+cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- inspect-code patched.apk \
   --class com.example.app.MainActivity \
   --method onCreate \
   --format java \
@@ -132,13 +132,13 @@ Statically validates Smali instruction snippets before injecting them into Morph
 
 ```bash
 # Validate instruction register widths and ranges
-uv run --project tools/apk-lab apk-lab validate-smali \
+cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- validate-smali \
   --snippet "instance-of v0, p1, Lcom/example/Target;" \
   --locals 20 \
   --params 2
 
 # Validate a static method snippet with a branch
-uv run --project tools/apk-lab apk-lab validate-smali \
+cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- validate-smali \
   --snippet "const/4 v0, 1\n:loop\nadd-int/lit8 v0, v0, 1\ngoto :loop" \
   --locals 2 \
   --params 0 \
@@ -160,44 +160,8 @@ uv run --project tools/apk-lab apk-lab validate-smali \
 
 ---
 
-## 4. Python API Reference
+## 4. Native Library and Test References
 
-```python
-from pathlib import Path
-from apk_lab.code_inspection import (
-    locate_class,
-    extract_smali_class,
-    extract_java_class,
-    extract_method_from_class,
-    inspect_or_compare_code,
-)
-from apk_lab.smali import validate_smali_snippet, SmaliValidationReport
-from apk_lab.archives import materialize_artifact_apks
-from apk_lab.inspection import inspect_artifact
-from apk_lab.tools import ToolManager
-
-tool_mgr = ToolManager()
-
-# Surgical class localization and extraction
-artifact_path = Path("path/to/app.apkm")
-inspection = inspect_artifact(artifact_path)
-with materialize_artifact_apks(artifact_path, inspection) as mat_apks:
-    loc = locate_class(mat_apks, "com.example.app.MainActivity")
-    if loc:
-        smali_code = extract_smali_class(tool_mgr, loc)
-        method_body = extract_method_from_class(smali_code, "onCreate", "smali", loc.descriptor)
-        print(method_body)
-
-# Validate Smali snippet
-report = validate_smali_snippet(
-    snippet="instance-of v0, p1, Lcom/example/Target;",
-    locals_count=20,
-    parameter_count=2,
-    is_static=False,
-    tool_manager=tool_mgr,
-)
-
-print(f"Is valid: {report.is_valid}")
-for diag in report.diagnostics:
-    print(f"[{diag.severity.upper()}] Line {diag.line}: {diag.code} - {diag.message}")
-```
+There is no supported Python API. The CLI is the stable contract; Rust modules
+(`code_inspection.rs`, `smali.rs`, `archives.rs`, `inspection.rs`) back the commands
+above and are covered by `cargo test --locked --manifest-path tools/apk-lab/Cargo.toml`.

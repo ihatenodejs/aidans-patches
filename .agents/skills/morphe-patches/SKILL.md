@@ -103,14 +103,15 @@ All commands run from the repository root:
 ./gradlew generatePatchesList
 
 # 5. Validate an unfamiliar Smali snippet before injecting it
-uv run --project tools/apk-lab apk-lab validate-smali \
+cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- validate-smali \
   --snippet $'const/4 v0, 0x1\nreturn v0' \
   --locals 1 --params 0
 
 # 6. Validate patch compatibility across baseline and all boolean option permutations.
-# --all selects every compatible patch with default = true (plus their dependencies),
-# not patches declared with default = false. Test those explicitly with --patch.
-uv run --project tools/apk-lab apk-lab check path/to/app.apkm \
+# --all selects every compatible patch, including patches declared with default = false,
+# plus their transitive dependencies. Use --patch only for explicit selection.
+# Deployment defaults differ: deploy --all selects only default = true patches.
+cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- check path/to/app.apkm \
   --mpp patches/build/libs/patches-<version>.mpp \
   --package <package.name> \
   --all
@@ -195,9 +196,9 @@ Never claim a test, build, or runtime check passed unless it was executed succes
 
 ---
 
-## 8. Skill Regression Scenarios (Proposed)
+## 8. Skill Regression Scenarios
 
-No skill-evaluation harness exists in this repository. If one is added, these deterministic scenarios should be covered; until then, use them as a manual self-check when editing this skill or its examples:
+These deterministic scenarios are exercised by the skill contract suite, `scripts/docs/skills.test.ts`, for the invariants it can assert from the documentation (command flags, instruction formats, bounds conditions, and Hermes constants). Run it with `bun test scripts/docs` (also part of `bun run audit`). Use the remaining scenarios as a manual self-check when editing this skill or its examples:
 
 | Scenario | Expected behavior |
 |---|---|

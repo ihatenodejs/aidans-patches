@@ -28,13 +28,13 @@ Inspects container architecture, manifest badging, DEX metrics, and native compo
 
 ```bash
 # Human-readable inspection summary
-uv run --project tools/apk-lab apk-lab inspect path/to/app.apkm
+cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- inspect path/to/app.apkm
 
 # JSON output printed to stdout
-uv run --project tools/apk-lab apk-lab inspect path/to/app.apkm --json -
+cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- inspect path/to/app.apkm --json -
 
 # Write JSON inspection report to file
-uv run --project tools/apk-lab apk-lab inspect path/to/app.apkm --json /tmp/inspection.json
+cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- inspect path/to/app.apkm --json /tmp/inspection.json
 ```
 
 ### CLI Arguments
@@ -81,15 +81,15 @@ Compares two APK/APKM/XAPK/APKS artifacts across metadata, split architecture, n
 
 ```bash
 # Compare two application versions
-uv run --project tools/apk-lab apk-lab compare old_app.apkm new_app.apkm
+cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- compare old_app.apkm new_app.apkm
 
 # Compare with targeted Java class diffing via JADX
-uv run --project tools/apk-lab apk-lab compare old_app.apkm new_app.apkm \
+cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- compare old_app.apkm new_app.apkm \
   --class com.example.app.MainActivity \
   --class com.example.app.data.SessionManager
 
 # Export comparison diff to JSON
-uv run --project tools/apk-lab apk-lab compare old_app.apkm new_app.apkm --json diff_report.json
+cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- compare old_app.apkm new_app.apkm --json diff_report.json
 ```
 
 ### CLI Arguments
@@ -108,38 +108,8 @@ uv run --project tools/apk-lab apk-lab compare old_app.apkm new_app.apkm --json 
 
 ---
 
-## 3. Python API Reference
+## 3. Native Library and Test References
 
-```python
-from pathlib import Path
-from apk_lab.inspection import inspect_artifact
-from apk_lab.comparison import compare_artifacts, format_comparison_summary
-from apk_lab.tools import ToolManager
-
-# Inspect an artifact
-inspection = inspect_artifact("path/to/app.apkm")
-print(f"Package: {inspection.package_name} v{inspection.version_name} ({inspection.version_code})")
-print(f"DEX classes: {inspection.dex_classes_count}, methods: {inspection.dex_methods_count}")
-print(f"Signer: {inspection.signing_certificate_sha256}")
-
-# Export inspection to dictionary
-data = inspection.to_dict()
-
-# Compare two versions
-tool_mgr = ToolManager()
-comparison = compare_artifacts(
-    old_path="old.apkm",
-    new_path="new.apkm",
-    requested_classes=["com.example.app.MainActivity"],
-    tool_mgr=tool_mgr,
-)
-
-print(format_comparison_summary(comparison))
-
-# Inspect specific class diff
-if "com.example.app.MainActivity" in comparison.classes_diff:
-    diff_info = comparison.classes_diff["com.example.app.MainActivity"]
-    status = diff_info["status"]  # unchanged, modified, added, removed, missing, tool_unavailable, error
-    if status == "modified" and diff_info.get("diff"):
-        print(diff_info["diff"])
-```
+There is no supported Python API. The CLI is the stable contract; Rust modules
+(`inspection.rs`, `comparison.rs`, `tools.rs`) back the commands above and are covered
+by `cargo test --locked --manifest-path tools/apk-lab/Cargo.toml`.

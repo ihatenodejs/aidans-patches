@@ -29,33 +29,33 @@ When a patch declares boolean configuration options, `apk-lab check` generates a
 
 ```bash
 # Test a specific patch with all option permutations
-uv run --project tools/apk-lab apk-lab check path/to/app.apkm \
+cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- check path/to/app.apkm \
   --mpp patches/build/libs/patches-X.X.X.mpp \
   --package com.example.app \
   --patch "Patch Name"
 
 # Test ALL compatible patches declared for the package
-uv run --project tools/apk-lab apk-lab check path/to/app.apkm \
+cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- check path/to/app.apkm \
   --mpp patches/build/libs/patches-X.X.X.mpp \
   --package com.example.app \
   --all
 
 # Force check to establish failing baseline during app updates
-uv run --project tools/apk-lab apk-lab check path/to/app.apkm \
+cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- check path/to/app.apkm \
   --mpp patches/build/libs/patches-X.X.X.mpp \
   --package com.example.app \
   --all \
   --force
 
 # Retain workspace scratch files for post-mortem debugging
-uv run --project tools/apk-lab apk-lab check path/to/app.apkm \
+cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- check path/to/app.apkm \
   --mpp patches/build/libs/patches-X.X.X.mpp \
   --package com.example.app \
   --all \
   --keep-workspace
 
 # Output structured compatibility report to JSON
-uv run --project tools/apk-lab apk-lab check path/to/app.apkm \
+cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- check path/to/app.apkm \
   --mpp patches/build/libs/patches-X.X.X.mpp \
   --package com.example.app \
   --all \
@@ -65,9 +65,9 @@ uv run --project tools/apk-lab apk-lab check path/to/app.apkm \
 ### CLI Arguments
 
 - `artifact` (required positional): Path to APK or split bundle.
-- `--mpp MPP` (required): Path to compiled Morphe patch bundle (`.mpp`).
+- `--mpp MPP` (optional): Path to compiled Morphe patch bundle (`.mpp`). When omitted, the newest bundle in `patches/build/libs/` is used.
 - `--package PACKAGE`: Package name (inferred from artifact manifest if omitted).
-- `--all`: Test all compatible patches declared for this package in `patches-list.json`.
+- `--all`: Test every compatible patch declared for this package in `patches-list.json`, including patches declared with `default: false`, plus their dependencies.
 - `--patch NAME ...`: Repeatable name of specific patch(es) to test.
 - `--force`: Bypass target version compatibility check in Morphe metadata (vital for app updates to establish failing baseline).
 - `--keep-workspace`: Retain ephemeral workspace under `.apk-lab/` instead of cleaning up on exit.
@@ -82,66 +82,36 @@ uv run --project tools/apk-lab apk-lab check path/to/app.apkm \
 
 ---
 
-## 2. CI Automation Module (`apk_lab.compatibility_ci`)
+## 2. CI Automation (`apk-lab ci`)
 
-Orchestrates automated patch testing and R2 fixture reconciliation in GitHub Actions workflows (`.github/workflows/apk-compatibility.yml`).
+Orchestrates automated patch testing and R2 fixture reconciliation in GitHub Actions workflows (`.github/workflows/apk-compatibility.yml`). The release binary is built once and invoked directly.
 
 ### Subcommands
 
 1. **`matrix`**: Analyzes Git diff between commits to generate a dynamic matrix of affected packages.
 
    ```bash
-   python -m apk_lab.compatibility_ci matrix --changed-files "patches/src/main/kotlin/app/aidan/patches/sezzle/..."
+   tools/apk-lab/target/release/apk-lab ci matrix \
+     --patches-list patches-list.json \
+     --output-file "$GITHUB_OUTPUT"
    ```
 
 2. **`start`**: Registers a test run with dispatch metadata.
 
    ```bash
-   python -m apk_lab.compatibility_ci start --package com.example.app --request-id 12345 --git-revision abc1234
+   tools/apk-lab/target/release/apk-lab ci start --package com.example.app --request-id 12345 --git-revision abc1234 --patches-list patches-list.json
    ```
 
 3. **`run`**: Downloads test fixtures from R2, verifies patch bundle compatibility, checks targets, and updates status.
 
    ```bash
-   python -m apk_lab.compatibility_ci run --package com.example.app --mpp patches/build/libs/patches-1.0.0.mpp
+   tools/apk-lab/target/release/apk-lab ci run --package com.example.app --mpp patches/build/libs/patches-1.0.0.mpp --patches-list patches-list.json
    ```
 
 ---
 
-## 3. Python API Reference
+## 3. Native Library and Test References
 
-```python
-from pathlib import Path
-from apk_lab.morphe import (
-    load_patches_list,
-    get_compatible_patches,
-    run_compatibility_check,
-    verify_sdk_dex,
-)
-from apk_lab.tools import ToolManager
-from apk_lab.workspace import WorkspaceManager
-
-# Load patch definitions from patches-list.json
-patches_data = load_patches_list()
-compatible = get_compatible_patches("com.example.app", patches_data, all_patches=True)
-for p in compatible:
-    print(f"Patch: {p.name} (default={p.default}, deps={p.dependencies})")
-
-# Run full compatibility check programmatically
-report, exit_code = run_compatibility_check(
-    artifact_path=Path("path/to/app.apkm"),
-    mpp_path=Path("patches/build/libs/patches-1.0.0.mpp"),
-    expected_package="com.example.app",
-    all_patches=True,
-    force=False,
-    keep_workspace=False,
-)
-
-print(f"Status: {report.overall_status} ({report.passed_cases}/{report.total_cases} passed)")
-for case in report.test_cases:
-    print(f" - {case.patch_name} {case.options}: {'PASS' if case.success else 'FAIL: ' + str(case.error_message)}")
-
-# Direct SDK DEX structural verification
-dex_valid, error = verify_sdk_dex(Path("output.apk"))
-print(f"DEX Valid: {dex_valid} (Error: {error})")
-```
+There is no supported Python API. The CLI is the stable contract; Rust modules
+(`morphe.rs`, `compatibility_ci.rs`, `tools.rs`, `workspace.rs`) back the commands
+above and are covered by `cargo test --locked --manifest-path tools/apk-lab/Cargo.toml`.

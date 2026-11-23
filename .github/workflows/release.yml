@@ -14,8 +14,13 @@ on:
       - 'settings.gradle.kts'
       - 'gradle.properties'
       - '.releaserc'
-      - '.github/scripts/prepare_emoji_font.py'
-      - '.github/scripts/generate_patches_readme.py'
+      - 'tools/asset-prep/**'
+      - 'scripts/asset-prep.ts'
+      - 'scripts/generate-patches-readme.ts'
+      - 'scripts/generate-patches-readme.test.ts'
+      - 'scripts/test-fixtures/generate-patches-readme/**'
+      - 'package.json'
+      - 'bun.lock'
       - '.github/workflows/release.yml'
 
 concurrency:
@@ -51,7 +56,7 @@ jobs:
         uses: actions/cache@v6
         with:
           path: ~/.gradle/caches/aidans-patches/fonts
-          key: emoji-font-${{ hashFiles('.github/scripts/prepare_emoji_font.py') }}
+          key: emoji-font-e37c7af6-${{ hashFiles('tools/asset-prep/Cargo.toml', 'tools/asset-prep/Cargo.lock', 'tools/asset-prep/src/**', 'tools/asset-prep/vendor/**') }}
           restore-keys: |
             emoji-font-
 
@@ -150,7 +155,7 @@ jobs:
         uses: actions/cache@v6
         with:
           path: ~/.gradle/caches/aidans-patches/fonts
-          key: emoji-font-${{ hashFiles('.github/scripts/prepare_emoji_font.py') }}
+          key: emoji-font-e37c7af6-${{ hashFiles('tools/asset-prep/Cargo.toml', 'tools/asset-prep/Cargo.lock', 'tools/asset-prep/src/**', 'tools/asset-prep/vendor/**') }}
           restore-keys: |
             emoji-font-
 
@@ -177,6 +182,11 @@ jobs:
         with:
           node-version: 'lts/*'
           cache: 'npm'
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
 
       - name: Install dependencies
         run: npm install

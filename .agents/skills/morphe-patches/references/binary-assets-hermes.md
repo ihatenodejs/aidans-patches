@@ -114,12 +114,12 @@ When app integrity checks, signature validation, or core protections are impleme
 
 ### Standard ARM64 Assembly Sequences
 
-| Operation | ARM64 Disassembly | Kotlin Byte Sequence (`byteArrayOf(...)`) |
-|---|---|---|
-| `RETURN_VOID` | `ret` | `byteArrayOf(0xc0.toByte(), 0x03, 0x5f, 0xd6.toByte())` |
-| `RETURN_TRUE` | `mov w0, #1`<br>`ret` | `byteArrayOf(0x20, 0x00, 0x80.toByte(), 0x52, 0xc0.toByte(), 0x03, 0x5f, 0xd6.toByte())` |
+| Operation      | ARM64 Disassembly     | Kotlin Byte Sequence (`byteArrayOf(...)`)                                                |
+| -------------- | --------------------- | ---------------------------------------------------------------------------------------- |
+| `RETURN_VOID`  | `ret`                 | `byteArrayOf(0xc0.toByte(), 0x03, 0x5f, 0xd6.toByte())`                                  |
+| `RETURN_TRUE`  | `mov w0, #1`<br>`ret` | `byteArrayOf(0x20, 0x00, 0x80.toByte(), 0x52, 0xc0.toByte(), 0x03, 0x5f, 0xd6.toByte())` |
 | `RETURN_FALSE` | `mov w0, #0`<br>`ret` | `byteArrayOf(0x00, 0x00, 0x80.toByte(), 0x52, 0xc0.toByte(), 0x03, 0x5f, 0xd6.toByte())` |
-| `NOP` | `nop` | `byteArrayOf(0x1f, 0x20, 0x03, 0xd5.toByte())` |
+| `NOP`          | `nop`                 | `byteArrayOf(0x1f, 0x20, 0x03, 0xd5.toByte())`                                           |
 
 ### Assembling & Disassembling ARM64 with Existing Tools
 
@@ -127,11 +127,11 @@ When app integrity checks, signature validation, or core protections are impleme
 
 ```bash
 # Assemble a supported instruction to Kotlin bytes
-uv run --project tools/apk-lab apk-lab asm "mov w0, #1" --format kotlin
-uv run --project tools/apk-lab apk-lab asm "ret" --format kotlin
+cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- asm "mov w0, #1" --format kotlin
+cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- asm "ret" --format kotlin
 
 # Resolve a branch relocation against a known PC/target
-uv run --project tools/apk-lab apk-lab asm "bl 0x3c98ce4" --pc 0x1fcf6e8 --format kotlin
+cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- asm "bl 0x3c98ce4" --pc 0x1fcf6e8 --format kotlin
 
 # Disassemble the exact .so (NDK path shown for macOS; adjust host tag)
 "$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/darwin-x86_64/bin/llvm-objdump" \

@@ -12,9 +12,9 @@
     "audit": "bun scripts/audit.ts all",
     "deps:check": "bun scripts/deps.ts check",
     "deps:update": "bun scripts/deps.ts update",
-    "play-accounts": "uv run --project tools/apk-lab apk-lab play-accounts",
+    "play-accounts": "cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- play-accounts",
     "sync:fizz-version": "bun scripts/sync-fizz-version.ts",
-    "prepare": "pre-commit install --install-hooks -t pre-commit -t pre-push || true"
+    "prepare": "bun scripts/install-hooks.ts"
   },
   "devDependencies": {
     "@MorpheApp/changelog": "git+https://github.com/MorpheApp/changelog.git#bundle",
@@ -29,6 +29,7 @@
     "oxlint": "^1.94.0",
     "prettier": "^3.10.1",
     "prettier-plugin-astro": "^1.1.2",
-    "semantic-release": "^25.0.9"
+    "semantic-release": "^25.0.9",
+    "toml-eslint-parser": "1.0.3"
   }
 }

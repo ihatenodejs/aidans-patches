@@ -34,14 +34,14 @@ Compare the currently supported version against the new target version to identi
 
 ```bash
 # 1. Structural comparison: container splits, DEX counts, manifest changes, class deltas
-uv run --project tools/apk-lab apk-lab compare \
+cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- compare \
   path/to/old-version.apkm \
   path/to/new-version.apkm
 
 # 2. Force-run the current patch bundle against the new APK to capture failing patches.
-# --all means every compatible patch with default = true; add --patch "Name" for
-# any default = false patch that must also be exercised.
-uv run --project tools/apk-lab apk-lab check \
+# --all means every compatible patch, including default = false patches; use --patch
+# only for explicit selection.
+cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- check \
   path/to/new-version.apkm \
   --mpp patches/build/libs/patches-<version>.mpp \
   --package com.example.app \
@@ -58,7 +58,7 @@ When an obfuscated class (e.g. `LA6/c0;`) is renamed to `LB2/d1;`:
 1. **Smali Extraction**:
 
    ```bash
-   uv run --project tools/apk-lab apk-lab analyze path/to/new-version.apkm --smali
+   cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- analyze path/to/new-version.apkm --smali
    ```
 
    The command prints the managed workspace path; search that workspace rather than unpacking elsewhere.
@@ -67,17 +67,17 @@ When an obfuscated class (e.g. `LA6/c0;`) is renamed to `LB2/d1;`:
 
    ```bash
    # Find the unique literal and the DEX/split that contains it
-   uv run --project tools/apk-lab apk-lab strings path/to/new-version.apkm \
+   cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- strings path/to/new-version.apkm \
      --query "SELECT \\* FROM user_preferences"
 
    # Disassemble a candidate class; use the exact method descriptor for overloads
-   uv run --project tools/apk-lab apk-lab inspect-code path/to/new-version.apkm \
+   cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- inspect-code path/to/new-version.apkm \
      --class com.example.app.data.PreferencesStore \
      --method "load(Ljava/lang/String;)Ljava/util/List;" \
      --format smali
 
    # Compare a candidate method against the previously supported artifact
-   uv run --project tools/apk-lab apk-lab inspect-code path/to/new-version.apkm \
+   cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- inspect-code path/to/new-version.apkm \
      --class com.example.app.data.PreferencesStore \
      --method load \
      --compare path/to/old-version.apkm
@@ -132,8 +132,8 @@ Execute the bundle build, metadata generation, and real-artifact check:
 ./gradlew :patches:buildAndroid
 ./gradlew generatePatchesList
 
-# 2. Execute every compatible default patch with its boolean inversions
-uv run --project tools/apk-lab apk-lab check \
+# 2. Execute every compatible patch with its boolean inversions
+cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- check \
   path/to/new-version.apkm \
   --mpp patches/build/libs/patches-<version>.mpp \
   --package com.example.app \
@@ -170,12 +170,12 @@ uv run --project tools/apk-lab apk-lab check \
 Declare a new app version supported only after Phase 5 passes **and** the changed user flow is exercised on a device:
 
 ```bash
-uv run --project tools/apk-lab apk-lab deploy path/to/new-version.apkm \
+cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- deploy path/to/new-version.apkm \
   --mpp patches/build/libs/patches-<version>.mpp \
   --package com.example.app \
   --all \
   --launch
-uv run --project tools/apk-lab apk-lab monitor --package com.example.app
+cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- monitor --package com.example.app
 ```
 
 ### Phase 6: Documentation & Conventional Commit

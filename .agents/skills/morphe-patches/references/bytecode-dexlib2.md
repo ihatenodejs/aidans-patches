@@ -272,13 +272,13 @@ Before building the full bundle, statically validate register widths, Smali opco
 ```bash
 # Validate a Smali instruction snippet (no .class/.method directives).
 # --locals is required; --params counts single-width parameters.
-uv run --project tools/apk-lab apk-lab validate-smali \
+cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- validate-smali \
   --snippet "const/4 v0, 0x1
 return v0" \
   --locals 1 --params 0
 
 # Validate with exact parameter widths (J/D consume two registers).
-uv run --project tools/apk-lab apk-lab validate-smali \
+cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- validate-smali \
   --snippet "invoke-static {v0, v1}, Lcom/example/Foo;->bar(J)V" \
   --locals 2 \
   --descriptor "(J)V" \

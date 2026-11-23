@@ -15,6 +15,7 @@ My [Morphe](https://morphe.software) patches
 
 [![License: WTFPL](https://img.shields.io/badge/License-WTFPL-white.svg)](http://www.wtfpl.net/about/)
 ![Kotlin](https://img.shields.io/badge/Kotlin-%237F52FF.svg?logo=kotlin&logoColor=white)
+![Rust](https://img.shields.io/badge/Rust-%23000000.svg?logo=rust&logoColor=white)
 ![Java](https://img.shields.io/badge/Java-%23ED8B00.svg?logo=openjdk&logoColor=white)
 [![AI Generated](https://img.shields.io/badge/AI%20Generated-orange?logo=googlegemini&logoColor=white)](https://img.shields.io/badge/AI%20Generated-orange?logo=googlegemini&logoColor=white)
 
@@ -333,6 +334,7 @@ My [Morphe](https://morphe.software) patches
 - Android SDK (set `sdk.dir` in `local.properties` or export `ANDROID_HOME`)
 - Android NDK (matching `REQUIRED_NDK_VERSION = "28.2.13676358"` [r28c] in `patches/build.gradle.kts`; set `ndk.dir` in `local.properties`, export `ANDROID_NDK_HOME`, or install under `$ANDROID_HOME/ndk/`)
 - CMake 3.24+ and Ninja
+- Rust 1.89+ and a C compiler (CI uses Rust 1.97.1)
 
 ### Build Command
 
@@ -348,16 +350,71 @@ To update `patches-list.json`:
 ./gradlew generatePatchesList
 ```
 
+### Native Build Assets
+
+Gradle's `buildAssetPrep` task builds `tools/asset-prep` for the host reported by
+`rustc -vV`, explicitly overriding an inherited Android Cargo target. Font, OCR
+and PDFBox preparation keep their generated resource paths and verified Gradle
+caches. The host binary lives under `tools/asset-prep/target/<host>/release/`, or
+`CARGO_TARGET_DIR/<host>/release/`; relative overrides resolve from the repository
+root. Manifests, lockfile, Rust sources and the pinned codec wrapper invalidate the
+build task.
+
+The Bun launcher uses the same host-target/bootstrap rules for automation:
+
+```bash
+bun scripts/asset-prep.ts --help
+bun run --cwd site check:icons
+```
+
+Icon discovery remains offline and nonfatal when files are missing. Mutating
+`icons --download-missing` / `icons --sync-all` modes contact Play; equal decoded
+pixels preserve existing PNG bytes and mtime. No repository build or test path
+invokes Python.
+
+The first native codec build downloads SHA-256-pinned libjpeg-turbo 3.1.1;
+subsequent builds verify its cached source. ZIP uses Rust Deflate/Bzip2/LZMA
+decoders to preserve the legacy AAR reader formats. HTTP is blocking `ureq`
+(MIT/Apache-2.0); ZIP is `zip` (MIT). Cargo lockfiles own resolved versions.
+Pillow-compatible resampling attribution is in
+[`PILLOW-LICENSE.txt`](tools/asset-prep/PILLOW-LICENSE.txt).
+
 ### Analysis & Compatibility Testing (`apk-lab`)
 
 Reverse engineering workflows, multi-split artifact inspection, ARM64 assembly, IL2CPP metadata querying, and isolated patch compatibility checks use `tools/apk-lab`:
 
 ```bash
-uv run --project tools/apk-lab apk-lab doctor
-uv run --project tools/apk-lab apk-lab check path/to/app.apkm --mpp patches/build/libs/patches-1.0.0.mpp --package com.example.app --all
+cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- doctor
+cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- check path/to/app.apkm --mpp patches/build/libs/patches-1.0.0.mpp --package com.example.app --all
 ```
 
 See [`docs/apk-lab.md`](docs/apk-lab.md) for complete CLI documentation and workflows.
+
+### Developer Hooks
+
+With Bun installed, `bun run prepare` installs repository-owned pre-commit/pre-push
+wrappers. Installation errors are visible; existing custom hooks are never replaced.
+
+```bash
+bun scripts/install-hooks.ts --check
+# Explicit migration of recognized Python pre-commit wrappers:
+bun scripts/install-hooks.ts --migrate-pre-commit
+# Manual stage execution:
+bun scripts/hooks.ts pre-commit
+bun scripts/hooks.ts pre-push
+```
+
+Shared/external hooks directories require `--allow-external-hooks-path`.
+An active `.legacy` hook additionally requires `--accept-legacy-loss`; keep it if its
+behavior is still needed. Inspect conflicts before opting in. `/dev/null` hooks
+configuration remains deliberately disabled.
+
+Hooks inspect Git blobs, not unrelated unstaged edits, and run all audit stages in
+isolated snapshots. Pre-commit runs format/lint; pre-push runs typecheck/tests.
+Whitespace/EOF hygiene is check-only: fix reported files and stage the intended
+changes yourself. No hook rewrites or stages your files.
+Frozen renderer fixtures retain their original whitespace/EOF bytes and are excluded
+from those two hygiene checks, formatting, and documentation lint/link discovery.
 
 ## 📲 Applying Patches
 

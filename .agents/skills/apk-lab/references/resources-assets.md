@@ -35,19 +35,19 @@ Resolves resource entries, layout IDs, and raw members across the base APK and a
 
 ```bash
 # Query by resource ID
-uv run --project tools/apk-lab apk-lab res path/to/app.apkm --query 0x7f08028e
+cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- res path/to/app.apkm --query 0x7f08028e
 
 # Query by type and name
-uv run --project tools/apk-lab apk-lab res path/to/app.apkm --query @drawable/brand_logo
+cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- res path/to/app.apkm --query @drawable/brand_logo
 
 # Search resource string values by substring
-uv run --project tools/apk-lab apk-lab res path/to/app.apkm --text "Upgrade to Premium"
+cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- res path/to/app.apkm --text "Upgrade to Premium"
 
 # Search resource string values using prefix query
-uv run --project tools/apk-lab apk-lab res path/to/app.apkm --query text:"Upgrade to Premium"
+cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- res path/to/app.apkm --query text:"Upgrade to Premium"
 
 # Query by file path and safely extract matched files to disk
-uv run --project tools/apk-lab apk-lab res path/to/app.apkm \
+cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- res path/to/app.apkm \
   --query res/drawable-xxhdpi/brand_logo.webp \
   --extract /tmp/extracted_resources
 ```
@@ -73,10 +73,10 @@ In Unity games, disabling unwanted promotional buttons, help centers, or ad prom
 
 ```bash
 # Locate GameObject and calculate active-state byte offset
-uv run --project tools/apk-lab apk-lab unity path/to/game.apkm --gameobject Button_HelpCenter
+cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- unity path/to/game.apkm --gameobject Button_HelpCenter
 
 # Output matches as JSON
-uv run --project tools/apk-lab apk-lab unity path/to/game.apkm --gameobject Button_HelpCenter --json -
+cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- unity path/to/game.apkm --gameobject Button_HelpCenter --json -
 ```
 
 ### CLI Arguments
@@ -109,19 +109,19 @@ Encodes ARM64 machine instructions and computes 26-bit relative branch relocatio
 
 ```bash
 # Calculate relative branch and encode to little-endian hex bytes
-uv run --project tools/apk-lab apk-lab asm "bl 0x3c98ce4" --pc 0x1fcf6e8
+cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- asm "bl 0x3c98ce4" --pc 0x1fcf6e8
 # Output: 7f 25 73 94
 
 # Calculate branch with explicit target override
-uv run --project tools/apk-lab apk-lab asm "b" --pc 0x1000 --target 0x2000
+cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- asm "b" --pc 0x1000 --target 0x2000
 # Output: 00 04 00 14
 
 # Encode return instruction directly to Morphe Kotlin byteArrayOf syntax
-uv run --project tools/apk-lab apk-lab asm "ret" --format kotlin
+cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- asm "ret" --format kotlin
 # Output: byteArrayOf(0xc0.toByte(), 0x03, 0x5f, 0xd6.toByte())
 
 # Encode immediate register move
-uv run --project tools/apk-lab apk-lab asm "mov w1, #1" --format hex
+cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- asm "mov w1, #1" --format hex
 # Output: 21 00 80 52
 ```
 
@@ -147,10 +147,10 @@ Extracts and parses Unity `assets/bin/Data/Managed/Metadata/global-metadata.dat`
 
 ```bash
 # Query symbols matching a method name substring or regex
-uv run --project tools/apk-lab apk-lab il2cpp path/to/game.apkm --query OpenShop
+cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- il2cpp path/to/game.apkm --query OpenShop
 
 # Export all symbols or matches to JSON file
-uv run --project tools/apk-lab apk-lab il2cpp path/to/game.apkm --query "Blackjack.*" --json symbols.json
+cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- il2cpp path/to/game.apkm --query "Blackjack.*" --json symbols.json
 ```
 
 ### CLI Arguments
@@ -166,37 +166,9 @@ uv run --project tools/apk-lab apk-lab il2cpp path/to/game.apkm --query "Blackja
 
 ---
 
-## 5. Python API Reference
+## 5. Native Library and Test References
 
-```python
-from pathlib import Path
-from apk_lab.resources import query_apk_resources, normalize_resource_query
-from apk_lab.unity import inspect_unity_assets
-from apk_lab.asm import assemble_statement, format_instruction
-from apk_lab.il2cpp import analyze_il2cpp
-from apk_lab.archives import materialize_artifact_apks
-from apk_lab.inspection import inspect_artifact
-
-# Resource Querying
-artifact = Path("app.apkm")
-parsed_query = normalize_resource_query("@drawable/brand_logo")
-with materialize_artifact_apks(artifact, inspect_artifact(artifact)) as mat_apks:
-    matches = query_apk_resources(mat_apks, parsed_query)
-    for m in matches:
-        print(f"Match: {m.path} ({m.morphe_mode}) status={m.duplicate_status}")
-
-# Unity GameObject Offset Lookup
-unity_matches = inspect_unity_assets(artifact, name_filter="Button_HelpCenter")
-for u in unity_matches:
-    print(f"Member: {u['member']} Offset: {hex(u['is_active_offset'])} Active: {u['is_active_value']}")
-
-# ARM64 Assembly & Relocation
-opcode = assemble_statement("bl 0x3c98ce4", pc=0x1fcf6e8)
-kotlin_syntax = format_instruction(opcode, fmt="kotlin")
-print(kotlin_syntax)  # byteArrayOf(0x7f, 0x25, 0x73, 0x94.toByte())
-
-# IL2CPP Metadata Query
-symbols = analyze_il2cpp(artifact, query="OpenShop")
-for s in symbols:
-    print(f"{s['namespace']}.{s['type']}::{s['method']}(params={s['parameters_count']})")
-```
+There is no supported Python API. The CLI is the stable contract; Rust modules
+(`resources.rs`, `unity.rs`, `asm.rs`, `il2cpp.rs`, `archives.rs`, `inspection.rs`) back
+the commands above and are covered by
+`cargo test --locked --manifest-path tools/apk-lab/Cargo.toml`.
