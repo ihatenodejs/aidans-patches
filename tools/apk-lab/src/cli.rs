@@ -407,7 +407,7 @@ Options:
 const ACQUIRE_HELP: &str = "\
 Usage: apk-lab acquire <package> [--version NAME] [--version-code CODE] [--out-dir DIR]
 
-Download and normalize an APK from Google Play.
+Download and normalize an APK from Google Play, APKMirror, or APKPure.
 
 Options:
   --version NAME       Expected version name
@@ -1257,7 +1257,7 @@ fn run_fixtures_seed(
         "Seeding fixture for {package} (role: {role})...\n"
     ))?;
     let runtime = current_thread_runtime()?;
-    match runtime.block_on(manager.seed_fixture(&package, &role, &artifact)) {
+    match runtime.block_on(manager.seed_fixture(&package, &role, &artifact, "manual")) {
         Ok(metadata) => {
             let text = format!(
                 "[OK] Seeded {} v{} ({}) to slot {role}\n",

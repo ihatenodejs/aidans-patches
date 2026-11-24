@@ -508,12 +508,16 @@ impl R2FixtureManager {
             })
     }
 
-    /// Seeds a slot from a local artifact after validating package identity.
+    /// Uploads a local artifact to an R2 slot after validating package identity.
+    /// `source` is the acquisition source label (`apkeep`, `goopdl`,
+    /// `apkmirror`, `apkpure`, `manual`) and is stored with the slot so
+    /// repackaged builds stay distinguishable.
     pub async fn seed_fixture(
         &self,
         package: &str,
         role: &str,
         artifact_path: impl AsRef<Path>,
+        source: &str,
     ) -> Result<SlotMetadata, FixtureError> {
         let path = artifact_path.as_ref();
         let inspection = self.inspect(path)?;
@@ -523,7 +527,7 @@ impl R2FixtureManager {
                 inspection.package_name
             )));
         }
-        let metadata = slot_metadata(role, package, &inspection, "manual", now_timestamp());
+        let metadata = slot_metadata(role, package, &inspection, source, now_timestamp());
         self.upload_slot(package, role, path, &metadata).await?;
         Ok(metadata)
     }

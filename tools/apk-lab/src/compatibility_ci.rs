@@ -854,7 +854,11 @@ pub async fn run_ci_reconcile_and_test(
                                     "Acquired {package} v{target_version} via {source}: {}",
                                     path.display()
                                 );
-                                match dependencies.r2.seed_fixture(package, "target", &path).await {
+                                match dependencies
+                                    .r2
+                                    .seed_fixture(package, "target", &path, &source)
+                                    .await
+                                {
                                     Ok(metadata) => {
                                         matched_slot_role = Some("target".to_string());
                                         matched_slot_meta = Some(metadata);

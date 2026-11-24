@@ -512,7 +512,10 @@ cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-la
 
 ### `acquire` — Artifact Acquisition from Google Play & Fallbacks
 
-Downloads and normalizes Android application artifacts directly using Google Play accounts with `apkeep` (native Play Store downloader), falling back to `goopdl`, and finally to configured package mappings in APKMirror. When configured accounts carry `aas_et/` tokens, `goopdl` receives them as `GOOPDL_ACCOUNT_EMAIL`/`GOOPDL_AAS_TOKEN` and authenticates directly with Google instead of the public Aurora device dispenser. Output is normalized to `.apkm` (or single `.apk` for APKMirror APK mappings). Validates downloaded package signatures, container integrity, and version metadata using the inspection badging parser.
+Downloads and normalizes Android application artifacts directly using Google Play accounts with `apkeep` (native Play Store downloader), falling back to `goopdl`, then to configured package mappings in APKMirror, and finally to APKPure through `apkeep`. A requested `--version` is pinned per source (`apkeep -a <pkg>@<version>`) so the download asks for the exact build instead of accepting the newest one. When configured accounts carry `aas_et/` tokens, `goopdl` receives them as `GOOPDL_ACCOUNT_EMAIL`/`GOOPDL_AAS_TOKEN` and authenticates directly with Google instead of the public Aurora device dispenser. Output is normalized to `.apkm` (or single `.apk` for APKMirror APK mappings). Validates downloaded package signatures, container integrity, and version metadata using the inspection badging parser.
+
+APKPure is a last resort because it repackages third-party builds: an artifact acquired there is not the Play-signed APK, and every result records the source as `apkpure` (including the fixture slot metadata) so it is never mistaken for a first-party download. The download requires `apkeep`'s explicit `acknowledge_dangers=true` option, which this provider passes on the command line so the acknowledgement stays auditable.
+
 Prerequisites: Google Play credentials configured via `APKEEP_ACCOUNTS` or `google-play-accounts.json`; R2 fixture credentials via `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, and `R2_SECRET_ACCESS_KEY`.
 
 ```bash
@@ -600,7 +603,7 @@ Archive limits, workspace markers, tool-cache layout, exit codes, and `--json`
 modes are covered by the native test suite and recorded compatibility evidence.
 `ci` preserves the original request-ID, saved-submission, 2xx-only marker, and
 Worker payload semantics. Acquisition keeps the serialized
-`apkeep`/`goopdl`/`apkmirror`/`manual` source labels while using native delivery
+`apkeep`/`goopdl`/`apkmirror`/`apkpure`/`manual` source labels while using native delivery
 with no Python subprocess.
 
 ## 5. Migration Evidence

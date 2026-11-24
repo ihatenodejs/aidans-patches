@@ -666,7 +666,7 @@ async fn seed_fixture_uploads_exact_key_metadata_and_timestamp() {
     fs::write(&artifact, b"artifact").unwrap();
 
     let metadata = manager
-        .seed_fixture(PACKAGE, "target", &artifact)
+        .seed_fixture(PACKAGE, "target", &artifact, "apkpure")
         .await
         .unwrap();
 
@@ -674,7 +674,7 @@ async fn seed_fixture_uploads_exact_key_metadata_and_timestamp() {
     assert_eq!(metadata.package_name, PACKAGE);
     assert_eq!(metadata.version_name, "1.0.0");
     assert_eq!(metadata.container_type, "APKM");
-    assert_eq!(metadata.acquisition_source, "manual");
+    assert_eq!(metadata.acquisition_source, "apkpure");
     assert_eq!(metadata.signer_sha256.as_deref(), Some("signer-sha"));
     assert!(
         metadata.timestamp.ends_with("+00:00"),
@@ -707,7 +707,7 @@ async fn seed_fixture_rejects_package_mismatch_before_any_upload() {
     fs::write(&artifact, b"artifact").unwrap();
 
     let error = manager
-        .seed_fixture(PACKAGE, "target", &artifact)
+        .seed_fixture(PACKAGE, "target", &artifact, "manual")
         .await
         .unwrap_err();
     assert_eq!(

@@ -6,7 +6,9 @@ Acquire Android application artifacts directly from Google Play, normalize split
 
 ## 1. `acquire` — Google Play & Fallback Artifact Acquisition
 
-Downloads APK/APKM artifacts using Google Play accounts (`apkeep` with `goopdl` fallback, followed by configured package mappings in APKMirror) and normalizes multi-split downloads into `.apkm` container bundles (or single `.apk` for APKMirror APK mappings).
+Downloads APK/APKM artifacts using Google Play accounts (`apkeep` with `goopdl` fallback, followed by configured package mappings in APKMirror, then APKPure through `apkeep` as the last resort) and normalizes multi-split downloads into `.apkm` container bundles (or single `.apk` for APKMirror APK mappings). A requested `--version` is pinned per source (`apkeep -a <pkg>@<version>`), so a stale Play rollout fails the provider instead of silently returning a newer build.
+
+APKPure is a last resort: it repackages third-party builds, so the artifact is not the Play-signed APK. The source label stored with compatibility results and fixture slots is `apkpure`, and `apkeep`'s `acknowledge_dangers=true` option is passed explicitly. Prefer a first-party source whenever one can produce the requested version.
 
 ### Normalization Pipeline
 
@@ -20,6 +22,7 @@ Downloads APK/APKM artifacts using Google Play accounts (`apkeep` with `goopdl` 
 ### Credentials & Prerequisites
 
 - Google Play accounts: `APKEEP_ACCOUNTS` or `${XDG_CONFIG_HOME:-~/.config}/aidans-patches/google-play-accounts.json`.
+- APKPure: no credentials; requires the pinned `apkeep` from `apk-lab setup` and network access. Last resort only — it repackages third-party builds, so the recorded source is `apkpure`.
 - R2 storage: `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, and `R2_SECRET_ACCESS_KEY` (default bucket: `aidans-patches-apk-fixtures`).
 
 ### CLI Invocation
