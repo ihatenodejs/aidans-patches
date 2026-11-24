@@ -151,6 +151,7 @@ export const APP_FALLBACK_CATEGORIES: Record<string, StoreCategoryId> = {
   geocaching: 'health-and-fitness',
   nhl: 'sports',
   blackjack: 'games',
+  'flow-free': 'games',
 };
 
 /**
@@ -183,6 +184,8 @@ export const APP_FALLBACK_SUMMARIES: Record<string, string> = {
   nhl: 'Official scores, breaking hockey news, live shift tracking, Edge stats, and game highlights.',
   blackjack:
     'Timeless Las Vegas table cards with fair odds, offline play, and classic casino betting rules.',
+  'flow-free':
+    'Connect matching colors with pipes to cover every board without crossing or leaking.',
 };
 
 export interface DiscoverySectionConfig {
@@ -218,7 +221,14 @@ export const DISCOVERY_SECTIONS: DiscoverySectionConfig[] = [
     title: 'Play, follow & connect',
     description:
       'Stay in the loop, catch every highlight, and unwind with your favorites.',
-    appIds: ['blackjack', 'nhl', 'sidelineswap', 'fizz', 'pro-metronome'],
+    appIds: [
+      'blackjack',
+      'nhl',
+      'sidelineswap',
+      'fizz',
+      'pro-metronome',
+      'flow-free',
+    ],
   },
 ];
 

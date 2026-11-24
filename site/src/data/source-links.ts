@@ -13,6 +13,7 @@ const APP_DIR_TO_APP_ID: Record<string, string> = {
   canvas: 'canvas-student',
   creditkarma: 'credit-karma',
   fizz: 'fizz',
+  flowfree: 'flow-free',
   geocaching: 'geocaching',
   navigate360: 'navigate360-student',
   nhl: 'nhl',
