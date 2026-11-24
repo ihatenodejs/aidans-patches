@@ -194,6 +194,7 @@ All patch definitions and Java extension changes must use the canonical app scop
 | Adobe Reader        | `adobe-reader`        | Alias `adobereader` is legacy.                                                    |
 | Credit Karma        | `credit-karma`        | Alias `creditkarma` is legacy.                                                    |
 | Pro Metronome       | `pro-metronome`       | Alias `prometronome` is legacy.                                                   |
+| Flow Free           | `flow-free`           | Alias `flowfree` is legacy.                                                       |
 
 ##### Non-Application Scopes
 
