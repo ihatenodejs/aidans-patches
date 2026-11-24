@@ -491,14 +491,19 @@ cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-la
 
 ### `fixtures` — Private R2 Cloud Fixtures
 
-Manages the two-slot private R2 storage architecture (`fixtures/<package>/latest` and `fixtures/<package>/target`). `fixtures info` displays role, version name/code, first 16 SHA-256 characters, and acquisition source. In CI compatibility runs, `target` is the active verified fixture slot, while `latest` acts as a storage and acquisition fallback.
+Manages the two-slot private R2 storage architecture (`fixtures/<package>/latest` and `fixtures/<package>/target`). `fixtures info` displays role, version name/code, first 16 SHA-256 characters, signing-certificate SHA-256, and acquisition source. In CI compatibility runs, `target` is the active verified fixture slot, while `latest` acts as a storage and acquisition fallback.
+
+The fixture store is also the ingest path for an artifact no automated source can produce any more, for example a version Google Play has stopped serving. Seeding is local: set the same `R2_ACCOUNT_ID`/`R2_ACCESS_KEY_ID`/`R2_SECRET_ACCESS_KEY` used by `fixtures info`, point `--artifact` at the file, and nothing leaves the machine except to your private bucket. `--source LABEL` records provenance (`apkmirror`, `apkpure`, `device-pull`, `manual`; validated as a lowercase token of at most 32 characters), and `--expect-version`/`--expect-sha256` are checked after inspection and before the object write, so a wrong or truncated file never replaces a verified slot. Prefer this over adding another scraper: a fixture only needs to be the right artifact, not a reproducible download.
 
 ```bash
 # Seed a target slot from a verified local artifact
 cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- fixtures seed \
   --package com.example.app \
   --role target \
-  --artifact path/to/app.apkm
+  --artifact path/to/app.apkm \
+  --source device-pull \
+  --expect-version 1.2.3 \
+  --expect-sha256 <64-hex-sha256>
 
 # Inspect slot metadata in R2
 cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- fixtures info --package com.example.app

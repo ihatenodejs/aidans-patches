@@ -62,18 +62,23 @@ Manages the repository's two-slot private Cloudflare R2 storage architecture (`a
 
 #### `seed`
 
-Uploads a local artifact to an R2 slot, calculating hashes and signing certificate metadata.
+Uploads a local artifact to an R2 slot, calculating hashes and signing certificate metadata. `--source LABEL` records provenance; the label must be a lowercase token (letters, digits, `.`, `_`, `-`, at most 32 characters) and defaults to `manual`. `--expect-version NAME` and `--expect-sha256 HEX` are checked after inspection and before the object write, so a wrong or truncated file never replaces a verified slot.
 
 ```bash
 cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- fixtures seed \
   --package com.example.app \
   --role target \
-  --artifact path/to/app.apkm
+  --artifact path/to/app.apkm \
+  --source device-pull \
+  --expect-version 1.2.3 \
+  --expect-sha256 <64-hex-sha256>
 ```
+
+Seeding is local and private: the artifact goes only to the R2 bucket, using `R2_ACCOUNT_ID`/`R2_ACCESS_KEY_ID`/`R2_SECRET_ACCESS_KEY`. This is the supported way to supply a version that no provider can produce any more; do not host the artifact publicly to feed a workflow.
 
 #### `info`
 
-Inspects fixture metadata stored in R2 (displays role, version name/code, first 16 SHA-256 characters, and acquisition source).
+Inspects fixture metadata stored in R2 (displays role, version name/code, first 16 SHA-256 characters, signing-certificate SHA-256, and acquisition source).
 
 ```bash
 # Check both slots (target and latest)
