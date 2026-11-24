@@ -2,17 +2,17 @@
 
 ## 1. Overview
 
-| Attribute                   | Specification                                                      |
-| --------------------------- | ------------------------------------------------------------------ |
-| **Application Name**        | Flow Free                                                          |
-| **Package Name**            | `com.bigduckgames.flow`                                            |
-| **Supported Version**       | `6.0` (Morphe Compatibility: `6.0`, `minSdk` 24)                   |
-| **Analyzed Version Code**   | `60001`                                                            |
-| **Minimum SDK**             | `24` (Android 7.0)                                                 |
-| **Distribution Formats**    | APKM (Google Play, `arm64-v8a` split) and standalone APK           |
-| **Package Signing SHA-256** | `36cd9da86367d4e25529427681598ffef8f08416c0f2b7ceedcd856b9c6620b6` |
-| **Target Architecture**     | `arm64-v8a`                                                        |
-| **Primary Icon Color**      | `#1E88E5`                                                          |
+| Attribute                   | Specification                                                                    |
+| --------------------------- | -------------------------------------------------------------------------------- |
+| **Application Name**        | Flow Free                                                                        |
+| **Package Name**            | `com.bigduckgames.flow`                                                          |
+| **Supported Version**       | `6.0` (Morphe Compatibility: `6.0`, `minSdk` 24)                                 |
+| **Analyzed Version Code**   | `60001`                                                                          |
+| **Minimum SDK**             | `24` (Android 7.0)                                                               |
+| **Distribution Formats**    | APKM (Google Play, `arm64-v8a` split); the standalone APK lacks native libraries |
+| **Package Signing SHA-256** | `36cd9da86367d4e25529427681598ffef8f08416c0f2b7ceedcd856b9c6620b6`               |
+| **Target Architecture**     | `arm64-v8a`                                                                      |
+| **Primary Icon Color**      | `#1E88E5`                                                                        |
 
 Flow Free is a Cocos2d-x game ported from an iOS codebase. Java is a thin host layer for the Cocos activity, native bridges, billing, notifications, and ad mediation; gameplay, rendering, persistence, and ad/analytics trigger policy live in native code.
 
@@ -57,6 +57,8 @@ The advertising SDKs also register `ContentProvider` components that initialize 
 | `com.vungle.ads.VungleProvider`                                         | Vungle                    |
 | `com.mbridge.msdk.config.component.status.MBComponentLifecycleProvider` | Mintegral                 |
 
+In-app purchase UI is driven by the native `Flow.removeAllAds` method in `libgame.so`, which returns `Flow.hasPurchasedNonConsumables`. `SettingsMenu`, `MainMenu`, `SelectPackMenu`, and `TimeTrialPage` skip their Remove Ads rows when it returns true. Additional upsells are controlled by the `RemoveAdsModal`, `LevelCompleteRemoveAds`, and `RemoveAdsBacking` keys in `assets/config_default.txt`.
+
 ### 2.3 Tracking Architecture
 
 - **`com.bigduckgames.flow.AnalyticsManager`** records Firebase Analytics events (`logEvent`, `logEventStart`, `logEventEnd`), forwards parameters to `FirebaseAnalytics`, and sets Firebase user properties.
@@ -69,12 +71,14 @@ Native tracking selectors such as `trackDailyLevelCompleted`, `trackPurchase:isR
 
 ## 3. Patch Targets Summary
 
-1. **Remove Ads (`bytecodePatch`):** Neutralizes the `AdManager` static entry points called by native code, returns `false` from ad-availability checks, and prevents the six advertising SDK content providers from initializing.
+1. **Remove Ads (`compositeFeaturePatch`):** Neutralizes the `AdManager` static entry points called by native code, returns `false` from ad-availability checks, prevents the six advertising SDK content providers from initializing, suppresses the native Remove Ads purchase rows, and disables remove-ads upsell config flags.
 2. **Remove Tracking (`compositeFeaturePatch`):** Sets Firebase Analytics and Crashlytics collection manifest flags to `false` and neutralizes `AnalyticsManager` and `CrashReportManager` event, user-property, and crash-reporting methods.
 
 ## 4. Invariants
 
 - Ads are only requested through `AdManager`; blocking its static entry points prevents banner, interstitial, and rewarded video traffic without editing native game logic.
 - Advertising SDK initialization must be blocked both at `AdManager` and at the content-provider layer, because providers initialize before `Application.onCreate`.
+- Remove Ads purchase rows are gated by native `Flow.removeAllAds`; patching its prologue to return true removes the rows without changing actual purchase state.
+- The store package card still lists "Remove all ads" as one benefit of The Complete Package because that bundle also unlocks every level pack.
 - Native analytics and crash reporting reach Firebase only through `AnalyticsManager` and `CrashReportManager`; disabling those methods also disables `FirebaseHelper`'s JNI-facing paths.
 - Firebase Remote Config and Cloud Messaging are functional features and remain enabled.

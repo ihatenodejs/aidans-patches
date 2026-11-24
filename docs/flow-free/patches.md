@@ -4,10 +4,10 @@
 
 This document details the patches available for **Flow Free** (`com.bigduckgames.flow`).
 
-| Patch Name                                | Type                    | Default | Description                                                                                                             |
-| ----------------------------------------- | ----------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------- |
-| [Remove Ads](#patch-remove-ads)           | `bytecodePatch`         | `true`  | Blocks banner, interstitial, and rewarded video ads and stops the ad mediation SDKs from initializing.                  |
-| [Remove Tracking](#patch-remove-tracking) | `compositeFeaturePatch` | `true`  | Disables Firebase Analytics and Crashlytics collection and neutralizes the app's analytics and crash-reporting bridges. |
+| Patch Name                                | Type                    | Default | Description                                                                                                                       |
+| ----------------------------------------- | ----------------------- | ------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| [Remove Ads](#patch-remove-ads)           | `compositeFeaturePatch` | `true`  | Blocks banner, interstitial, and rewarded video ads, stops the ad mediation SDKs, and hides the Remove Ads purchase entry points. |
+| [Remove Tracking](#patch-remove-tracking) | `compositeFeaturePatch` | `true`  | Disables Firebase Analytics and Crashlytics collection and neutralizes the app's analytics and crash-reporting bridges.           |
 
 ---
 
@@ -17,7 +17,7 @@ This document details the patches available for **Flow Free** (`com.bigduckgames
 - **Target Package:** `com.bigduckgames.flow`
 - **Supported Versions:** `6.0`
 - **Default State:** `true` (Enabled by default)
-- **Type:** Dalvik Bytecode Patch (`bytecodePatch`)
+- **Type:** Composite Feature Patch (`compositeFeaturePatch`) with internal raw-resource layer
 - **Dependencies:** None
 
 ### 1. Motivation & Purpose
@@ -56,11 +56,33 @@ The following static void methods return immediately at instruction offset 0:
 
 Blocking provider startup prevents each ad runtime and its telemetry from initializing when the Remove Tracking patch is not selected.
 
+#### Native Remove Ads UI Suppression
+
+`lib/arm64-v8a/libgame.so` stores the native UI gate at file offset `0x4b5310`. `Flow.removeAllAds` normally forwards to `Flow.hasPurchasedNonConsumables`; the patch replaces its prologue with `mov w0, #1; ret` after validating the original `stp x29, x30, [sp, #-0x20]!` and `str x19, [sp, #0x10]` bytes.
+
+Returning true hides the Remove Ads rows built by:
+
+- `SettingsMenu` `getScrollLayerWithAutoscrollOffset:`
+- `MainMenu` `refresh`
+- `SelectPackMenu` `getScrollLayer:autoscrollOffset:`
+- `TimeTrialPage` `getScrollLayer:autoscrollOffset:`
+
+The internal raw-resource layer also sets these `assets/config_default.txt` flags to `0` to suppress upsell dialogs:
+
+- `RemoveAdsModal`
+- `LevelCompleteRemoveAds`
+- `RemoveAdsBacking`
+
+`assets/config_debug.txt` gets `LevelCompleteRemoveAds=0` for debug-config builds. Missing flags fail the patch instead of leaving an upsell active.
+
+The "The Complete Package!" store card still lists "Remove all ads" because that product also unlocks every premium level pack.
+
 ### 3. Invariants
 
-- Every patched method must exist and be implemented; the patch fails instead of producing a partial ad removal.
+- Every patched method and native byte sequence must exist; the patch fails instead of producing a partial ad removal.
 - `AdManager` methods are patched before the provider layer, so a future entry point added to the facade still requires review.
-- The patch does not remove billing or the in-app "Remove Ads" product; it only disables ad delivery.
+- `Flow.removeAllAds` is patched for UI visibility only; it does not change purchase state or ad delivery.
+- The patch does not remove billing or the in-app "Remove Ads" product; it only disables ad delivery and hides its purchase rows.
 
 ---
 
@@ -110,5 +132,5 @@ Each implemented void overload returns immediately at instruction offset 0. Thes
 
 1. Target application must be **Flow Free** (`com.bigduckgames.flow`), version `6.0`, version code `60001`, signed by SHA-256 certificate `36cd9da86367d4e25529427681598ffef8f08416c0f2b7ceedcd856b9c6620b6`.
 2. Build verification: `./gradlew :patches:buildAndroid --console=plain`.
-3. Compatibility verification: `apk-lab check <artifact> --mpp <bundle> --package com.bigduckgames.flow --all`.
-4. Device verification: launch the patched game, complete a level, and confirm no banner, interstitial, or rewarded video appears and no ad activity starts.
+3. Compatibility verification: `apk-lab check <apkm> --mpp <bundle> --package com.bigduckgames.flow --all`. The Play APKM contains `lib/arm64-v8a/libgame.so`; the standalone APKPure APK has no native libraries and is not a supported artifact for Remove Ads.
+4. Device verification: launch the patched game, open Settings, and confirm there is no Remove Ads row or home-screen Remove Ads button, and no banner, interstitial, or rewarded video activity starts.

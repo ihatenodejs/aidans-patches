@@ -1924,7 +1924,7 @@
     },
     {
       "name": "Remove Ads",
-      "description": "Blocks banner, interstitial, and rewarded video ads and prevents the AppLovin MAX, Google Mobile Ads, Amazon, Facebook Audience Network, Vungle, BidMachine, and Mintegral advertising runtimes from initializing.",
+      "description": "Blocks banner, interstitial, and rewarded video ads, prevents the AppLovin MAX, Google Mobile Ads, Amazon, Facebook Audience Network, Vungle, BidMachine, and Mintegral advertising runtimes from initializing, and hides the in-app Remove Ads purchase prompts.",
       "default": true,
       "category": "Ads",
       "dependencies": [],
