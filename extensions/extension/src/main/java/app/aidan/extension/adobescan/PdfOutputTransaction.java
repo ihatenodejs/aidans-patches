@@ -34,6 +34,9 @@ public class PdfOutputTransaction {
     public static final String PHASE_PUBLISHING = "PUBLISHING";
     public static final String PHASE_PUBLISHED = "PUBLISHED";
 
+    /** Serializes combine/export publication with output recovery. */
+    public static final Object RECOVERY_LOCK = new Object();
+
     public static class InputSnapshot {
         public long documentId;
         public String path;
@@ -61,6 +64,9 @@ public class PdfOutputTransaction {
         public String displayName;
         public String newDocumentId; // for combine
         public String newDocumentPath; // for combine
+        public String registrationId; // stable library identity for combine
+        public String registrationFileName; // resolved target filename without .pdf
+        public int pageCount; // for combine registration
         public String exportPath; // for export
         public String phase = PHASE_PREPARING;
 
@@ -76,6 +82,9 @@ public class PdfOutputTransaction {
             sb.append("  \"displayName\": ").append(quote(displayName)).append(",\n");
             sb.append("  \"newDocumentId\": ").append(quote(newDocumentId)).append(",\n");
             sb.append("  \"newDocumentPath\": ").append(quote(newDocumentPath)).append(",\n");
+            sb.append("  \"registrationId\": ").append(quote(registrationId)).append(",\n");
+            sb.append("  \"registrationFileName\": ").append(quote(registrationFileName)).append(",\n");
+            sb.append("  \"pageCount\": ").append(pageCount).append(",\n");
             sb.append("  \"exportPath\": ").append(quote(exportPath)).append(",\n");
             sb.append("  \"phase\": ").append(quote(phase)).append(",\n");
             sb.append("  \"inputCount\": ").append(inputs.size());
@@ -107,6 +116,11 @@ public class PdfOutputTransaction {
             record.displayName = map.get("displayName");
             record.newDocumentId = map.get("newDocumentId");
             record.newDocumentPath = map.get("newDocumentPath");
+            record.registrationId = map.get("registrationId");
+            record.registrationFileName = map.get("registrationFileName");
+            if (map.containsKey("pageCount") && map.get("pageCount") != null) {
+                record.pageCount = Integer.parseInt(map.get("pageCount"));
+            }
             record.exportPath = map.get("exportPath");
             record.phase = map.get("phase");
 
@@ -258,6 +272,13 @@ public class PdfOutputTransaction {
         return true;
     }
 
+    public boolean validatePublishedOutput(final File publishedFile) {
+        if (publishedFile == null || !publishedFile.isFile() || record.outputSha256 == null) {
+            return false;
+        }
+        return record.outputSha256.equals(sha256(publishedFile));
+    }
+
     public boolean revalidateSources() {
         for (InputSnapshot in : record.inputs) {
             final File file = new File(in.path);
@@ -275,10 +296,30 @@ public class PdfOutputTransaction {
     }
 
     public void markPublishing(String destinationPath, String destinationId) throws IOException {
+        markPublishing(destinationPath, destinationId, 0, null);
+    }
+
+    public void markPublishing(String destinationPath, String destinationId, int pageCount) throws IOException {
+        markPublishing(destinationPath, destinationId, pageCount, null);
+    }
+
+    /**
+     * Persists the published path and the target library identity before any
+     * byte is copied. Recovery can then prove whether the library registered
+     * the output without guessing from the pre-generated filename.
+     */
+    public void markPublishing(
+            String destinationPath,
+            String destinationId,
+            int pageCount,
+            String registrationFileName) throws IOException {
         record.phase = PHASE_PUBLISHING;
         if (record.operation == NativePdfEngine.COMBINE) {
             record.newDocumentPath = destinationPath;
             record.newDocumentId = destinationId;
+            record.registrationId = destinationId;
+            record.registrationFileName = registrationFileName;
+            record.pageCount = pageCount;
         } else {
             record.exportPath = destinationPath;
         }
@@ -327,7 +368,13 @@ public class PdfOutputTransaction {
         }
     }
 
-    public static void recoverAll(final File baseDir) {
+    public static void recoverAll(final File baseDir, final ScanFileAdapter adapter) {
+        synchronized (RECOVERY_LOCK) {
+            recoverAllLocked(baseDir, adapter);
+        }
+    }
+
+    private static void recoverAllLocked(final File baseDir, final ScanFileAdapter adapter) {
         if (!baseDir.exists()) return;
 
         final File[] journalFiles = baseDir.listFiles(new FilenameFilter() {
@@ -344,39 +391,93 @@ public class PdfOutputTransaction {
                 final String json = readFile(jf);
                 final JournalRecord rec = JournalRecord.fromJson(json);
                 final PdfOutputTransaction tx = new PdfOutputTransaction(baseDir, rec);
-                tx.recover();
-            } catch (final Exception e) {
-                Log.e(TAG, "Failed to recover journal " + jf.getName() + ", cleaning up", e);
-                jf.delete();
+                tx.recover(adapter);
+            } catch (final Throwable e) {
+                // Never delete a journal we cannot interpret: it is the only
+                // evidence of a publication that may already be registered.
+                Log.e(TAG, "Failed to recover journal " + jf.getName() + "; retaining it", e);
             }
         }
     }
 
-    private void recover() {
+    private void recover(final ScanFileAdapter adapter) {
         Log.i(TAG, "Recovering output operation " + record.operationId + " in phase " + record.phase);
 
         if (PHASE_PREPARING.equals(record.phase) || PHASE_VALIDATED.equals(record.phase)) {
-            // Never published, clean up staging file
+            // Never published: only our own staging artifact exists.
             cleanupStageFile();
             deleteJournal();
         } else if (PHASE_PUBLISHING.equals(record.phase)) {
             if (record.operation == NativePdfEngine.COMBINE) {
-                // If the published document file exists and matches outputSha256, keep it
-                if (record.newDocumentPath != null) {
-                    final File newDoc = new File(record.newDocumentPath);
-                    if (newDoc.exists() && record.outputSha256 != null && record.outputSha256.equals(sha256(newDoc))) {
-                        Log.i(TAG, "Recovered successfully published combine document: " + record.newDocumentPath);
-                    } else if (newDoc.exists()) {
-                        newDoc.delete();
-                    }
-                }
+                recoverCombinePublication(adapter);
+            } else {
+                // Export publication only copies into cache for an immediate
+                // share; its existing recovery behavior is unchanged.
+                cleanupStageFile();
+                deleteJournal();
             }
-            cleanupStageFile();
-            deleteJournal();
         } else if (PHASE_PUBLISHED.equals(record.phase)) {
+            if (record.operation == NativePdfEngine.COMBINE) {
+                // A legacy journal may claim PUBLISHED before registration was
+                // durable, and registration may have renamed the output. Treat
+                // it exactly like publication recovery: prove registration
+                // before retiring anything, otherwise retain all evidence.
+                recoverCombinePublication(adapter);
+            } else {
+                cleanupStageFile();
+                deleteJournal();
+            }
+        }
+    }
+
+    /**
+     * Manual-only combine recovery. It may retire journal bookkeeping when the
+     * target library verifiably registered the output, but it never moves,
+     * deletes, overwrites, republishes, or re-registers an output. Everything
+     * else is retained as evidence and reported for manual recovery.
+     */
+    private void recoverCombinePublication(final ScanFileAdapter adapter) {
+        final File published = record.newDocumentPath != null ? new File(record.newDocumentPath) : null;
+        final boolean publishedExists = published != null && published.isFile();
+
+        if (record.registrationId == null || record.outputSha256 == null) {
+            // Legacy or malformed journal: registration cannot be proven either
+            // way. Keep the journal and every surviving artifact.
+            Log.e(TAG, "Combine journal lacks a provable registration identity or output hash;"
+                    + " manual recovery required (journal retained, output=" + record.newDocumentPath
+                    + ", stage=" + record.stagePath + ")");
+            return;
+        }
+
+        if (adapter == null) {
+            Log.w(TAG, "No registration adapter available; manual recovery required for "
+                    + record.newDocumentPath);
+            return;
+        }
+
+        final long registeredId;
+        try {
+            registeredId = adapter.findRegisteredDocumentId(record.registrationId);
+        } catch (final Throwable t) {
+            Log.e(TAG, "Library registration lookup failed; manual recovery required for "
+                    + record.newDocumentPath + "; retaining output, stage and journal", t);
+            return;
+        }
+
+        if (registeredId > 0) {
+            // Registration is the durable identity. The library may have moved
+            // the file during registration, so path/hash checks are not
+            // authoritative. Never touch the document; retire only our own
+            // transaction bookkeeping.
+            Log.i(TAG, "Combine output is registered; preserving document and retiring journal");
             cleanupStageFile();
             deleteJournal();
+            return;
         }
+
+        Log.e(TAG, "Combine output is not registered; manual recovery required"
+                + " (journal retained, output=" + record.newDocumentPath
+                + ", stage=" + record.stagePath + ", outputExists=" + publishedExists + ")");
     }
 
     public static String sha256(final File file) {

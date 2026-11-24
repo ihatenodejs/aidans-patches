@@ -34,6 +34,7 @@ public class PdfOperationCoordinator {
 
     private static final String TAG = "PdfOperationCoord";
     private static final Object OCR_EXTRACT_LOCK = new Object();
+    private static final long OUTPUT_RECOVERY_RETRY_MS = 500L;
     private static final long EXPECTED_OCR_MODEL_SIZE = 4113088L;
     private static PdfOperationCoordinator sInstance;
 
@@ -43,7 +44,9 @@ public class PdfOperationCoordinator {
     private final AtomicLong operationIdGenerator = new AtomicLong(System.currentTimeMillis());
 
     private WeakReference<Activity> currentActivityRef = new WeakReference<>(null);
-    private boolean recoveryCompleted = false;
+    private volatile boolean recoveryCompleted = false;
+    private final AtomicBoolean outputRecoveryScheduled = new AtomicBoolean(false);
+    private final AtomicBoolean outputRecoveryRetryPosted = new AtomicBoolean(false);
 
     private IPdfTransformService transformService;
     private boolean isBound = false;
@@ -199,9 +202,9 @@ public class PdfOperationCoordinator {
             @Override
             public void onActivityResumed(final Activity activity) {
                 currentActivityRef = new WeakReference<>(activity);
-                if (recoveryCompleted) {
-                    // Check if current activity needs refresh
-                }
+                // Retry only when the target library is actually ready. Never
+                // consume the opportunity while it is still initializing.
+                scheduleOutputRecoveryIfReady();
             }
 
             @Override
@@ -243,15 +246,66 @@ public class PdfOperationCoordinator {
                 try {
                     final File stagingDir = PdfFileTransaction.getStagingDir(application);
                     PdfFileTransaction.recover(stagingDir, ScanFileAdapter.getInstance());
-                    final File outputStagingDir = PdfOutputTransaction.getStagingDir(application);
-                    PdfOutputTransaction.recoverAll(outputStagingDir);
                 } catch (final Throwable t) {
                     Log.e(TAG, "Exception during startup recovery", t);
                 } finally {
                     recoveryCompleted = true;
                 }
+                scheduleOutputRecoveryIfReady();
             }
         });
+    }
+
+    private void scheduleOutputRecoveryIfReady() {
+        if (!recoveryCompleted) return;
+
+        synchronized (this) {
+            if (activeOperation != null) {
+                postOutputRecoveryRetry();
+                return;
+            }
+        }
+        if (!ScanFileAdapter.getInstance().isLibraryInitialized()) {
+            // The target database is still deserializing. Keep retrying rather
+            // than burning the single opportunity on a Splash resume.
+            postOutputRecoveryRetry();
+            return;
+        }
+        if (!outputRecoveryScheduled.compareAndSet(false, true)) return;
+
+        executor.execute(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    synchronized (PdfOutputTransaction.RECOVERY_LOCK) {
+                        synchronized (PdfOperationCoordinator.this) {
+                            if (activeOperation != null) {
+                                postOutputRecoveryRetry();
+                                return;
+                            }
+                        }
+                        PdfOutputTransaction.recoverAll(
+                                PdfOutputTransaction.getStagingDir(application),
+                                ScanFileAdapter.getInstance());
+                    }
+                } catch (final Throwable t) {
+                    Log.e(TAG, "Exception during output recovery", t);
+                } finally {
+                    outputRecoveryScheduled.set(false);
+                }
+            }
+        });
+    }
+
+    private void postOutputRecoveryRetry() {
+        if (!outputRecoveryRetryPosted.compareAndSet(false, true)) return;
+        mainHandler.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                outputRecoveryRetryPosted.set(false);
+                scheduleOutputRecoveryIfReady();
+            }
+        }, OUTPUT_RECOVERY_RETRY_MS);
     }
 
     public void startCompression(
@@ -463,53 +517,87 @@ public class PdfOperationCoordinator {
         dismissProgressOnly();
 
         if (status == NativePdfEngine.OK && tx != null) {
-            try {
-                if (!tx.validateStageOutput()) {
-                    throw new IOException("Stage output validation failed");
-                }
-                if (!tx.revalidateSources()) {
-                    throw new IOException("Input files modified during combine");
-                }
-
-                final File docsDir = new File(application.getFilesDir(), "aidan-scan-documents");
-                if (!docsDir.exists()) docsDir.mkdirs();
-                final String docId = UUID.randomUUID().toString();
-                final File destFile = new File(docsDir, docId + ".pdf");
-
-                tx.markPublishing(destFile.getAbsolutePath(), docId);
-
-                try (FileInputStream fis = new FileInputStream(tx.getStageFile());
-                     FileOutputStream fos = new FileOutputStream(destFile)) {
-                    byte[] buf = new byte[65536];
-                    int r;
-                    while ((r = fis.read(buf)) != -1) {
-                        fos.write(buf, 0, r);
+            // Serialize the whole publication with output recovery. Recovery
+            // must never observe an operation after op.isDone is set but before
+            // the journal is retired and registration is proven.
+            synchronized (PdfOutputTransaction.RECOVERY_LOCK) {
+                boolean publishingStarted = false;
+                boolean registered = false;
+                try {
+                    if (!tx.validateStageOutput()) {
+                        throw new IOException("Stage output validation failed");
                     }
-                    fos.flush();
-                    fos.getFD().sync();
+                    if (!tx.revalidateSources()) {
+                        throw new IOException("Input files modified during combine");
+                    }
+
+                    final File docsDir = new File(application.getFilesDir(), "aidan-scan-documents");
+                    if (!docsDir.exists()) docsDir.mkdirs();
+                    final String docId = UUID.randomUUID().toString();
+                    final File destFile = new File(docsDir, docId + ".pdf");
+                    final String registrationFileName = ScanFileAdapter.getInstance()
+                            .resolveUniqueDisplayName(tx.getRecord().displayName);
+                    if (registrationFileName == null || registrationFileName.isEmpty()) {
+                        throw new IOException("Could not resolve combined scan filename");
+                    }
+
+                    // Persist the stable identity and target filename before any
+                    // byte is published so recovery can prove registration.
+                    tx.markPublishing(destFile.getAbsolutePath(), docId, pageCount, registrationFileName);
+                    publishingStarted = true;
+
+                    try (FileInputStream fis = new FileInputStream(tx.getStageFile());
+                         FileOutputStream fos = new FileOutputStream(destFile)) {
+                        byte[] buf = new byte[65536];
+                        int r;
+                        while ((r = fis.read(buf)) != -1) {
+                            fos.write(buf, 0, r);
+                        }
+                        fos.flush();
+                        fos.getFD().sync();
+                    }
+
+                    if (!tx.validatePublishedOutput(destFile)) {
+                        throw new IOException("Published output failed verification");
+                    }
+
+                    final Object newScan = ScanFileAdapter.getInstance().createLocalDocument(
+                            destFile,
+                            tx.getRecord().displayName,
+                            pageCount,
+                            docId,
+                            registrationFileName);
+
+                    if (newScan == null) {
+                        throw new IOException("Library registration failed for combined scan");
+                    }
+                    if (!ScanFileAdapter.getInstance().awaitRegistered(docId)) {
+                        throw new IOException("Library registration was not durable for combined scan");
+                    }
+                    registered = true;
+
+                    // PUBLISHED is only recorded after registration is durable.
+                    tx.markPublished();
+                    dismissProgressAndSnackbar("Combined scan saved");
+                    ScanFileAdapter.getInstance().refreshLibrary();
+
+                } catch (final Throwable t) {
+                    Log.e(TAG, "Publication failed for combine operation " + op.operationId, t);
+                    if (tx != null) {
+                        if (publishingStarted && !registered) {
+                            // Retain the PUBLISHING journal, output and stage so
+                            // manual recovery can inspect them. Never delete or
+                            // move a possibly registered document.
+                            Log.e(TAG, "Retaining combine recovery journal, output and stage for manual recovery");
+                        } else {
+                            tx.abort();
+                        }
+                    }
+                    final String errDetail = (t.getMessage() != null && !t.getMessage().isEmpty())
+                            ? ": " + t.getMessage()
+                            : "";
+                    dismissProgressAndSnackbar("Failed to save combined scan" + errDetail);
                 }
-
-                final Object newScan = ScanFileAdapter.getInstance().createLocalDocument(
-                        destFile,
-                        tx.getRecord().displayName,
-                        pageCount);
-
-                if (newScan == null) {
-                    destFile.delete();
-                    throw new IOException("Library registration failed for combined scan");
-                }
-
-                tx.markPublished();
-                dismissProgressAndSnackbar("Combined scan saved");
-                ScanFileAdapter.getInstance().refreshLibrary();
-
-            } catch (final Throwable t) {
-                Log.e(TAG, "Publication failed for combine operation " + op.operationId, t);
-                if (tx != null) tx.abort();
-                final String errDetail = (t.getMessage() != null && !t.getMessage().isEmpty())
-                        ? ": " + t.getMessage()
-                        : "";
-                dismissProgressAndSnackbar("Failed to save combined scan" + errDetail);
             }
         } else {
             if (tx != null) tx.abort();
@@ -767,6 +855,7 @@ public class PdfOperationCoordinator {
         dismissProgressOnly();
 
         if (status == NativePdfEngine.OK && tx != null) {
+            synchronized (PdfOutputTransaction.RECOVERY_LOCK) {
             try {
                 if (!tx.validateStageOutput()) {
                     throw new IOException("Stage output validation failed");
@@ -825,6 +914,7 @@ public class PdfOperationCoordinator {
                 Log.e(TAG, "Publication failed for export operation " + op.operationId, t);
                 if (tx != null) tx.abort();
                 dismissProgressAndSnackbar("Failed to export document");
+            }
             }
         } else if (status == NativePdfEngine.PASSWORD_REQUIRED) {
             if (tx != null) tx.abort();
