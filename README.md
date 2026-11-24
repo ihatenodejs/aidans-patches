@@ -367,10 +367,14 @@ bun scripts/asset-prep.ts --help
 bun run --cwd site check:icons
 ```
 
-Icon discovery remains offline and nonfatal when files are missing. Mutating
-`icons --download-missing` / `icons --sync-all` modes contact Play; equal decoded
-pixels preserve existing PNG bytes and mtime. No repository build or test path
-invokes Python.
+`bun run --cwd site check:icons` and the audit icon step run
+`icons --check-only --strict`: they stay offline, never create or change icon
+files, and exit nonzero when any icon is missing. Report-only discovery remains
+available through `icons --check-only` without `--strict`, which always succeeds
+and exposes `has_missing` / `missing_packages` outputs for workflows that branch
+on missing assets. Mutating `icons --download-missing` / `icons --sync-all`
+modes contact Play; equal decoded pixels preserve existing PNG bytes and mtime.
+No repository build or test path invokes Python.
 
 The first native codec build downloads SHA-256-pinned libjpeg-turbo 3.1.1;
 subsequent builds verify its cached source. ZIP uses Rust Deflate/Bzip2/LZMA
