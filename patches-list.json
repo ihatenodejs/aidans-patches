@@ -188,7 +188,11 @@
       ],
       "patchNames": [
         "Remove Ads",
-        "Remove Tracking"
+        "Remove Google Play",
+        "Remove Tracking",
+        "Unlimited Hints",
+        "Unlock All Levels",
+        "Unlock All Themes"
       ],
       "supportedVersions": [
         "6.0"
@@ -2367,6 +2371,35 @@
       "options": []
     },
     {
+      "name": "Remove Google Play",
+      "description": "Disables Google Play Games sign-in, cloud-sync prompts, achievements, review requests, and Play Store update and cross-promo launches.",
+      "default": true,
+      "category": "Privacy",
+      "dependencies": [],
+      "compatiblePackages": [
+        {
+          "packageName": "com.bigduckgames.flow",
+          "name": "Flow Free",
+          "description": null,
+          "apkFileType": "APKM",
+          "appIconColor": "#1E88E5",
+          "signatures": [
+            "36cd9da86367d4e25529427681598ffef8f08416c0f2b7ceedcd856b9c6620b6"
+          ],
+          "targets": [
+            {
+              "version": "6.0",
+              "versionCodes": null,
+              "isExperimental": false,
+              "minSdk": 24,
+              "description": null
+            }
+          ]
+        }
+      ],
+      "options": []
+    },
+    {
       "name": "Remove Internet Permissions",
       "description": "Removes Internet permissions from AndroidManifest.xml to prevent network access.",
       "default": true,
@@ -3846,6 +3879,93 @@
           "values": null
         }
       ]
+    },
+    {
+      "name": "Unlimited Hints",
+      "description": "Makes the hint balance display 999 and allows hints to be used without consuming hints or watching rewarded videos.",
+      "default": true,
+      "category": "Features",
+      "dependencies": [],
+      "compatiblePackages": [
+        {
+          "packageName": "com.bigduckgames.flow",
+          "name": "Flow Free",
+          "description": null,
+          "apkFileType": "APKM",
+          "appIconColor": "#1E88E5",
+          "signatures": [
+            "36cd9da86367d4e25529427681598ffef8f08416c0f2b7ceedcd856b9c6620b6"
+          ],
+          "targets": [
+            {
+              "version": "6.0",
+              "versionCodes": null,
+              "isExperimental": false,
+              "minSdk": 24,
+              "description": null
+            }
+          ]
+        }
+      ],
+      "options": []
+    },
+    {
+      "name": "Unlock All Levels",
+      "description": "Unlocks every level pack and every level, including premium and individually purchased packs, without changing saved progress or purchase state.",
+      "default": true,
+      "category": "Features",
+      "dependencies": [],
+      "compatiblePackages": [
+        {
+          "packageName": "com.bigduckgames.flow",
+          "name": "Flow Free",
+          "description": null,
+          "apkFileType": "APKM",
+          "appIconColor": "#1E88E5",
+          "signatures": [
+            "36cd9da86367d4e25529427681598ffef8f08416c0f2b7ceedcd856b9c6620b6"
+          ],
+          "targets": [
+            {
+              "version": "6.0",
+              "versionCodes": null,
+              "isExperimental": false,
+              "minSdk": 24,
+              "description": null
+            }
+          ]
+        }
+      ],
+      "options": []
+    },
+    {
+      "name": "Unlock All Themes",
+      "description": "Unlocks every premium theme and the Complete Package theme bundle in the store without changing saved progress or purchase state.",
+      "default": true,
+      "category": "Customization",
+      "dependencies": [],
+      "compatiblePackages": [
+        {
+          "packageName": "com.bigduckgames.flow",
+          "name": "Flow Free",
+          "description": null,
+          "apkFileType": "APKM",
+          "appIconColor": "#1E88E5",
+          "signatures": [
+            "36cd9da86367d4e25529427681598ffef8f08416c0f2b7ceedcd856b9c6620b6"
+          ],
+          "targets": [
+            {
+              "version": "6.0",
+              "versionCodes": null,
+              "isExperimental": false,
+              "minSdk": 24,
+              "description": null
+            }
+          ]
+        }
+      ],
+      "options": []
     },
     {
       "name": "Unlock Cache Filter and Sorting Tools",

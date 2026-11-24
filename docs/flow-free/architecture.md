@@ -73,6 +73,10 @@ Native tracking selectors such as `trackDailyLevelCompleted`, `trackPurchase:isR
 
 1. **Remove Ads (`compositeFeaturePatch`):** Neutralizes the `AdManager` static entry points called by native code, returns `false` from ad-availability checks, prevents the six advertising SDK content providers from initializing, suppresses the native Remove Ads purchase rows, and disables remove-ads upsell config flags.
 2. **Remove Tracking (`compositeFeaturePatch`):** Sets Firebase Analytics and Crashlytics collection manifest flags to `false` and neutralizes `AnalyticsManager` and `CrashReportManager` event, user-property, and crash-reporting methods.
+3. **Remove Google Play (`compositeFeaturePatch`):** Disables the Java Play Games sign-in, achievement, and review entry points and replaces the native Play connect, cloud-sync, update, review, and Play Store launch methods.
+4. **Unlock All Levels (`rawResourcePatch`):** Replaces the arm64 `LevelPack` and `Level` unlock getters in `libgame.so` with `return true` and branches `SelectPackMenu.onSelected:` directly to navigation so every pack and level is selectable.
+5. **Unlimited Hints (`rawResourcePatch`):** Replaces `HintManager` balance getters with `return 999` and makes `useHint` succeed without decrementing the stored balance.
+6. **Unlock All Themes (`rawResourcePatch`):** Replaces the `Theme` and `ThemeManager` purchase/unlock getters with `return true`.
 
 ## 4. Invariants
 
@@ -82,3 +86,10 @@ Native tracking selectors such as `trackDailyLevelCompleted`, `trackPurchase:isR
 - The store package card still lists "Remove all ads" as one benefit of The Complete Package because that bundle also unlocks every level pack.
 - Native analytics and crash reporting reach Firebase only through `AnalyticsManager` and `CrashReportManager`; disabling those methods also disables `FirebaseHelper`'s JNI-facing paths.
 - Firebase Remote Config and Cloud Messaging are functional features and remain enabled.
+- Premium pack access is gated by `LevelPack.isUnlocked`, which consults `isPurchased`, purchase flags, and pack categories; the unlock patch replaces the getters at their native function prologues rather than changing saved state.
+- Level availability within a pack is gated by `Level.isPlayable`, which `LevelPack.updateSetsWithUnlocks:` normally sets from progress.
+- Theme availability is gated by `Theme.isUnlocked`/`isPurchased`, with `ThemeManager.allThemesPurchased` acting as the bundle-wide override.
+- Hint availability is gated by `HintManager`'s stored balance getters; `useHint` only consumes and persists that balance, while the caller reveals the hint.
+- Play Games sign-in is gated by `NoodlecakeGameActivity.shouldGoogleAPIConnect` and `isGoogleAPIConnected`; native prompts use `SelectPackMenu` and `Flow` methods that must all be neutralized, because a no-op prompt can otherwise leave a click catcher over the pack list.
+- `Flow` launches the Play Store for reviews and cross-promos through `launchAppStoreId:campaign:` and `launchAppStoreId:orUrl:campaign:`; blocking those methods leaves URL-based support and privacy launches intact.
+- Every native patch validates the original prologue, is idempotent, and fails on a version mismatch instead of writing a partial edit.
