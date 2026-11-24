@@ -3,5 +3,8 @@
 interface Env {
   PATCHES_KV: KVNamespace;
   GITHUB_REPO: 'ihatenodejs/aidans-patches';
+  APP_STATE: DurableObjectNamespace<
+    import('./src/index').AppStateDurableObject
+  >;
   PLAY_MEDIA: R2Bucket;
 }

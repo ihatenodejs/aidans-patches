@@ -1,6 +1,12 @@
-import { env } from 'cloudflare:test';
-import { describe, expect, it, vi } from 'vitest';
+import {
+  env,
+  listDurableObjectIds,
+  reset,
+  runInDurableObject,
+} from 'cloudflare:test';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MONITORED_APPS, parseMonitoredApps, compareUtf16 } from '../src/apps';
+import { AUTHORITY_GATE_KEY } from '../src/app-state';
 import { compareAppVersions } from '../src/comparator';
 import { renderBadgeSvg } from '../src/badges';
 import fixtureHtml from './fixtures/google-play-details.html?raw';
@@ -9,6 +15,7 @@ import worker, {
   computeAggregateCompatibilityStatus,
   timingSafeEqual,
   performVersionCheck,
+  loadAppRecord,
   saveAppRecord,
   reconcileMediaAsset,
   reconcileMediaAssetsList,
@@ -19,6 +26,25 @@ import type {
   KVVersionPayload,
   WorkerEnv,
 } from '../src/types';
+
+const STABLE_GATE = '2000-01-01T00:00:00.000Z';
+
+beforeEach(async () => {
+  await env.PATCHES_KV.put(AUTHORITY_GATE_KEY, STABLE_GATE);
+});
+
+afterEach(async () => {
+  const ids = await listDurableObjectIds(env.APP_STATE);
+  for (const id of ids) {
+    await runInDurableObject(
+      env.APP_STATE.get(id),
+      async (_instance: unknown, state: DurableObjectState) => {
+        await state.storage.deleteAll();
+      },
+    );
+  }
+  await reset();
+});
 
 describe('Apps metadata parsing', () => {
   it('parses valid apps catalog correctly', () => {
@@ -2325,22 +2351,24 @@ describe('Google Play store metadata scraping and status aggregation', () => {
 
 describe('Version API endpoint (/api/version/:packageName)', () => {
   const workerEnv: WorkerEnv = {
-    PATCHES_KV: env.PATCHES_KV,
+    ...env,
+  };
+  const buzzRecord: AppVersionRecord = {
+    appName: 'Fizz',
+    playVersion: '1.60.0',
+    playVersionCode: 400032,
+    checkedAt: '2026-10-21T20:48:51.000Z',
+    updatedAt: '2026-10-21T20:48:51.000Z',
+    status: 'fresh',
+    supportedVersions: ['1.54.0'],
+    latestSupportedVersion: '1.54.0',
   };
 
-  it('returns 200 with version payload and public CORS for valid package', async () => {
-    const buzzRecord: AppVersionRecord = {
-      appName: 'Fizz',
-      playVersion: '1.60.0',
-      playVersionCode: 400032,
-      checkedAt: '2026-10-21T20:48:51.000Z',
-      updatedAt: '2026-10-21T20:48:51.000Z',
-      status: 'fresh',
-      supportedVersions: ['1.54.0'],
-      latestSupportedVersion: '1.54.0',
-    };
+  beforeEach(async () => {
     await saveAppRecord(workerEnv, 'com.ashtoncofer.Buzz', buzzRecord);
+  });
 
+  it('returns 200 with version payload and public CORS for valid package', async () => {
     const req = new Request(
       'http://localhost/api/version/com.ashtoncofer.Buzz',
       {
@@ -2418,5 +2446,596 @@ describe('Version API endpoint (/api/version/:packageName)', () => {
     expect(res.status).toBe(200);
     expect(res.headers.get('Content-Type')).toContain('application/json');
     expect(await res.text()).toBe('');
+  });
+});
+
+describe('Per-package state authority', () => {
+  const pkg = 'com.ashtoncofer.Buzz';
+  const targetVersion = MONITORED_APPS.find(
+    (app) => app.packageName === pkg,
+  )!.latestSupportedVersion;
+  const authEnv: WorkerEnv = {
+    ...env,
+    COMPATIBILITY_STATUS_SECRET: 'test_secret_abc',
+  };
+
+  const PLAY_HTML = (version: string) => `
+    <html>
+      <body>
+        [[["${version}"]],[[[1]],[[[1]]]
+        <div>Updated on</div><div>Oct 6, 2026</div>
+      </body>
+    </html>
+  `;
+
+  function startBody(requestId: string) {
+    return {
+      requestId,
+      packageName: pkg,
+      appName: 'Fizz',
+      targetVersion,
+      supportedVersions: [targetVersion],
+      gitRevision: 'rev1',
+    };
+  }
+
+  function resultBody(requestId: string) {
+    return {
+      requestId,
+      packageName: pkg,
+      results: [
+        {
+          role: 'target',
+          versionName: targetVersion,
+          versionCode: 400032,
+          patchBundleVersion: '1.4.0',
+          gitRevision: 'rev1',
+          status: 'compatible',
+          passedCount: 8,
+          failedCount: 0,
+        },
+      ],
+    };
+  }
+
+  function post(body: unknown) {
+    return new Request('http://localhost/api/compatibility-results', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer test_secret_abc',
+      },
+      body: JSON.stringify(body),
+    });
+  }
+
+  it('preserves a result committed while a scrape is in flight', async () => {
+    const initialRecord: AppVersionRecord = {
+      appName: 'Fizz',
+      playVersion: '1.54.0',
+      checkedAt: '2026-10-06T00:00:00Z',
+      updatedAt: '2026-10-06T00:00:00Z',
+      status: 'up-to-date',
+      supportedVersions: [targetVersion],
+      latestSupportedVersion: targetVersion,
+      targetCompatibility: null,
+      outstandingRequest: {
+        requestId: 'req-in-flight',
+        targetVersion,
+        playVersion: '1.54.0',
+        expectedRoles: ['target'],
+        dispatchedAt: new Date().toISOString(),
+        gitRevision: 'rev1',
+      },
+    };
+    await env.PATCHES_KV.put(
+      `app_version:${pkg}`,
+      JSON.stringify(initialRecord),
+    );
+
+    const scrapeGate = Promise.withResolvers<void>();
+    const scrapeStarted = Promise.withResolvers<void>();
+
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes('play.google.com')) {
+        if (url.includes(encodeURIComponent(pkg))) {
+          scrapeStarted.resolve();
+          await scrapeGate.promise;
+        }
+        return new Response(PLAY_HTML(targetVersion), { status: 200 });
+      }
+      return new Response('Not found', { status: 404 });
+    });
+
+    try {
+      const scrapePromise = performVersionCheck(authEnv);
+      await scrapeStarted.promise;
+
+      const resultResponse = await worker.fetch(
+        post(resultBody('req-in-flight')),
+        authEnv,
+      );
+      expect(resultResponse.status).toBe(200);
+
+      scrapeGate.resolve();
+      await scrapePromise;
+
+      const finalRecord = await loadAppRecord(authEnv, pkg);
+      expect(finalRecord?.targetCompatibility?.requestId).toBe('req-in-flight');
+      expect(finalRecord?.outstandingRequest).toBeNull();
+
+      const mirroredRaw = await env.PATCHES_KV.get(`app_version:${pkg}`);
+      const mirrored = JSON.parse(mirroredRaw!) as AppVersionRecord;
+      expect(mirrored.targetCompatibility?.requestId).toBe('req-in-flight');
+      expect(mirrored.outstandingRequest).toBeNull();
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('serializes two concurrent run-starts and accepts only the current result', async () => {
+    const startRequest = (requestId: string) =>
+      new Request('http://localhost/api/compatibility-runs', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer test_secret_abc',
+        },
+        body: JSON.stringify(startBody(requestId)),
+      });
+
+    const [startA, startB] = await Promise.all([
+      worker.fetch(startRequest('req-one'), authEnv),
+      worker.fetch(startRequest('req-two'), authEnv),
+    ]);
+    expect(startA.status).toBe(200);
+    expect(startB.status).toBe(200);
+
+    const afterStarts = await loadAppRecord(authEnv, pkg);
+    const currentRequestId = afterStarts?.outstandingRequest?.requestId;
+    expect(['req-one', 'req-two']).toContain(currentRequestId);
+
+    const [resultOne, resultTwo] = await Promise.all([
+      worker.fetch(post(resultBody('req-one')), authEnv),
+      worker.fetch(post(resultBody('req-two')), authEnv),
+    ]);
+    const statuses = [resultOne.status, resultTwo.status].sort();
+    expect(statuses).toEqual([200, 409]);
+
+    const finalRecord = await loadAppRecord(authEnv, pkg);
+    expect(finalRecord?.outstandingRequest).toBeNull();
+    expect(finalRecord?.targetCompatibility?.requestId).toBe(currentRequestId);
+  });
+
+  it('rejects a replayed result without erasing accepted state', async () => {
+    const startResponse = await worker.fetch(
+      new Request('http://localhost/api/compatibility-runs', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer test_secret_abc',
+        },
+        body: JSON.stringify(startBody('req-replay')),
+      }),
+      authEnv,
+    );
+    expect(startResponse.status).toBe(200);
+
+    const first = await worker.fetch(post(resultBody('req-replay')), authEnv);
+    expect(first.status).toBe(200);
+
+    const replay = await worker.fetch(post(resultBody('req-replay')), authEnv);
+    expect(replay.status).toBe(409);
+
+    const finalRecord = await loadAppRecord(authEnv, pkg);
+    expect(finalRecord?.targetCompatibility?.requestId).toBe('req-replay');
+    expect(finalRecord?.outstandingRequest).toBeNull();
+  });
+
+  it('seeds the authority from an existing KV record without losing fields', async () => {
+    const legacyRecord: AppVersionRecord = {
+      appName: 'Fizz',
+      playVersion: '1.53.0',
+      playVersionCode: 300100,
+      checkedAt: '2026-10-06T00:00:00Z',
+      updatedAt: '2026-10-05T00:00:00Z',
+      updatedOn: 'Oct 5, 2026',
+      status: 'newer-available',
+      supportedVersions: [targetVersion],
+      latestSupportedVersion: targetVersion,
+      targetCompatibility: {
+        requestId: 'legacy-request',
+        role: 'target',
+        versionName: targetVersion,
+        versionCode: 300100,
+        patchBundleVersion: '1.3.0',
+        gitRevision: 'legacy-rev',
+        testedAt: '2026-10-05T00:00:00Z',
+        passedCount: 4,
+        failedCount: 1,
+        status: 'incompatible',
+      },
+      outstandingRequest: null,
+    };
+    await env.PATCHES_KV.put(
+      `app_version:${pkg}`,
+      JSON.stringify(legacyRecord),
+    );
+
+    const response = await worker.fetch(
+      new Request(`http://localhost/api/version/${pkg}`),
+      authEnv,
+    );
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as {
+      versionName: string;
+      versionCode: number;
+      updatedAt: string;
+    };
+    expect(body.versionName).toBe('1.53.0');
+    expect(body.versionCode).toBe(300100);
+    expect(body.updatedAt).toBe('2026-10-05T00:00:00Z');
+
+    const authorityRecord = await loadAppRecord(authEnv, pkg);
+    expect(authorityRecord).toEqual(legacyRecord);
+  });
+
+  it('refuses app-state routes until the migration gate is set and stable', async () => {
+    await env.PATCHES_KV.delete(AUTHORITY_GATE_KEY);
+    const missing = await worker.fetch(
+      new Request('http://localhost/api/status'),
+      authEnv,
+    );
+    expect(missing.status).toBe(503);
+    expect(await missing.text()).toContain('migration gate');
+
+    await env.PATCHES_KV.put(AUTHORITY_GATE_KEY, new Date().toISOString());
+    const settling = await worker.fetch(
+      new Request('http://localhost/api/status'),
+      authEnv,
+    );
+    expect(settling.status).toBe(503);
+  });
+
+  it('reports committed state when the KV rollback mirror write fails', async () => {
+    const stub = env.APP_STATE.get(env.APP_STATE.idFromName(pkg));
+    await loadAppRecord(authEnv, pkg);
+
+    await runInDurableObject(stub, (instance: unknown) => {
+      const authority = instance as unknown as { env: WorkerEnv };
+      authority.env = {
+        ...authority.env,
+        PATCHES_KV: {
+          put: async () => {
+            throw new Error('injected mirror failure');
+          },
+        } as unknown as KVNamespace,
+      };
+    });
+
+    try {
+      const response = await worker.fetch(
+        new Request('http://localhost/api/compatibility-runs', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: 'Bearer test_secret_abc',
+          },
+          body: JSON.stringify(startBody('req-mirror-failure')),
+        }),
+        authEnv,
+      );
+      expect(response.status).toBe(200);
+      const body = (await response.json()) as {
+        success: boolean;
+        mirrored?: boolean;
+      };
+      expect(body.success).toBe(true);
+      expect(body.mirrored).toBe(false);
+
+      const authorityRecord = await loadAppRecord(authEnv, pkg);
+      expect(authorityRecord?.outstandingRequest?.requestId).toBe(
+        'req-mirror-failure',
+      );
+      expect(await env.PATCHES_KV.get(`app_version:${pkg}`)).toBeNull();
+    } finally {
+      await runInDurableObject(stub, (instance: unknown) => {
+        const authority = instance as unknown as { env: WorkerEnv };
+        authority.env = { ...authority.env, PATCHES_KV: env.PATCHES_KV };
+      });
+    }
+  });
+});
+
+describe('Play metadata batch validation', () => {
+  const pkgA = 'com.adobe.reader';
+  const pkgB = 'com.adobe.scan.android';
+  const listingUpdatedAt = '2026-10-06T00:00:00Z';
+  const authEnv: WorkerEnv = {
+    ...env,
+    COMPATIBILITY_STATUS_SECRET: 'test_secret_abc',
+  };
+
+  async function seedMetadataRecord(packageName: string) {
+    const record: AppVersionRecord = {
+      appName: packageName,
+      playVersion: '1.0.0',
+      checkedAt: listingUpdatedAt,
+      updatedAt: listingUpdatedAt,
+      updatedOn: 'Oct 6, 2026',
+      status: 'up-to-date',
+      supportedVersions: ['1.0.0'],
+      latestSupportedVersion: '1.0.0',
+      targetCompatibility: null,
+      outstandingRequest: null,
+    };
+    await env.PATCHES_KV.put(
+      `app_version:${packageName}`,
+      JSON.stringify(record),
+    );
+  }
+
+  function item(
+    packageName: string,
+    versionName = '1.1.0',
+    updatedAt = listingUpdatedAt,
+  ) {
+    return {
+      packageName,
+      versionName,
+      versionCode: 101,
+      listingUpdatedAt: updatedAt,
+    };
+  }
+
+  function postMetadata(results: unknown[]) {
+    return new Request('http://localhost/api/play-metadata', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer test_secret_abc',
+      },
+      body: JSON.stringify({ results }),
+    });
+  }
+
+  it('rejects a malformed later item without writing the valid first item', async () => {
+    await seedMetadataRecord(pkgA);
+
+    const res = await worker.fetch(
+      postMetadata([item(pkgA), { packageName: pkgB, versionName: '' }]),
+      authEnv,
+    );
+    expect(res.status).toBe(400);
+
+    const record = await loadAppRecord(authEnv, pkgA);
+    expect(record?.playVersion).toBe('1.0.0');
+    expect(record?.playVersionCode).toBeUndefined();
+  });
+
+  it('rejects a duplicate package without writing the first occurrence', async () => {
+    await seedMetadataRecord(pkgA);
+
+    const res = await worker.fetch(
+      postMetadata([item(pkgA), item(pkgA)]),
+      authEnv,
+    );
+    expect(res.status).toBe(400);
+
+    const record = await loadAppRecord(authEnv, pkgA);
+    expect(record?.playVersion).toBe('1.0.0');
+    expect(record?.playVersionSource).toBeUndefined();
+  });
+
+  it('rejects an unknown later package without writing the valid first item', async () => {
+    await seedMetadataRecord(pkgA);
+
+    const res = await worker.fetch(
+      postMetadata([item(pkgA), item('com.unknown.package')]),
+      authEnv,
+    );
+    expect(res.status).toBe(400);
+
+    const record = await loadAppRecord(authEnv, pkgA);
+    expect(record?.playVersion).toBe('1.0.0');
+    expect(record?.playVersionSource).toBeUndefined();
+  });
+
+  it('rejects a stale later item without writing the valid first item', async () => {
+    await seedMetadataRecord(pkgA);
+    await seedMetadataRecord(pkgB);
+
+    const res = await worker.fetch(
+      postMetadata([item(pkgA), item(pkgB, '2.0.0', '2026-01-01T00:00:00Z')]),
+      authEnv,
+    );
+    expect(res.status).toBe(409);
+
+    const record = await loadAppRecord(authEnv, pkgA);
+    expect(record?.playVersion).toBe('1.0.0');
+    expect(record?.playVersionSource).toBeUndefined();
+  });
+
+  it('applies a fully valid mixed-package batch and preserves empty-array semantics', async () => {
+    await seedMetadataRecord(pkgA);
+    await seedMetadataRecord(pkgB);
+
+    const res = await worker.fetch(
+      postMetadata([item(pkgA), item(pkgB)]),
+      authEnv,
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      success: boolean;
+      updatedPackages: string[];
+    };
+    expect(body.success).toBe(true);
+    expect(body.updatedPackages.sort()).toEqual([pkgA, pkgB].sort());
+
+    const recordA = await loadAppRecord(authEnv, pkgA);
+    expect(recordA?.playVersion).toBe('1.1.0');
+    expect(recordA?.playVersionSource).toBe('authenticated');
+    expect(recordA?.needsAuthenticatedVersion).toBe(false);
+
+    const emptyRes = await worker.fetch(postMetadata([]), authEnv);
+    expect(emptyRes.status).toBe(200);
+    const emptyBody = (await emptyRes.json()) as {
+      success: boolean;
+      updatedPackages: string[];
+    };
+    expect(emptyBody).toEqual({ success: true, updatedPackages: [] });
+  });
+
+  function fakeAppState(
+    intercept: (
+      packageName: string,
+      operation: string,
+      forward: () => Promise<Response>,
+    ) => Promise<Response>,
+  ): WorkerEnv['APP_STATE'] {
+    const real = env.APP_STATE;
+    return {
+      newUniqueId: () => real.newUniqueId(),
+      idFromName: (name: string) => real.idFromName(name),
+      idFromString: (id: string) => real.idFromString(id),
+      get: (id: DurableObjectId) => {
+        const realStub = real.get(id);
+        return {
+          fetch: async (input: RequestInfo | URL, init?: RequestInit) => {
+            const request = new Request(input, init);
+            const body = (await request.clone().json()) as {
+              packageName: string;
+              operation: string;
+            };
+            return intercept(body.packageName, body.operation, () =>
+              realStub.fetch(request),
+            );
+          },
+        } as DurableObjectStub;
+      },
+    } as unknown as WorkerEnv['APP_STATE'];
+  }
+
+  it('reports an intervening listing change instead of overwriting it', async () => {
+    await seedMetadataRecord(pkgA);
+    const realEnv: WorkerEnv = { ...authEnv };
+    const fakeEnv: WorkerEnv = {
+      ...authEnv,
+      APP_STATE: fakeAppState(async (packageName, operation, forward) => {
+        if (operation === 'play-metadata' && packageName === pkgA) {
+          const current = await loadAppRecord(realEnv, pkgA);
+          await saveAppRecord(realEnv, pkgA, {
+            ...current!,
+            updatedAt: '2026-10-07T00:00:00Z',
+          });
+        }
+        return forward();
+      }),
+    };
+
+    const res = await worker.fetch(postMetadata([item(pkgA)]), fakeEnv);
+    expect(res.status).toBe(409);
+    const body = (await res.json()) as {
+      success: boolean;
+      updatedPackages: string[];
+      failures: Array<{ packageName: string; reason: string }>;
+    };
+    expect(body.success).toBe(false);
+    expect(body.updatedPackages).toEqual([]);
+    expect(body.failures).toEqual([
+      expect.objectContaining({
+        packageName: pkgA,
+        reason: 'conflict',
+      }),
+    ]);
+
+    const record = await loadAppRecord(realEnv, pkgA);
+    expect(record?.updatedAt).toBe('2026-10-07T00:00:00Z');
+    expect(record?.playVersion).toBe('1.0.0');
+  });
+
+  it('reports partial commits honestly when a later authority write fails', async () => {
+    await seedMetadataRecord(pkgA);
+    await seedMetadataRecord(pkgB);
+    const realEnv: WorkerEnv = { ...authEnv };
+    const fakeEnv: WorkerEnv = {
+      ...authEnv,
+      APP_STATE: fakeAppState(async (packageName, operation, forward) => {
+        if (operation === 'play-metadata' && packageName === pkgA) {
+          throw new Error('injected backend failure');
+        }
+        return forward();
+      }),
+    };
+
+    const res = await worker.fetch(
+      postMetadata([item(pkgA), item(pkgB)]),
+      fakeEnv,
+    );
+    expect(res.status).toBe(500);
+    const body = (await res.json()) as {
+      success: boolean;
+      updatedPackages: string[];
+      failures: Array<{ packageName: string; reason: string }>;
+    };
+    expect(body.success).toBe(false);
+    expect(body.updatedPackages).toEqual([pkgB]);
+    expect(body.failures).toEqual([
+      expect.objectContaining({
+        packageName: pkgA,
+        reason: 'backend-error',
+      }),
+    ]);
+
+    const recordA = await loadAppRecord(realEnv, pkgA);
+    expect(recordA?.playVersion).toBe('1.0.0');
+    const recordB = await loadAppRecord(realEnv, pkgB);
+    expect(recordB?.playVersion).toBe('1.1.0');
+  });
+
+  it('reports authority-committed metadata when the KV mirror write fails', async () => {
+    await seedMetadataRecord(pkgA);
+    const stub = env.APP_STATE.get(env.APP_STATE.idFromName(pkgA));
+    await loadAppRecord(authEnv, pkgA);
+
+    await runInDurableObject(stub, (instance: unknown) => {
+      const authority = instance as unknown as { env: WorkerEnv };
+      authority.env = {
+        ...authority.env,
+        PATCHES_KV: {
+          put: async () => {
+            throw new Error('injected mirror failure');
+          },
+        } as unknown as KVNamespace,
+      };
+    });
+
+    try {
+      const res = await worker.fetch(postMetadata([item(pkgA)]), authEnv);
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as {
+        success: boolean;
+        updatedPackages: string[];
+        mirrored?: boolean;
+        mirrorWarnings?: string[];
+      };
+      expect(body.success).toBe(true);
+      expect(body.updatedPackages).toEqual([pkgA]);
+      expect(body.mirrored).toBe(false);
+      expect(body.mirrorWarnings).toEqual([pkgA]);
+
+      const authorityRecord = await loadAppRecord(authEnv, pkgA);
+      expect(authorityRecord?.playVersion).toBe('1.1.0');
+      const mirroredRaw = await env.PATCHES_KV.get(`app_version:${pkgA}`);
+      const mirrored = JSON.parse(mirroredRaw!) as AppVersionRecord;
+      expect(mirrored.playVersion).toBe('1.0.0');
+    } finally {
+      await runInDurableObject(stub, (instance: unknown) => {
+        const authority = instance as unknown as { env: WorkerEnv };
+        authority.env = { ...authority.env, PATCHES_KV: env.PATCHES_KV };
+      });
+    }
   });
 });
