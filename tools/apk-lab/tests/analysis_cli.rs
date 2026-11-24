@@ -58,9 +58,9 @@ exec cat "$dir/certs.txt"
 "#;
 
 const DEXDUMP_SCRIPT: &str = r#"#!/bin/sh
-case "$1" in
-  *classes2.dex) exit 0 ;;
-esac
+if grep -q 'secondDexValue' "$1"; then
+  exit 0
+fi
 echo "Class descriptor  : 'Lcom/example/Foo;'"
 exit 0
 "#;
