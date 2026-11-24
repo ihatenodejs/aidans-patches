@@ -5,6 +5,7 @@ on:
 
 permissions:
   contents: read
+  packages: read
 
 jobs:
   verify:
@@ -49,12 +50,19 @@ jobs:
           app-id: ${{ secrets.RELEASE_APP_ID }}
           private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
           permission-contents: write
-          permission-packages: read
           permission-workflows: write
+
+      - name: Verify App repository access
+        env:
+          GH_TOKEN: ${{ steps.release-token.outputs.token }}
+        run: |
+          set -euo pipefail
+          gh api installation/repositories --paginate --jq '.repositories[].full_name' \
+            | grep -Fx "$GITHUB_REPOSITORY" >/dev/null
 
       - name: Verify GitHub Packages access
         env:
-          GITHUB_TOKEN: ${{ steps.release-token.outputs.token }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           version=$(awk -F '"' '/^morphe-patcher[[:space:]]*=/ { print $2; exit }' gradle/libs.versions.toml)
@@ -73,8 +81,9 @@ jobs:
       - name: Build with uncached Gradle dependencies
         env:
           GITHUB_TOKEN: ${{ steps.release-token.outputs.token }}
+          RELEASE_MAVEN_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GRADLE_USER_HOME: ${{ runner.temp }}/release-app-gradle
           ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
           ANDROID_NDK_ROOT: ${{ steps.setup-ndk.outputs.ndk-path }}
           ANDROID_NDK: ${{ steps.setup-ndk.outputs.ndk-path }}
-        run: env 'ORG_GRADLE_PROJECT_gpr.user=x-access-token' ./gradlew :patches:buildAndroid --no-daemon
+        run: ./gradlew :patches:buildAndroid --no-daemon

@@ -156,7 +156,6 @@ jobs:
           app-id: ${{ secrets.RELEASE_APP_ID }}
           private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
           permission-contents: write
-          permission-packages: read
           permission-workflows: write
 
       - name: Checkout
@@ -248,9 +247,8 @@ jobs:
         id: release
         env:
           GITHUB_TOKEN: ${{ steps.release-token.outputs.token }}
-        # GITHUB_ACTOR is reserved by Actions; pass the Maven username as a
-        # Gradle project property to every semantic-release subprocess.
-        run: env 'ORG_GRADLE_PROJECT_gpr.user=x-access-token' bun scripts/run-release.ts
+          RELEASE_MAVEN_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bun scripts/run-release.ts
 
       - name: Attest
         if: steps.release.outputs.new_release_published == 'true'
