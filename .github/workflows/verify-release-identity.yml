@@ -10,9 +10,6 @@ jobs:
   verify:
     name: Verify App and Maven access
     runs-on: ubuntu-latest
-    env:
-      # Match the release job's package authentication.
-      GITHUB_ACTOR: x-access-token
     steps:
       - name: Require the default branch
         if: github.ref != 'refs/heads/main'
@@ -68,7 +65,7 @@ jobs:
           umask 077
           netrc=$(mktemp "$RUNNER_TEMP/release-app-netrc.XXXXXX")
           trap 'rm -f "$netrc"' EXIT
-          printf 'machine maven.pkg.github.com login %s password %s\n' "$GITHUB_ACTOR" "$GITHUB_TOKEN" > "$netrc"
+          printf 'machine maven.pkg.github.com login x-access-token password %s\n' "$GITHUB_TOKEN" > "$netrc"
           curl --fail --location --proto-redir '=https' --silent --show-error \
             --netrc-file "$netrc" --output /dev/null \
             "https://maven.pkg.github.com/MorpheApp/registry/app/morphe/morphe-patcher/$version/morphe-patcher-$version.pom"
@@ -80,4 +77,4 @@ jobs:
           ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
           ANDROID_NDK_ROOT: ${{ steps.setup-ndk.outputs.ndk-path }}
           ANDROID_NDK: ${{ steps.setup-ndk.outputs.ndk-path }}
-        run: ./gradlew :patches:buildAndroid --no-daemon
+        run: env 'ORG_GRADLE_PROJECT_gpr.user=x-access-token' ./gradlew :patches:buildAndroid --no-daemon

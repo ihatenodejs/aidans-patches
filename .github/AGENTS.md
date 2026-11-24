@@ -96,8 +96,9 @@ git push origin release/main release/dev
    `maven.pkg.github.com/MorpheApp/registry`; requesting package permission
    alone does not establish access to that registry. Verify an uncached build
    before cutover and use a supported separate package credential if necessary.
-   Installation tokens use the fixed `x-access-token` username with the token
-   as the password.
+   The release subprocess passes `ORG_GRADLE_PROJECT_gpr.user=x-access-token`
+   to Gradle and uses the token as its password. Do not rely on overriding
+   `GITHUB_ACTOR`: GitHub Actions reserves that variable.
    These workflows no longer use `RELEASE_DEPLOY_KEY`; retain the existing key
    until the chosen release identity is configured and verified.
 4. Run **Verify Release Identity** from `main`. It requests the release App's

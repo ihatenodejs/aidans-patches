@@ -143,11 +143,6 @@ jobs:
       id-token: write
       attestations: write
     runs-on: ubuntu-latest
-    env:
-      # Gradle authenticates to maven.pkg.github.com with GITHUB_ACTOR as the
-      # username and GITHUB_TOKEN as the password. Installation tokens use the
-      # fixed `x-access-token` username.
-      GITHUB_ACTOR: x-access-token
     steps:
       # Release commits are created locally and pushed from this job, so the
       # push identity must be a ruleset bypass actor. The dedicated GitHub App
@@ -246,7 +241,9 @@ jobs:
         id: release
         env:
           GITHUB_TOKEN: ${{ steps.release-token.outputs.token }}
-        run: bun scripts/run-release.ts
+        # GITHUB_ACTOR is reserved by Actions; pass the Maven username as a
+        # Gradle project property to every semantic-release subprocess.
+        run: env 'ORG_GRADLE_PROJECT_gpr.user=x-access-token' bun scripts/run-release.ts
 
       - name: Attest
         if: steps.release.outputs.new_release_published == 'true'
