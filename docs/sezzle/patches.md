@@ -467,11 +467,13 @@ Prevents Hermes Redux update sagas from locking out the app, stubs Play Store UR
 
 Modifies `assets/index.android.bundle`:
 
-1. Stubs `selectShouldForceUpdate` and all `shouldForceUpdateAppSaga` watcher functions.
+1. Stubs `selectShouldForceUpdate` and every `shouldForceUpdateAppSaga` / `shouldForceUpdateAppSagaWatcher` occurrence.
 2. Unmounts `UpdateAppModal`.
 3. Neutralizes `getStoreUrl` and `getFullStoreUrl`.
 4. Forces Hermes `trustFall`, `isJailBroken`, `hookDetected`, and `canMockLocation` to return `false`.
 5. Stubs in-app review rating trigger functions.
 6. Recomputes Hermes footer hash.
+
+Each discovered update saga and watcher must start with one of the known HBC v98 prologues (`40 01 07 89`, `34 01 00 3b`, and the watcher variant `40 01 02 97`) or already carry the patched `93 00 76 00` replacement. The patch validates every occurrence across both families before writing any bytes; an unexpected prologue aborts the patch with the function family and bundle offset instead of silently skipping the function or exporting a partially patched bundle.
 
 ---
