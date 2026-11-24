@@ -162,6 +162,7 @@ jobs:
           private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
           permission-contents: write
           permission-packages: read
+          permission-workflows: write
 
       - name: Checkout
         uses: actions/checkout@v7
