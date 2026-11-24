@@ -150,10 +150,10 @@ jobs:
       GITHUB_ACTOR: x-access-token
     steps:
       # Release commits are created locally and pushed from this job, so the
-      # push identity must be a ruleset bypass actor. Use a dedicated GitHub
-      # App: deploy keys cannot be ruleset bypass actors. Add this app as a
-      # bypass actor on the release branch rulesets (and on the verification
-      # gate ruleset so the release-driven backmerge to dev is accepted).
+      # push identity must be a ruleset bypass actor. The dedicated GitHub App
+      # provides an individually scoped identity. Add it as a bypass actor on
+      # the release branch rulesets and on the verification gate ruleset so
+      # the release-driven backmerge to dev is accepted.
       - name: Create release identity token
         id: release-token
         uses: actions/create-github-app-token@v2

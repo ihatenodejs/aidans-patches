@@ -45,9 +45,8 @@ jobs:
     name: Promote to release branch
     runs-on: ubuntu-latest
     steps:
-      # Release-branch rulesets cannot bypass SSH deploy keys. The app must be
-      # installed on the repository and listed as a bypass actor on both
-      # release-branch rulesets.
+      # The app must be installed on the repository and listed as a bypass
+      # actor on both release-branch rulesets.
       - name: Create release identity token
         id: release-token
         uses: actions/create-github-app-token@v2

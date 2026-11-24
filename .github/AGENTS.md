@@ -40,7 +40,7 @@ Generator and automation code is Bun/TypeScript or native Rust. Validate paths a
 
 Repository ruleset `Require verification gate` (branch target, active) requires the aggregate `Test & Build Gate` GitHub Actions check on `main` and `dev`; the `Lock main`/`Lock dev` rulesets keep blocking deletions and non-fast-forward pushes. `strict_required_status_checks_policy` is off, so branches need not be up to date before merge. This setting lives in repository settings, not in workflow files: the workflow must keep the exact job name `Test & Build Gate`, or the requirement silently stops matching. The gate fails when a run has no executed domain job (docs-only changes must still run `Web Verification`), so it cannot pass on an unverified change.
 
-The release branches are separate long-lived branches with their own protection: rulesets on `refs/heads/release/main` and `refs/heads/release/dev` must block deletion and non-fast-forward updates and permit updates only from the release identity. Ruleset bypass lists accept roles, teams, GitHub Apps, and Dependabot; they do not accept SSH deploy keys. The release job therefore pushes with a GitHub App installation token (`RELEASE_APP_ID`/`RELEASE_APP_PRIVATE_KEY`), and that app must be a bypass actor on both release-branch rulesets and on `Require verification gate` so the release-driven backmerge push to `dev` is accepted. Keep the `main`/`dev` merge rules unchanged for human work; do not solve protection by lowering them.
+The release branches are separate long-lived branches with their own protection: rulesets on `refs/heads/release/main` and `refs/heads/release/dev` must block deletion and non-fast-forward updates and permit updates only from the release identity. The release job pushes with a GitHub App installation token (`RELEASE_APP_ID`/`RELEASE_APP_PRIVATE_KEY`), and that app must be a bypass actor on both release-branch rulesets and on `Require verification gate` so the release-driven backmerge push to `dev` is accepted. GitHub also supports a deploy-key bypass, but that bypass applies to deploy keys collectively; using it instead requires changing the workflows. Keep the `main`/`dev` merge rules unchanged for human work; do not solve protection by lowering them.
 
 All release-branch writes must come from `release.yml` or `promote-release.yml` using that app; no direct app-token pushes. Protection alone does not stop the bypass app from promoting while a release is publishing, so both workflows use a per-target concurrency group: `release-publication-${{ github.ref_name }}` in `release.yml` and `release-publication-${{ inputs.target }}` in `promote-release.yml`. Promotions and releases for the same release branch serialize, while `release/main` and `release/dev` do not starve each other. Concurrency serializes runs; it is not a git lock, and GitHub keeps at most one pending run per group (a newer pending run for the same target can replace an older pending one for that target).
 
@@ -73,20 +73,22 @@ git push origin release/main release/dev
    `refs/heads/release/dev` with **Restrict updates**, **Restrict deletions**,
    and **Block force pushes** enabled. Leave the bypass list empty except for
    the release identity, so nobody else (including admins by default) can push.
-2. Use a GitHub App as the release identity: ruleset bypass lists accept roles,
-   teams, GitHub Apps, and Dependabot, but **not SSH deploy keys**. Install the
-   app on the repository and add it as a bypass actor on both release-branch
-   rulesets. Also add it as a bypass actor on `Require verification gate` (and
-   any other ruleset that would reject the backmerge push) so the release-driven
-   backmerge to `dev` is accepted. Keep `main`/`dev` protection intact.
+2. Use a GitHub App as the release identity. Install the app on the repository
+   and add it as a bypass actor on both release-branch rulesets. Also add it as
+   a bypass actor on `Require verification gate` (and any other ruleset that
+   would reject the backmerge push) so the release-driven backmerge to `dev`
+   is accepted. GitHub also supports a collective deploy-key bypass, but these
+   workflows do not use it. Keep `main`/`dev` protection intact.
 3. Configure the `RELEASE_APP_ID` and `RELEASE_APP_PRIVATE_KEY` secrets and give
    the app `contents: write` and `packages: read` (plus `pull-requests: write`
-   if the enabled plugins call those APIs). Gradle resolves patches from
-   `maven.pkg.github.com` during the release build; installation tokens use the
-   fixed `x-access-token` username with the token as the password, and
-   `release.yml` sets `GITHUB_ACTOR=x-access-token` for that reason.
-   `RELEASE_DEPLOY_KEY` is retired; `release.yml` no longer rewrites `origin`
-   to SSH.
+   if the enabled plugins call those APIs). The workflow passes the installation
+   token to Gradle for `maven.pkg.github.com/MorpheApp/registry`; requesting
+   package permission alone does not establish access to that registry. Verify
+   an uncached build before cutover and use a supported separate package
+   credential if necessary. Installation tokens use the fixed `x-access-token`
+   username with the token as the password.
+   These workflows no longer use `RELEASE_DEPLOY_KEY`; retain the existing key
+   until the chosen release identity is configured and verified.
 
 Publish only through the **Promote Release** workflow
 (`.github/workflows/promote-release.yml`, `workflow_dispatch`): choose
