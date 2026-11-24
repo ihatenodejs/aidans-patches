@@ -48,6 +48,84 @@ private val EXPECTED_RATE_BYTES = byteArrayOf(
 )
 
 /**
+ * A discovered Hermes function family whose occurrences must match one of
+ * [expectedPrefixes] (optionally already patched).
+ */
+internal class UpdateBytecodeFamily(
+    val name: String,
+    val offsets: List<Int>,
+    val expectedPrefixes: List<ByteArray>
+)
+
+internal enum class UpdateBytecodeMatch {
+    EXPECTED_PREFIX,
+    ALREADY_PATCHED,
+    UNKNOWN
+}
+
+/**
+ * Classifies the bytes at [offset] against a family's [expectedPrefixes] and its
+ * idempotent [replacement]. Out-of-range offsets are [UpdateBytecodeMatch.UNKNOWN]
+ * so callers can report an actionable error instead of an index failure.
+ */
+internal fun classifyUpdateBytecode(
+    data: ByteArray,
+    offset: Int,
+    expectedPrefixes: List<ByteArray>,
+    replacement: ByteArray
+): UpdateBytecodeMatch = when {
+    expectedPrefixes.any { data.matchesSequenceAt(offset, it) } -> UpdateBytecodeMatch.EXPECTED_PREFIX
+    data.matchesSequenceAt(offset, replacement) -> UpdateBytecodeMatch.ALREADY_PATCHED
+    else -> UpdateBytecodeMatch.UNKNOWN
+}
+
+/**
+ * Validates every occurrence in [families] before mutating [data], then applies
+ * [replacement] to the occurrences that still carry an expected prefix. Unknown
+ * bytecode fails with the family name and byte offset, leaving [data] untouched.
+ */
+internal fun patchUpdateFamilies(
+    data: ByteArray,
+    families: List<UpdateBytecodeFamily>,
+    replacement: ByteArray
+) {
+    val pendingOffsets = mutableListOf<Int>()
+    for (family in families) {
+        for (offset in family.offsets) {
+            when (classifyUpdateBytecode(data, offset, family.expectedPrefixes, replacement)) {
+                UpdateBytecodeMatch.EXPECTED_PREFIX -> pendingOffsets.add(offset)
+                UpdateBytecodeMatch.ALREADY_PATCHED -> Unit
+                UpdateBytecodeMatch.UNKNOWN -> throw PatchException(
+                    "Unexpected ${family.name} bytecode at offset $offset (0x${offset.toString(16)}): " +
+                        "found ${data.hexAt(offset, family.expectedPrefixes.maxOf { it.size })}; " +
+                        "expected one of ${family.expectedPrefixes.joinToString { it.toHex() }} " +
+                        "or the patched replacement ${replacement.toHex()}"
+                )
+            }
+        }
+    }
+    for (offset in pendingOffsets) {
+        replacement.copyInto(data, offset)
+    }
+}
+
+private fun ByteArray.matchesSequenceAt(offset: Int, expected: ByteArray): Boolean {
+    if (offset < 0 || offset > size - expected.size) return false
+    for (index in expected.indices) {
+        if (this[offset + index] != expected[index]) return false
+    }
+    return true
+}
+
+private fun ByteArray.hexAt(offset: Int, length: Int): String {
+    if (offset < 0 || offset >= size || length <= 0) return "<out of range>"
+    val end = minOf(offset + length, size)
+    return copyOfRange(offset, end).toHex()
+}
+
+private fun ByteArray.toHex(): String = joinToString(" ") { "%02x".format(it.toInt() and 0xFF) }
+
+/**
  * Applies [replacement] when [expected] is present, accepts an already-patched
  * bundle, and fails on any other bytecode.
  */
@@ -118,26 +196,31 @@ val suppressHermesUpdatesAndIntegrityPatch = rawResourcePatch(
             if (sagaOffsets.isEmpty()) {
                 throw PatchException("shouldForceUpdateAppSaga functions not found")
             }
-            for (offset in sagaOffsets) {
-                if (editor.matchesBytes(offset, EXPECTED_SAGA_BYTES_1)) {
-                    editor.patchBytes(offset, STUBBED_UNDEFINED_RETURN_BYTES)
-                } else if (editor.matchesBytes(offset, EXPECTED_SAGA_BYTES_2)) {
-                    editor.patchBytes(offset, STUBBED_UNDEFINED_RETURN_BYTES)
-                }
-            }
 
             // 3. Neutralize shouldForceUpdateAppSagaWatcher functions
             val watcherOffsets = editor.findFunctionOffsetsByName("shouldForceUpdateAppSagaWatcher")
             if (watcherOffsets.isEmpty()) {
                 throw PatchException("shouldForceUpdateAppSagaWatcher functions not found")
             }
-            for (offset in watcherOffsets) {
-                if (editor.matchesBytes(offset, EXPECTED_SAGA_WATCHER_BYTES_1)) {
-                    editor.patchBytes(offset, STUBBED_UNDEFINED_RETURN_BYTES)
-                } else if (editor.matchesBytes(offset, EXPECTED_SAGA_WATCHER_BYTES_2)) {
-                    editor.patchBytes(offset, STUBBED_UNDEFINED_RETURN_BYTES)
-                }
-            }
+
+            // Both families are validated together before any byte is written, so an
+            // unknown occurrence aborts the patch instead of exporting partial edits.
+            patchUpdateFamilies(
+                editor.toByteArray(),
+                listOf(
+                    UpdateBytecodeFamily(
+                        "shouldForceUpdateAppSaga",
+                        sagaOffsets,
+                        listOf(EXPECTED_SAGA_BYTES_1, EXPECTED_SAGA_BYTES_2)
+                    ),
+                    UpdateBytecodeFamily(
+                        "shouldForceUpdateAppSagaWatcher",
+                        watcherOffsets,
+                        listOf(EXPECTED_SAGA_WATCHER_BYTES_1, EXPECTED_SAGA_WATCHER_BYTES_2)
+                    )
+                ),
+                STUBBED_UNDEFINED_RETURN_BYTES
+            )
 
             // 4. Neutralize UpdateAppModal component
             val updateAppModalOffset = editor.findFunctionOffsetByName("UpdateAppModal")

@@ -1,23 +1,16 @@
 import type {
   AppVersionRecord,
-  CompatibilityRecord,
   CompatibilityResultSubmission,
   CompatibilityRunStart,
-  FailureStage,
-  FreshnessStatus,
   KVVersionPayload,
   LatestReleaseSummary,
-  OutstandingCompatibilityRequest,
   PatchCompatibilityStatus,
   PlayMediaAsset,
+  PlayMetadataResultItem,
   PlayMetadataSubmission,
-  PlayReview,
-  PlayStoreMetadata,
-  PlayVersionSource,
   WorkerEnv,
 } from './types';
 import { fetchGooglePlayApp } from './scraper';
-import { compareAppVersions } from './comparator';
 import { MONITORED_APPS } from './apps';
 import { getStatusColor, renderBadgeSvg } from './badges';
 import {
@@ -30,18 +23,62 @@ import {
   renderReleaseDownloadsChartSvg,
   renderTotalDownloadsChartSvg,
 } from './statistics-charts';
-import { buildMediaAsset } from './scraper';
 import { mirrorAssetsBatch } from './media-mirror';
+import { mergeScrapedRecord } from './app-record';
+import {
+  AUTHORITY_GATE_KEY,
+  AUTHORITY_GATE_SETTLE_MS,
+  AuthorityNotReadyError,
+  applyScrape,
+  readAppRecord,
+  startCompatibilityRun,
+  submitCompatibilityResult,
+  updatePlayMetadata,
+  writeAppRecord,
+} from './app-state';
 
-let memoryCache: { payload: KVVersionPayload; expiresAt: number } | null = null;
-const MEMORY_CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour fallback
-const OUTSTANDING_REQUEST_TTL_MS = 36 * 60 * 60 * 1000; // 36 hours TTL (exceeds max 24h queue + 6h execution)
+export { AppStateDurableObject, appRecordKey } from './app-state';
+export {
+  reconcileMediaAsset,
+  reconcileMediaAssetsList,
+  reconcileReviews,
+} from './app-record';
 
 const PUBLIC_CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type',
 };
+
+const APP_STATE_PATHS = [
+  '/api/compatibility-runs',
+  '/api/compatibility-results',
+  '/api/refresh',
+  '/api/play-metadata',
+  '/api/version',
+  '/api/status',
+  '/status',
+  '/',
+];
+
+function routeUsesAppState(pathname: string): boolean {
+  return (
+    APP_STATE_PATHS.includes(pathname) ||
+    pathname.startsWith('/api/version/') ||
+    pathname.startsWith('/badges/')
+  );
+}
+
+async function authorityGateOpen(env: WorkerEnv): Promise<boolean> {
+  const gate = env.PATCHES_KV
+    ? await env.PATCHES_KV.get(AUTHORITY_GATE_KEY)
+    : null;
+  if (!gate) return false;
+  const gateTime = Date.parse(gate);
+  return (
+    !Number.isNaN(gateTime) && Date.now() >= gateTime + AUTHORITY_GATE_SETTLE_MS
+  );
+}
 
 export function timingSafeEqual(a: string, b: string): boolean {
   if (a.length !== b.length) return false;
@@ -52,86 +89,11 @@ export function timingSafeEqual(a: string, b: string): boolean {
   return c === 0;
 }
 
-export function reconcileMediaAsset(
-  newAsset: PlayMediaAsset | null | undefined,
-  priorAsset: PlayMediaAsset | null | undefined,
-): PlayMediaAsset | null {
-  if (!newAsset) {
-    return null;
-  }
-  if (
-    priorAsset &&
-    priorAsset.fallbackPath &&
-    newAsset.sourceUrl === priorAsset.sourceUrl
-  ) {
-    return {
-      ...newAsset,
-      fallbackPath: newAsset.fallbackPath ?? priorAsset.fallbackPath,
-    };
-  }
-  return newAsset;
-}
-
-export function reconcileMediaAssetsList(
-  newAssets: PlayMediaAsset[],
-  priorAssets: PlayMediaAsset[] | null | undefined,
-): PlayMediaAsset[] {
-  if (!priorAssets || priorAssets.length === 0) {
-    return newAssets;
-  }
-  const priorMap = new Map<string, PlayMediaAsset>();
-  for (const asset of priorAssets) {
-    if (asset?.sourceUrl) {
-      priorMap.set(asset.sourceUrl, asset);
-    }
-  }
-  return newAssets.map((asset) => {
-    const prior = priorMap.get(asset.sourceUrl);
-    return reconcileMediaAsset(asset, prior) ?? asset;
-  });
-}
-
-export function reconcileReviews(
-  newReviews: PlayReview[],
-  priorReviews: PlayReview[] | null | undefined,
-): PlayReview[] {
-  if (!priorReviews || priorReviews.length === 0) {
-    return newReviews;
-  }
-  const priorAvatarMap = new Map<string, PlayMediaAsset>();
-  for (const review of priorReviews) {
-    if (review?.avatar?.sourceUrl) {
-      priorAvatarMap.set(review.avatar.sourceUrl, review.avatar);
-    }
-  }
-  return newReviews.map((review) => {
-    if (!review.avatar) {
-      return review;
-    }
-    const priorAvatar = priorAvatarMap.get(review.avatar.sourceUrl);
-    return {
-      ...review,
-      avatar: reconcileMediaAsset(review.avatar, priorAvatar),
-    };
-  });
-}
-
-export function appRecordKey(packageName: string): string {
-  return `app_version:${packageName}`;
-}
-
 export async function loadAppRecord(
   env: WorkerEnv,
   packageName: string,
 ): Promise<AppVersionRecord | null> {
-  if (!env.PATCHES_KV) return null;
-  const raw = await env.PATCHES_KV.get(appRecordKey(packageName));
-  if (!raw) return null;
-  try {
-    return JSON.parse(raw) as AppVersionRecord;
-  } catch {
-    return null;
-  }
+  return readAppRecord(env, packageName);
 }
 
 export async function saveAppRecord(
@@ -139,20 +101,12 @@ export async function saveAppRecord(
   packageName: string,
   record: AppVersionRecord,
 ): Promise<void> {
-  if (env.PATCHES_KV) {
-    await env.PATCHES_KV.put(appRecordKey(packageName), JSON.stringify(record));
-  }
-  memoryCache = null;
+  await writeAppRecord(env, packageName, record);
 }
 
 export async function loadStatusPayload(
   env: WorkerEnv,
-  forceRefresh = false,
 ): Promise<KVVersionPayload> {
-  if (!forceRefresh && memoryCache && Date.now() < memoryCache.expiresAt) {
-    return memoryCache.payload;
-  }
-
   const records = await Promise.all(
     MONITORED_APPS.map(async (app) => {
       const rec = await loadAppRecord(env, app.packageName);
@@ -218,11 +172,6 @@ export async function loadStatusPayload(
     latestRelease,
   };
 
-  memoryCache = {
-    payload,
-    expiresAt: Date.now() + MEMORY_CACHE_TTL_MS,
-  };
-
   return payload;
 }
 
@@ -242,204 +191,30 @@ export async function performVersionCheck(
         `Scrape failed for ${app.packageName}: ${scraped.rawError}`,
       );
     }
-    let playVersion: string | null = null;
-    let playVersionCode: number | null = priorRecord?.playVersionCode ?? null;
-    let playVersionSource: PlayVersionSource =
-      priorRecord?.playVersionSource ?? null;
-    let playVersionVerifiedForUpdatedAt: string | null =
-      priorRecord?.playVersionVerifiedForUpdatedAt ?? null;
-    let needsAuthenticatedVersion = false;
 
-    let iconUrl = scraped.iconUrl || priorRecord?.iconUrl || null;
-    let iconAsset: PlayMediaAsset | null = scraped.iconUrl
-      ? buildMediaAsset(scraped.iconUrl, null, null, `${app.name} icon`)
-      : (priorRecord?.iconAsset ?? null);
-    iconAsset = reconcileMediaAsset(iconAsset, priorRecord?.iconAsset);
-    let updatedAt = scraped.updatedAt || priorRecord?.updatedAt || null;
-    let updatedOn = scraped.updatedOn || priorRecord?.updatedOn || null;
-    let status: FreshnessStatus;
-    let playVersionReleaseUpdatedAt: string | null =
-      priorRecord?.playVersionReleaseUpdatedAt ?? null;
-
-    if (scraped.isNotFound) {
-      status = 'not-on-play-store';
-      playVersion = null;
-      playVersionCode = null;
-      playVersionSource = null;
-      playVersionReleaseUpdatedAt = null;
-      playVersionVerifiedForUpdatedAt = null;
-      needsAuthenticatedVersion = false;
-    } else if (scraped.rawError) {
-      status = 'check-failed';
-      playVersion = priorRecord?.playVersion ?? null;
-      needsAuthenticatedVersion =
-        priorRecord?.needsAuthenticatedVersion ?? false;
-    } else if (scraped.playVersion) {
-      playVersion = scraped.playVersion;
-      playVersionSource = 'web';
-      status = compareAppVersions(app.latestSupportedVersion, playVersion);
-      playVersionReleaseUpdatedAt = scraped.updatedAt ?? null;
-      playVersionVerifiedForUpdatedAt = null;
-      needsAuthenticatedVersion = false;
-    } else {
-      // App exists on Google Play but public HTML omits version
-      const isVerifiedForCurrentUpdate =
-        Boolean(scraped.updatedAt) &&
-        priorRecord?.playVersionVerifiedForUpdatedAt === scraped.updatedAt &&
-        priorRecord?.playVersionSource === 'authenticated';
-
-      if (isVerifiedForCurrentUpdate && priorRecord?.playVersion) {
-        playVersion = priorRecord.playVersion;
-        playVersionCode = priorRecord.playVersionCode ?? null;
-        playVersionSource = 'authenticated';
-        status = compareAppVersions(app.latestSupportedVersion, playVersion);
-        needsAuthenticatedVersion = false;
-      } else {
-        // Retain prior version for display but mark freshness unknown and request authentication
-        playVersion = priorRecord?.playVersion ?? null;
-        playVersionCode = priorRecord?.playVersionCode ?? null;
-        status = 'unknown';
-        needsAuthenticatedVersion = true;
-      }
-    }
-    let targetCompat = priorRecord?.targetCompatibility ?? null;
-
-    const targetVersionChanged = Boolean(
-      priorRecord &&
-      priorRecord.latestSupportedVersion !== app.latestSupportedVersion,
-    );
-
-    if (targetVersionChanged) {
-      targetCompat = null;
-    }
-
-    let outstandingRequest = priorRecord?.outstandingRequest ?? null;
-    if (
-      outstandingRequest &&
-      outstandingRequest.targetVersion !== app.latestSupportedVersion
-    ) {
-      outstandingRequest = null;
-    }
-
-    if (outstandingRequest) {
-      const dispatchedTime = new Date(
-        outstandingRequest.dispatchedAt,
-      ).getTime();
-      const isStaleOrInvalid =
-        Number.isNaN(dispatchedTime) ||
-        Date.now() - dispatchedTime > OUTSTANDING_REQUEST_TTL_MS;
-      if (isStaleOrInvalid) {
-        outstandingRequest = null;
-      }
-    }
-    let mergedMetadata: PlayStoreMetadata | null = null;
-    const priorMeta = priorRecord?.playMetadata;
-
-    if (scraped.isNotFound || scraped.rawError) {
-      mergedMetadata = priorMeta ?? null;
-    } else {
-      const sMeta = scraped.metadata;
-      mergedMetadata = {
-        summary:
-          sMeta?.summary !== undefined
-            ? sMeta.summary
-            : (priorMeta?.summary ?? null),
-        description:
-          sMeta?.description !== undefined
-            ? sMeta.description
-            : (priorMeta?.description ?? null),
-        developer:
-          sMeta?.developer !== undefined
-            ? sMeta.developer
-            : (priorMeta?.developer ?? null),
-        category:
-          sMeta?.category !== undefined
-            ? sMeta.category
-            : (priorMeta?.category ?? null),
-        categoryId:
-          sMeta?.categoryId !== undefined
-            ? sMeta.categoryId
-            : (priorMeta?.categoryId ?? null),
-        releaseNotes:
-          sMeta?.releaseNotes !== undefined
-            ? sMeta.releaseNotes
-            : (priorMeta?.releaseNotes ?? null),
-        installs:
-          sMeta?.installs !== undefined
-            ? sMeta.installs
-            : (priorMeta?.installs ?? null),
-        score:
-          sMeta?.score !== undefined ? sMeta.score : (priorMeta?.score ?? null),
-        ratingsCount:
-          sMeta?.ratingsCount !== undefined
-            ? sMeta.ratingsCount
-            : (priorMeta?.ratingsCount ?? null),
-        reviewsCount:
-          sMeta?.reviewsCount !== undefined
-            ? sMeta.reviewsCount
-            : (priorMeta?.reviewsCount ?? null),
-        contentRating:
-          sMeta?.contentRating !== undefined
-            ? sMeta.contentRating
-            : (priorMeta?.contentRating ?? null),
-        contentRatingIcon:
-          sMeta?.contentRatingIcon !== undefined
-            ? reconcileMediaAsset(
-                sMeta.contentRatingIcon,
-                priorMeta?.contentRatingIcon,
-              )
-            : (priorMeta?.contentRatingIcon ?? null),
-        releasedOn:
-          sMeta?.releasedOn !== undefined
-            ? sMeta.releasedOn
-            : (priorMeta?.releasedOn ?? null),
-        minAndroid:
-          sMeta?.minAndroid !== undefined
-            ? sMeta.minAndroid
-            : (priorMeta?.minAndroid ?? null),
-        inAppPurchases:
-          sMeta?.inAppPurchases !== undefined
-            ? sMeta.inAppPurchases
-            : (priorMeta?.inAppPurchases ?? null),
-        permissionGroups:
-          sMeta?.permissionGroups && sMeta.permissionGroups.length > 0
-            ? sMeta.permissionGroups
-            : (priorMeta?.permissionGroups ?? []),
-        screenshots:
-          sMeta?.screenshots && sMeta.screenshots.length > 0
-            ? reconcileMediaAssetsList(
-                sMeta.screenshots,
-                priorMeta?.screenshots,
-              )
-            : (priorMeta?.screenshots ?? []),
-        featuredReviews:
-          sMeta?.featuredReviews && sMeta.featuredReviews.length > 0
-            ? reconcileReviews(
-                sMeta.featuredReviews,
-                priorMeta?.featuredReviews,
-              )
-            : (priorMeta?.featuredReviews ?? []),
-      };
-    }
-
-    // Collect media assets to mirror into R2 (bounded, max 24 per entire invocation across apps)
+    // Mirroring uses a preview of scrape-owned fields. The preview is not
+    // authoritative; applyScrape re-merges against the current record inside
+    // the per-package authority, and only that result is persisted.
+    const preview = mergeScrapedRecord(priorRecord, scraped, app, now);
     if (
       env.PLAY_MEDIA &&
-      mergedMetadata &&
+      preview.playMetadata &&
       mirroredMediaCount < MAX_MEDIA_PER_INVOCATION
     ) {
       const assetsToMirror: PlayMediaAsset[] = [];
-      if (iconAsset && !iconAsset.fallbackPath) assetsToMirror.push(iconAsset);
-      if (
-        mergedMetadata.contentRatingIcon &&
-        !mergedMetadata.contentRatingIcon.fallbackPath
-      ) {
-        assetsToMirror.push(mergedMetadata.contentRatingIcon);
+      if (preview.iconAsset && !preview.iconAsset.fallbackPath) {
+        assetsToMirror.push(preview.iconAsset);
       }
-      for (const s of mergedMetadata.screenshots) {
+      if (
+        preview.playMetadata.contentRatingIcon &&
+        !preview.playMetadata.contentRatingIcon.fallbackPath
+      ) {
+        assetsToMirror.push(preview.playMetadata.contentRatingIcon);
+      }
+      for (const s of preview.playMetadata.screenshots) {
         if (!s.fallbackPath) assetsToMirror.push(s);
       }
-      for (const r of mergedMetadata.featuredReviews) {
+      for (const r of preview.playMetadata.featuredReviews) {
         if (r.avatar && !r.avatar.fallbackPath) assetsToMirror.push(r.avatar);
       }
       const remainingQuota = MAX_MEDIA_PER_INVOCATION - mirroredMediaCount;
@@ -456,28 +231,27 @@ export async function performVersionCheck(
       }
     }
 
-    const appRecord: AppVersionRecord = {
-      appName: app.name,
-      playVersion,
-      playVersionCode,
-      playVersionSource,
-      playVersionVerifiedForUpdatedAt,
-      needsAuthenticatedVersion,
-      iconUrl,
-      iconAsset,
-      updatedAt,
-      updatedOn,
-      checkedAt: now,
-      status,
-      supportedVersions: app.supportedVersions,
-      latestSupportedVersion: app.latestSupportedVersion,
-      playVersionReleaseUpdatedAt,
-      targetCompatibility: targetCompat,
-      outstandingRequest,
-      outstandingRequestId: outstandingRequest?.requestId ?? null,
-      playMetadata: mergedMetadata,
+    const fallbackPaths: Record<string, string> = {};
+    const recordFallback = (asset: PlayMediaAsset | null | undefined) => {
+      if (asset?.fallbackPath) {
+        fallbackPaths[asset.sourceUrl] = asset.fallbackPath;
+      }
     };
-    await saveAppRecord(env, app.packageName, appRecord);
+    recordFallback(preview.iconAsset);
+    recordFallback(preview.playMetadata?.contentRatingIcon);
+    for (const screenshot of preview.playMetadata?.screenshots ?? []) {
+      recordFallback(screenshot);
+    }
+    for (const review of preview.playMetadata?.featuredReviews ?? []) {
+      recordFallback(review.avatar);
+    }
+
+    const appRecord = await applyScrape(env, app.packageName, {
+      app,
+      scraped,
+      now,
+      fallbackPaths,
+    });
     appsRecord[app.packageName] = appRecord;
   }
 
@@ -506,11 +280,6 @@ export async function performVersionCheck(
     updatedAt: now,
     apps: appsRecord,
     latestRelease,
-  };
-
-  memoryCache = {
-    payload,
-    expiresAt: Date.now() + MEMORY_CACHE_TTL_MS,
   };
 
   return payload;
@@ -636,31 +405,30 @@ function isCompatibilityRunStart(val: unknown): val is CompatibilityRunStart {
   return true;
 }
 
-const FINAL_STATUSES: Record<string, true> = {
-  compatible: true,
-  incompatible: true,
-  error: true,
-};
-
-const VALID_FAILURE_STAGES: Record<string, true> = {
-  acquisition: true,
-  'r2-lookup': true,
-  'r2-upload': true,
-  'r2-download': true,
-  'compatibility-check': true,
-  pipeline: true,
-};
-
 export async function runScheduledTasks(
   cron: string,
   env: WorkerEnv,
 ): Promise<void> {
-  if (cron === '0 */6 * * *') {
-    await performVersionCheck(env);
-  } else if (cron === '15 0 * * *') {
-    await refreshDownloadStatistics(env);
-  } else {
-    console.warn(JSON.stringify({ event: 'unknown_cron', cron }));
+  try {
+    if (cron === '0 */6 * * *') {
+      await performVersionCheck(env);
+    } else if (cron === '15 0 * * *') {
+      await refreshDownloadStatistics(env);
+    } else {
+      console.warn(JSON.stringify({ event: 'unknown_cron', cron }));
+    }
+  } catch (error) {
+    if (error instanceof AuthorityNotReadyError) {
+      console.warn(
+        JSON.stringify({
+          event: 'authority_not_ready',
+          cron,
+          error: error.message,
+        }),
+      );
+      return;
+    }
+    throw error;
   }
 }
 
@@ -675,6 +443,23 @@ export default {
 
   async fetch(request: Request, env: WorkerEnv): Promise<Response> {
     const url = new URL(request.url);
+
+    if (routeUsesAppState(url.pathname) && !(await authorityGateOpen(env))) {
+      return new Response(
+        JSON.stringify({
+          error:
+            'App state authority migration gate is not set or still propagating',
+        }),
+        {
+          status: 503,
+          headers: {
+            ...PUBLIC_CORS_HEADERS,
+            'Content-Type': 'application/json',
+            'Cache-Control': 'no-store',
+          },
+        },
+      );
+    }
 
     if (request.method === 'OPTIONS') {
       return new Response(null, {
@@ -725,50 +510,14 @@ export default {
       }
 
       const body = rawBody as CompatibilityRunStart;
-      const prior = await loadAppRecord(env, body.packageName);
-      const now = new Date().toISOString();
-
-      const outstandingRequest: OutstandingCompatibilityRequest = {
-        requestId: body.requestId,
-        targetVersion: body.targetVersion,
-        playVersion: prior?.playVersion ?? null,
-        expectedRoles: ['target'],
-        dispatchedAt: now,
-        gitRevision: body.gitRevision,
-      };
-
-      const updatedRecord: AppVersionRecord = {
-        appName: body.appName,
-        playVersion: prior?.playVersion ?? null,
-        playVersionCode: prior?.playVersionCode ?? null,
-        playVersionSource: prior?.playVersionSource ?? null,
-        playVersionVerifiedForUpdatedAt:
-          prior?.playVersionVerifiedForUpdatedAt ?? null,
-        needsAuthenticatedVersion: prior?.needsAuthenticatedVersion ?? false,
-        iconUrl: prior?.iconUrl ?? null,
-        iconAsset: prior?.iconAsset ?? null,
-        playMetadata: prior?.playMetadata ?? null,
-        updatedAt: prior?.updatedAt ?? null,
-        updatedOn: prior?.updatedOn ?? null,
-        checkedAt: prior?.checkedAt ?? now,
-        status: prior?.status ?? 'unknown',
-        supportedVersions: body.supportedVersions,
-        latestSupportedVersion: body.targetVersion,
-        playVersionReleaseUpdatedAt: prior?.playVersionReleaseUpdatedAt ?? null,
-        targetCompatibility:
-          prior && prior.latestSupportedVersion === body.targetVersion
-            ? (prior.targetCompatibility ?? null)
-            : null,
-        outstandingRequest,
-        outstandingRequestId: body.requestId,
-      };
-      await saveAppRecord(env, body.packageName, updatedRecord);
+      const started = await startCompatibilityRun(env, body.packageName, body);
 
       return new Response(
         JSON.stringify({
           success: true,
           queued: body.packageName,
           requestId: body.requestId,
+          ...(started.mirrored ? {} : { mirrored: false }),
         }),
         {
           status: 200,
@@ -819,226 +568,33 @@ export default {
       }
 
       const submission = rawBody;
-      const appRecord = await loadAppRecord(env, submission.packageName);
-      if (!appRecord) {
-        return new Response(
-          JSON.stringify({ error: 'App record not initialized' }),
-          {
-            status: 400,
-            headers: { 'Content-Type': 'application/json' },
-          },
-        );
-      }
+      const stateResult = await submitCompatibilityResult(
+        env,
+        submission.packageName,
+        submission,
+      );
 
-      const outstanding = appRecord.outstandingRequest;
-      if (!outstanding || outstanding.requestId !== submission.requestId) {
+      if (!stateResult.ok) {
         return new Response(
           JSON.stringify({
-            error: 'Stale, replayed, or mismatched request ID',
-            outstanding: outstanding?.requestId ?? null,
+            error: stateResult.error,
+            ...(stateResult.outstanding !== undefined
+              ? { outstanding: stateResult.outstanding }
+              : {}),
           }),
           {
-            status: 409,
+            status: stateResult.status,
             headers: { 'Content-Type': 'application/json' },
           },
         );
       }
 
-      const expectedRoles = outstanding.expectedRoles;
-      if (submission.results.length !== expectedRoles.length) {
-        return new Response(
-          JSON.stringify({
-            error: `Expected ${expectedRoles.length} results for roles [${expectedRoles.join(', ')}], got ${submission.results.length}`,
-          }),
-          {
-            status: 400,
-            headers: { 'Content-Type': 'application/json' },
-          },
-        );
-      }
-
-      const seenRoles = new Set<string>();
-      const recordsToApply: CompatibilityRecord[] = [];
-
-      for (const res of submission.results) {
-        if (!res || typeof res !== 'object') {
-          return new Response(
-            JSON.stringify({ error: 'Invalid result item' }),
-            {
-              status: 400,
-              headers: { 'Content-Type': 'application/json' },
-            },
-          );
-        }
-
-        if (res.role !== 'target' && res.role !== 'latest') {
-          return new Response(
-            JSON.stringify({ error: `Invalid role: ${res.role}` }),
-            {
-              status: 400,
-              headers: { 'Content-Type': 'application/json' },
-            },
-          );
-        }
-
-        if (!expectedRoles.includes(res.role)) {
-          return new Response(
-            JSON.stringify({ error: `Unexpected role: ${res.role}` }),
-            {
-              status: 400,
-              headers: { 'Content-Type': 'application/json' },
-            },
-          );
-        }
-
-        if (seenRoles.has(res.role)) {
-          return new Response(
-            JSON.stringify({ error: `Duplicate role in results: ${res.role}` }),
-            {
-              status: 400,
-              headers: { 'Content-Type': 'application/json' },
-            },
-          );
-        }
-        seenRoles.add(res.role);
-
-        if (!FINAL_STATUSES[res.status]) {
-          return new Response(
-            JSON.stringify({ error: `Invalid status: ${res.status}` }),
-            {
-              status: 400,
-              headers: { 'Content-Type': 'application/json' },
-            },
-          );
-        }
-
-        if (
-          !Number.isInteger(res.versionCode) ||
-          res.versionCode < 0 ||
-          !Number.isInteger(res.passedCount) ||
-          res.passedCount < 0 ||
-          !Number.isInteger(res.failedCount) ||
-          res.failedCount < 0 ||
-          typeof res.versionName !== 'string' ||
-          !res.versionName.trim() ||
-          typeof res.patchBundleVersion !== 'string' ||
-          typeof res.gitRevision !== 'string'
-        ) {
-          return new Response(
-            JSON.stringify({ error: 'Malformed result fields' }),
-            {
-              status: 400,
-              headers: { 'Content-Type': 'application/json' },
-            },
-          );
-        }
-
-        if (
-          outstanding.gitRevision &&
-          res.gitRevision !== outstanding.gitRevision
-        ) {
-          return new Response(
-            JSON.stringify({
-              error: `Result git revision '${res.gitRevision}' does not match outstanding '${outstanding.gitRevision}'`,
-            }),
-            {
-              status: 409,
-              headers: { 'Content-Type': 'application/json' },
-            },
-          );
-        }
-
-        if (
-          res.failureStage !== undefined &&
-          res.failureStage !== null &&
-          (typeof res.failureStage !== 'string' ||
-            !VALID_FAILURE_STAGES[res.failureStage])
-        ) {
-          return new Response(
-            JSON.stringify({ error: 'Malformed failureStage field' }),
-            {
-              status: 400,
-              headers: { 'Content-Type': 'application/json' },
-            },
-          );
-        }
-
-        if (
-          res.failureReason !== undefined &&
-          res.failureReason !== null &&
-          typeof res.failureReason !== 'string'
-        ) {
-          return new Response(
-            JSON.stringify({ error: 'Malformed failureReason field' }),
-            {
-              status: 400,
-              headers: { 'Content-Type': 'application/json' },
-            },
-          );
-        }
-
-        if (
-          res.role === 'target' &&
-          res.versionName !== outstanding.targetVersion
-        ) {
-          return new Response(
-            JSON.stringify({
-              error: `Tested target version '${res.versionName}' does not match expected '${outstanding.targetVersion}'`,
-            }),
-            {
-              status: 409,
-              headers: { 'Content-Type': 'application/json' },
-            },
-          );
-        }
-
-        recordsToApply.push({
-          requestId: submission.requestId,
-          role: res.role,
-          versionName: res.versionName,
-          versionCode: res.versionCode,
-          patchBundleVersion: res.patchBundleVersion,
-          gitRevision: res.gitRevision,
-          testedAt: new Date().toISOString(),
-          passedCount: res.passedCount,
-          failedCount: res.failedCount,
-          status: res.status,
-          workflowRunUrl: res.workflowRunUrl || null,
-          failureReason:
-            typeof res.failureReason === 'string' ? res.failureReason : null,
-          failureStage:
-            typeof res.failureStage === 'string'
-              ? (res.failureStage as FailureStage)
-              : null,
-        });
-      }
-      for (const rec of recordsToApply) {
-        appRecord.targetCompatibility = rec;
-      }
-
-      if (submission.acquiredPlayVersion) {
-        const acquired = submission.acquiredPlayVersion.trim();
-        appRecord.playVersion = acquired;
-        appRecord.playVersionCode = submission.acquiredPlayVersionCode ?? null;
-        appRecord.playVersionSource = 'authenticated';
-        appRecord.playVersionVerifiedForUpdatedAt = appRecord.updatedAt ?? null;
-        appRecord.needsAuthenticatedVersion = false;
-        appRecord.status = compareAppVersions(
-          appRecord.latestSupportedVersion,
-          acquired,
-        );
-        appRecord.playVersionReleaseUpdatedAt = appRecord.updatedAt ?? null;
-      }
-
-      appRecord.outstandingRequest = null;
-      appRecord.outstandingRequestId = null;
-
-      await saveAppRecord(env, submission.packageName, appRecord);
       return new Response(
         JSON.stringify({
           success: true,
           updated: submission.packageName,
-          roles: recordsToApply.map((r) => r.role),
+          roles: stateResult.roles ?? [],
+          ...(stateResult.mirrored === false ? { mirrored: false } : {}),
         }),
         {
           status: 200,
@@ -1112,8 +668,10 @@ export default {
         );
       }
 
+      // Phase 1: parse, validate and check freshness for every item before any
+      // record is modified. Validation failures leave all records unchanged.
       const seenPackages = new Set<string>();
-      const updatedPackages: string[] = [];
+      const validated: PlayMetadataResultItem[] = [];
 
       for (const item of body.results) {
         if (
@@ -1175,24 +733,84 @@ export default {
           );
         }
 
-        appRecord.playVersion = item.versionName.trim();
-        appRecord.playVersionCode = item.versionCode;
-        appRecord.playVersionSource = 'authenticated';
-        appRecord.playVersionVerifiedForUpdatedAt = currentUpdatedAt;
-        appRecord.needsAuthenticatedVersion = false;
-        appRecord.status = compareAppVersions(
-          appRecord.latestSupportedVersion,
-          appRecord.playVersion,
-        );
-
-        await saveAppRecord(env, item.packageName, appRecord);
-        updatedPackages.push(item.packageName);
+        validated.push(item);
       }
 
-      return new Response(JSON.stringify({ success: true, updatedPackages }), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      });
+      // Phase 2: apply each item through its per-package authority. The
+      // authority re-checks listingUpdatedAt, so a listing change between
+      // validation and write is reported rather than silently overwritten.
+      const updatedPackages: string[] = [];
+      const mirrorWarnings: string[] = [];
+      const failures: Array<{
+        packageName: string;
+        reason: 'conflict' | 'backend-error';
+        error: string;
+        currentUpdatedAt?: string | null;
+      }> = [];
+
+      for (const item of validated) {
+        try {
+          const result = await updatePlayMetadata(env, item.packageName, item);
+          if (result.ok) {
+            updatedPackages.push(item.packageName);
+            if (result.mirrored === false) {
+              mirrorWarnings.push(item.packageName);
+            }
+          } else {
+            failures.push({
+              packageName: item.packageName,
+              reason: 'conflict',
+              error: result.error,
+              ...(result.currentUpdatedAt !== undefined
+                ? { currentUpdatedAt: result.currentUpdatedAt }
+                : {}),
+            });
+          }
+        } catch (error) {
+          failures.push({
+            packageName: item.packageName,
+            reason: 'backend-error',
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
+      }
+
+      if (failures.length === 0) {
+        return new Response(
+          JSON.stringify({
+            success: true,
+            updatedPackages,
+            ...(mirrorWarnings.length > 0
+              ? { mirrored: false, mirrorWarnings }
+              : {}),
+          }),
+          {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          },
+        );
+      }
+
+      // KV does not provide a multi-record transaction. Report exactly which
+      // packages committed and which did not instead of claiming atomicity.
+      const status = failures.some((f) => f.reason === 'backend-error')
+        ? 500
+        : 409;
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: 'Partial metadata update',
+          updatedPackages,
+          failures,
+          ...(mirrorWarnings.length > 0
+            ? { mirrored: false, mirrorWarnings }
+            : {}),
+        }),
+        {
+          status,
+          headers: { 'Content-Type': 'application/json' },
+        },
+      );
     }
 
     // 4. Public R2 media fallback proxy route

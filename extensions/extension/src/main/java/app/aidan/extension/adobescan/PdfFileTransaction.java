@@ -298,15 +298,33 @@ public class PdfFileTransaction {
         boolean rollbackSuccessful = false;
         try {
             if (PHASE_FILE_COMMITTED.equals(record.phase)) {
-                if (snapshotFile != null && snapshotFile.exists()) {
-                    final String snapHash = sha256(snapshotFile);
-                    if (record.sourceSha256 != null && record.sourceSha256.equals(snapHash)) {
-                        atomicMove(snapshotFile, sourceFile);
-                        fsyncDir(sourceFile.getParentFile());
-                    } else {
-                        throw new IllegalStateException("Snapshot hash mismatch during rollback");
+                if (sourceFile == null || !sourceFile.exists()) {
+                    throw new IOException("Live source file missing during rollback");
+                }
+
+                final String liveHash = sha256(sourceFile);
+                final boolean alreadyRestored =
+                        record.sourceSha256 != null && record.sourceSha256.equals(liveHash);
+                if (!alreadyRestored) {
+                    if (record.outputSha256 == null || !record.outputSha256.equals(liveHash)) {
+                        throw new IOException(
+                                "Live source does not match the committed output; refusing to overwrite it");
+                    }
+                    final String snapshotHash = sha256Quietly(snapshotFile);
+                    if (snapshotFile == null || !snapshotFile.exists()
+                            || record.sourceSha256 == null
+                            || !record.sourceSha256.equals(snapshotHash)) {
+                        throw new IOException("Original snapshot is missing or corrupted; cannot restore");
+                    }
+
+                    atomicMove(snapshotFile, sourceFile);
+                    fsyncDir(sourceFile.getParentFile());
+
+                    if (!record.sourceSha256.equals(sha256Quietly(sourceFile))) {
+                        throw new IOException("Restored source hash does not match the original snapshot");
                     }
                 }
+
                 if (adapter != null) {
                     adapter.updateMetadata(
                             record.documentId,
@@ -325,11 +343,9 @@ public class PdfFileTransaction {
                 deleteJournal();
                 fsyncDir(baseDir);
             } else {
-                // Do NOT delete snapshot or journal; allow recovery on restart to retry
-                Log.e(TAG, "Rollback failed; retaining snapshot and journal for startup recovery");
-                if (stageFile != null && stageFile.exists()) {
-                    stageFile.delete();
-                }
+                // Never delete the source, snapshot, stage or journal: the file state is
+                // ambiguous and startup recovery must be able to retry safely.
+                Log.e(TAG, "Rollback failed; retaining transaction artifacts and journal for startup recovery");
             }
         }
     }
@@ -360,8 +376,8 @@ public class PdfFileTransaction {
 
     private void recoverSingle(final ScanFileAdapter adapter) {
         Log.i(TAG, "Recovering operation " + record.operationId + ", phase=" + record.phase);
-        final File src = sourceFile;
-        final String currentSourceHash = (src != null && src.exists()) ? sha256Quietly(src) : null;
+        final String currentSourceHash =
+                (sourceFile != null && sourceFile.exists()) ? sha256Quietly(sourceFile) : null;
 
         if (PHASE_PREPARING.equals(record.phase)) {
             // Source was never committed; clean up staging and snapshot
@@ -384,13 +400,9 @@ public class PdfFileTransaction {
                 fsyncDir(baseDir);
                 return;
             } else {
-                if (restoreSnapshot(src)) {
-                    cleanupOwnedFiles();
-                    deleteJournal();
-                    fsyncDir(baseDir);
-                } else {
-                    Log.e(TAG, "Snapshot restoration failed in VALIDATED phase; retaining snapshot and journal");
-                }
+                // The live source matches neither the original nor the committed output.
+                // It was changed outside this transaction; never overwrite it.
+                Log.e(TAG, "Source hash is ambiguous in VALIDATED phase; retaining snapshot and journal");
                 return;
             }
         }
@@ -398,25 +410,7 @@ public class PdfFileTransaction {
         if (PHASE_FILE_COMMITTED.equals(record.phase)) {
             if (record.outputSha256 != null && record.outputSha256.equals(currentSourceHash)) {
                 // Live file has valid transformed content; apply desired metadata idempotently
-                boolean metadataUpdated = false;
-                if (adapter != null) {
-                    try {
-                        adapter.updateMetadata(
-                                record.documentId,
-                                record.newProtectionStatus,
-                                record.newSize,
-                                record.oldProtectionStatus,
-                                record.oldSize);
-                        metadataUpdated = true;
-                    } catch (final Throwable t) {
-                        Log.e(TAG, "Failed to reconcile metadata in recovery", t);
-                    }
-                } else {
-                    metadataUpdated = true;
-                }
-
-                if (!metadataUpdated) {
-                    // Retain journal and snapshot so recovery can be retried on next startup
+                if (!applyMetadata(adapter, true)) {
                     Log.w(TAG, "Leaving transaction journal in place due to failed metadata reconciliation");
                     return;
                 }
@@ -430,20 +424,20 @@ public class PdfFileTransaction {
                 deleteJournal();
                 fsyncDir(baseDir);
             } else if (record.sourceSha256 != null && record.sourceSha256.equals(currentSourceHash)) {
-                // Source still has old hash; clean up
+                // The source already holds the original bytes: either the snapshot was
+                // restored before the crash, or the commit never replaced it. Reconcile
+                // the old metadata idempotently and only then clean up.
+                if (!applyMetadata(adapter, false)) {
+                    Log.w(TAG, "Leaving transaction journal in place due to failed rollback metadata reconciliation");
+                    return;
+                }
                 cleanupOwnedFiles();
                 deleteJournal();
                 fsyncDir(baseDir);
             } else {
-                // Conflict or interrupted file move: restore verified snapshot if possible
-                if (restoreSnapshot(src)) {
-                    cleanupOwnedFiles();
-                    deleteJournal();
-                    fsyncDir(baseDir);
-                } else {
-                    Log.e(TAG, "Snapshot restoration failed in FILE_COMMITTED phase; retaining snapshot and journal");
-                    return;
-                }
+                // Neither hash matches: the live file was modified outside this
+                // transaction. Do not overwrite it and keep every recovery artifact.
+                Log.e(TAG, "Source hash is ambiguous in FILE_COMMITTED phase; retaining snapshot and journal");
             }
             return;
         }
@@ -455,21 +449,29 @@ public class PdfFileTransaction {
         }
     }
 
-    private boolean restoreSnapshot(final File src) {
-        if (snapshotFile != null && snapshotFile.exists() && src != null) {
-            final String snapHash = sha256Quietly(snapshotFile);
-            if (record.sourceSha256 != null && record.sourceSha256.equals(snapHash)) {
-                try {
-                    atomicMove(snapshotFile, src);
-                    fsyncDir(src.getParentFile());
-                    final String restoredHash = sha256Quietly(src);
-                    return record.sourceSha256.equals(restoredHash);
-                } catch (final IOException e) {
-                    Log.e(TAG, "Failed to restore snapshot during recovery", e);
-                }
+    private boolean applyMetadata(final ScanFileAdapter adapter, final boolean committedOutput) {
+        if (adapter == null) return true;
+        try {
+            if (committedOutput) {
+                adapter.updateMetadata(
+                        record.documentId,
+                        record.newProtectionStatus,
+                        record.newSize,
+                        record.oldProtectionStatus,
+                        record.oldSize);
+            } else {
+                adapter.updateMetadata(
+                        record.documentId,
+                        record.oldProtectionStatus,
+                        record.oldSize,
+                        record.newProtectionStatus,
+                        record.newSize);
             }
+            return true;
+        } catch (final Throwable t) {
+            Log.e(TAG, "Failed to reconcile metadata in recovery", t);
+            return false;
         }
-        return false;
     }
 
     public void cleanupOwnedFiles() {

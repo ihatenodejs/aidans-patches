@@ -1119,6 +1119,7 @@ async function runTest(domain: AuditDomain = 'all'): Promise<PhaseResult> {
       'scripts/asset-prep.ts',
       'icons',
       '--check-only',
+      '--strict',
     ]);
     const iconPassed = iconRes.code === 0;
     console.log(iconPassed ? sym.ok : sym.err);
@@ -1144,6 +1145,11 @@ async function runTest(domain: AuditDomain = 'all'): Promise<PhaseResult> {
       'test',
       '--timeout=30000',
       'scripts/release-retry.test.ts',
+      'scripts/verify-release-revision.test.ts',
+      'scripts/run-release.test.ts',
+      'scripts/release-dependencies.test.ts',
+      'scripts/release-branch.test.ts',
+      'scripts/release-dry-run.test.ts',
       'scripts/dependencies',
       'scripts/rust-projects.test.ts',
       'scripts/generate-patches-readme.test.ts',

@@ -870,6 +870,83 @@ fn check_only_reports_missing_and_all_present() {
 }
 
 #[test]
+fn strict_check_fails_for_missing_icons_and_preserves_outputs() {
+    let (root, manifest) = load_icon_manifest();
+    let patches = icon_patch_list(&root, &manifest);
+    let temp = TempDir::new().unwrap();
+
+    let icons = temp.path().join("absent");
+    let output = temp.path().join("strict-missing.output");
+    let mut args = icon_args("--check-only", &patches, &icons);
+    args.push("--strict".to_owned());
+    let (result, stdout, stderr) = run_icons(&args, &output);
+    assert_eq!(stderr, "");
+    let expected_missing = [
+        "com.example.alpha",
+        "com.example.beta",
+        "com.example.delta",
+        "com.example.epsilon",
+        "com.example.eta",
+        "com.example.gamma",
+        "com.example.theta",
+        "com.example.zeta",
+    ];
+    let expected_message = format!(
+        "Missing icons for {} package(s): {}",
+        expected_missing.len(),
+        expected_missing.join(", ")
+    );
+    assert_eq!(error_message(result), expected_message);
+    assert_eq!(stdout, format!("{expected_message}\n"));
+    assert_eq!(
+        read_github_output(&output),
+        format!(
+            "has_missing=true\nmissing_packages={}\n",
+            expected_missing.join(",")
+        )
+    );
+    assert!(
+        !icons.exists(),
+        "strict verification must not create the icon directory"
+    );
+
+    let all_icons = temp.path().join("all");
+    seed_icons(
+        &all_icons,
+        &expected_missing
+            .iter()
+            .map(|package| (*package, b"x".to_vec()))
+            .collect::<Vec<_>>(),
+    );
+    let output = temp.path().join("strict-present.output");
+    let mut args = icon_args("--check-only", &patches, &all_icons);
+    args.push("--strict".to_owned());
+    let (result, stdout, _) = run_icons(&args, &output);
+    result.expect("strict check succeeds when every icon is present");
+    assert_eq!(stdout, "All 8 application icons are present.\n");
+    assert_eq!(
+        read_github_output(&output),
+        "has_missing=false\nmissing_packages=\n"
+    );
+}
+
+#[test]
+fn strict_requires_check_only() {
+    let (root, manifest) = load_icon_manifest();
+    let patches = icon_patch_list(&root, &manifest);
+    let temp = TempDir::new().unwrap();
+    let icons = temp.path().join("icons");
+    let output = temp.path().join("strict-mode.output");
+
+    let mut args = icon_args("--download-missing", &patches, &icons);
+    args.push("--strict".to_owned());
+    let (result, _, _) = run_icons(&args, &output);
+    let error = result.expect_err("--strict outside --check-only is a usage error");
+    assert_eq!(error.exit_code(), 2);
+    assert!(error.to_string().contains("--strict requires --check-only"));
+}
+
+#[test]
 fn download_missing_creates_icons_and_soft_fails() {
     let (root, manifest) = load_icon_manifest();
     let patches = icon_patch_list(&root, &manifest);

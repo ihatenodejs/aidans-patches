@@ -152,6 +152,7 @@ export const APP_FALLBACK_CATEGORIES: Record<string, StoreCategoryId> = {
   nhl: 'sports',
   blackjack: 'games',
   'threes-freeplay': 'games',
+  'flow-free': 'games',
 };
 
 /**
@@ -186,6 +187,8 @@ export const APP_FALLBACK_SUMMARIES: Record<string, string> = {
     'Timeless Las Vegas table cards with fair odds, offline play, and classic casino betting rules.',
   'threes-freeplay':
     'Elegant sliding-number puzzle with unlimited free play, no ads, and no analytics tracking.',
+  'flow-free':
+    'Connect matching colors with pipes to cover every board without crossing or leaking.',
 };
 
 export interface DiscoverySectionConfig {
@@ -228,6 +231,7 @@ export const DISCOVERY_SECTIONS: DiscoverySectionConfig[] = [
       'sidelineswap',
       'fizz',
       'pro-metronome',
+      'flow-free',
     ],
   },
 ];
