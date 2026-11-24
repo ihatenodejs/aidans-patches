@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
@@ -38,6 +38,21 @@ describe('parseReleaseLog', () => {
 });
 
 describe('runRelease', () => {
+  let previousMavenToken: string | undefined;
+
+  beforeEach(() => {
+    previousMavenToken = process.env.RELEASE_MAVEN_TOKEN;
+    process.env.RELEASE_MAVEN_TOKEN = 'test-package-token';
+  });
+
+  afterEach(() => {
+    if (previousMavenToken === undefined) {
+      delete process.env.RELEASE_MAVEN_TOKEN;
+    } else {
+      process.env.RELEASE_MAVEN_TOKEN = previousMavenToken;
+    }
+  });
+
   test('fails before invoking anything when the locked executable is absent', () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'run-release-missing-'));
     try {
@@ -74,6 +89,62 @@ describe('runRelease', () => {
       } else {
         process.env.GITHUB_OUTPUT = previous;
       }
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('passes separate release and Gradle package credentials', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'run-release-auth-'));
+    const binDir = path.join(dir, 'node_modules', '.bin');
+    const capture = path.join(dir, 'environment');
+    const keys = ['GITHUB_TOKEN', 'GITHUB_OUTPUT', 'RELEASE_ENV_CAPTURE'];
+    const previous = new Map(keys.map((key) => [key, process.env[key]]));
+    fs.mkdirSync(binDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(binDir, 'semantic-release'),
+      '#!/bin/sh\n/bin/sh -c \'printf "%s\\n" "$GITHUB_TOKEN" "$RELEASE_MAVEN_TOKEN" > "$RELEASE_ENV_CAPTURE"\'\n',
+    );
+    fs.chmodSync(path.join(binDir, 'semantic-release'), 0o755);
+    process.env.GITHUB_TOKEN = 'test-app-token';
+    process.env.RELEASE_ENV_CAPTURE = capture;
+    delete process.env.GITHUB_OUTPUT;
+    try {
+      expect(runRelease(dir, [])).toBe(0);
+      expect(fs.readFileSync(capture, 'utf8')).toBe(
+        'test-app-token\ntest-package-token\n',
+      );
+    } finally {
+      for (const [key, value] of previous) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('fails before publication when the package token is missing', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'run-release-token-'));
+    const binDir = path.join(dir, 'node_modules', '.bin');
+    const marker = path.join(dir, 'invoked');
+    const previousMarker = process.env.RELEASE_MARKER;
+    const previousOutput = process.env.GITHUB_OUTPUT;
+    fs.mkdirSync(binDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(binDir, 'semantic-release'),
+      '#!/bin/sh\ntouch "$RELEASE_MARKER"\n',
+    );
+    fs.chmodSync(path.join(binDir, 'semantic-release'), 0o755);
+    delete process.env.RELEASE_MAVEN_TOKEN;
+    delete process.env.GITHUB_OUTPUT;
+    process.env.RELEASE_MARKER = marker;
+    try {
+      expect(() => runRelease(dir, [])).toThrow('missing RELEASE_MAVEN_TOKEN');
+      expect(fs.existsSync(marker)).toBe(false);
+    } finally {
+      if (previousMarker === undefined) delete process.env.RELEASE_MARKER;
+      else process.env.RELEASE_MARKER = previousMarker;
+      if (previousOutput === undefined) delete process.env.GITHUB_OUTPUT;
+      else process.env.GITHUB_OUTPUT = previousOutput;
       fs.rmSync(dir, { recursive: true, force: true });
     }
   });

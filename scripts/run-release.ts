@@ -50,6 +50,11 @@ export function runRelease(cwd: string, args: string[]): number {
     );
   }
 
+  const mavenToken = process.env.RELEASE_MAVEN_TOKEN;
+  if (!mavenToken) {
+    throw new Error('missing RELEASE_MAVEN_TOKEN for Gradle package access');
+  }
+
   const result = spawnSync(executable, args, {
     cwd,
     encoding: 'utf8',

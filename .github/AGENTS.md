@@ -89,16 +89,15 @@ git push origin release/main release/dev
    is accepted. GitHub also supports a collective deploy-key bypass, but these
    workflows do not use it. Keep `main`/`dev` protection intact.
 3. Configure the `RELEASE_APP_ID` and `RELEASE_APP_PRIVATE_KEY` secrets and give
-   the app `contents: write`, `workflows: write`, and `packages: read` (plus
-   `pull-requests: write` if the enabled plugins call those APIs). Workflow
-   permission allows promotions and releases involving changed workflow files.
-   The workflow passes the installation token to Gradle for
-   `maven.pkg.github.com/MorpheApp/registry`; requesting package permission
-   alone does not establish access to that registry. Verify an uncached build
-   before cutover and use a supported separate package credential if necessary.
-   The release subprocess passes `ORG_GRADLE_PROJECT_gpr.user=x-access-token`
-   to Gradle and uses the token as its password. Do not rely on overriding
-   `GITHUB_ACTOR`: GitHub Actions reserves that variable.
+   the app `contents: write` and `workflows: write`. Workflow permission allows
+   promotions and releases involving changed workflow files. The App token is
+   used for GitHub release operations; `settings.gradle.kts` routes the separate
+   Actions `GITHUB_TOKEN` from the shell-safe `RELEASE_MAVEN_TOKEN` environment
+   variable to both plugin and dependency Maven repositories. The App token
+   cannot read the external Morphe Maven registry. Verify the Actions token's
+   registry access with an uncached build before cutover; a separate package
+   credential may be necessary if it fails. Do not use dotted environment names
+   for this handoff: POSIX shells can discard them.
    These workflows no longer use `RELEASE_DEPLOY_KEY`; retain the existing key
    until the chosen release identity is configured and verified.
 4. Run **Verify Release Identity** from `main`. It requests the release App's
