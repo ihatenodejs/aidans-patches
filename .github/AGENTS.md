@@ -10,6 +10,7 @@ Scope: CI workflows, release/deploy automation, issue templates, and Bun/native 
 - `workflows/deploy-worker.yml`: Worker typecheck/test and conditional Wrangler deployment; invoked by the `release/main` handoff with the post-release branch tip, or manually from `release/main`, and never from `main`/`dev` pushes.
 - `workflows/deploy-site.yml`: icon check, tests, Astro check/build, and conditional Pages deployment; invoked by the `release/main` handoff with the post-release branch tip, or manually from `release/main`, and never from `main`/`dev` pushes.
 - `workflows/promote-release.yml`: the only supported writer of a protected release branch. Manual `workflow_dispatch` merges `main` -> `release/main` or `dev` -> `release/dev` as the release app; the push triggers Release.
+- `workflows/verify-release-identity.yml`: manual, non-publishing App-token and uncached Gradle build check from `main`.
 - `workflows/sync-app-icons.yml`: scheduled/manual icon synchronization in a PR targeting `dev`.
 - `workflows/google-play-metadata.yml`: scheduled or manual authenticated Google Play metadata enrichment via the Rust `play-metadata` tool.
 - `workflows/open_pull_request.yml`: automatic `dev` → `main` PR creation on pushes to `dev`; manual `workflow_dispatch` uses the selected workflow ref as the source branch.
@@ -99,8 +100,10 @@ git push origin release/main release/dev
    as the password.
    These workflows no longer use `RELEASE_DEPLOY_KEY`; retain the existing key
    until the chosen release identity is configured and verified.
-4. After checking the branch protections, App credentials, and package access
-   with a non-publishing check, re-enable the disabled workflows. Do not dispatch
+4. Run **Verify Release Identity** from `main`. It requests the release App's
+   permissions, checks the Morphe Maven artifact, and builds with a fresh Gradle
+   cache without publishing. After checking branch protections and a successful
+   verification run, re-enable the disabled workflows. Do not dispatch
    **Release** merely to test setup: it can publish.
 
 If the promoted stable branch contains the Worker authority migration, a
