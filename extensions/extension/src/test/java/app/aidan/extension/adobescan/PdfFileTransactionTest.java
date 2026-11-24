@@ -231,7 +231,14 @@ public class PdfFileTransactionTest {
 
         // Verify source file was restored from snapshot to original content
         assertEquals(ORIGINAL_BYTES.length, sourceFile.length());
+        assertArrayEquals("Bytes must equal the original snapshot",
+                ORIGINAL_BYTES, java.nio.file.Files.readAllBytes(sourceFile.toPath()));
         assertEquals(PdfFileTransaction.sha256(sourceFile), tx.getRecord().sourceSha256);
+        assertTrue("Old metadata must be restored", adapter.updateCalled);
+        assertEquals(1, adapter.updatedNewStatus);
+        assertEquals(ORIGINAL_BYTES.length, adapter.updatedNewSize);
+        assertEquals(2, adapter.updatedOldStatus);
+        assertEquals(TRANSFORMED_BYTES.length, adapter.updatedOldSize);
 
         // Verify journal deleted
         assertFalse(new File(tempDir, opId + ".journal").exists());
@@ -399,6 +406,309 @@ public class PdfFileTransactionTest {
     }
 
     @Test
+    public void testRollbackWithMissingSnapshotRetainsJournalAndSkipsMetadata() throws Exception {
+        final long opId = 1010L;
+        final long docId = 51L;
+        final MockScanFileAdapter adapter = new MockScanFileAdapter();
+
+        final PdfFileTransaction tx = PdfFileTransaction.begin(
+                tempDir, opId, docId, NativePdfEngine.PROTECT, sourceFile,
+                1, ORIGINAL_BYTES.length, 2);
+
+        final File stageFile = tx.getStageFile();
+        try (FileOutputStream fos = new FileOutputStream(stageFile)) {
+            fos.write(TRANSFORMED_BYTES);
+            fos.flush();
+        }
+        final String outHash = PdfFileTransaction.sha256(stageFile);
+        tx.markValidated(TRANSFORMED_BYTES.length, outHash);
+        PdfFileTransaction.atomicMove(stageFile, sourceFile);
+        tx.getRecord().phase = PdfFileTransaction.PHASE_FILE_COMMITTED;
+
+        assertTrue("Snapshot must exist before removal", tx.getSnapshotFile().delete());
+
+        tx.rollback(adapter);
+
+        assertEquals("Source must not be modified without a valid snapshot",
+                outHash, PdfFileTransaction.sha256(sourceFile));
+        assertFalse("Metadata must not be updated without a restore", adapter.updateCalled);
+        assertTrue("Journal must be retained", new File(tempDir, opId + ".journal").exists());
+    }
+
+    @Test
+    public void testRollbackWithUnreadableSourceRetainsJournalAndSkipsMetadata() throws Exception {
+        final long opId = 1017L;
+        final long docId = 58L;
+        final MockScanFileAdapter adapter = new MockScanFileAdapter();
+
+        final PdfFileTransaction tx = PdfFileTransaction.begin(
+                tempDir, opId, docId, NativePdfEngine.PROTECT, sourceFile,
+                1, ORIGINAL_BYTES.length, 2);
+
+        final File stageFile = tx.getStageFile();
+        try (FileOutputStream fos = new FileOutputStream(stageFile)) {
+            fos.write(TRANSFORMED_BYTES);
+            fos.flush();
+        }
+        tx.markValidated(TRANSFORMED_BYTES.length, PdfFileTransaction.sha256(stageFile));
+        PdfFileTransaction.atomicMove(stageFile, sourceFile);
+        tx.getRecord().phase = PdfFileTransaction.PHASE_FILE_COMMITTED;
+
+        assertTrue("Source must exist before removal", sourceFile.delete());
+
+        tx.rollback(adapter);
+
+        assertFalse("Missing source must not be replaced blindly", sourceFile.exists());
+        assertFalse("Metadata must not be updated without a restore", adapter.updateCalled);
+        assertTrue("Snapshot must be retained", tx.getSnapshotFile().exists());
+        assertTrue("Journal must be retained", new File(tempDir, opId + ".journal").exists());
+    }
+
+    @Test
+    public void testRollbackRefusesExternallyModifiedSource() throws Exception {
+        final long opId = 1011L;
+        final long docId = 52L;
+        final MockScanFileAdapter adapter = new MockScanFileAdapter();
+
+        final PdfFileTransaction tx = PdfFileTransaction.begin(
+                tempDir, opId, docId, NativePdfEngine.PROTECT, sourceFile,
+                1, ORIGINAL_BYTES.length, 2);
+
+        final File stageFile = tx.getStageFile();
+        try (FileOutputStream fos = new FileOutputStream(stageFile)) {
+            fos.write(TRANSFORMED_BYTES);
+            fos.flush();
+        }
+        tx.markValidated(TRANSFORMED_BYTES.length, PdfFileTransaction.sha256(stageFile));
+        PdfFileTransaction.atomicMove(stageFile, sourceFile);
+        tx.getRecord().phase = PdfFileTransaction.PHASE_FILE_COMMITTED;
+
+        final byte[] externalBytes = "user edited this document".getBytes(StandardCharsets.UTF_8);
+        try (FileOutputStream fos = new FileOutputStream(sourceFile)) {
+            fos.write(externalBytes);
+            fos.flush();
+        }
+        final String externalHash = PdfFileTransaction.sha256(sourceFile);
+
+        tx.rollback(adapter);
+
+        assertEquals("User-modified source must not be overwritten",
+                externalHash, PdfFileTransaction.sha256(sourceFile));
+        assertFalse(adapter.updateCalled);
+        assertTrue("Snapshot evidence must be retained", tx.getSnapshotFile().exists());
+        assertTrue("Journal must be retained", new File(tempDir, opId + ".journal").exists());
+    }
+
+    @Test
+    public void testRollbackAlreadyRestoredReconcilesMetadataIdempotently() throws Exception {
+        final long opId = 1012L;
+        final long docId = 53L;
+        final MockScanFileAdapter adapter = new MockScanFileAdapter();
+
+        final PdfFileTransaction tx = PdfFileTransaction.begin(
+                tempDir, opId, docId, NativePdfEngine.PROTECT, sourceFile,
+                1, ORIGINAL_BYTES.length, 2);
+
+        final File stageFile = tx.getStageFile();
+        try (FileOutputStream fos = new FileOutputStream(stageFile)) {
+            fos.write(TRANSFORMED_BYTES);
+            fos.flush();
+        }
+        tx.markValidated(TRANSFORMED_BYTES.length, PdfFileTransaction.sha256(stageFile));
+        PdfFileTransaction.atomicMove(stageFile, sourceFile);
+        tx.getRecord().phase = PdfFileTransaction.PHASE_FILE_COMMITTED;
+
+        // Simulate a previous rollback that restored the snapshot but died before
+        // it could reconcile metadata and remove the journal.
+        try (FileOutputStream fos = new FileOutputStream(sourceFile)) {
+            fos.write(ORIGINAL_BYTES);
+            fos.flush();
+        }
+        assertTrue(tx.getSnapshotFile().delete());
+
+        tx.rollback(adapter);
+
+        assertArrayEquals("Already-restored source must not be clobbered",
+                ORIGINAL_BYTES, java.nio.file.Files.readAllBytes(sourceFile.toPath()));
+        assertEquals(tx.getRecord().sourceSha256, PdfFileTransaction.sha256(sourceFile));
+        assertTrue("Old metadata must be reconciled", adapter.updateCalled);
+        assertEquals(1, adapter.updatedNewStatus);
+        assertEquals(ORIGINAL_BYTES.length, adapter.updatedNewSize);
+        assertFalse("Journal must be removed after reconciliation",
+                new File(tempDir, opId + ".journal").exists());
+    }
+
+    @Test
+    public void testRollbackMetadataFailureRetainsJournalAfterRestore() throws Exception {
+        final long opId = 1013L;
+        final long docId = 54L;
+        final MockScanFileAdapter adapter = new MockScanFileAdapter();
+
+        final PdfFileTransaction tx = PdfFileTransaction.begin(
+                tempDir, opId, docId, NativePdfEngine.PROTECT, sourceFile,
+                1, ORIGINAL_BYTES.length, 2);
+
+        final File stageFile = tx.getStageFile();
+        try (FileOutputStream fos = new FileOutputStream(stageFile)) {
+            fos.write(TRANSFORMED_BYTES);
+            fos.flush();
+        }
+        tx.markValidated(TRANSFORMED_BYTES.length, PdfFileTransaction.sha256(stageFile));
+        PdfFileTransaction.atomicMove(stageFile, sourceFile);
+        tx.getRecord().phase = PdfFileTransaction.PHASE_FILE_COMMITTED;
+
+        adapter.shouldThrowOnUpdate = true;
+        tx.rollback(adapter);
+
+        assertArrayEquals("File restore must still complete",
+                ORIGINAL_BYTES, java.nio.file.Files.readAllBytes(sourceFile.toPath()));
+        assertEquals(tx.getRecord().sourceSha256, PdfFileTransaction.sha256(sourceFile));
+        assertTrue("Journal must be retained after metadata failure",
+                new File(tempDir, opId + ".journal").exists());
+    }
+
+    @Test
+    public void testRecoveryFileCommittedWithOriginalHashReconcilesOldMetadata() throws Exception {
+        final long opId = 1014L;
+        final long docId = 55L;
+        final MockScanFileAdapter adapter = new MockScanFileAdapter();
+
+        final PdfFileTransaction tx = PdfFileTransaction.begin(
+                tempDir, opId, docId, NativePdfEngine.PROTECT, sourceFile,
+                1, ORIGINAL_BYTES.length, 2);
+
+        final File stageFile = tx.getStageFile();
+        try (FileOutputStream fos = new FileOutputStream(stageFile)) {
+            fos.write(TRANSFORMED_BYTES);
+            fos.flush();
+        }
+        tx.markValidated(TRANSFORMED_BYTES.length, PdfFileTransaction.sha256(stageFile));
+
+        // Simulate a completed rollback file restore whose journal phase never advanced.
+        tx.getRecord().phase = PdfFileTransaction.PHASE_FILE_COMMITTED;
+        final File journalFile = new File(tempDir, opId + ".journal");
+        try (java.io.FileWriter fw = new java.io.FileWriter(journalFile)) {
+            fw.write(tx.getRecord().toJson());
+        }
+
+        PdfFileTransaction.recover(tempDir, adapter);
+
+        assertTrue("Rollback metadata must be reconciled", adapter.updateCalled);
+        assertEquals(1, adapter.updatedNewStatus);
+        assertEquals(ORIGINAL_BYTES.length, adapter.updatedNewSize);
+        assertArrayEquals("Already-restored source must not be clobbered",
+                ORIGINAL_BYTES, java.nio.file.Files.readAllBytes(sourceFile.toPath()));
+        assertFalse("Journal must be removed after reconciliation", journalFile.exists());
+        assertFalse("Snapshot must be cleaned up", tx.getSnapshotFile().exists());
+    }
+
+    @Test
+    public void testRecoveryFileCommittedWithOutputHashRestoresNothingButReconcilesMetadata() throws Exception {
+        final long opId = 1018L;
+        final long docId = 59L;
+        final MockScanFileAdapter adapter = new MockScanFileAdapter();
+
+        final PdfFileTransaction tx = PdfFileTransaction.begin(
+                tempDir, opId, docId, NativePdfEngine.PROTECT, sourceFile,
+                1, ORIGINAL_BYTES.length, 2);
+
+        final File stageFile = tx.getStageFile();
+        try (FileOutputStream fos = new FileOutputStream(stageFile)) {
+            fos.write(TRANSFORMED_BYTES);
+            fos.flush();
+        }
+        tx.markValidated(TRANSFORMED_BYTES.length, PdfFileTransaction.sha256(stageFile));
+        PdfFileTransaction.atomicMove(stageFile, sourceFile);
+        tx.getRecord().phase = PdfFileTransaction.PHASE_FILE_COMMITTED;
+        final File journalFile = new File(tempDir, opId + ".journal");
+        try (java.io.FileWriter fw = new java.io.FileWriter(journalFile)) {
+            fw.write(tx.getRecord().toJson());
+        }
+
+        PdfFileTransaction.recover(tempDir, adapter);
+
+        assertArrayEquals("Committed output must be preserved",
+                TRANSFORMED_BYTES, java.nio.file.Files.readAllBytes(sourceFile.toPath()));
+        assertTrue(adapter.updateCalled);
+        assertEquals(2, adapter.updatedNewStatus);
+        assertEquals(TRANSFORMED_BYTES.length, adapter.updatedNewSize);
+        assertFalse("Journal must be removed after successful reconciliation", journalFile.exists());
+    }
+
+    @Test
+    public void testRecoveryFileCommittedAmbiguousSourceRetainsEvidence() throws Exception {
+        final long opId = 1015L;
+        final long docId = 56L;
+        final MockScanFileAdapter adapter = new MockScanFileAdapter();
+
+        final PdfFileTransaction tx = PdfFileTransaction.begin(
+                tempDir, opId, docId, NativePdfEngine.PROTECT, sourceFile,
+                1, ORIGINAL_BYTES.length, 2);
+
+        final File stageFile = tx.getStageFile();
+        try (FileOutputStream fos = new FileOutputStream(stageFile)) {
+            fos.write(TRANSFORMED_BYTES);
+            fos.flush();
+        }
+        tx.markValidated(TRANSFORMED_BYTES.length, PdfFileTransaction.sha256(stageFile));
+
+        tx.getRecord().phase = PdfFileTransaction.PHASE_FILE_COMMITTED;
+        final File journalFile = new File(tempDir, opId + ".journal");
+        try (java.io.FileWriter fw = new java.io.FileWriter(journalFile)) {
+            fw.write(tx.getRecord().toJson());
+        }
+
+        final byte[] ambiguousBytes = "ambiguous external content".getBytes(StandardCharsets.UTF_8);
+        try (FileOutputStream fos = new FileOutputStream(sourceFile)) {
+            fos.write(ambiguousBytes);
+            fos.flush();
+        }
+        final String ambiguousHash = PdfFileTransaction.sha256(sourceFile);
+
+        PdfFileTransaction.recover(tempDir, adapter);
+
+        assertEquals("Ambiguous source must not be overwritten",
+                ambiguousHash, PdfFileTransaction.sha256(sourceFile));
+        assertArrayEquals(ambiguousBytes, java.nio.file.Files.readAllBytes(sourceFile.toPath()));
+        assertFalse(adapter.updateCalled);
+        assertTrue("Journal must be retained", journalFile.exists());
+        assertTrue("Snapshot must be retained", tx.getSnapshotFile().exists());
+    }
+
+    @Test
+    public void testRecoveryValidatedAmbiguousSourceRetainsEvidence() throws Exception {
+        final long opId = 1016L;
+        final long docId = 57L;
+        final MockScanFileAdapter adapter = new MockScanFileAdapter();
+
+        final PdfFileTransaction tx = PdfFileTransaction.begin(
+                tempDir, opId, docId, NativePdfEngine.PROTECT, sourceFile,
+                1, ORIGINAL_BYTES.length, 2);
+
+        final File stageFile = tx.getStageFile();
+        try (FileOutputStream fos = new FileOutputStream(stageFile)) {
+            fos.write(TRANSFORMED_BYTES);
+            fos.flush();
+        }
+        tx.markValidated(TRANSFORMED_BYTES.length, PdfFileTransaction.sha256(stageFile));
+
+        final byte[] ambiguousBytes = "validated ambiguous content".getBytes(StandardCharsets.UTF_8);
+        try (FileOutputStream fos = new FileOutputStream(sourceFile)) {
+            fos.write(ambiguousBytes);
+            fos.flush();
+        }
+        final String ambiguousHash = PdfFileTransaction.sha256(sourceFile);
+
+        PdfFileTransaction.recover(tempDir, adapter);
+
+        assertEquals(ambiguousHash, PdfFileTransaction.sha256(sourceFile));
+        assertArrayEquals(ambiguousBytes, java.nio.file.Files.readAllBytes(sourceFile.toPath()));
+        assertFalse(adapter.updateCalled);
+        assertTrue(new File(tempDir, opId + ".journal").exists());
+        assertTrue(tx.getSnapshotFile().exists());
+    }
+
+    @Test
     public void testFailedRollbackPreservesSnapshotFile() throws Exception {
         final long opId = 1009L;
         final long docId = 50L;
@@ -434,7 +744,12 @@ public class PdfFileTransactionTest {
 
         tx.rollback(adapter);
 
+        final String committedHash = tx.getRecord().outputSha256;
         assertTrue("Snapshot file must be preserved on failed rollback", tx.getSnapshotFile().exists());
         assertTrue("Journal file must be preserved on failed rollback", new File(tempDir, opId + ".journal").exists());
+        assertEquals("Committed bytes must not be replaced by a corrupted snapshot",
+                committedHash, PdfFileTransaction.sha256(sourceFile));
+        assertArrayEquals(TRANSFORMED_BYTES, java.nio.file.Files.readAllBytes(sourceFile.toPath()));
+        assertFalse("Metadata must not be updated after a failed restore", adapter.updateCalled);
     }
 }
