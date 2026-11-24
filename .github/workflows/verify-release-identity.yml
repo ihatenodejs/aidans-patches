@@ -9,13 +9,17 @@ permissions:
 jobs:
   verify:
     name: Verify App and Maven access
-    # Run only trusted default-branch workflow code with the release App key.
-    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     env:
       # Match the release job's package authentication.
       GITHUB_ACTOR: x-access-token
     steps:
+      - name: Require the default branch
+        if: github.ref != 'refs/heads/main'
+        run: |
+          echo '::error::Run Verify Release Identity from main.'
+          exit 1
+
       - name: Checkout
         uses: actions/checkout@v7
         with:
