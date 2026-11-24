@@ -321,15 +321,42 @@ public class ScanFileAdapter {
     }
 
     public Object createLocalDocument(final File pdfFile, final String displayName, final int pageCount) {
+        return createLocalDocument(pdfFile, displayName, pageCount, displayName);
+    }
+
+    /**
+     * Registers a local PDF in the target library using {@code persistentUniqueId}
+     * as the durable identity. The same identity is written to the output journal
+     * before publication, so recovery can prove whether registration happened.
+     */
+    public Object createLocalDocument(
+            final File pdfFile,
+            final String displayName,
+            final int pageCount,
+            final String persistentUniqueId) {
+        return createLocalDocument(pdfFile, displayName, pageCount, persistentUniqueId, null);
+    }
+
+    public Object createLocalDocument(
+            final File pdfFile,
+            final String displayName,
+            final int pageCount,
+            final String persistentUniqueId,
+            final String registrationFileName) {
         if (pdfFile == null || !pdfFile.exists() || !pdfFile.isFile()) {
             Log.e(TAG, "Cannot create local document: invalid PDF file");
             return null;
         }
         try {
-            final String uniqueName = resolveUniqueDisplayName(displayName);
+            final String uniqueName = (registrationFileName != null && !registrationFileName.isEmpty())
+                    ? registrationFileName
+                    : resolveUniqueDisplayName(displayName);
+            final String stableId = (persistentUniqueId != null && !persistentUniqueId.isEmpty())
+                    ? persistentUniqueId
+                    : uniqueName;
             final Class<?> v0Class = Class.forName("com.adobe.scan.android.file.v0");
             final Method lMethod = v0Class.getMethod("l", File.class, String.class, String.class, String.class);
-            final Object scanFile = lMethod.invoke(null, pdfFile, uniqueName, uniqueName, null);
+            final Object scanFile = lMethod.invoke(null, pdfFile, stableId, uniqueName, null);
             if (scanFile == null) {
                 Log.e(TAG, "v0.l returned null ScanFile");
                 return null;
@@ -338,7 +365,9 @@ public class ScanFileAdapter {
             // Persist the scan file into the library
             boolean persisted = false;
             try {
-                // Tier 1: Coroutine persistence via w0 + na0.g.f (runBlocking)
+                // The target's add coroutine (ScanFileManager.add -> w0) must run
+                // through its real runBlocking entry point:
+                // na0.g.e(CoroutineContext, Function2). There is no na0.g.f.
                 final Class<?> w0Class = Class.forName("com.adobe.scan.android.file.w0");
                 Constructor<?> w0Constructor = null;
                 for (Constructor<?> c : w0Class.getDeclaredConstructors()) {
@@ -356,66 +385,19 @@ public class ScanFileAdapter {
                 final Object w0Instance = w0Constructor.newInstance(scanFile, null);
 
                 final Class<?> na0gClass = Class.forName("na0.g");
-                Method runBlockingMethod = null;
-                for (Method m : na0gClass.getDeclaredMethods()) {
-                    if ("f".equals(m.getName()) && m.getParameterTypes().length == 1) {
-                        runBlockingMethod = m;
-                        break;
-                    }
-                }
-                if (runBlockingMethod == null) {
-                    final Class<?> function2Class = Class.forName("z90.p");
-                    runBlockingMethod = na0gClass.getMethod("f", function2Class);
-                }
-                runBlockingMethod.setAccessible(true);
-                runBlockingMethod.invoke(null, w0Instance);
-                persisted = true;
+                final Class<?> contextClass = Class.forName("p90.f");
+                final Class<?> function2Class = Class.forName("z90.p");
+                final Method runBlocking = na0gClass.getMethod("e", contextClass, function2Class);
+                final Object emptyContext = Class.forName("p90.g").getField("a").get(null);
+                runBlocking.setAccessible(true);
+                final Object result = runBlocking.invoke(null, emptyContext, w0Instance);
+                persisted = Boolean.TRUE.equals(result);
             } catch (final Throwable t1) {
-                Log.w(TAG, "Tier 1 coroutine persistence failed, falling back to direct synchronous persistence", t1);
+                Log.e(TAG, "Supported library add coroutine failed", t1);
             }
 
-            if (!persisted) {
-                try {
-                    // Tier 2: Direct synchronous persistence via v0.r + v0.R + v0.z
-                    Method rMethod = null;
-                    Method capitalRMethod = null;
-                    Method zMethod = null;
-                    for (Method m : v0Class.getDeclaredMethods()) {
-                        final Class<?>[] pts = m.getParameterTypes();
-                        if ("r".equals(m.getName()) && pts.length == 2
-                                && pts[0].isAssignableFrom(scanFile.getClass())
-                                && (pts[1] == boolean.class || pts[1] == Boolean.class)) {
-                            rMethod = m;
-                        } else if ("R".equals(m.getName()) && pts.length == 1
-                                && pts[0].isAssignableFrom(scanFile.getClass())) {
-                            capitalRMethod = m;
-                        } else if ("z".equals(m.getName()) && pts.length == 1
-                                && pts[0].isAssignableFrom(scanFile.getClass())) {
-                            zMethod = m;
-                        }
-                    }
-                    if (rMethod == null) {
-                        rMethod = v0Class.getMethod("r", scanFile.getClass(), boolean.class);
-                    }
-                    if (capitalRMethod == null) {
-                        capitalRMethod = v0Class.getMethod("R", scanFile.getClass());
-                    }
-                    if (zMethod == null) {
-                        zMethod = v0Class.getMethod("z", scanFile.getClass());
-                    }
-                    rMethod.setAccessible(true);
-                    capitalRMethod.setAccessible(true);
-                    zMethod.setAccessible(true);
-
-                    rMethod.invoke(null, scanFile, true);
-                    capitalRMethod.invoke(null, scanFile);
-                    zMethod.invoke(null, scanFile);
-                    persisted = true;
-                } catch (final Throwable t2) {
-                    Log.w(TAG, "Tier 2 direct synchronous persistence failed", t2);
-                }
-            }
-            // Verify durable registration by checking v0.B()
+            // Confirm the target accepted the scan into its loaded document map.
+            // Durable (database) verification is done by awaitRegistered().
             try {
                 final Method bMethod = v0Class.getMethod("B");
                 final java.util.Collection<?> loaded = (java.util.Collection<?>) bMethod.invoke(null);
@@ -604,6 +586,104 @@ public class ScanFileAdapter {
         }
     }
 
+    /**
+     * Looks up a library registration by the stable identity persisted in the
+     * combine journal. Returns the database id, or 0 when the identity is not
+     * registered. Throws when the database cannot be queried, so callers retain
+     * recovery evidence instead of guessing.
+     */
+    public long findRegisteredDocumentId(final String persistentUniqueId) throws Exception {
+        if (persistentUniqueId == null || persistentUniqueId.isEmpty()) return 0;
+
+        final Class<?> dbCompanionClass = Class.forName("com.adobe.scan.android.file.ScanFileRoomDatabase$l");
+        final Method aMethod = dbCompanionClass.getMethod("a");
+        final Object database = aMethod.invoke(null);
+
+        final Class<?> s9bClass = Class.forName("s9.b");
+        Method cMethod = null;
+        for (final Method m : s9bClass.getDeclaredMethods()) {
+            if ("c".equals(m.getName()) && m.getParameterTypes().length == 4) {
+                cMethod = m;
+                break;
+            }
+        }
+        if (cMethod == null) {
+            throw new NoSuchMethodException("s9.b.c method not found");
+        }
+
+        final Class<?> z90lClass = cMethod.getParameterTypes()[3];
+        final long[] result = new long[]{0};
+
+        final InvocationHandler handler = new InvocationHandler() {
+            @Override
+            public Object invoke(final Object proxy, final Method method, final Object[] args) throws Throwable {
+                if (!"invoke".equals(method.getName()) || args == null || args.length == 0) {
+                    return null;
+                }
+                final Object connection = args[0];
+                final Method w1Method = connection.getClass().getMethod("w1", String.class);
+                final Object selectStmt = w1Method.invoke(
+                        connection,
+                        "SELECT database_id FROM ScanFilePersistentData WHERE persistentUniqueId=?");
+                try {
+                    bindString(selectStmt, 1, persistentUniqueId);
+                    if (step(selectStmt)) {
+                        result[0] = getLong(selectStmt, 0);
+                    }
+                } finally {
+                    closeQuietly(selectStmt);
+                }
+                return null;
+            }
+        };
+
+        final Object lambdaProxy = Proxy.newProxyInstance(
+                z90lClass.getClassLoader(),
+                new Class<?>[]{z90lClass},
+                handler);
+
+        cMethod.invoke(null, database, true, true, lambdaProxy);
+        return result[0];
+    }
+
+    /**
+     * True once the target app has deserialized ScanFileManager's database.
+     * Registration must not run before this, or temporary ids can collide.
+     */
+    public boolean isLibraryInitialized() {
+        try {
+            final Field eField = Class.forName("com.adobe.scan.android.file.v0").getField("e");
+            return eField.getBoolean(null);
+        } catch (final Throwable t) {
+            return false;
+        }
+    }
+
+    /**
+     * Waits briefly for the target library's asynchronous persistence to expose
+     * the stable identity. Callers must keep recovery evidence when this returns
+     * false; the registration may still complete after the caller gives up.
+     */
+    public boolean awaitRegistered(final String persistentUniqueId) {
+        if (persistentUniqueId == null || persistentUniqueId.isEmpty()) return false;
+        for (int attempt = 0; attempt < 50; attempt++) {
+            try {
+                if (findRegisteredDocumentId(persistentUniqueId) > 0) {
+                    return true;
+                }
+            } catch (final Throwable t) {
+                Log.w(TAG, "Library registration lookup not ready yet", t);
+            }
+            try {
+                Thread.sleep(100L);
+            } catch (final InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return false;
+            }
+        }
+        return false;
+    }
+
     public void updateMetadata(
             final long databaseId,
             final int newProtectionStatus,
@@ -727,6 +807,11 @@ public class ScanFileAdapter {
 
     private static void bindLong(final Object stmt, final int index, final long value) throws Exception {
         final Method m = stmt.getClass().getMethod("w", int.class, long.class);
+        m.invoke(stmt, index, value);
+    }
+
+    private static void bindString(final Object stmt, final int index, final String value) throws Exception {
+        final Method m = stmt.getClass().getMethod("O", int.class, String.class);
         m.invoke(stmt, index, value);
     }
 
