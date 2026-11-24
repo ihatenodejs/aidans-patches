@@ -51,6 +51,8 @@ Repository ruleset `Require verification gate` (branch target, active) requires 
 
 Release branch pushes authenticate with the write deploy key stored as `RELEASE_DEPLOY_KEY`; that key is the bypass actor on the `Require verification gate` ruleset. A release commit is created locally, so it can never carry the `Test & Build Gate` check before it is pushed, and the ruleset would otherwise reject both `@semantic-release/git` and the backmerge. `release.yml` rewrites `origin` to the SSH URL before semantic-release runs; keep it that way.
 
+The release job also points `core.hooksPath` at an empty directory before `semantic-release` runs. Its checkout installs root dependencies only, so the repository pre-push audit cannot execute there; the source commit is already covered by the verification gate, and the generated release commit is not a place to half-run the hook. Do not "fix" this by installing every workspace in the release job.
+
 ### Release state invariant
 
 semantic-release records each release's channel in a git note on the tag commit
