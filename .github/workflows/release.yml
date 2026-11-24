@@ -208,6 +208,13 @@ jobs:
       - name: Reconcile release channel notes
         run: bun scripts/reconcile-release-notes.ts --ref "${{ github.ref_name }}" --remote origin
 
+      # The release push is a machine-generated commit already covered by the
+      # Verify Pre-Release Gate, and this job installs root dependencies only.
+      # Point Git at an empty hooks directory instead of half-running the
+      # pre-push audit in a checkout that cannot satisfy it.
+      - name: Disable repository hooks for the automated release push
+        run: git config --local core.hooksPath "$(mktemp -d)"
+
       - name: Release
         uses: cycjimmy/semantic-release-action@v8
         id: release
