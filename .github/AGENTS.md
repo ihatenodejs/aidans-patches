@@ -62,6 +62,14 @@ existing merge rules.
 
 Operator setup, once per repository:
 
+Before merging the release workflow change or creating the release branches,
+disable the **Release**, **Deploy Website**, and **Deploy Worker** workflows in
+GitHub Actions and wait for existing runs to finish. The old workflows can
+publish or deploy on `main`/`dev` pushes, and creating a release branch can
+trigger the new release workflow. Disabling a workflow does not cancel runs
+already in progress. Merge the release workflow change to `dev` and `main`
+before bootstrapping, so the promotion workflow exists on the default branch.
+
 ```bash
 # Create the release branches from the current integration tips.
 git branch release/main main
@@ -91,6 +99,13 @@ git push origin release/main release/dev
    as the password.
    These workflows no longer use `RELEASE_DEPLOY_KEY`; retain the existing key
    until the chosen release identity is configured and verified.
+4. After checking the branch protections, App credentials, and package access
+   with a non-publishing check, re-enable the disabled workflows. Do not dispatch
+   **Release** merely to test setup: it can publish.
+
+If the promoted stable branch contains the Worker authority migration, a
+published release can immediately deploy it. Prepare the Worker cutover
+before promotion; see `worker/AGENTS.md`.
 
 Publish only through the **Promote Release** workflow
 (`.github/workflows/promote-release.yml`, `workflow_dispatch`): choose
