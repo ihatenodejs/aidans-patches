@@ -46,7 +46,7 @@ My [Morphe](https://morphe.software) patches
 
 <!-- PATCHES_START EXPANDED -->
 
-> **[v1.11.0-dev.1](https://github.com/ihatenodejs/aidans-patches/releases/tag/v1.11.0-dev.1)**&nbsp;&nbsp;•&nbsp;&nbsp;`release/dev`&nbsp;&nbsp;•&nbsp;&nbsp;86 patches total
+> **[v1.11.0-dev.2](https://github.com/ihatenodejs/aidans-patches/releases/tag/v1.11.0-dev.2)**&nbsp;&nbsp;•&nbsp;&nbsp;`release/dev`&nbsp;&nbsp;•&nbsp;&nbsp;88 patches total
 
 <details open>
 <summary>📦 SidelineSwap&nbsp;&nbsp;•&nbsp;&nbsp;4 patches&nbsp;&nbsp;<a href="https://patch.p0ntus.com/status"><img src="https://worker.patch.p0ntus.com/badges/tests/com.sidelineswap.android.svg" alt="Tests Passing" align="absmiddle"></a></summary>
@@ -279,6 +279,22 @@ My [Morphe](https://morphe.software) patches
 | **Unlimited Hints**    | Makes the hint balance display 999 and allows hints to be used without consuming hints or watching rewarded videos.                                                                                                                                               |                 |
 | **Unlock All Levels**  | Unlocks every level pack and every level, including premium and individually purchased packs, without changing saved progress or purchase state.                                                                                                                  |                 |
 | **Unlock All Themes**  | Unlocks every premium theme and the Complete Package theme bundle in the store without changing saved progress or purchase state.                                                                                                                                 |                 |
+
+</details>
+
+<details open>
+<summary>📦 Threes Freeplay&nbsp;&nbsp;•&nbsp;&nbsp;2 patches&nbsp;&nbsp;<a href="https://patch.p0ntus.com/status"><img src="https://worker.patch.p0ntus.com/badges/tests/vo.threes.free.svg" alt="Tests Passing" align="absmiddle"></a></summary>
+<br>
+
+**🎯 Supported versions:**
+
+| 3.1.196608 |
+| :--------: |
+
+| 💊&nbsp;Patch       | 📜&nbsp;Description                                                                                                       | ⚙️&nbsp;Options |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------- | --------------- |
+| **Remove Ads**      | Removes rewarded-video advertising and grants unlimited free plays so the game never requires watching an ad to continue. |                 |
+| **Remove Tracking** | Neutralizes Google Analytics event logging and prevents the analytics tracker from being created.                         |                 |
 
 </details>
 

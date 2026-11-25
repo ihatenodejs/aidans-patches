@@ -1,3 +1,9 @@
+## [1.11.0-dev.2](https://github.com/ihatenodejs/aidans-patches/compare/v1.11.0-dev.1...v1.11.0-dev.2) (2026-11-25)
+
+### ✨ New Features
+
+* **threes:** add free-play and tracking patches ([227049c](https://github.com/ihatenodejs/aidans-patches/commit/227049c831fb6d2f6e335f4cbec2497f3b4704ce))
+
 ## [1.11.0-dev.1](https://github.com/ihatenodejs/aidans-patches/compare/v1.10.0...v1.11.0-dev.1) (2026-11-25)
 
 ### 🐛 Bug Fixes
