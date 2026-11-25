@@ -151,6 +151,7 @@ export const APP_FALLBACK_CATEGORIES: Record<string, StoreCategoryId> = {
   geocaching: 'health-and-fitness',
   nhl: 'sports',
   blackjack: 'games',
+  'threes-freeplay': 'games',
   'flow-free': 'games',
 };
 
@@ -184,6 +185,8 @@ export const APP_FALLBACK_SUMMARIES: Record<string, string> = {
   nhl: 'Official scores, breaking hockey news, live shift tracking, Edge stats, and game highlights.',
   blackjack:
     'Timeless Las Vegas table cards with fair odds, offline play, and classic casino betting rules.',
+  'threes-freeplay':
+    'Elegant sliding-number puzzle with unlimited free play, no ads, and no analytics tracking.',
   'flow-free':
     'Connect matching colors with pipes to cover every board without crossing or leaking.',
 };
@@ -223,6 +226,7 @@ export const DISCOVERY_SECTIONS: DiscoverySectionConfig[] = [
       'Stay in the loop, catch every highlight, and unwind with your favorites.',
     appIds: [
       'blackjack',
+      'threes-freeplay',
       'nhl',
       'sidelineswap',
       'fizz',

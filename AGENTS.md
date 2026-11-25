@@ -209,6 +209,7 @@ All patch definitions and Java extension changes must use the canonical app scop
 | Credit Karma        | `credit-karma`        | Alias `creditkarma` is legacy.                                                    |
 | Pro Metronome       | `pro-metronome`       | Alias `prometronome` is legacy.                                                   |
 | Flow Free           | `flow-free`           | Alias `flowfree` is legacy.                                                       |
+| Threes Freeplay     | `threes`              | —                                                                                 |
 
 ##### Non-Application Scopes
 
