@@ -294,4 +294,4 @@ Patch compatibility policy:
 4. Deploy through `apk-lab deploy ... --launch`; monitor with `apk-lab monitor`. Verify the actual changed user flow and absence of crash/ANR/main-thread spin.
 5. Clean workspaces only with `apk-lab clean --run ...` or `apk-lab clean --package ...`; never use raw recursive deletion.
 
-Pre-commit runs format/lint checks; pre-push runs typecheck/tests. Install hooks with `bun run prepare` when needed.
+Pre-commit runs format/lint checks; pre-push runs only the whitespace, EOF, and large-file hygiene checks, because typecheck and the test suites already gate the merge through the required verification gate. Install hooks with `bun run prepare` when needed.

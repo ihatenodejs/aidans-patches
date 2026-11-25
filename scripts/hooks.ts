@@ -3,10 +3,10 @@
  * Stage-aware Git hooks for the repository.
  *
  * The stage registry below is the single source of truth for both Git hook
- * execution and tests. Git is only ever read in place; audits run against a
- * temporary snapshot of the staged index (pre-commit) or the pushed commit
- * tree (pre-push), so partially staged files and unrelated working-tree edits
- * are never inspected or modified.
+ * execution and tests. Git is only ever read in place; audit stages run against
+ * a temporary snapshot of the staged index, and checks that inspect a pushed
+ * branch read its commit tree, so partially staged files and unrelated
+ * working-tree edits are never inspected or modified.
  */
 import { spawn } from 'node:child_process';
 import * as fs from 'node:fs';
@@ -41,6 +41,8 @@ export interface CommandOptions {
   cwd: string;
   env?: Record<string, string | undefined>;
   stdin?: Buffer;
+  /** Receives child output as it arrives; the buffers are still captured. */
+  onOutput?: (chunk: Buffer, stream: 'stdout' | 'stderr') => void;
 }
 
 export type CommandRunner = (
@@ -53,6 +55,8 @@ export interface AuditContext {
   stage: HookStage;
   snapshotDir: string;
   repoRoot: string;
+  /** Live child output, so a long audit is not a silent hang. */
+  onOutput?: (chunk: Buffer, stream: 'stdout' | 'stderr') => void;
 }
 
 export type AuditInvoker = (
@@ -82,6 +86,12 @@ export interface HookOptions {
   auditInvoker?: AuditInvoker;
   /** Environment for read-only Git commands; audits get a sanitized copy. */
   env?: Record<string, string | undefined>;
+  /**
+   * Progress sink for text produced while checks run. Omitted by tests and any
+   * programmatic caller; the CLI writes it straight to stdout so a slow check
+   * reports what it is doing instead of appearing to hang.
+   */
+  log?: (text: string | Buffer) => void;
 }
 
 export const STAGE_CHECKS: Record<HookStage, readonly CheckName[]> = {
@@ -103,7 +113,12 @@ export const STAGE_CHECKS: Record<HookStage, readonly CheckName[]> = {
 
 export const STAGE_AUDITS: Record<HookStage, readonly AuditPhase[]> = {
   'pre-commit': ['format:check', 'lint'],
-  'pre-push': ['typecheck', 'test'],
+  // Pushes only run the cheap hygiene checks. Typecheck and the test suites run
+  // in the required "Test & Build Gate", which blocks the merge anyway, so a
+  // local copy added no coverage. It also cost minutes per push: audits execute
+  // in a throwaway snapshot that cannot reuse Cargo or CMake build output, so
+  // Rust and C++ rebuilt from scratch every time.
+  'pre-push': [],
 };
 
 export const HYGIENE_EXCLUDE_PATTERN = HYGIENE_EXCLUDE;
@@ -119,8 +134,14 @@ export const spawnCommand: CommandRunner = (cmd, args, options) => {
     shell: false,
     stdio: ['pipe', 'pipe', 'pipe'],
   });
-  child.stdout.on('data', (chunk: Buffer) => stdout.push(chunk));
-  child.stderr.on('data', (chunk: Buffer) => stderr.push(chunk));
+  child.stdout.on('data', (chunk: Buffer) => {
+    stdout.push(chunk);
+    options.onOutput?.(chunk, 'stdout');
+  });
+  child.stderr.on('data', (chunk: Buffer) => {
+    stderr.push(chunk);
+    options.onOutput?.(chunk, 'stderr');
+  });
   child.stdin.on('error', () => {
     // The command may exit before consuming stdin; the exit status wins.
     return undefined;
@@ -1075,10 +1096,10 @@ async function initializeSnapshotGit(
 /**
  * Environment for audit children. It must not inherit the caller's Git
  * identity or configuration overrides: `semantic-release` exports
- * `GIT_AUTHOR_NAME=…`/`GIT_COMMITTER_NAME=…` for its own commit, and a
- * pre-push audit started by that process would otherwise author the commits
- * tests create as the release bot. Tests that shell out to Git must only see
- * the identity they set themselves.
+ * `GIT_AUTHOR_NAME=…`/`GIT_COMMITTER_NAME=…` for its own commit, and an audit
+ * started by such a process would otherwise author the commits tests create as
+ * the release bot. Tests that shell out to Git must only see the identity they
+ * set themselves.
  */
 export const AUDIT_ENV_REMOVED = [
   'GIT_INDEX_FILE',
@@ -1150,6 +1171,7 @@ export const defaultAuditInvoker: AuditInvoker = async (phase, context) => {
   return spawnCommand(bun, ['scripts/audit.ts', phase], {
     cwd: context.snapshotDir,
     env: auditEnvironment(context.snapshotDir),
+    onOutput: context.onOutput,
   });
 };
 
@@ -1187,6 +1209,8 @@ export async function runHook(options: HookOptions): Promise<HookResult> {
   if (stage !== 'pre-commit' && stage !== 'pre-push') {
     throw new Error(`Unknown hook stage: ${String(stage)}`);
   }
+  const log = options.log ?? (() => {});
+  log(`hooks: ${stage}: running\n`);
   const cwd = options.cwd ?? process.cwd();
   const runner = options.runner ?? spawnCommand;
   const auditInvoker = options.auditInvoker ?? defaultAuditInvoker;
@@ -1349,8 +1373,23 @@ export async function runHook(options: HookOptions): Promise<HookResult> {
     });
   }
 
+  const auditPhases = STAGE_AUDITS[stage];
   const snapshots: PreparedSnapshot[] = [];
-  if (canAudit) {
+  // A stage with no audit phases must not pay for a snapshot tree or report
+  // snapshot failures: there is nothing to run against them.
+  if (auditPhases.length > 0 && !canAudit) {
+    checks.push({
+      name: 'audit-snapshot',
+      kind: 'audit',
+      ok: false,
+      messages: ['unresolved index entries; audits were not run'],
+    });
+  }
+  if (auditPhases.length > 0 && canAudit) {
+    log(
+      `hooks: preparing ${auditPhases.join(' + ')} snapshot(s) ` +
+        `for ${jobs.length} ref(s)\n`,
+    );
     for (const job of jobs) {
       let directory: string | null = null;
       try {
@@ -1390,23 +1429,17 @@ export async function runHook(options: HookOptions): Promise<HookResult> {
         ),
       });
     }
-  } else {
-    checks.push({
-      name: 'audit-snapshot',
-      kind: 'audit',
-      ok: false,
-      messages: ['unresolved index entries; audits were not run'],
-    });
   }
 
   try {
-    for (const phase of STAGE_AUDITS[stage]) {
+    for (const phase of auditPhases) {
       let ok = true;
       const messages: string[] = [];
       if (!canAudit) {
         ok = false;
         messages.push('audit snapshot unavailable; audit was not run');
       } else {
+        log(`hooks: ${phase}: running\n`);
         for (const snapshot of snapshots) {
           const prefix = prefixFor(snapshot.job);
           if (!snapshot.directory) {
@@ -1421,6 +1454,7 @@ export async function runHook(options: HookOptions): Promise<HookResult> {
               stage,
               snapshotDir: snapshot.directory,
               repoRoot: cwd,
+              onOutput: (chunk) => log(chunk),
             });
             if (result.code !== 0) {
               ok = false;
@@ -1469,6 +1503,8 @@ function printResult(result: HookResult): void {
   }
   if (result.code !== 0) {
     console.error(`hooks: ${result.stage} checks failed`);
+  } else {
+    console.log(`hooks: ${result.stage}: ok`);
   }
 }
 
@@ -1495,6 +1531,7 @@ async function main(argv: readonly string[]): Promise<number> {
       cwd: process.cwd(),
       stdin,
       args: argv.slice(1),
+      log: (text) => process.stdout.write(text),
     });
     printResult(result);
     return result.code;
