@@ -1,3 +1,30 @@
+## [1.11.0-dev.1](https://github.com/ihatenodejs/aidans-patches/compare/v1.10.0...v1.11.0-dev.1) (2026-11-25)
+
+### 🐛 Bug Fixes
+
+* **adobe-scan:** preserve failed PDF rollback evidence ([a649877](https://github.com/ihatenodejs/aidans-patches/commit/a6498777d8b10ab1ebd9c967b7ddd42f963c7c05))
+* **adobe-scan:** reconcile combine output without data loss ([f2c4495](https://github.com/ihatenodejs/aidans-patches/commit/f2c449597753aa9abd46796137bf0836387d3b26))
+* **apk-lab:** isolate temporary dex extraction paths ([9c9efe2](https://github.com/ihatenodejs/aidans-patches/commit/9c9efe2f2356fa598ef72cb0bbf61b21ecefe18f))
+* **ci:** authorize workflow changes in releases ([141a088](https://github.com/ihatenodejs/aidans-patches/commit/141a088a2c700ab8dae2860a0c3a675c57cfd1fc))
+* **ci:** pass the release Maven username to Gradle ([86e4266](https://github.com/ihatenodejs/aidans-patches/commit/86e42663e67ed6616d8930fef546b225e340074f))
+* **ci:** reject identity checks from other branches ([475221b](https://github.com/ihatenodejs/aidans-patches/commit/475221b9925468b9a21ad257cf43fc95203fe7f6))
+* **ci:** release from protected branches with locked dependencies ([df7bda1](https://github.com/ihatenodejs/aidans-patches/commit/df7bda1d241aa99ad09cac0047d3d87837fc1aa8))
+* **ci:** separate release and Maven credentials ([ec39aad](https://github.com/ihatenodejs/aidans-patches/commit/ec39aad20d357a378c2f13438221da6f08039e93))
+* **flow-free:** hide remove ads purchase entry points ([4f0a009](https://github.com/ihatenodejs/aidans-patches/commit/4f0a009dda226a603d7e990243f96a62408a11e7))
+* **flow-free:** remove restore and hint purchase rows ([0c3be9e](https://github.com/ihatenodejs/aidans-patches/commit/0c3be9e310fbfa1603177b59616486c61017da69))
+* **icons:** fail strict verification for missing assets ([a9a4e4d](https://github.com/ihatenodejs/aidans-patches/commit/a9a4e4da900a1d9f65ff31f8aaff6ca1c5ef7a17))
+* **nhl:** preserve lists and honor automatic updates ([2e3f5f9](https://github.com/ihatenodejs/aidans-patches/commit/2e3f5f93eb84bf2d5dbfce36078a459f4cb6120f))
+* **sezzle:** close payment options sheet on continue ([b08952b](https://github.com/ihatenodejs/aidans-patches/commit/b08952b6dcde51d412a36cf842a1a89d35f723ee))
+* **sezzle:** reject unexpected update bytecode ([f12581a](https://github.com/ihatenodejs/aidans-patches/commit/f12581ad5cd02ef8be2c15e2f1fe5516605123bd))
+* **sezzle:** restore checkout loan submission ([5e7ec3e](https://github.com/ihatenodejs/aidans-patches/commit/5e7ec3edcab9c1a58cf957edc8cae407feb62eeb))
+* **sezzle:** restore checkout loan submission ([#104](https://github.com/ihatenodejs/aidans-patches/issues/104)) ([0864a16](https://github.com/ihatenodejs/aidans-patches/commit/0864a16fe64d9d3bff406e7aea183b4ec41448f0))
+* **worker:** serialize app state through durable objects ([0067ef6](https://github.com/ihatenodejs/aidans-patches/commit/0067ef65eb957cae0f90dbe66a4f0d789675977d))
+
+### ✨ New Features
+
+* **flow-free:** add ad and tracking removal patches ([66e571f](https://github.com/ihatenodejs/aidans-patches/commit/66e571f8b1852d8563a7ae0909a931743b3ca099))
+* **flow-free:** add unlock and Google Play patches ([c44bae7](https://github.com/ihatenodejs/aidans-patches/commit/c44bae7e075884b6add5ba9fffeaf683a940b197))
+
 ## [1.10.0](https://github.com/ihatenodejs/aidans-patches/compare/v1.9.3...v1.10.0) (2026-11-24)
 
 ### 🐛 Bug Fixes
