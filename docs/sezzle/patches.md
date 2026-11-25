@@ -20,6 +20,7 @@ This document details the binary bytecode, asset, and resource patches available
 | [Replace AI Discover with Products](#patch-replace-ai-discover-with-products)                   | `navigation/ReplaceAiDiscoverWithProductsPatch.kt` | `rawResourcePatch`      | `true`  | None                                       | `removeProductsTab` (default: `false`) | Replaces AI Discover tab with original non-AI Products tab and removes AI search callouts.                                                                                    |
 | [Rename Shop to Home](#patch-rename-shop-to-home)                                               | `navigation/ReplaceShopWithHomePatch.kt`           | `rawResourcePatch`      | `true`  | None                                       | None                                   | Renames the Shop bottom navigation tab to Home.                                                                                                                               |
 | [Clean Home](#patch-clean-home)                                                                 | `navigation/CleanHomePatch.kt`                     | `rawResourcePatch`      | `true`  | None                                       | 4 boolean options                      | Removes shortcuts, store/brand carousels, and promotional banners from the Home tab.                                                                                          |
+| [Fix Payment Plan Continue](#patch-fix-payment-plan-continue)                                   | `navigation/FixPaymentPlanContinuePatch.kt`        | `rawResourcePatch`      | `true`  | None                                       | None                                   | Closes the payment options sheet when continuing so the checkout summary and loan confirmation stay reachable.                                                                |
 | [Patch Consent Screen](#patch-patch-consent-screen)                                             | `security/PatchConsentScreenPatch.kt`              | `bytecodePatch`         | `true`  | `Clean Authentication`, `ConsentGate.java` | None                                   | Injects native `ConsentGate` modal dialog into `MainActivity.onCreate` before auth.                                                                                           |
 | [Suppress In-App Updates and Rating Prompts](#patch-suppress-in-app-updates-and-rating-prompts) | `security/SuppressUpdatesAndIntegrityPatch.kt`     | `rawResourcePatch`      | `true`  | None                                       | 3 boolean options (default: `true`)    | Neutralizes Hermes update selectors/sagas, update modal, store URLs, trustFall, and rating prompts.                                                                           |
 
@@ -421,6 +422,30 @@ Modifies `assets/index.android.bundle`. For each configured component, the first
 3. **Promotional banners (`removePromotions`):** `ShopDealsAd`, `NativeAdCard`, `CtaBanner`, `UnlockSpendingPowerBanner`, Amazon spend banners, `RewardsView`, `CashbackRewards`, and `SezzleSpendAnywhereView`.
 4. **Sezzle Spend balance banner (`removeSezzleSpendBanner`, opt-in):** `SpendPill` and `ShopSpendCta`. Leave this disabled by default: the banner reports real spendable balance (`shop-spend-cta-pill`), not a marketing promotion.
 5. Recomputes Hermes footer hash.
+
+---
+
+### Patch: Fix Payment Plan Continue
+
+- **Name:** Fix Payment Plan Continue
+- **Target Package:** `com.sezzle.sezzlemobile`
+- **Supported Versions:** `5.3.24`
+- **Default State:** `true` (Enabled by default)
+- **Type:** Raw Binary / Asset Patch (`rawResourcePatch`)
+- **Dependencies:** None
+
+#### 1. Motivation & Purpose
+
+On the checkout summary screen, the payment options sheet opens automatically when a pay-in-N plan is available. Its Continue button is wired to a submit closure that attempts to finalize the loan before the checkout agreements are accepted. That request settles without advancing the UI, so the sheet stays open and blocks the checkout summary and its loan confirmation button. The selected plan is already committed by the plan-change handler, so Continue only needs to dismiss the sheet.
+
+#### 2. Technical Implementation & Injection Points
+
+Modifies `assets/index.android.bundle`:
+
+1. Locates the `PaymentPlanPopup` Continue onPress closure by its unique 18-byte HBC v98 body.
+2. Changes the captured environment slot from `37` (`handleSubmit`) to `36` (`handleClose`), so Continue runs the sheet's existing close path.
+3. Leaves every other press path, including the plan radios and the sheet Back action, untouched.
+4. Recomputes the Hermes footer hash.
 
 ---
 

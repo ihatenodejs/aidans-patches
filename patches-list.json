@@ -398,6 +398,7 @@
         "Clean Home",
         "Configure Shortcuts",
         "Enable App Debugging",
+        "Fix Payment Plan Continue",
         "Hide Sezzle Mobile",
         "Patch Consent Screen",
         "Remove Ads and Tracking",
@@ -1561,6 +1562,33 @@
           "values": null
         }
       ]
+    },
+    {
+      "name": "Fix Payment Plan Continue",
+      "description": "Closes the payment options sheet when continuing so the checkout summary and loan confirmation stay reachable.",
+      "default": true,
+      "category": "Interface",
+      "dependencies": [],
+      "compatiblePackages": [
+        {
+          "packageName": "com.sezzle.sezzlemobile",
+          "name": "Sezzle",
+          "description": null,
+          "apkFileType": "APKM",
+          "appIconColor": "#5C2C94",
+          "signatures": null,
+          "targets": [
+            {
+              "version": "5.3.24",
+              "versionCodes": null,
+              "isExperimental": false,
+              "minSdk": 24,
+              "description": null
+            }
+          ]
+        }
+      ],
+      "options": []
     },
     {
       "name": "Full AMOLED Theme",

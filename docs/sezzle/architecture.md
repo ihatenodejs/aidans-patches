@@ -104,5 +104,6 @@ See [Sezzle Patch Specifications](patches.md) for full technical implementation 
 11. **`Replace AI Discover with Products` (`rawResourcePatch`):** Restores the original non-AI Products tab.
 12. **`Rename Shop to Home` (`rawResourcePatch`):** Renames the Shop bottom navigation tab to Home; the stock store screen remains.
 13. **`Clean Home` (`rawResourcePatch`):** Unmounts Home shortcut rows, store/brand carousels, and promotional banners; the real Sezzle Spend balance banner stays visible unless the opt-in removal option is enabled.
-14. **`Patch Consent Screen` (`bytecodePatch`):** Injects native `ConsentGate` modal dialog into `MainActivity.onCreate`.
-15. **`Suppress In-App Updates and Rating Prompts` (`rawResourcePatch`):** Neutralizes Hermes update sagas, update modals, store URLs, trustFall checks, and rating prompts.
+14. **`Fix Payment Plan Continue` (`rawResourcePatch`):** Re-points the payment options Continue button at the sheet close handler so the checkout summary and loan confirmation stay reachable.
+15. **`Patch Consent Screen` (`bytecodePatch`):** Injects native `ConsentGate` modal dialog into `MainActivity.onCreate`.
+16. **`Suppress In-App Updates and Rating Prompts` (`rawResourcePatch`):** Neutralizes Hermes update sagas, update modals, store URLs, trustFall checks, and rating prompts.
