@@ -1,6 +1,9 @@
 package app.aidan.patches.flowfree.levels
 
 import app.aidan.patches.flowfree.shared.COMPATIBILITY_FLOW_FREE
+import app.aidan.patches.flowfree.shared.HIDE_RESTORE_ICON
+import app.aidan.patches.flowfree.shared.HIDE_RESTORE_LABEL
+import app.aidan.patches.flowfree.shared.HIDE_SETTINGS_RESTORE_ROW
 import app.aidan.patches.flowfree.shared.LibgameFunction
 import app.aidan.patches.flowfree.shared.RETURN_TRUE
 import app.aidan.patches.flowfree.shared.arm64
@@ -75,7 +78,10 @@ val unlockAllLevelsPatch = rawResourcePatch(
             LEVEL_PACK_UNLOCKED,
             LEVEL_PACK_PLAYABLE,
             LEVEL_PLAYABLE,
-            SELECT_PACK_NAVIGATE
+            SELECT_PACK_NAVIGATE,
+            HIDE_SETTINGS_RESTORE_ROW,
+            HIDE_RESTORE_LABEL,
+            HIDE_RESTORE_ICON
         )
     }
 }

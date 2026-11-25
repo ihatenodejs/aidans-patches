@@ -92,4 +92,5 @@ Native tracking selectors such as `trackDailyLevelCompleted`, `trackPurchase:isR
 - Hint availability is gated by `HintManager`'s stored balance getters; `useHint` only consumes and persists that balance, while the caller reveals the hint.
 - Play Games sign-in is gated by `NoodlecakeGameActivity.shouldGoogleAPIConnect` and `isGoogleAPIConnected`; native prompts use `SelectPackMenu` and `Flow` methods that must all be neutralized, because a no-op prompt can otherwise leave a click catcher over the pack list.
 - `Flow` launches the Play Store for reviews and cross-promos through `launchAppStoreId:campaign:` and `launchAppStoreId:orUrl:campaign:`; blocking those methods leaves URL-based support and privacy launches intact.
+- Unlock patches remove the now-pointless Restore Purchases rows from Settings > Help and the Store; Unlimited Hints additionally removes the free-play Extras Get More Hints row.
 - Every native patch validates the original prologue, is idempotent, and fails on a version mismatch instead of writing a partial edit.

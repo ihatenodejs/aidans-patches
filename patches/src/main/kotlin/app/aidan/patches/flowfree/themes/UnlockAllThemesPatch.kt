@@ -1,6 +1,9 @@
 package app.aidan.patches.flowfree.themes
 
 import app.aidan.patches.flowfree.shared.COMPATIBILITY_FLOW_FREE
+import app.aidan.patches.flowfree.shared.HIDE_RESTORE_ICON
+import app.aidan.patches.flowfree.shared.HIDE_RESTORE_LABEL
+import app.aidan.patches.flowfree.shared.HIDE_SETTINGS_RESTORE_ROW
 import app.aidan.patches.flowfree.shared.LibgameFunction
 import app.aidan.patches.flowfree.shared.RETURN_TRUE
 import app.aidan.patches.flowfree.shared.arm64
@@ -52,7 +55,10 @@ val unlockAllThemesPatch = rawResourcePatch(
             THEME_UNLOCKED,
             THEME_PURCHASED,
             THEME_INDIVIDUALLY_PURCHASED,
-            THEME_MANAGER_ALL_PURCHASED
+            THEME_MANAGER_ALL_PURCHASED,
+            HIDE_SETTINGS_RESTORE_ROW,
+            HIDE_RESTORE_LABEL,
+            HIDE_RESTORE_ICON
         )
     }
 }

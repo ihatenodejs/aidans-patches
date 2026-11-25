@@ -1,6 +1,11 @@
 package app.aidan.patches.flowfree.hints
 
 import app.aidan.patches.flowfree.shared.COMPATIBILITY_FLOW_FREE
+import app.aidan.patches.flowfree.shared.HIDE_GET_MORE_HINTS_ICON
+import app.aidan.patches.flowfree.shared.HIDE_GET_MORE_HINTS_LABEL
+import app.aidan.patches.flowfree.shared.HIDE_RESTORE_ICON
+import app.aidan.patches.flowfree.shared.HIDE_RESTORE_LABEL
+import app.aidan.patches.flowfree.shared.HIDE_SETTINGS_RESTORE_ROW
 import app.aidan.patches.flowfree.shared.LibgameFunction
 import app.aidan.patches.flowfree.shared.RETURN_HINT_BALANCE
 import app.aidan.patches.flowfree.shared.RETURN_TRUE
@@ -54,7 +59,12 @@ val unlimitedHintsPatch = rawResourcePatch(
             HINT_BALANCE,
             TEMP_HINT_BALANCE,
             ACTIVE_HINT_BALANCE,
-            USE_HINT
+            USE_HINT,
+            HIDE_SETTINGS_RESTORE_ROW,
+            HIDE_RESTORE_LABEL,
+            HIDE_RESTORE_ICON,
+            HIDE_GET_MORE_HINTS_LABEL,
+            HIDE_GET_MORE_HINTS_ICON
         )
     }
 }

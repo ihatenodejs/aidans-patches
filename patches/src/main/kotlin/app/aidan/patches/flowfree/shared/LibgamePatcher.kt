@@ -27,6 +27,50 @@ internal val RETURN_HINT_BALANCE = byteArrayOf(
 )
 
 /**
+ * Skips the Settings > Help "Restore Purchases" row by branching from its label descriptor
+ * load to the start of the following About row. The following row reuses the same layout
+ * cursor and closes the gap.
+ */
+internal val HIDE_SETTINGS_RESTORE_ROW = LibgameFunction(
+    name = "SettingsMenu Restore Purchases row",
+    offset = 0x57f1b8,
+    expected = arm64(0x42, 0x80, 0x15, 0x91),
+    replacement = arm64(0xbc, 0x00, 0x00, 0x14)
+)
+
+/** Blanks the localization key used by both Restore Purchases rows. */
+internal val HIDE_RESTORE_LABEL = LibgameFunction(
+    name = "Restore Purchases label",
+    offset = 0x402efe,
+    expected = "Restore Purchases\u0000".toByteArray(),
+    replacement = byteArrayOf(0)
+)
+
+/** Blanks the extra_restore.png icon name used by both Restore Purchases rows. */
+internal val HIDE_RESTORE_ICON = LibgameFunction(
+    name = "Restore Purchases icon",
+    offset = 0x402f10,
+    expected = "extra_restore.png\u0000".toByteArray(),
+    replacement = byteArrayOf(0)
+)
+
+/** Blanks the free-play Extras "Get More Hints" label. */
+internal val HIDE_GET_MORE_HINTS_LABEL = LibgameFunction(
+    name = "Get More Hints label",
+    offset = 0x4041af,
+    expected = "Get More Hints\u0000".toByteArray(),
+    replacement = byteArrayOf(0)
+)
+
+/** Points the Get More Hints row at an empty icon slot so only the label row keeps its layout. */
+internal val HIDE_GET_MORE_HINTS_ICON = LibgameFunction(
+    name = "Get More Hints icon",
+    offset = 0x56c95c,
+    expected = arm64(0x42, 0x20, 0x12, 0x91),
+    replacement = arm64(0x42, 0xc0, 0x11, 0x91)
+)
+
+/**
  * A native function in `libgame.so` identified by its file offset, the original prologue bytes,
  * and the replacement instructions. Offsets are file offsets and therefore equal virtual
  * addresses inside `.text`.

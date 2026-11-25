@@ -209,6 +209,8 @@ The patch rewrites arm64 `libgame.so` function prologues to `mov w0, #1; ret`:
 
 `LevelPack.isPurchased` and `Level.isPlayable` are the primary gates; the additional getters cover experimental, server-activated, and future pack categories that do not consult them first. The `onSelected:` branch is required because the original method returns without navigating when any of those prompts is expected, leaving the pack list behind a click catcher even though every pack is unlocked.
 
+Because every pack is already available, the patch also removes the now-pointless **Restore Purchases** row from Settings > Help and from the Store. The Settings row is skipped at its native row-construction branch; the Store row is collapsed by blanking its localization key and restore icon.
+
 ### 3. Invariants
 
 - Each function is identified by its file offset and validated against its original 16-byte prologue before any bytes are written.
@@ -240,6 +242,8 @@ Hints are consumed from a stored balance and can be replenished with in-app purc
 | `-[HintManager useHint]`              | `mov w0, #1; ret`   | Hint use succeeds without decrementing stored hints. |
 
 `useHint` only validates and decrements the balance; the caller performs the actual hint reveal, so returning true keeps reveal behavior intact.
+
+The patch also removes the **Restore Purchases** rows from Settings > Help and the Store, and removes the **Get More Hints** row from the free-play level selector's Extras section. The Get More Hints row is collapsed by blanking its label and icon, leaving Share Progress as the final Extras row.
 
 ### 3. Invariants
 
