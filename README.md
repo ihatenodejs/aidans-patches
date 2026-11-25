@@ -449,8 +449,10 @@ An active `.legacy` hook additionally requires `--accept-legacy-loss`; keep it i
 behavior is still needed. Inspect conflicts before opting in. `/dev/null` hooks
 configuration remains deliberately disabled.
 
-Hooks inspect Git blobs, not unrelated unstaged edits, and run all audit stages in
-isolated snapshots. Pre-commit runs format/lint; pre-push runs typecheck/tests.
+Hooks inspect Git blobs, not unrelated unstaged edits, and run audit stages in
+isolated snapshots. Pre-commit runs format/lint and prints each stage as it starts,
+so a slow run never looks like a hang. Pre-push runs only the large-file, whitespace,
+and EOF checks: typecheck and the test suites already gate the merge in CI.
 Whitespace/EOF hygiene is check-only: fix reported files and stage the intended
 changes yourself. No hook rewrites or stages your files.
 Frozen renderer fixtures retain their original whitespace/EOF bytes and are excluded

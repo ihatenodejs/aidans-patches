@@ -17,10 +17,9 @@ const remote = path.join(root, 'remote.git');
 const work = path.join(root, 'work');
 
 /**
- * The pre-push hook runs this suite from a snapshot started by semantic-release,
- * which exports `GIT_AUTHOR_*`/`GIT_COMMITTER_*` for its own release commit.
- * Those variables override `-c user.name=…`, so drop them here; every commit
- * below sets its identity explicitly.
+ * Every commit below sets its identity explicitly. A parent process such as
+ * `semantic-release` exports `GIT_AUTHOR_*`/`GIT_COMMITTER_*` for its own
+ * release commit, and those variables override `-c user.name=…`, so drop them.
  */
 function isolatedEnvironment(): Record<string, string | undefined> {
   const isolated: Record<string, string | undefined> = {
