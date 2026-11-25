@@ -46,11 +46,128 @@ function isDomainValid(domain: string): domain is AuditDomain {
   return (VALID_DOMAINS as readonly string[]).includes(domain);
 }
 
+/**
+ * Fine-grained check scopes. CI selects the scopes implied by the changed
+ * paths; a domain is only the coarse fallback used by local commands.
+ */
+export type AuditScope =
+  | 'docs'
+  | 'worker'
+  | 'site'
+  | 'scripts'
+  | 'ci'
+  | 'icons'
+  | 'metadata'
+  | 'android'
+  | 'rust:apk-lab'
+  | 'rust:asset-prep'
+  | 'rust:play-metadata'
+  | 'rust:nhl-adblock-native'
+  | 'native';
+
+const WEB_SCOPES: readonly AuditScope[] = [
+  'docs',
+  'worker',
+  'site',
+  'scripts',
+  'ci',
+  'icons',
+  'metadata',
+];
+
+const RUST_SCOPES: readonly AuditScope[] = RUST_PROJECTS.map(
+  (project) => `rust:${project.id}` as AuditScope,
+);
+
+export const VALID_SCOPES: readonly AuditScope[] = [
+  ...WEB_SCOPES,
+  'android',
+  ...RUST_SCOPES,
+  'native',
+] as const;
+
+const SCOPE_DOMAIN: Record<AuditScope, AuditDomain> = {
+  docs: 'web',
+  worker: 'web',
+  site: 'web',
+  scripts: 'web',
+  ci: 'web',
+  icons: 'web',
+  metadata: 'web',
+  android: 'android',
+  'rust:apk-lab': 'rust',
+  'rust:asset-prep': 'rust',
+  'rust:play-metadata': 'rust',
+  'rust:nhl-adblock-native': 'rust',
+  native: 'native',
+};
+
+export interface Selection {
+  /** Domain used by local commands; ignored when `scopes` is set. */
+  domain: AuditDomain;
+  /** Explicit check scopes; null means "use the domain". */
+  scopes: readonly AuditScope[] | null;
+}
+
+export function domainScopes(domain: AuditDomain): readonly AuditScope[] {
+  switch (domain) {
+    case 'web':
+      return WEB_SCOPES;
+    case 'android':
+      return ['android'];
+    case 'rust':
+      return RUST_SCOPES;
+    case 'native':
+      return ['native'];
+    case 'all':
+      return VALID_SCOPES;
+  }
+}
+
+export function parseScopes(value: string): AuditScope[] {
+  const scopes = value
+    .split(',')
+    .map((scope) => scope.trim())
+    .filter(Boolean);
+  if (scopes.length === 0) {
+    throw new Error('--scope requires at least one scope');
+  }
+  for (const scope of scopes) {
+    if (!(VALID_SCOPES as readonly string[]).includes(scope)) {
+      throw new Error(
+        `Unknown scope "${scope}". Valid scopes: ${VALID_SCOPES.join(', ')}`,
+      );
+    }
+  }
+  return scopes as AuditScope[];
+}
+
+export function selects(
+  selection: Selection,
+  ...scopes: readonly AuditScope[]
+): boolean {
+  if (selection.scopes) {
+    return scopes.some((scope) => selection.scopes!.includes(scope));
+  }
+  return scopes.some((scope) =>
+    shouldRunDomain(selection.domain, SCOPE_DOMAIN[scope]),
+  );
+}
+
 function shouldRunDomain(
   selected: AuditDomain,
   stepDomain: AuditDomain,
 ): boolean {
   return selected === 'all' || selected === stepDomain;
+}
+
+export function scopeLabel(selection: Selection): string {
+  if (selection.scopes) return selection.scopes.join(',');
+  return selection.domain;
+}
+
+function rustScope(projectId: string): AuditScope {
+  return `rust:${projectId}` as AuditScope;
 }
 
 interface StepResult {
@@ -317,17 +434,19 @@ function printRawCommandOutput(stdout: string, stderr: string): void {
 // ============================================================================
 async function runFormat(
   checkOnly = false,
-  domain: AuditDomain = 'all',
+  selection: Selection = { domain: 'all', scopes: null },
+  combined = false,
 ): Promise<PhaseResult> {
-  const subtitle = `${checkOnly ? 'audit check only' : 'formatting in place'}${domain !== 'all' ? ` [domain: ${domain}]` : ''}`;
+  const subtitle = `${checkOnly ? 'audit check only' : 'formatting in place'} [scope: ${scopeLabel(selection)}]`;
   printSectionHeader('Format', subtitle);
   const results: StepResult[] = [];
-  const ktlintPath = shouldRunDomain(domain, 'android')
-    ? await ensureKtlint()
-    : '';
+  // `all` runs ktlint in the lint phase; the lint reporter already fails on
+  // formatting deviations, so do not pay for a second process in CI.
+  const runKtlint = selects(selection, 'android') && !combined;
+  const ktlintPath = runKtlint ? await ensureKtlint() : '';
 
-  // 1. Prettier (Web / TypeScript / Astro / Markdown / Configs)
-  if (shouldRunDomain(domain, 'web')) {
+  // 1. Prettier (Web / TypeScript / Astro / Markdown / Workflows)
+  if (selects(selection, 'docs', 'worker', 'site', 'scripts', 'ci')) {
     process.stdout.write(
       `  ${sym.arrow} Formatting web, configs & docs (Prettier)... `,
     );
@@ -349,6 +468,7 @@ async function runFormat(
       'worker/**/*.md',
       'site/**/*.md',
       '.github/**/*.md',
+      '.github/**/*.yml',
     ];
     const prettierArgs = checkOnly
       ? ['prettier', '--check', ...prettierPatterns]
@@ -375,7 +495,7 @@ async function runFormat(
   }
 
   // 2. ktlint (Kotlin)
-  if (shouldRunDomain(domain, 'android')) {
+  if (runKtlint) {
     process.stdout.write(
       `  ${sym.arrow} Formatting Kotlin sources (ktlint)... `,
     );
@@ -412,35 +532,34 @@ async function runFormat(
   }
 
   // 3. Rust host crates (cargo fmt)
-  if (shouldRunDomain(domain, 'rust')) {
-    for (const project of RUST_PROJECTS) {
-      process.stdout.write(
-        `  ${sym.arrow} Formatting Rust ${project.label} sources (cargo fmt)... `,
-      );
-      const args = cargoArgs(project, ['fmt'], checkOnly ? ['--check'] : []);
-      const result = await execCommand('cargo', args);
-      const passed = result.code === 0;
-      console.log(passed ? sym.ok : sym.err);
-      if (!passed) printRawCommandOutput(result.stdout, result.stderr);
-      results.push({
-        title: `Rust ${project.label} (cargo fmt)`,
-        tool: 'cargo fmt',
-        domain: 'rust',
-        success: passed,
-        durationMs: result.durationMs,
-        summary: result.stderr.includes('ENOENT')
-          ? 'cargo not found in PATH; install Rust toolchain (rustup.rs)'
-          : checkOnly
-            ? passed
-              ? 'All Rust files formatted'
-              : 'Rust files need formatting'
-            : 'Formatted Rust sources',
-      });
-    }
+  for (const project of RUST_PROJECTS) {
+    if (!selects(selection, rustScope(project.id))) continue;
+    process.stdout.write(
+      `  ${sym.arrow} Formatting Rust ${project.label} sources (cargo fmt)... `,
+    );
+    const args = cargoArgs(project, ['fmt'], checkOnly ? ['--check'] : []);
+    const result = await execCommand('cargo', args);
+    const passed = result.code === 0;
+    console.log(passed ? sym.ok : sym.err);
+    if (!passed) printRawCommandOutput(result.stdout, result.stderr);
+    results.push({
+      title: `Rust ${project.label} (cargo fmt)`,
+      tool: 'cargo fmt',
+      domain: 'rust',
+      success: passed,
+      durationMs: result.durationMs,
+      summary: result.stderr.includes('ENOENT')
+        ? 'cargo not found in PATH; install Rust toolchain (rustup.rs)'
+        : checkOnly
+          ? passed
+            ? 'All Rust files formatted'
+            : 'Rust files need formatting'
+          : 'Formatted Rust sources',
+    });
   }
 
   // 4. C++ (clang-format)
-  if (shouldRunDomain(domain, 'native')) {
+  if (selects(selection, 'native')) {
     process.stdout.write(
       `  ${sym.arrow} Formatting C++ Adobe Scan Native sources (clang-format)... `,
     );
@@ -497,18 +616,17 @@ async function runFormat(
 // ============================================================================
 async function runLint(
   autoFix = false,
-  domain: AuditDomain = 'all',
+  selection: Selection = { domain: 'all', scopes: null },
+  combined = false,
 ): Promise<PhaseResult> {
-  const subtitle = `${autoFix ? 'auto-fix enabled' : 'auditing code quality'}${domain !== 'all' ? ` [domain: ${domain}]` : ''}`;
+  const subtitle = `${autoFix ? 'auto-fix enabled' : 'auditing code quality'} [scope: ${scopeLabel(selection)}]`;
   printSectionHeader('Lint', subtitle);
   const results: StepResult[] = [];
   const allDiagnostics: Diagnostic[] = [];
-  const ktlintPath = shouldRunDomain(domain, 'android')
-    ? await ensureKtlint()
-    : '';
+  const ktlintPath = selects(selection, 'android') ? await ensureKtlint() : '';
 
   // 1. Oxlint (Web / TypeScript / Astro)
-  if (shouldRunDomain(domain, 'web')) {
+  if (selects(selection, 'worker', 'site', 'scripts')) {
     process.stdout.write(
       `  ${sym.arrow} Linting TypeScript, Worker & Site (Oxlint)... `,
     );
@@ -554,7 +672,7 @@ async function runLint(
   }
 
   // 2. ktlint (Kotlin)
-  if (shouldRunDomain(domain, 'android')) {
+  if (selects(selection, 'android')) {
     process.stdout.write(`  ${sym.arrow} Linting Kotlin sources (ktlint)... `);
     const ktArgs = autoFix
       ? ['-F', 'patches/src/main/kotlin/**/*.kt']
@@ -598,7 +716,7 @@ async function runLint(
   }
 
   // 3. Markdown Documentation (markdownlint-cli2)
-  if (shouldRunDomain(domain, 'web')) {
+  if (selects(selection, 'docs')) {
     process.stdout.write(
       `  ${sym.arrow} Linting Markdown documentation (markdownlint-cli2)... `,
     );
@@ -643,45 +761,44 @@ async function runLint(
   }
 
   // 4. Rust host crates (cargo clippy)
-  if (shouldRunDomain(domain, 'rust')) {
-    for (const project of RUST_PROJECTS) {
-      process.stdout.write(
-        `  ${sym.arrow} Linting Rust ${project.label} sources (clippy)... `,
-      );
-      const result = await execCommand(
-        'cargo',
-        cargoArgs(
-          project,
-          ['clippy', '--locked'],
-          [
-            '--all-targets',
-            ...(autoFix ? ['--fix', '--allow-dirty', '--allow-staged'] : []),
-            '--',
-            '-D',
-            'warnings',
-          ],
-        ),
-      );
-      const passed = result.code === 0;
-      console.log(passed ? sym.ok : sym.err);
-      if (!passed) printRawCommandOutput(result.stdout, result.stderr);
-      results.push({
-        title: `Rust ${project.label} (clippy)`,
-        tool: 'clippy',
-        domain: 'rust',
-        success: passed,
-        durationMs: result.durationMs,
-        summary: result.stderr.includes('ENOENT')
-          ? 'cargo not found in PATH; install Rust toolchain (rustup.rs)'
-          : passed
-            ? 'No issues'
-            : 'Clippy warnings/errors detected',
-      });
-    }
+  for (const project of RUST_PROJECTS) {
+    if (!selects(selection, rustScope(project.id))) continue;
+    process.stdout.write(
+      `  ${sym.arrow} Linting Rust ${project.label} sources (clippy)... `,
+    );
+    const result = await execCommand(
+      'cargo',
+      cargoArgs(
+        project,
+        ['clippy', '--locked'],
+        [
+          '--all-targets',
+          ...(autoFix ? ['--fix', '--allow-dirty', '--allow-staged'] : []),
+          '--',
+          '-D',
+          'warnings',
+        ],
+      ),
+    );
+    const passed = result.code === 0;
+    console.log(passed ? sym.ok : sym.err);
+    if (!passed) printRawCommandOutput(result.stdout, result.stderr);
+    results.push({
+      title: `Rust ${project.label} (clippy)`,
+      tool: 'clippy',
+      domain: 'rust',
+      success: passed,
+      durationMs: result.durationMs,
+      summary: result.stderr.includes('ENOENT')
+        ? 'cargo not found in PATH; install Rust toolchain (rustup.rs)'
+        : passed
+          ? 'No issues'
+          : 'Clippy warnings/errors detected',
+    });
   }
 
   // 5. C++ (CMake host build with -Wall -Wextra -Werror)
-  if (shouldRunDomain(domain, 'native')) {
+  if (selects(selection, 'native')) {
     process.stdout.write(
       `  ${sym.arrow} Linting C++ Adobe Scan Native engine (-Wall -Wextra)... `,
     );
@@ -718,9 +835,11 @@ async function runLint(
         const cmakeLintBuild = await execCommand('cmake', [
           '--build',
           scanHostBuildDir,
-          '--target',
-          'aidanscanpdf_static',
-          'adobescan_pdf_test',
+          // `all` builds every host target here so the typecheck phase does not
+          // compile the same tree a second time.
+          ...(combined
+            ? []
+            : ['--target', 'aidanscanpdf_static', 'adobescan_pdf_test']),
         ]);
         cppLintDuration += cmakeLintBuild.durationMs;
         cppLintPassed = cmakeLintBuild.code === 0;
@@ -749,13 +868,16 @@ async function runLint(
 // ============================================================================
 // TYPECHECK COMMAND
 // ============================================================================
-async function runTypecheck(domain: AuditDomain = 'all'): Promise<PhaseResult> {
-  const subtitle = `TypeScript, Astro, Rust, C++, and Kotlin/Java${domain !== 'all' ? ` [domain: ${domain}]` : ''}`;
+async function runTypecheck(
+  selection: Selection = { domain: 'all', scopes: null },
+  combined = false,
+): Promise<PhaseResult> {
+  const subtitle = `TypeScript, Astro, Rust, C++, and Kotlin/Java [scope: ${scopeLabel(selection)}]`;
   printSectionHeader('Typecheck', subtitle);
   const results: StepResult[] = [];
 
   // 1. Worker TypeScript (tsc)
-  if (shouldRunDomain(domain, 'web')) {
+  if (selects(selection, 'worker', 'metadata')) {
     process.stdout.write(
       `  ${sym.arrow} Checking Cloudflare Worker types (tsc)... `,
     );
@@ -778,7 +900,7 @@ async function runTypecheck(domain: AuditDomain = 'all'): Promise<PhaseResult> {
   }
 
   // 2. Astro Site (astro check)
-  if (shouldRunDomain(domain, 'web')) {
+  if (selects(selection, 'site', 'metadata')) {
     process.stdout.write(
       `  ${sym.arrow} Checking Astro Site types (astro check)... `,
     );
@@ -801,7 +923,9 @@ async function runTypecheck(domain: AuditDomain = 'all'): Promise<PhaseResult> {
   }
 
   // 3. Morphe Patches & Extensions (Gradle compileKotlin + compileReleaseJavaWithJavac)
-  if (shouldRunDomain(domain, 'android')) {
+  // In `all`, the test invocation compiles both modules and builds the bundle,
+  // so a separate compile process is pure duplication.
+  if (selects(selection, 'android') && !combined) {
     process.stdout.write(
       `  ${sym.arrow} Compiling Morphe Patches & Extension (Gradle)... `,
     );
@@ -828,8 +952,10 @@ async function runTypecheck(domain: AuditDomain = 'all'): Promise<PhaseResult> {
   }
 
   // 4. Rust host crates (cargo check)
-  if (shouldRunDomain(domain, 'rust')) {
+  // Clippy with --all-targets already typechecks; `all` skips this phase.
+  if (!combined) {
     for (const project of RUST_PROJECTS) {
+      if (!selects(selection, rustScope(project.id))) continue;
       process.stdout.write(
         `  ${sym.arrow} Checking Rust ${project.label} types (cargo check)... `,
       );
@@ -856,7 +982,8 @@ async function runTypecheck(domain: AuditDomain = 'all'): Promise<PhaseResult> {
   }
 
   // 5. C++ (CMake host target compilation)
-  if (shouldRunDomain(domain, 'native')) {
+  // `all` builds every host target in the lint phase; do not rebuild here.
+  if (selects(selection, 'native') && !combined) {
     process.stdout.write(
       `  ${sym.arrow} Compiling C++ Adobe Scan Native host targets (CMake)... `,
     );
@@ -921,13 +1048,16 @@ async function runTypecheck(domain: AuditDomain = 'all'): Promise<PhaseResult> {
 // ============================================================================
 // TEST COMMAND
 // ============================================================================
-async function runTest(domain: AuditDomain = 'all'): Promise<PhaseResult> {
-  const subtitle = `auditing all automated test suites${domain !== 'all' ? ` [domain: ${domain}]` : ''}`;
+async function runTest(
+  selection: Selection = { domain: 'all', scopes: null },
+  combined = false,
+): Promise<PhaseResult> {
+  const subtitle = `auditing all automated test suites [scope: ${scopeLabel(selection)}]`;
   printSectionHeader('Test', subtitle);
   const results: StepResult[] = [];
 
   // 1. Cloudflare Worker test suite (Vitest)
-  if (shouldRunDomain(domain, 'web')) {
+  if (selects(selection, 'worker')) {
     process.stdout.write(`  ${sym.arrow} Running Worker tests (Vitest)... `);
     const wRes = await execCommand('bun', ['run', '--cwd', 'worker', 'test']);
     const wPassed = wRes.code === 0;
@@ -952,7 +1082,7 @@ async function runTest(domain: AuditDomain = 'all'): Promise<PhaseResult> {
   }
 
   // 2. Astro Site test suite (Bun test)
-  if (shouldRunDomain(domain, 'web')) {
+  if (selects(selection, 'site')) {
     process.stdout.write(`  ${sym.arrow} Running Site tests (Bun test)... `);
     const sRes = await execCommand('bun', ['run', '--cwd', 'site', 'test']);
     const sPassed = sRes.code === 0;
@@ -977,39 +1107,38 @@ async function runTest(domain: AuditDomain = 'all'): Promise<PhaseResult> {
   }
 
   // 3. Rust host crates (cargo test)
-  if (shouldRunDomain(domain, 'rust')) {
-    for (const project of RUST_PROJECTS) {
-      process.stdout.write(
-        `  ${sym.arrow} Running Rust ${project.label} tests (cargo test)... `,
-      );
-      const result = await execCommand(
-        'cargo',
-        cargoArgs(project, ['test', '--locked']),
-      );
-      const passed = result.code === 0;
-      const counts = [
-        ...result.stdout.matchAll(/test result: ok\.\s+([0-9]+) passed/g),
-      ];
-      const count = counts.reduce((sum, match) => sum + Number(match[1]), 0);
-      console.log(passed ? sym.ok : sym.err);
-      if (!passed) printRawCommandOutput(result.stdout, result.stderr);
-      results.push({
-        title: `Rust ${project.label} (cargo test)`,
-        tool: 'cargo test',
-        domain: 'rust',
-        success: passed,
-        durationMs: result.durationMs,
-        summary: result.stderr.includes('ENOENT')
-          ? 'cargo not found in PATH; install Rust toolchain (rustup.rs)'
-          : passed
-            ? `${count} passed`
-            : 'Tests failed',
-      });
-    }
+  for (const project of RUST_PROJECTS) {
+    if (!selects(selection, rustScope(project.id))) continue;
+    process.stdout.write(
+      `  ${sym.arrow} Running Rust ${project.label} tests (cargo test)... `,
+    );
+    const result = await execCommand(
+      'cargo',
+      cargoArgs(project, ['test', '--locked']),
+    );
+    const passed = result.code === 0;
+    const counts = [
+      ...result.stdout.matchAll(/test result: ok\.\s+([0-9]+) passed/g),
+    ];
+    const count = counts.reduce((sum, match) => sum + Number(match[1]), 0);
+    console.log(passed ? sym.ok : sym.err);
+    if (!passed) printRawCommandOutput(result.stdout, result.stderr);
+    results.push({
+      title: `Rust ${project.label} (cargo test)`,
+      tool: 'cargo test',
+      domain: 'rust',
+      success: passed,
+      durationMs: result.durationMs,
+      summary: result.stderr.includes('ENOENT')
+        ? 'cargo not found in PATH; install Rust toolchain (rustup.rs)'
+        : passed
+          ? `${count} passed`
+          : 'Tests failed',
+    });
   }
 
   // 4. Adobe Scan Native PDF Engine test suite (ctest)
-  if (shouldRunDomain(domain, 'native')) {
+  if (selects(selection, 'native')) {
     process.stdout.write(
       `  ${sym.arrow} Running Adobe Scan Native PDF Engine tests (ctest)... `,
     );
@@ -1085,33 +1214,43 @@ async function runTest(domain: AuditDomain = 'all'): Promise<PhaseResult> {
     });
   }
 
-  // 5. Morphe Patch & Extension Unit Tests (Gradle)
-  if (shouldRunDomain(domain, 'android')) {
+  // 5. Morphe Patch & Extension Unit Tests + bundle build (Gradle)
+  if (selects(selection, 'android')) {
     process.stdout.write(
-      `  ${sym.arrow} Running patch and extension unit tests (Gradle)... `,
+      combined
+        ? `  ${sym.arrow} Building and testing patches (Gradle)... `
+        : `  ${sym.arrow} Running patch and extension unit tests (Gradle)... `,
     );
-    const extTestRes = await execCommand('./gradlew', [
+    const gradleTasks = [
+      ...(combined ? [':patches:buildAndroid'] : []),
       ':patches:test',
       ':extensions:extension:testReleaseUnitTest',
       '--console=plain',
-    ]);
+    ];
+    const extTestRes = await execCommand('./gradlew', gradleTasks);
     const extTestPassed = extTestRes.code === 0;
     console.log(extTestPassed ? sym.ok : sym.err);
     if (!extTestPassed) {
       printRawCommandOutput(extTestRes.stdout, extTestRes.stderr);
     }
     results.push({
-      title: 'Morphe Patch & Extension Unit Tests (Gradle)',
+      title: combined
+        ? 'Morphe Patch & Extension Build + Tests (Gradle)'
+        : 'Morphe Patch & Extension Unit Tests (Gradle)',
       tool: 'gradle test',
       domain: 'android',
       success: extTestPassed,
       durationMs: extTestRes.durationMs,
-      summary: extTestPassed ? 'All tests passed' : 'Tests failed',
+      summary: extTestPassed
+        ? combined
+          ? 'All tests passed; patch bundle built'
+          : 'All tests passed'
+        : 'Tests failed',
     });
   }
 
   // 6. Target Application Icons Check
-  if (shouldRunDomain(domain, 'web')) {
+  if (selects(selection, 'icons')) {
     process.stdout.write(
       `  ${sym.arrow} Verifying application icon assets... `,
     );
@@ -1137,7 +1276,7 @@ async function runTest(domain: AuditDomain = 'all'): Promise<PhaseResult> {
   }
 
   // 7. Scripts & Dependencies test suite (bun test)
-  if (shouldRunDomain(domain, 'web')) {
+  if (selects(selection, 'scripts')) {
     process.stdout.write(
       `  ${sym.arrow} Running Scripts & Dependencies tests (bun test)... `,
     );
@@ -1156,6 +1295,7 @@ async function runTest(domain: AuditDomain = 'all'): Promise<PhaseResult> {
       'scripts/hooks.test.ts',
       'scripts/install-hooks.test.ts',
       'scripts/reconcile-release-notes.test.ts',
+      'scripts/audit.test.ts',
     ]);
     const dtPassed = dtRes.code === 0;
     const dtSummaryMatch = dtRes.stdout.match(/([0-9]+ pass[^\n]*)/);
@@ -1179,7 +1319,7 @@ async function runTest(domain: AuditDomain = 'all'): Promise<PhaseResult> {
   }
 
   // 8. Documentation & Link Integrity (bun test)
-  if (shouldRunDomain(domain, 'web')) {
+  if (selects(selection, 'docs', 'metadata')) {
     process.stdout.write(
       `  ${sym.arrow} Running Documentation & Link Integrity tests (bun test)... `,
     );
@@ -1358,7 +1498,9 @@ ${c.bold}Commands:${c.reset}
   all           Run format:check, lint, typecheck, and test (default)
 
 ${c.bold}Options:${c.reset}
-  --domain, --stack <name>  Target a specific domain (${VALID_DOMAINS.join('|')}) [default: all]
+  --domain, --stack <name>  Target a domain (${VALID_DOMAINS.join('|')}) [default: all]
+  --scope, --scopes <list>  Comma-separated scopes, e.g. docs,worker,rust:apk-lab
+                            (${VALID_SCOPES.join(', ')})
   --check                   Check formatting only (for format command)
   --fix                     Auto-fix lint rules (for lint command)
   --deps                    Include dependency freshness phase in "all"
@@ -1383,9 +1525,22 @@ async function main() {
   const rawArgs = process.argv.slice(2);
   let cmd: string | undefined;
   let domain: AuditDomain = 'all';
+  let scopes: AuditScope[] | null = null;
   let checkOnly = false;
   let autoFix = false;
   let includeDeps = false;
+
+  const addScopes = (value: string): void => {
+    try {
+      const parsed = parseScopes(value);
+      scopes = [...new Set([...(scopes ?? []), ...parsed])];
+    } catch (err) {
+      console.error(
+        `${c.bold}${c.red}Error:${c.reset} ${(err as Error).message}`,
+      );
+      process.exit(1);
+    }
+  };
 
   for (let i = 0; i < rawArgs.length; i++) {
     const arg = rawArgs[i];
@@ -1397,6 +1552,17 @@ async function main() {
       autoFix = true;
     } else if (arg === '--deps') {
       includeDeps = true;
+    } else if (arg === '--scope' || arg === '--scopes') {
+      const next = rawArgs[++i];
+      if (!next) {
+        console.error(
+          `${c.bold}${c.red}Error:${c.reset} Missing value for ${arg}`,
+        );
+        printUsage(1);
+      }
+      addScopes(next);
+    } else if (arg.startsWith('--scope=') || arg.startsWith('--scopes=')) {
+      addScopes(arg.slice(arg.indexOf('=') + 1));
     } else if (arg === '--domain' || arg === '--stack') {
       const next = rawArgs[++i];
       if (!next) {
@@ -1443,35 +1609,36 @@ async function main() {
     process.exit(1);
   }
 
+  const selection: Selection = { domain, scopes };
   let success = true;
   switch (resolvedCmd) {
     case 'format': {
-      const phase = await runFormat(checkOnly, domain);
+      const phase = await runFormat(checkOnly, selection);
       success = phase.success;
       break;
     }
     case 'format:check': {
-      const phase = await runFormat(true, domain);
+      const phase = await runFormat(true, selection);
       success = phase.success;
       break;
     }
     case 'lint': {
-      const phase = await runLint(autoFix, domain);
+      const phase = await runLint(autoFix, selection);
       success = phase.success;
       break;
     }
     case 'lint:fix': {
-      const phase = await runLint(true, domain);
+      const phase = await runLint(true, selection);
       success = phase.success;
       break;
     }
     case 'typecheck': {
-      const phase = await runTypecheck(domain);
+      const phase = await runTypecheck(selection);
       success = phase.success;
       break;
     }
     case 'test': {
-      const phase = await runTest(domain);
+      const phase = await runTest(selection);
       success = phase.success;
       break;
     }
@@ -1481,10 +1648,12 @@ async function main() {
       break;
     }
     case 'all': {
-      const fPhase = await runFormat(true, domain);
-      const lPhase = await runLint(false, domain);
-      const tPhase = await runTypecheck(domain);
-      const testPhase = await runTest(domain);
+      // `all` is the CI path: compile once per toolchain, build the verified
+      // artifact, and skip phases the selected test/build already covers.
+      const fPhase = await runFormat(true, selection, true);
+      const lPhase = await runLint(false, selection, true);
+      const tPhase = await runTypecheck(selection, true);
+      const testPhase = await runTest(selection, true);
       const phases = [fPhase, lPhase, tPhase, testPhase];
       if (includeDeps) {
         const dPhase = await runDeps();
@@ -1498,7 +1667,9 @@ async function main() {
   process.exit(success ? 0 : 1);
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+if (import.meta.main) {
+  main().catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
+}

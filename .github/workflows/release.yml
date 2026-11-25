@@ -30,14 +30,70 @@ concurrency:
   group: release-publication-${{ github.ref_name }}
   cancel-in-progress: false
 jobs:
+  detect-changes:
+    name: Detect Release Delta
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      rust_apk_lab: ${{ steps.filter.outputs.rust_apk_lab }}
+      rust_asset_prep: ${{ steps.filter.outputs.rust_asset_prep }}
+      rust_play_metadata: ${{ steps.filter.outputs.rust_play_metadata }}
+      rust_nhl: ${{ steps.filter.outputs.rust_nhl }}
+      native: ${{ steps.filter.outputs.native }}
+      is_full_run: ${{ steps.run-type.outputs.is_full_run }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+
+      # The release branch only ever moves by promotion, so this delta is the
+      # set of changes since the previous release tip. Android is not in this
+      # list: the published artifact must always build.
+      - name: Filter Release Delta
+        uses: dorny/paths-filter@v4
+        id: filter
+        with:
+          filters: |
+            rust_apk_lab:
+              - 'tools/apk-lab/**'
+            rust_asset_prep:
+              - 'tools/asset-prep/**'
+            rust_play_metadata:
+              - 'tools/play-metadata/**'
+            rust_nhl:
+              - 'extensions/nhl-adblock-native/**'
+            native:
+              - 'extensions/adobescan-pdf-native/**'
+              - '.clang-format'
+
+      - name: Determine Run Type
+        id: run-type
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          # A manual dispatch is the full-suite escape hatch.
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            echo "is_full_run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "is_full_run=false" >> "$GITHUB_OUTPUT"
+          fi
+
   verify:
     name: Verify Pre-Release Gate
+    needs: detect-changes
     # workflow_dispatch can select any ref; publication is only ever allowed
     # from the protected release branches.
     if: >-
-      github.ref == 'refs/heads/release/main' ||
-      github.ref == 'refs/heads/release/dev'
+      needs.detect-changes.result == 'success' &&
+      (github.ref == 'refs/heads/release/main' ||
+      github.ref == 'refs/heads/release/dev')
     runs-on: ubuntu-latest
+    timeout-minutes: 35
     permissions:
       contents: read
     env:
@@ -60,6 +116,9 @@ jobs:
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v6
 
       - name: Cache font assets
         uses: actions/cache@v6
@@ -89,7 +148,8 @@ jobs:
           echo "ANDROID_NDK_ROOT=${{ steps.setup-ndk.outputs.ndk-path }}" >> "$GITHUB_ENV"
           echo "ANDROID_NDK=${{ steps.setup-ndk.outputs.ndk-path }}" >> "$GITHUB_ENV"
 
-      - name: Install system test tools
+      - name: Install native test tools
+        if: needs.detect-changes.outputs.native == 'true' || needs.detect-changes.outputs.is_full_run == 'true'
         timeout-minutes: 5
         run: |
           sudo apt-get update -y -o Acquire::Retries=3 -o Acquire::http::Timeout=15 -o Acquire::https::Timeout=15
@@ -113,19 +173,53 @@ jobs:
           cd "$release_deps"
           npm ci --ignore-scripts --no-audit --no-fund
 
-      - name: Audit android domain
-        run: bun scripts/audit.ts all --domain android
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            tools/play-metadata -> tools/play-metadata/target
+            extensions/nhl-adblock-native -> extensions/nhl-adblock-native/target
+            tools/asset-prep -> tools/asset-prep/target
+            tools/apk-lab -> tools/apk-lab/target
 
-      - name: Audit rust domain
-        run: bun scripts/audit.ts all --domain rust
-
-      - name: Audit native domain
+      - name: Select release verification scopes
+        id: scopes
         env:
-          AIDAN_REQUIRE_EXTERNAL_TOOLS: '1'
-        run: bun scripts/audit.ts all --domain native
+          FULL_RUN: ${{ needs.detect-changes.outputs.is_full_run }}
+          APK_LAB: ${{ needs.detect-changes.outputs.rust_apk_lab }}
+          ASSET_PREP: ${{ needs.detect-changes.outputs.rust_asset_prep }}
+          PLAY_METADATA: ${{ needs.detect-changes.outputs.rust_play_metadata }}
+          NHL: ${{ needs.detect-changes.outputs.rust_nhl }}
+          NATIVE: ${{ needs.detect-changes.outputs.native }}
+        run: |
+          set -euo pipefail
+          rust=()
+          native="$NATIVE"
+          if [ "$FULL_RUN" = "true" ]; then
+            rust=(rust:apk-lab rust:asset-prep rust:play-metadata rust:nhl-adblock-native)
+            native=true
+          else
+            if [ "$APK_LAB" = "true" ]; then rust+=("rust:apk-lab"); fi
+            if [ "$ASSET_PREP" = "true" ]; then rust+=("rust:asset-prep"); fi
+            if [ "$PLAY_METADATA" = "true" ]; then rust+=("rust:play-metadata"); fi
+            if [ "$NHL" = "true" ]; then rust+=("rust:nhl-adblock-native"); fi
+          fi
+          printf 'rust=%s\n' "$(IFS=,; echo "${rust[*]}")" >> "$GITHUB_OUTPUT"
+          printf 'native=%s\n' "$native" >> "$GITHUB_OUTPUT"
 
-      - name: Build and verify patches
-        run: ./gradlew :patches:buildAndroid --no-daemon
+      # Android is always selected: the gate must prove the release artifact
+      # builds. Rust and native checks run only for the promotion delta.
+      - name: Audit release delta
+        env:
+          RUST_SCOPES: ${{ steps.scopes.outputs.rust }}
+          NATIVE_SELECTED: ${{ steps.scopes.outputs.native }}
+          AIDAN_REQUIRE_EXTERNAL_TOOLS: '1'
+        run: |
+          set -euo pipefail
+          args=(--scope android)
+          if [ -n "$RUST_SCOPES" ]; then args+=(--scope "$RUST_SCOPES"); fi
+          if [ "$NATIVE_SELECTED" = "true" ]; then args+=(--scope native); fi
+          bun scripts/audit.ts all "${args[@]}"
 
   release:
     name: Release

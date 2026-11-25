@@ -4,7 +4,7 @@ Scope: CI workflows, release/deploy automation, issue templates, and Bun/native 
 
 ## Workflow Map
 
-- `workflows/apk-lab-tests.yml`: installs locked root/Worker/site dependencies, runs format/lint/typecheck/tests, then the clean Gradle patch build gate.
+- `workflows/apk-lab-tests.yml`: selects audit scopes from changed paths, runs the checks each group needs (Web, Docs & Config, Android, Rust, Native), and builds the patch bundle as part of the Android audit.
 - `workflows/apk-compatibility.yml`: builds `.mpp`/metadata, computes affected packages, reconciles private fixtures, runs real compatibility checks, and reports terminal status.
 - `workflows/release.yml`: Java/Node release pipeline and semantic-release driven only by pushes to the protected `release/main` (stable) and `release/dev` (prerelease) branches, gated by paths to patch build inputs; site and Worker deploy handoffs trigger only for a published stable release from `release/main`.
 - `workflows/deploy-worker.yml`: Worker typecheck/test and conditional Wrangler deployment; invoked by the `release/main` handoff with the post-release branch tip, or manually from `release/main`, and never from `main`/`dev` pushes.
@@ -17,7 +17,9 @@ Scope: CI workflows, release/deploy automation, issue templates, and Bun/native 
 
 Use pinned actions and least-privilege `permissions`. Preserve path filters and release handoffs when moving generated inputs; they determine whether metadata reaches Worker/site.
 
-In `workflows/apk-lab-tests.yml`, the `core` filter covers dependency policy, `scripts/**`, `.github/**` (every workflow, template, and Dependabot config), `.agents/**` (skills), `skills-lock.json`, `.editorconfig`, and `.gitattributes`; any core hit forces a full run of every domain job. The `docs` filter covers `docs/**`, root `*.md`, and `.markdownlint-cli2.jsonc` and routes docs-only changes to `Web Verification` (markdown lint and documentation tests). `Test & Build Gate` fails when no domain job executed.
+In `workflows/apk-lab-tests.yml`, filters map changed paths to narrow scopes, not domains: `docs`, `worker`, `site`, `scripts`, `ci`, `icons`, `metadata`, `android`, one scope per Rust crate, and `native`. `scripts/audit.ts all --scope ...` runs only the selected checks. There is deliberately no `core` full-run group: workflow/config changes run Prettier and docs checks, root lock/package changes run scripts checks, and a manual `workflow_dispatch` is the full-suite escape hatch. Reverse dependencies are explicit: `patches-list.json` selects `metadata` (worker and Astro typechecks plus docs structure tests) and `icons`, without running the Worker or site test suites. `Test & Build Gate` fails when no domain job executed, so an unmatched path cannot merge unverified.
+
+The Android audit now runs `:patches:buildAndroid` in the same Gradle invocation as the unit tests; there is no separate post-audit build step. The release pre-gate re-verifies only the promotion delta plus the always-required Android artifact build. Keep both invariants when editing the workflows.
 
 ## Generator Scripts
 
@@ -39,7 +41,7 @@ Generator and automation code is Bun/TypeScript or native Rust. Validate paths a
 
 ## Required Status Checks
 
-Repository ruleset `Require verification gate` (branch target, active) requires the aggregate `Test & Build Gate` GitHub Actions check on `main` and `dev`; the `Lock main`/`Lock dev` rulesets keep blocking deletions and non-fast-forward pushes. `strict_required_status_checks_policy` is off, so branches need not be up to date before merge. This setting lives in repository settings, not in workflow files: the workflow must keep the exact job name `Test & Build Gate`, or the requirement silently stops matching. The gate fails when a run has no executed domain job (docs-only changes must still run `Web Verification`), so it cannot pass on an unverified change.
+Repository ruleset `Require verification gate` (branch target, active) requires the aggregate `Test & Build Gate` GitHub Actions check on `main` and `dev`; the `Lock main`/`Lock dev` rulesets keep blocking deletions and non-fast-forward pushes. `strict_required_status_checks_policy` is off, so branches need not be up to date before merge. This setting lives in repository settings, not in workflow files: the workflow must keep the exact job name `Test & Build Gate`, or the requirement silently stops matching. The gate fails when a run has no executed domain job; docs, config, metadata, and icon changes must still run `Docs & Config Verification`, so the gate cannot pass on an unverified change.
 
 The release branches are separate long-lived branches with their own protection: rulesets on `refs/heads/release/main` and `refs/heads/release/dev` must block deletion and non-fast-forward updates and permit updates only from the release identity. The release job pushes with a GitHub App installation token (`RELEASE_APP_ID`/`RELEASE_APP_PRIVATE_KEY`), and that app must be a bypass actor on both release-branch rulesets and on `Require verification gate` so the release-driven backmerge push to `dev` is accepted. GitHub also supports a deploy-key bypass, but that bypass applies to deploy keys collectively; using it instead requires changing the workflows. Keep the `main`/`dev` merge rules unchanged for human work; do not solve protection by lowering them.
 
