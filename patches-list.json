@@ -2239,7 +2239,7 @@
     },
     {
       "name": "Remove Ads and Tracking",
-      "description": "Removes all ads (AppLovin MAX, Google Mobile Ads, Rokt, Thanks network, Playtime, InBrain Surveys) and disables analytics and tracking SDKs (AppsFlyer, FullStory, Braze, Firebase Analytics, mParticle, Facebook SDK, AppCenter).",
+      "description": "Removes ads (AppLovin MAX, Google Mobile Ads, Thanks network, Playtime, InBrain Surveys) and disables analytics and tracking SDKs (AppsFlyer, FullStory, Braze, Firebase Analytics, mParticle, Facebook SDK, AppCenter).",
       "default": true,
       "category": "Ads",
       "dependencies": [],
