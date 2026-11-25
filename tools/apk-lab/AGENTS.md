@@ -40,7 +40,6 @@ cargo test --locked --manifest-path tools/apk-lab/Cargo.toml
 - Use a stable Rust toolchain and the locked manifests; never add an unlisted runtime dependency without a lockfile update.
 - External JADX/Apktool/smali/Morphe/apkeep binaries must come from `apk-lab setup` and `tools.lock.json`; preserve URL/version/SHA-256 pinning.
 - Android SDK tools resolve through `ANDROID_HOME`, `ANDROID_SDK_ROOT`, or root `local.properties`; Build Tools 36.0.0 is the compatibility baseline.
-- No Python runtime, package manager, or script participates in build, test, or command execution.
 
 ## Code Patterns
 

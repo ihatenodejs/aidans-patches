@@ -182,7 +182,7 @@ Every commit must be scoped. Never author unscoped commits (e.g. `fix: ...`, `ch
 | `test`     | None                          | Hidden                 | Adding or updating tests, fixtures, or test mocks.                                                   |
 | `ci`       | None                          | Hidden                 | CI workflows, GitHub Actions, runner setup, or pipeline scripts.                                     |
 
-Release impacts in `.releaserc` apply strictly to application scopes. Non-application scopes (`site`, `worker`, `apk-lab`, `ci`, etc.) are configured with `release: false` in `.releaserc` and never trigger patch package releases.
+Release impacts in `.releaserc` apply strictly to application scopes. Non-application scopes (`site`, `worker`, `apk-lab`, `ci`, etc.) are configured with `release: false` in `.releaserc` and never trigger patch package releases; the same scopes also carry per-type `hidden: true` notes entries so they never appear in release notes.
 
 #### Scope Taxonomy
 

@@ -55,6 +55,8 @@ All release-branch writes must come from `release.yml` or `promote-release.yml` 
 4. Semantic release updates/commits `CHANGELOG.md`, `gradle.properties`, `patches-bundle.json`, `patches-list.json`, and `README.md`.
 5. The `.mpp` release asset is published/attested; stable releases from `release/main` hand off site and Worker deployments.
 
+`release: false` suppresses the version bump only; it does not hide the commit from release notes. The conventionalcommits preset keeps any commit whose `(type, scope)` pair has no `presetConfig.types` entry, so every non-application scope needs an explicit `{ "type": …, "scope": …, "hidden": true }` entry for each releasing type (`fix`, `feat`, `bump`, `perf`), declared before the sectioned entry for that type — the preset keeps the first match. `scripts/release-notes.test.ts` enforces that coverage, the ordering, and that `release.dryrun.config.mjs` stays identical to `.releaserc`. Adding a non-application scope means adding it to `releaseRules` and to both `types` lists.
+
 ### Protected release branches
 
 Only `release/main` (stable) and `release/dev` (prerelease channel `dev`, tags
