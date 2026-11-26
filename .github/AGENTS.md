@@ -174,7 +174,7 @@ would install a dependency graph npm did not verify. `bun.lock` remains the
 canonical CI graph for Bun commands; update both locks together when a release
 dependency changes.
 
-The release job also points `core.hooksPath` at an empty directory before `semantic-release` runs. Its checkout installs root dependencies only, so the repository pre-push audit cannot execute there; the source commit is already covered by the verification gate, and the generated release commit is not a place to half-run the hook. Do not "fix" this by installing every workspace in the release job.
+The release job also points `core.hooksPath` at an empty directory before `semantic-release` runs. Its checkout installs root dependencies only, so the repository hooks cannot run there; the source commit is already covered by the verification gate, and the generated release commit is not a place to half-run the hook. Do not "fix" this by installing every workspace in the release job.
 
 ### Release state invariant
 
