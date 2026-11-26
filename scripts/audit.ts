@@ -1214,39 +1214,55 @@ async function runTest(
     });
   }
 
-  // 5. Morphe Patch & Extension Unit Tests + bundle build (Gradle)
+  // 5. Morphe Patch & Extension Unit Tests (Gradle)
   if (selects(selection, 'android')) {
     process.stdout.write(
-      combined
-        ? `  ${sym.arrow} Building and testing patches (Gradle)... `
-        : `  ${sym.arrow} Running patch and extension unit tests (Gradle)... `,
+      `  ${sym.arrow} Running patch and extension unit tests (Gradle)... `,
     );
-    const gradleTasks = [
-      ...(combined ? [':patches:buildAndroid'] : []),
+    const extTestRes = await execCommand('./gradlew', [
       ':patches:test',
       ':extensions:extension:testReleaseUnitTest',
       '--console=plain',
-    ];
-    const extTestRes = await execCommand('./gradlew', gradleTasks);
+    ]);
     const extTestPassed = extTestRes.code === 0;
     console.log(extTestPassed ? sym.ok : sym.err);
     if (!extTestPassed) {
       printRawCommandOutput(extTestRes.stdout, extTestRes.stderr);
     }
     results.push({
-      title: combined
-        ? 'Morphe Patch & Extension Build + Tests (Gradle)'
-        : 'Morphe Patch & Extension Unit Tests (Gradle)',
+      title: 'Morphe Patch & Extension Unit Tests (Gradle)',
       tool: 'gradle test',
       domain: 'android',
       success: extTestPassed,
       durationMs: extTestRes.durationMs,
-      summary: extTestPassed
-        ? combined
-          ? 'All tests passed; patch bundle built'
-          : 'All tests passed'
-        : 'Tests failed',
+      summary: extTestPassed ? 'All tests passed' : 'Tests failed',
     });
+
+    // The artifact build stays a separate invocation: combining it with the
+    // test task hung a CI runner for 35 minutes. Re-check the tree only when
+    // the tests passed.
+    if (combined && extTestPassed) {
+      process.stdout.write(`  ${sym.arrow} Building patch bundle (Gradle)... `);
+      const buildRes = await execCommand('./gradlew', [
+        ':patches:buildAndroid',
+        '--console=plain',
+      ]);
+      const buildPassed = buildRes.code === 0;
+      console.log(buildPassed ? sym.ok : sym.err);
+      if (!buildPassed) {
+        printRawCommandOutput(buildRes.stdout, buildRes.stderr);
+      }
+      results.push({
+        title: 'Patch Bundle Build (Gradle)',
+        tool: 'gradle',
+        domain: 'android',
+        success: buildPassed,
+        durationMs: buildRes.durationMs,
+        summary: buildPassed
+          ? 'Patch bundle built'
+          : 'Patch bundle build failed',
+      });
+    }
   }
 
   // 6. Target Application Icons Check

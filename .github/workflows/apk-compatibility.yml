@@ -48,9 +48,6 @@ jobs:
       - name: Build native apk-lab
         run: cargo build --release --locked --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab
 
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v6
-
       - name: Setup Android NDK
         id: setup-ndk
         uses: nttld/setup-ndk@v1

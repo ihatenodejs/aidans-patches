@@ -117,9 +117,6 @@ jobs:
         with:
           bun-version: latest
 
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v6
-
       - name: Cache font assets
         uses: actions/cache@v6
         with:

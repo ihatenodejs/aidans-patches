@@ -248,7 +248,7 @@ jobs:
     needs: detect-changes
     if: needs.detect-changes.outputs.is_full_run == 'true' || needs.detect-changes.outputs.android == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 25
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       GITHUB_ACTOR: ${{ github.actor }}
@@ -266,9 +266,6 @@ jobs:
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v6
 
       - name: Cache font assets
         uses: actions/cache@v6
