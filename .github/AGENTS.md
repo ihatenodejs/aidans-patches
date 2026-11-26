@@ -19,7 +19,7 @@ Use pinned actions and least-privilege `permissions`. Preserve path filters and 
 
 In `workflows/apk-lab-tests.yml`, filters map changed paths to narrow scopes, not domains: `docs`, `worker`, `site`, `scripts`, `ci`, `icons`, `metadata`, `android`, one scope per Rust crate, and `native`. `scripts/audit.ts all --scope ...` runs only the selected checks. There is deliberately no `core` full-run group: workflow/config changes run Prettier and docs checks, root lock/package changes run scripts checks, and a manual `workflow_dispatch` is the full-suite escape hatch. Reverse dependencies are explicit: `patches-list.json` selects `metadata` (worker and Astro typechecks plus docs structure tests) and `icons`, without running the Worker or site test suites. `Test & Build Gate` fails when no domain job executed, so an unmatched path cannot merge unverified.
 
-The Android audit runs the unit tests and the artifact build as separate Gradle invocations; combining them hung CI for 35 minutes, so do not merge those tasks. The release pre-gate re-verifies only the promotion delta plus the always-required Android artifact build. Keep both invariants when editing the workflows.
+The Android audit runs the unit tests and the artifact build as separate Gradle invocations; combining them hung CI for 35 minutes, so do not merge those tasks. Keep that invariant when editing the workflows.
 
 ## Generator Scripts
 
