@@ -21,6 +21,8 @@ In `workflows/apk-lab-tests.yml`, filters map changed paths to narrow scopes, no
 
 The Android audit runs the unit tests and the artifact build as separate Gradle invocations; combining them hung CI for 35 minutes, so do not merge those tasks. Keep that invariant when editing the workflows.
 
+The release pre-gate re-verifies only the promotion delta plus the always-required Android artifact build. Compatibility matrix jobs download the `apk-lab` binary built by the setup job instead of rebuilding it; keep the artifact path and the explicit executable permission when editing that workflow.
+
 ## Generator Scripts
 
 - `../scripts/generate-patches-readme.ts`: generates the README patch block and template repository/add-source URLs using Bun and installed Prettier. Rejects malformed boundaries and formats before publishing; release callers use this entrypoint.

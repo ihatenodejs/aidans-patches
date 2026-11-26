@@ -74,6 +74,7 @@ jobs:
           path: |
             patches/build/libs/patches-*.mpp
             patches-list.json
+            tools/apk-lab/target/release/apk-lab
           retention-days: 1
           if-no-files-found: error
 
@@ -129,16 +130,10 @@ jobs:
             "${ANDROID_HOME:-/usr/local/lib/android/sdk}/cmdline-tools/latest/bin/sdkmanager" "build-tools;36.0.0"
           }
 
-      - name: Setup Rust toolchain
-        uses: dtolnay/rust-toolchain@1.97.1
-
-      - name: Rust cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: tools/apk-lab -> tools/apk-lab/target
-
-      - name: Build native apk-lab
-        run: cargo build --release --locked --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab
+      # The release binary is built once in matrix-setup and shipped with the
+      # bundle artifact; rebuilding it in every matrix job cost ~154s each.
+      - name: Trust downloaded apk-lab
+        run: chmod +x tools/apk-lab/target/release/apk-lab
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
