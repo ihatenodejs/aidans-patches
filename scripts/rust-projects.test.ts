@@ -101,7 +101,9 @@ describe('Rust project registry', () => {
       for (const project of RUST_PROJECTS) {
         expect(output).toContain(`Rust ${project.label}`);
       }
-      expect(output).toContain('16 of 16 checks failed');
+      // `all` skips the redundant `cargo check` phase: fmt, clippy, and test
+      // run for each of the four crates.
+      expect(output).toContain('12 of 12 checks failed');
     } finally {
       fs.rmSync(binDir, { recursive: true, force: true });
     }

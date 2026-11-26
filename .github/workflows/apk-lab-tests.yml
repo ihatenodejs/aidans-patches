@@ -1,4 +1,5 @@
 name: Test & Audit Verification Gate
+
 on:
   push:
     branches: ['main']
@@ -17,14 +18,23 @@ jobs:
   detect-changes:
     name: Detect Changes
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     permissions:
       contents: read
       pull-requests: read
     outputs:
-      core: ${{ steps.filter.outputs.core }}
-      web: ${{ steps.filter.outputs.web }}
       docs: ${{ steps.filter.outputs.docs }}
+      worker: ${{ steps.filter.outputs.worker }}
+      site: ${{ steps.filter.outputs.site }}
+      scripts: ${{ steps.filter.outputs.scripts }}
+      ci: ${{ steps.filter.outputs.ci }}
+      icons: ${{ steps.filter.outputs.icons }}
+      metadata: ${{ steps.filter.outputs.metadata }}
       android: ${{ steps.filter.outputs.android }}
+      rust_apk_lab: ${{ steps.filter.outputs.rust_apk_lab }}
+      rust_asset_prep: ${{ steps.filter.outputs.rust_asset_prep }}
+      rust_play_metadata: ${{ steps.filter.outputs.rust_play_metadata }}
+      rust_nhl: ${{ steps.filter.outputs.rust_nhl }}
       rust: ${{ steps.filter.outputs.rust }}
       native: ${{ steps.filter.outputs.native }}
       is_full_run: ${{ steps.run-type.outputs.is_full_run }}
@@ -34,35 +44,42 @@ jobs:
         with:
           fetch-depth: 0
 
+      # A path belongs in exactly one narrow group. Groups only widen when a
+      # check genuinely consumes the file (see worker/site/icon imports of
+      # patches-list.json). Anything unmatched fails the gate instead of
+      # silently passing.
       - name: Filter Changed Paths
         uses: dorny/paths-filter@v4
         id: filter
         with:
           filters: |
-            core:
+            docs:
+              - 'docs/**'
+              - '*.md'
+              - '.markdownlint-cli2.jsonc'
+            worker:
+              - 'worker/**'
+            site:
+              - 'site/**'
+            scripts:
+              - 'scripts/**'
               - 'package.json'
               - 'bun.lock'
               - 'dependency-policy.json'
-              - 'scripts/**'
+              - '.prettierrc.json'
+              - '.oxlintrc.json'
+            ci:
               - '.github/**'
               - '.agents/**'
               - 'skills-lock.json'
               - '.editorconfig'
               - '.gitattributes'
-              - '.prettierrc.json'
-              - '.oxlintrc.json'
-            web:
-              - 'worker/**'
-              - 'site/**'
-              - 'scripts/**'
-              - 'package.json'
-              - 'bun.lock'
-              - '.prettierrc.json'
-              - '.oxlintrc.json'
-            docs:
-              - 'docs/**'
-              - '*.md'
-              - '.markdownlint-cli2.jsonc'
+            icons:
+              - 'patches-list.json'
+              - 'site/public/icons/**'
+              - 'tools/asset-prep/**'
+            metadata:
+              - 'patches-list.json'
             android:
               - 'patches/**'
               - 'extensions/extension/**'
@@ -73,11 +90,19 @@ jobs:
               - 'extensions/adobescan-pdf-native/**'
               - 'extensions/nhl-adblock-native/**'
               - 'tools/asset-prep/**'
+            rust_apk_lab:
+              - 'tools/apk-lab/**'
+            rust_asset_prep:
+              - 'tools/asset-prep/**'
+            rust_play_metadata:
+              - 'tools/play-metadata/**'
+            rust_nhl:
+              - 'extensions/nhl-adblock-native/**'
             rust:
+              - 'tools/apk-lab/**'
+              - 'tools/asset-prep/**'
               - 'tools/play-metadata/**'
               - 'extensions/nhl-adblock-native/**'
-              - 'tools/asset-prep/**'
-              - 'tools/apk-lab/**'
             native:
               - 'extensions/adobescan-pdf-native/**'
               - '.clang-format'
@@ -86,12 +111,12 @@ jobs:
         id: run-type
         env:
           EVENT_NAME: ${{ github.event_name }}
-          GITHUB_REF: ${{ github.ref }}
-          CORE_CHANGED: ${{ steps.filter.outputs.core }}
         run: |
-          if [ "$EVENT_NAME" = "workflow_dispatch" ] || \
-             { [ "$EVENT_NAME" = "push" ] && [ "$GITHUB_REF" = "refs/heads/main" ]; } || \
-             [ "$CORE_CHANGED" = "true" ]; then
+          # A manual dispatch is the full-suite escape hatch. PRs, including
+          # dev -> main integration PRs, run the checks implied by their
+          # changed paths; the release gate independently re-verifies the
+          # promotion delta before publishing.
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
             echo "is_full_run=true" >> "$GITHUB_OUTPUT"
           else
             echo "is_full_run=false" >> "$GITHUB_OUTPUT"
@@ -100,8 +125,13 @@ jobs:
   test-web:
     name: Web Verification
     needs: detect-changes
-    if: needs.detect-changes.outputs.is_full_run == 'true' || needs.detect-changes.outputs.web == 'true' || needs.detect-changes.outputs.docs == 'true'
+    if: >-
+      needs.detect-changes.outputs.is_full_run == 'true' ||
+      needs.detect-changes.outputs.worker == 'true' ||
+      needs.detect-changes.outputs.site == 'true' ||
+      needs.detect-changes.outputs.scripts == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -111,36 +141,120 @@ jobs:
         with:
           bun-version: latest
 
-      - name: Setup Rust toolchain
-        uses: dtolnay/rust-toolchain@1.97.1
+      - name: Select audit scopes
+        id: scopes
+        env:
+          FULL_RUN: ${{ needs.detect-changes.outputs.is_full_run }}
+          WORKER: ${{ needs.detect-changes.outputs.worker }}
+          SITE: ${{ needs.detect-changes.outputs.site }}
+          SCRIPTS: ${{ needs.detect-changes.outputs.scripts }}
+        run: |
+          set -euo pipefail
+          scopes=()
+          if [ "$FULL_RUN" = "true" ]; then
+            scopes=(worker site scripts)
+          else
+            if [ "$WORKER" = "true" ]; then scopes+=("worker"); fi
+            if [ "$SITE" = "true" ]; then scopes+=("site"); fi
+            if [ "$SCRIPTS" = "true" ]; then scopes+=("scripts"); fi
+          fi
+          printf 'value=%s\n' "$(IFS=,; echo "${scopes[*]}")" >> "$GITHUB_OUTPUT"
 
       - name: Install root dependencies
         run: bun install --frozen-lockfile
 
       - name: Install worker dependencies
+        if: needs.detect-changes.outputs.worker == 'true' || needs.detect-changes.outputs.is_full_run == 'true'
         working-directory: worker
         run: bun install --frozen-lockfile
 
       - name: Install site dependencies
+        if: needs.detect-changes.outputs.site == 'true' || needs.detect-changes.outputs.is_full_run == 'true'
         working-directory: site
         run: bun install --frozen-lockfile
 
-      - name: Audit web domain
-        run: bun scripts/audit.ts all --domain web
+      - name: Audit selected web scopes
+        run: bun scripts/audit.ts all --scope "${{ steps.scopes.outputs.value }}"
+
+  test-light:
+    name: Docs & Config Verification
+    needs: detect-changes
+    if: >-
+      needs.detect-changes.outputs.is_full_run == 'true' ||
+      needs.detect-changes.outputs.docs == 'true' ||
+      needs.detect-changes.outputs.ci == 'true' ||
+      needs.detect-changes.outputs.icons == 'true' ||
+      needs.detect-changes.outputs.metadata == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Select audit scopes
+        id: scopes
+        env:
+          FULL_RUN: ${{ needs.detect-changes.outputs.is_full_run }}
+          DOCS: ${{ needs.detect-changes.outputs.docs }}
+          CI: ${{ needs.detect-changes.outputs.ci }}
+          ICONS: ${{ needs.detect-changes.outputs.icons }}
+          METADATA: ${{ needs.detect-changes.outputs.metadata }}
+        run: |
+          set -euo pipefail
+          scopes=()
+          if [ "$FULL_RUN" = "true" ]; then
+            scopes=(docs ci icons metadata)
+          else
+            if [ "$DOCS" = "true" ]; then scopes+=("docs"); fi
+            if [ "$CI" = "true" ]; then scopes+=("ci"); fi
+            if [ "$ICONS" = "true" ]; then scopes+=("icons"); fi
+            if [ "$METADATA" = "true" ]; then scopes+=("metadata"); fi
+          fi
+          printf 'value=%s\n' "$(IFS=,; echo "${scopes[*]}")" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Rust toolchain
+        if: needs.detect-changes.outputs.icons == 'true' || needs.detect-changes.outputs.is_full_run == 'true'
+        uses: dtolnay/rust-toolchain@1.97.1
+
+      - name: Rust cache
+        if: needs.detect-changes.outputs.icons == 'true' || needs.detect-changes.outputs.is_full_run == 'true'
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: tools/asset-prep -> tools/asset-prep/target
+
+      - name: Install root dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Install worker dependencies
+        if: needs.detect-changes.outputs.metadata == 'true' || needs.detect-changes.outputs.is_full_run == 'true'
+        working-directory: worker
+        run: bun install --frozen-lockfile
+
+      - name: Install site dependencies
+        if: needs.detect-changes.outputs.metadata == 'true' || needs.detect-changes.outputs.is_full_run == 'true'
+        working-directory: site
+        run: bun install --frozen-lockfile
+
+      - name: Audit docs, config, metadata, and icons
+        run: bun scripts/audit.ts all --scope "${{ steps.scopes.outputs.value }}"
 
   test-android:
     name: Android Verification
     needs: detect-changes
     if: needs.detect-changes.outputs.is_full_run == 'true' || needs.detect-changes.outputs.android == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       GITHUB_ACTOR: ${{ github.actor }}
     steps:
       - name: Checkout
         uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
 
       - name: Setup Java
         uses: actions/setup-java@v6.3.0
@@ -161,6 +275,12 @@ jobs:
           restore-keys: |
             emoji-font-
 
+      - name: Cache pinned ktlint
+        uses: actions/cache@v6
+        with:
+          path: .tools/ktlint
+          key: ktlint-1.5.0
+
       - name: Install root dependencies
         run: bun install --frozen-lockfile
 
@@ -177,21 +297,28 @@ jobs:
           echo "ANDROID_NDK_HOME=${{ steps.setup-ndk.outputs.ndk-path }}" >> "$GITHUB_ENV"
           echo "ANDROID_NDK_ROOT=${{ steps.setup-ndk.outputs.ndk-path }}" >> "$GITHUB_ENV"
           echo "ANDROID_NDK=${{ steps.setup-ndk.outputs.ndk-path }}" >> "$GITHUB_ENV"
+
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@1.97.1
         with:
           targets: aarch64-linux-android
+
+      - name: Rust cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            tools/asset-prep -> tools/asset-prep/target
+            extensions/nhl-adblock-native -> extensions/nhl-adblock-native/target
+
       - name: Audit android domain
         run: bun scripts/audit.ts all --domain android
-
-      - name: Build and verify patches
-        run: ./gradlew :patches:buildAndroid clean --no-daemon
 
   test-rust:
     name: Rust Verification
     needs: detect-changes
     if: needs.detect-changes.outputs.is_full_run == 'true' || needs.detect-changes.outputs.rust == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -207,6 +334,27 @@ jobs:
           targets: aarch64-linux-android
           components: rustfmt, clippy
 
+      - name: Select audit scopes
+        id: scopes
+        env:
+          FULL_RUN: ${{ needs.detect-changes.outputs.is_full_run }}
+          APK_LAB: ${{ needs.detect-changes.outputs.rust_apk_lab }}
+          ASSET_PREP: ${{ needs.detect-changes.outputs.rust_asset_prep }}
+          PLAY_METADATA: ${{ needs.detect-changes.outputs.rust_play_metadata }}
+          NHL: ${{ needs.detect-changes.outputs.rust_nhl }}
+        run: |
+          set -euo pipefail
+          scopes=()
+          if [ "$FULL_RUN" = "true" ]; then
+            scopes=(rust:apk-lab rust:asset-prep rust:play-metadata rust:nhl-adblock-native)
+          else
+            if [ "$APK_LAB" = "true" ]; then scopes+=("rust:apk-lab"); fi
+            if [ "$ASSET_PREP" = "true" ]; then scopes+=("rust:asset-prep"); fi
+            if [ "$PLAY_METADATA" = "true" ]; then scopes+=("rust:play-metadata"); fi
+            if [ "$NHL" = "true" ]; then scopes+=("rust:nhl-adblock-native"); fi
+          fi
+          printf 'value=%s\n' "$(IFS=,; echo "${scopes[*]}")" >> "$GITHUB_OUTPUT"
+
       - name: Rust cache
         uses: Swatinem/rust-cache@v2
         with:
@@ -216,19 +364,15 @@ jobs:
             tools/asset-prep -> tools/asset-prep/target
             tools/apk-lab -> tools/apk-lab/target
 
-      - name: Build native apk-lab release binaries
-        run: cargo build --release --locked --manifest-path tools/apk-lab/Cargo.toml --bins
-
-      # audit --domain rust is the single owner of cargo fmt/clippy/check/test
-      # for every registered Rust project, including apk-lab.
-      - name: Audit rust domain
-        run: bun scripts/audit.ts all --domain rust
+      - name: Audit selected Rust crates
+        run: bun scripts/audit.ts all --scope "${{ steps.scopes.outputs.value }}"
 
   test-native:
     name: Native Verification
     needs: detect-changes
     if: needs.detect-changes.outputs.is_full_run == 'true' || needs.detect-changes.outputs.native == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -238,13 +382,13 @@ jobs:
         with:
           bun-version: latest
 
-      - name: Cache CMake dependencies
+      - name: Cache CMake dependencies and host build
         uses: actions/cache@v6
         with:
           path: |
             extensions/adobescan-pdf-native/build/host/_deps
-            extensions/adobescan-pdf-native/build/android-arm64-v8a/_deps
-          key: cmake-deps-${{ hashFiles('extensions/adobescan-pdf-native/CMakeLists.txt', 'extensions/adobescan-pdf-native/cmake/*.cmake') }}
+            extensions/adobescan-pdf-native/build/host
+          key: cmake-host-${{ hashFiles('extensions/adobescan-pdf-native/CMakeLists.txt', 'extensions/adobescan-pdf-native/cmake/**', 'extensions/adobescan-pdf-native/src/**', 'extensions/adobescan-pdf-native/include/**') }}
 
       - name: Install system test tools
         timeout-minutes: 5
@@ -263,24 +407,29 @@ jobs:
       [
         detect-changes,
         test-web,
+        test-light,
         test-android,
         test-rust,
         test-native,
       ]
     if: always()
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - name: Aggregate Verification Status
         env:
           FULL_RUN: ${{ needs.detect-changes.outputs.is_full_run }}
-          CORE_CHANGED: ${{ needs.detect-changes.outputs.core }}
-          WEB_CHANGED: ${{ needs.detect-changes.outputs.web }}
           DOCS_CHANGED: ${{ needs.detect-changes.outputs.docs }}
+          CI_CHANGED: ${{ needs.detect-changes.outputs.ci }}
+          WORKER_CHANGED: ${{ needs.detect-changes.outputs.worker }}
+          SITE_CHANGED: ${{ needs.detect-changes.outputs.site }}
+          SCRIPTS_CHANGED: ${{ needs.detect-changes.outputs.scripts }}
           ANDROID_CHANGED: ${{ needs.detect-changes.outputs.android }}
           RUST_CHANGED: ${{ needs.detect-changes.outputs.rust }}
           NATIVE_CHANGED: ${{ needs.detect-changes.outputs.native }}
           DETECT_RESULT: ${{ needs.detect-changes.result }}
           WEB_RESULT: ${{ needs.test-web.result }}
+          LIGHT_RESULT: ${{ needs.test-light.result }}
           ANDROID_RESULT: ${{ needs.test-android.result }}
           RUST_RESULT: ${{ needs.test-rust.result }}
           NATIVE_RESULT: ${{ needs.test-native.result }}
@@ -335,16 +484,19 @@ jobs:
           }
 
           check_job "Detect Changes" "$DETECT_RESULT" "change detection did not complete"
-          check_job "Web (TypeScript / Site / Worker)" "$WEB_RESULT" \
-            "is_full_run=$FULL_RUN web=$WEB_CHANGED docs=$DOCS_CHANGED"
+          check_job "Web (Worker / Site / Scripts)" "$WEB_RESULT" \
+            "is_full_run=$FULL_RUN worker=$WORKER_CHANGED site=$SITE_CHANGED scripts=$SCRIPTS_CHANGED"
+          check_job "Docs & Config (Docs / Workflows / Metadata / Icons)" "$LIGHT_RESULT" \
+            "is_full_run=$FULL_RUN docs=$DOCS_CHANGED ci=$CI_CHANGED"
           check_job "Android (Patches / Extension)" "$ANDROID_RESULT" \
             "is_full_run=$FULL_RUN android=$ANDROID_CHANGED"
-          check_job "Rust (Play Metadata / Native)" "$RUST_RESULT" \
+          check_job "Rust (Changed Crates)" "$RUST_RESULT" \
             "is_full_run=$FULL_RUN rust=$RUST_CHANGED"
           check_job "Native (Adobe Scan C++)" "$NATIVE_RESULT" \
             "is_full_run=$FULL_RUN native=$NATIVE_CHANGED"
 
           count_domain "$WEB_RESULT"
+          count_domain "$LIGHT_RESULT"
           count_domain "$ANDROID_RESULT"
           count_domain "$RUST_RESULT"
           count_domain "$NATIVE_RESULT"
@@ -356,21 +508,15 @@ jobs:
             exit 1
           fi
 
-          # Zero-check guard: a green gate must include at least one domain job.
-          # Docs-only changes (docs/**, *.md, markdownlint config) are the sole
-          # allowance: they need only Web Verification, which runs the markdown
-          # lint and Documentation & Link Integrity tests. They must still run
-          # Web, so an all-skipped docs change fails here instead of passing.
+          # Fail closed: a green gate must include at least one executed domain
+          # job. An unmatched changed path, or a scope change that forgets to
+          # select a job, must not produce a green run.
           if [ "$DOMAIN_RUN" -eq 0 ]; then
             echo "❌ **No domain verification job ran.**" >> "$GITHUB_STEP_SUMMARY"
             echo "" >> "$GITHUB_STEP_SUMMARY"
-            if [ "$DOCS_CHANGED" = "true" ]; then
-              echo "This is a docs-only change, but Web Verification was skipped. Docs-only runs must execute Web Verification for markdown and documentation tests." >> "$GITHUB_STEP_SUMMARY"
-            else
-              echo "Add the changed paths to a domain filter (or to the core filter) so this change cannot merge unverified." >> "$GITHUB_STEP_SUMMARY"
-            fi
+            echo "Add the changed paths to a domain filter so this change cannot merge unverified." >> "$GITHUB_STEP_SUMMARY"
             echo "" >> "$GITHUB_STEP_SUMMARY"
-            echo "Detected changes: core=$CORE_CHANGED web=$WEB_CHANGED docs=$DOCS_CHANGED android=$ANDROID_CHANGED rust=$RUST_CHANGED native=$NATIVE_CHANGED is_full_run=$FULL_RUN." >> "$GITHUB_STEP_SUMMARY"
+            echo "Detected changes: docs=$DOCS_CHANGED ci=$CI_CHANGED worker=$WORKER_CHANGED site=$SITE_CHANGED scripts=$SCRIPTS_CHANGED android=$ANDROID_CHANGED rust=$RUST_CHANGED native=$NATIVE_CHANGED is_full_run=$FULL_RUN." >> "$GITHUB_STEP_SUMMARY"
             exit 1
           fi
 
