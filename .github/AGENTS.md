@@ -14,6 +14,7 @@ Scope: CI workflows, release/deploy automation, issue templates, and Bun/native 
 - `workflows/sync-app-icons.yml`: scheduled/manual icon synchronization in a PR targeting `dev`.
 - `workflows/google-play-metadata.yml`: scheduled or manual authenticated Google Play metadata enrichment via the Rust `play-metadata` tool.
 - `workflows/open_pull_request.yml`: automatic `dev` → `main` PR creation on pushes to `dev`; manual `workflow_dispatch` uses the selected workflow ref as the source branch.
+- `workflows/dependency-freshness.yml`: weekly or manual `bun scripts/deps.ts check --json`; fails the run when exit code 2 reports actionable updates and never mutates or opens PRs.
 
 Use pinned actions and least-privilege `permissions`. Preserve path filters and release handoffs when moving generated inputs; they determine whether metadata reaches Worker/site.
 
