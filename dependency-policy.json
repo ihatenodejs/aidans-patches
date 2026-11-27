@@ -5,6 +5,21 @@
       "id": "npm:package.json#devDependencies/conventional-changelog-conventionalcommits",
       "value": "^9.3.1",
       "reason": "Preserve release-note generation compatibility; see https://github.com/conventional-changelog/conventional-changelog/issues/1495"
+    },
+    {
+      "id": "tool:java",
+      "value": "21",
+      "reason": "Temurin JDK 21 is the CI-supported baseline; upgrading requires Gradle, Android plugin, and release-tooling validation"
+    },
+    {
+      "id": "tool:ndk",
+      "value": "r28c (28.2.13676358)",
+      "reason": "NDK 28.2.13676358 (r28c) is the validated native toolchain required by patches/build.gradle.kts; upgrade only with device and APK Lab verification"
+    },
+    {
+      "id": "tool:android-build-tools",
+      "value": "36.0.0",
+      "reason": "Build Tools 36.0.0 is the APK verification, signing, and alignment baseline used by APK Lab"
     }
   ]
 }

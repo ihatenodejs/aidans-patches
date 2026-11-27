@@ -105,6 +105,14 @@ describe('Sources & Version Logic', () => {
     expect(compareSemver('v2.5.0', '2.5.0')).toBe(0);
   });
 
+  test('compareSemver pads partial versions and ranges', () => {
+    expect(compareSemver('7.0.1', '7')).toBe(1);
+    expect(compareSemver('2.2.0', 'v2')).toBe(1);
+    expect(compareSemver('1.0.229', '1.0')).toBe(1);
+    expect(compareSemver('4.1.0', '4.1')).toBe(0);
+    expect(compareSemver('=9.8.2', '9.8.1')).toBe(1);
+  });
+
   test('isMajorUpdate detects major version changes', () => {
     expect(isMajorUpdate('^9.3.1', '10.0.0')).toBe(true);
     expect(isMajorUpdate('1.5.0', '1.6.0')).toBe(false);
@@ -188,6 +196,146 @@ describe('Sources & Version Logic', () => {
     ];
     await resolveDependencyItem(currentItems[0], sources);
     expect(currentItems[0].status).toBe('current');
+  });
+
+  test('resolves artifact checksums and Android toolchain revisions', async () => {
+    const ktlintSha =
+      'a3fd620207d5c40da6ca789b95e7f823c54e854b7fade7f613e91096a3706d75';
+    const jadxSha =
+      '1755e4242ade71a077438723689f404079592ec7764a3a0572f98fef94ebcbf3';
+    const mockFetch = async (url: string) => {
+      if (url.includes('repos/pinterest/ktlint/releases')) {
+        return new Response(
+          JSON.stringify([
+            {
+              tag_name: '1.8.0',
+              draft: false,
+              prerelease: false,
+              assets: [
+                {
+                  name: 'ktlint',
+                  browser_download_url:
+                    'https://github.com/ktlint/ktlint/releases/download/1.8.0/ktlint',
+                  digest: `sha256:${ktlintSha}`,
+                },
+              ],
+            },
+          ]),
+        );
+      }
+      if (url.includes('repos/skylot/jadx/releases')) {
+        return new Response(
+          JSON.stringify([
+            {
+              tag_name: 'v1.5.7',
+              draft: false,
+              prerelease: false,
+              assets: [
+                {
+                  name: 'jadx-1.5.7.zip',
+                  browser_download_url:
+                    'https://github.com/skylot/jadx/releases/download/v1.5.7/jadx-1.5.7.zip',
+                  digest: `sha256:${jadxSha}`,
+                },
+              ],
+            },
+          ]),
+        );
+      }
+      if (url.includes('repository2-3.xml')) {
+        return new Response(`
+          <remotePackage path="ndk;28.2.13676358">
+            <revision><major>28</major><minor>2</minor><micro>13676358</micro></revision>
+            <channelRef ref="channel-0"/>
+          </remotePackage>
+          <remotePackage path="ndk;30.0.16248370">
+            <revision><major>30</major><minor>0</minor><micro>16248370</micro></revision>
+            <channelRef ref="channel-0"/>
+          </remotePackage>
+          <remotePackage path="build-tools;36.0.0">
+            <revision><major>36</major><minor>0</minor><micro>0</micro></revision>
+            <channelRef ref="channel-0"/>
+          </remotePackage>
+          <remotePackage path="build-tools;37.0.0">
+            <revision><major>37</major><minor>0</minor><micro>0</micro></revision>
+            <channelRef ref="channel-0"/>
+          </remotePackage>
+          <remotePackage path="build-tools;38.0.0-rc1">
+            <revision><major>38</major><minor>0</minor><micro>0</micro></revision>
+            <channelRef ref="channel-1"/>
+          </remotePackage>
+        `);
+      }
+      return new Response('Not Found', { status: 404 });
+    };
+    const sources = new SourceManager({ fetch: mockFetch });
+    const ktlint: DependencyItem = {
+      id: 'tool:ktlint',
+      ecosystem: 'tool',
+      name: 'ktlint',
+      locations: ['scripts/audit.ts'],
+      declared: '1.5.0',
+      resolved: '1.5.0',
+      latest: null,
+      status: 'current',
+    };
+    const jadx: DependencyItem = {
+      id: 'tool:apk-lab/jadx',
+      ecosystem: 'tool',
+      name: 'jadx',
+      locations: ['tools/apk-lab/tools.lock.json'],
+      declared: '1.5.6',
+      resolved: '1.5.6',
+      latest: null,
+      latestUrl:
+        'https://github.com/skylot/jadx/releases/download/v1.5.6/jadx-1.5.6.zip',
+      latestExecutablePath: 'bin/jadx',
+      latestProbePattern: '1\\.5\\.6',
+      status: 'current',
+    };
+    const ndk: DependencyItem = {
+      id: 'tool:ndk',
+      ecosystem: 'tool',
+      name: 'android-ndk',
+      locations: ['patches/build.gradle.kts'],
+      declared: 'r28c (28.2.13676358)',
+      resolved: 'r28c (28.2.13676358)',
+      latest: null,
+      status: 'current',
+    };
+    const buildTools: DependencyItem = {
+      id: 'tool:android-build-tools',
+      ecosystem: 'tool',
+      name: 'android-build-tools',
+      locations: ['tools/apk-lab/src/tools.rs'],
+      declared: '36.0.0',
+      resolved: '36.0.0',
+      latest: null,
+      status: 'current',
+    };
+
+    await resolveDependencyItem(ktlint, sources);
+    await resolveDependencyItem(jadx, sources);
+    await resolveDependencyItem(ndk, sources);
+    await resolveDependencyItem(buildTools, sources);
+
+    expect(ktlint.status).toBe('update');
+    expect(ktlint.latest).toBe('1.8.0');
+    expect(ktlint.latestAsset).toBe(ktlintSha);
+
+    expect(jadx.status).toBe('update');
+    expect(jadx.latest).toBe('1.5.7');
+    expect(jadx.latestAsset).toBe(jadxSha);
+    expect(jadx.latestUrl).toContain('v1.5.7/jadx-1.5.7.zip');
+    expect(jadx.latestExecutablePath).toBe('bin/jadx');
+    expect(jadx.latestProbePattern).toBe('1\\.5\\.7');
+
+    expect(ndk.status).toBe('update');
+    expect(ndk.latest).toBe('30.0.16248370');
+    expect(ndk.latestLabel).toBe('r30');
+
+    expect(buildTools.status).toBe('update');
+    expect(buildTools.latest).toBe('37.0.0');
   });
 });
 

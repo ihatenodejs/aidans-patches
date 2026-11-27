@@ -162,8 +162,17 @@ async function runCheck(
     if (item.status === 'update' && item.latest) {
       updates.push({
         id: item.id,
-        from: item.resolved || item.declared,
-        to: item.latest.replace(/^latest \((.*)\)$/, '$1'),
+        from: item.declared,
+        to: item.latest,
+        ...(item.latestAsset ? { assetIdentity: item.latestAsset } : {}),
+        ...(item.latestUrl ? { assetUrl: item.latestUrl } : {}),
+        ...(item.latestExecutablePath
+          ? { executablePath: item.latestExecutablePath }
+          : {}),
+        ...(item.latestProbePattern
+          ? { versionProbePattern: item.latestProbePattern }
+          : {}),
+        ...(item.latestLabel ? { label: item.latestLabel } : {}),
       });
     }
   }

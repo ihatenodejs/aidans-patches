@@ -168,10 +168,13 @@ export function formatTextReport(
       }
 
       const namePadded = item.name.padEnd(maxNameLen);
-      const curVer = item.resolved
-        ? `${item.declared} (${item.resolved})`
-        : item.declared;
-      const targetVer = item.latest ? ` → ${item.latest}` : '';
+      const curVer =
+        item.resolved && item.resolved !== item.declared
+          ? `${item.declared} (${item.resolved})`
+          : item.declared;
+      const targetVer = item.latest
+        ? ` → ${item.latestDisplay ?? item.latest}`
+        : '';
       const dur =
         item.durationMs !== undefined
           ? style(`[${formatDuration(item.durationMs)}]`, c.gray)

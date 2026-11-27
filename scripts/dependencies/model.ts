@@ -27,7 +27,20 @@ export interface DependencyItem {
   locations: string[];
   declared: string;
   resolved: string | null;
+  /** Plain upstream version used for proposals and comparisons. */
   latest: string | null;
+  /** Human-facing latest value when it carries more than a version. */
+  latestDisplay?: string;
+  /** Human label coupled to the latest version, e.g. NDK r30. */
+  latestLabel?: string;
+  /** SHA-256 of the latest downloadable artifact, when the pin has one. */
+  latestAsset?: string;
+  /** Download URL for the latest artifact, when the pin has one. */
+  latestUrl?: string;
+  /** Versioned executable path for the latest artifact, when applicable. */
+  latestExecutablePath?: string;
+  /** Version probe pattern for the latest artifact, when applicable. */
+  latestProbePattern?: string;
   status: DependencyStatus;
   reason?: string;
   sourceUrl?: string;
@@ -44,7 +57,16 @@ export interface ProposalUpdate {
   from: string;
   to: string;
   commit?: string;
+  /** SHA-256 of the replacement artifact. */
   assetIdentity?: string;
+  /** Replacement download URL for artifact-based pins. */
+  assetUrl?: string;
+  /** Replacement executable path for artifact-based pins. */
+  executablePath?: string;
+  /** Replacement version probe pattern for artifact-based pins. */
+  versionProbePattern?: string;
+  /** Human label that must stay coupled to the numeric pin, e.g. NDK r30. */
+  label?: string;
 }
 
 export interface Proposal {

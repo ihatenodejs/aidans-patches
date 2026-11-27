@@ -14,6 +14,27 @@ export function escapeRegex(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+async function resolveAssetHash(
+  assetIdentity: string | undefined,
+  assetUrl: string | undefined,
+  label: string,
+): Promise<string> {
+  if (assetIdentity) return assetIdentity;
+  if (!assetUrl) {
+    throw new Error(
+      `${label} update is missing both an asset checksum and a download URL`,
+    );
+  }
+  const res = await fetch(assetUrl);
+  if (!res.ok) {
+    throw new Error(`Failed to download ${assetUrl}: HTTP ${res.status}`);
+  }
+  return crypto
+    .createHash('sha256')
+    .update(Buffer.from(await res.arrayBuffer()))
+    .digest('hex');
+}
+
 export type CommandRunner = (
   cmd: string,
   args: string[],
@@ -233,6 +254,7 @@ export async function applyApprovedProposal(
     path.join(os.tmpdir(), 'aidans-patches-deps-'),
   );
   const touchedFiles = new Set<string>();
+  const appliedIds = new Set<string>();
 
   try {
     // Seed staging with tracked sources plus the verified proposal inputs.
@@ -273,7 +295,9 @@ export async function applyApprovedProposal(
             } else if (currentVal.startsWith('~')) {
               json[section][pkgName] = `~${to}`;
             } else if (currentVal.startsWith('git+')) {
-              // Git branch dependency stays on git branch
+              throw new Error(
+                `Cannot update git branch dependency '${pkgName}' with deps:update; refresh the lockfile with the package manager instead`,
+              );
             } else {
               json[section][pkgName] = to;
             }
@@ -282,6 +306,7 @@ export async function applyApprovedProposal(
               JSON.stringify(json, null, 2) + '\n',
             );
             touchedFiles.add(manifestRel);
+            appliedIds.add(id);
           }
         }
       }
@@ -315,6 +340,7 @@ export async function applyApprovedProposal(
           }
           fs.writeFileSync(stagedManifest, content);
           touchedFiles.add(manifestRel);
+          appliedIds.add(id);
         }
       }
 
@@ -329,6 +355,7 @@ export async function applyApprovedProposal(
           );
           fs.writeFileSync(stagedSettings, content);
           touchedFiles.add('settings.gradle.kts');
+          appliedIds.add(id);
         }
       } else if (id.startsWith('gradle:gradle/libs.versions.toml')) {
         const stagedCatalog = path.join(
@@ -344,6 +371,7 @@ export async function applyApprovedProposal(
           content = content.replace(vRegex, `$1"${to}"`);
           fs.writeFileSync(stagedCatalog, content);
           touchedFiles.add('gradle/libs.versions.toml');
+          appliedIds.add(id);
         }
       }
 
@@ -353,40 +381,37 @@ export async function applyApprovedProposal(
           stagingDir,
           'gradle/wrapper/gradle-wrapper.properties',
         );
-        if (fs.existsSync(stagedProps)) {
-          let content = fs.readFileSync(stagedProps, 'utf8');
-          content = content.replace(
-            /gradle-([0-9.]+)-(bin|all)\.zip/,
-            `gradle-${to}-$2.zip`,
+        if (updatedUrl === content) {
+          throw new Error(
+            `Cannot update Gradle wrapper: no distributionUrl matching ${from} in ${wrapperRel}`,
           );
-          if (update.assetIdentity) {
-            content = content.replace(
-              /distributionSha256Sum=[a-f0-9]{64}/,
-              `distributionSha256Sum=${update.assetIdentity}`,
-            );
-          }
-          fs.writeFileSync(stagedProps, content);
-          touchedFiles.add('gradle/wrapper/gradle-wrapper.properties');
         }
+        const sha256 = await resolveAssetHash(
+          update.assetIdentity,
+          undefined,
+          'Gradle wrapper',
+        );
+        const withSha = updatedUrl.replace(
+          /distributionSha256Sum=[a-f0-9]{64}/,
+          `distributionSha256Sum=${sha256}`,
+        );
+        if (withSha === updatedUrl) {
+          throw new Error(
+            `Cannot update Gradle wrapper: ${wrapperRel} has no distributionSha256Sum`,
+          );
+        }
+        content = withSha;
+        fs.writeFileSync(stagedProps, content);
+        touchedFiles.add(wrapperRel);
+        appliedIds.add(id);
       }
 
       // --- Tool: ktlint ---
       else if (id === 'tool:ktlint') {
-        const stagedAudit = path.join(stagingDir, 'scripts/audit.ts');
-        if (fs.existsSync(stagedAudit)) {
-          let content = fs.readFileSync(stagedAudit, 'utf8');
-          content = content.replace(
-            /KTLINT_VERSION\s*=\s*["'][^"']+["']/,
-            `KTLINT_VERSION = '${to}'`,
-          );
-          if (update.assetIdentity) {
-            content = content.replace(
-              /KTLINT_SHA256\s*=\s*["'][a-f0-9]{64}["']/,
-              `KTLINT_SHA256 = '${update.assetIdentity}'`,
-            );
-          }
-          fs.writeFileSync(stagedAudit, content);
-          touchedFiles.add('scripts/audit.ts');
+        const auditRel = 'scripts/audit.ts';
+        const stagedAudit = path.join(stagingDir, auditRel);
+        if (!fs.existsSync(stagedAudit)) {
+          throw new Error(`Cannot update ktlint: ${auditRel} is missing`);
         }
       }
 
@@ -397,27 +422,33 @@ export async function applyApprovedProposal(
           stagingDir,
           'tools/apk-lab/tools.lock.json',
         );
-        if (fs.existsSync(stagedToolLock)) {
-          const jsonText = fs.readFileSync(stagedToolLock, 'utf8');
-          const json = JSON.parse(jsonText);
-          if (json.tools && json.tools[toolName]) {
-            json.tools[toolName].version = to;
-            if (update.assetIdentity) {
-              json.tools[toolName].sha256 = update.assetIdentity;
-            }
-            fs.writeFileSync(
-              stagedToolLock,
-              JSON.stringify(json, null, 2) + '\n',
-            );
-            touchedFiles.add('tools/apk-lab/tools.lock.json');
-          }
+        tool.version = to;
+        tool.sha256 = sha256;
+        tool.url = assetUrl;
+        if (typeof tool.executablePath === 'string') {
+          tool.executablePath =
+            update.executablePath ||
+            replaceVersionText(tool.executablePath, from, to);
         }
+        if (tool.versionProbe && typeof tool.versionProbe === 'object') {
+          tool.versionProbe.expectedPattern =
+            update.versionProbePattern ||
+            replaceVersionText(
+              String(tool.versionProbe.expectedPattern ?? ''),
+              from,
+              to,
+            );
+        }
+        fs.writeFileSync(stagedToolLock, JSON.stringify(json, null, 2) + '\n');
+        touchedFiles.add(toolLockRel);
+        appliedIds.add(id);
       }
 
       // --- GitHub Actions ---
       else if (id.startsWith('action:')) {
         const actionName = id.slice(7);
         const workflowsDir = path.join(stagingDir, '.github/workflows');
+        let matched = false;
         if (fs.existsSync(workflowsDir)) {
           for (const file of fs.readdirSync(workflowsDir)) {
             if (!file.endsWith('.yml') && !file.endsWith('.yaml')) continue;
@@ -428,9 +459,16 @@ export async function applyApprovedProposal(
               content = content.replace(regex, `$1v${to.replace(/^v/, '')}`);
               fs.writeFileSync(wPath, content);
               touchedFiles.add(`.github/workflows/${file}`);
+              matched = true;
             }
           }
         }
+        if (!matched) {
+          throw new Error(
+            `Cannot update action ${actionName}: no workflow references it`,
+          );
+        }
+        appliedIds.add(id);
       }
 
       // --- Rust Toolchain Native ---
@@ -445,19 +483,46 @@ export async function applyApprovedProposal(
           fs.writeFileSync(stagedTc, content);
           touchedFiles.add('extensions/nhl-adblock-native/rust-toolchain.toml');
         }
+        fs.writeFileSync(stagedTc, updated);
+        touchedFiles.add(toolchainRel);
         const workflowsDir = path.join(stagingDir, '.github/workflows');
         if (fs.existsSync(workflowsDir)) {
           for (const file of fs.readdirSync(workflowsDir)) {
             if (!file.endsWith('.yml')) continue;
             const wPath = path.join(workflowsDir, file);
-            let content = fs.readFileSync(wPath, 'utf8');
-            if (content.includes('dtolnay/rust-toolchain@')) {
-              content = content.replace(
+            const workflow = fs.readFileSync(wPath, 'utf8');
+            if (workflow.includes('dtolnay/rust-toolchain@')) {
+              const next = workflow.replace(
                 /(dtolnay\/rust-toolchain@)[0-9.]+/,
                 `$1${to}`,
               );
-              fs.writeFileSync(wPath, content);
+              if (next !== workflow) {
+                fs.writeFileSync(wPath, next);
+                touchedFiles.add(`.github/workflows/${file}`);
+              }
+            }
+          }
+        }
+        appliedIds.add(id);
+      }
+
+      // --- Tool: Java ---
+      else if (id === 'tool:java') {
+        const workflowsDir = path.join(stagingDir, '.github/workflows');
+        let matched = false;
+        if (fs.existsSync(workflowsDir)) {
+          for (const file of fs.readdirSync(workflowsDir)) {
+            if (!file.endsWith('.yml')) continue;
+            const wPath = path.join(workflowsDir, file);
+            const workflow = fs.readFileSync(wPath, 'utf8');
+            const next = workflow.replace(
+              /(java-version:\s*['"]?)[0-9]+(['"]?)/g,
+              `$1${to}$2`,
+            );
+            if (next !== workflow) {
+              fs.writeFileSync(wPath, next);
               touchedFiles.add(`.github/workflows/${file}`);
+              matched = true;
             }
           }
         }
@@ -465,9 +530,15 @@ export async function applyApprovedProposal(
 
       // --- Android NDK ---
       else if (id === 'tool:ndk') {
-        const stagedPatchBuild = path.join(
-          stagingDir,
-          'patches/build.gradle.kts',
+        const patchBuildRel = 'patches/build.gradle.kts';
+        const stagedPatchBuild = path.join(stagingDir, patchBuildRel);
+        if (!fs.existsSync(stagedPatchBuild)) {
+          throw new Error(`Cannot update NDK: ${patchBuildRel} is missing`);
+        }
+        let content = fs.readFileSync(stagedPatchBuild, 'utf8');
+        const updated = content.replace(
+          /REQUIRED_NDK_VERSION\s*=\s*"[^"]+"/,
+          `REQUIRED_NDK_VERSION = "${to}"`,
         );
         if (fs.existsSync(stagedPatchBuild)) {
           let content = fs.readFileSync(stagedPatchBuild, 'utf8');
@@ -475,32 +546,40 @@ export async function applyApprovedProposal(
             /REQUIRED_NDK_VERSION\s*=\s*"[^"]+"/,
             `REQUIRED_NDK_VERSION = "${to}"`,
           );
-          fs.writeFileSync(stagedPatchBuild, content);
-          touchedFiles.add('patches/build.gradle.kts');
         }
         const workflowsDir = path.join(stagingDir, '.github/workflows');
         if (fs.existsSync(workflowsDir)) {
           for (const file of fs.readdirSync(workflowsDir)) {
             if (!file.endsWith('.yml')) continue;
             const wPath = path.join(workflowsDir, file);
-            let content = fs.readFileSync(wPath, 'utf8');
-            if (content.includes('ndk-version:')) {
-              content = content.replace(
+            const workflow = fs.readFileSync(wPath, 'utf8');
+            if (workflow.includes('ndk-version:')) {
+              const next = workflow.replace(
                 /(ndk-version:\s*)[^\s\n]+/,
-                `$1${update.assetIdentity || 'r28c'}`,
+                `$1${label}`,
               );
-              fs.writeFileSync(wPath, content);
-              touchedFiles.add(`.github/workflows/${file}`);
+              if (next !== workflow) {
+                fs.writeFileSync(wPath, next);
+                touchedFiles.add(`.github/workflows/${file}`);
+              }
             }
           }
         }
+        appliedIds.add(id);
       }
 
       // --- Embedded Leaflet ---
       else if (id === 'embedded:leaflet') {
-        const stagedOsm = path.join(
-          stagingDir,
-          'extensions/extension/src/main/java/app/aidan/extension/aftership/OsmMapView.java',
+        const osmRel =
+          'extensions/extension/src/main/java/app/aidan/extension/aftership/OsmMapView.java';
+        const stagedOsm = path.join(stagingDir, osmRel);
+        if (!fs.existsSync(stagedOsm)) {
+          throw new Error(`Cannot update Leaflet: ${osmRel} is missing`);
+        }
+        const content = fs.readFileSync(stagedOsm, 'utf8');
+        const updated = content.replace(
+          /unpkg\.com\/leaflet@[0-9.]+\//g,
+          `unpkg.com/leaflet@${to}/`,
         );
         if (fs.existsSync(stagedOsm)) {
           let content = fs.readFileSync(stagedOsm, 'utf8');
@@ -513,6 +592,9 @@ export async function applyApprovedProposal(
             'extensions/extension/src/main/java/app/aidan/extension/aftership/OsmMapView.java',
           );
         }
+        fs.writeFileSync(stagedOsm, updated);
+        touchedFiles.add(osmRel);
+        appliedIds.add(id);
       }
 
       // --- CMake FetchContent ---
@@ -531,7 +613,6 @@ export async function applyApprovedProposal(
             'g',
           );
 
-          let newSha256 = update.assetIdentity || '';
           let newUrl = '';
           if (pkgName === 'qpdf') {
             newUrl = `https://github.com/qpdf/qpdf/releases/download/v${to}/qpdf-${to}.tar.gz`;
@@ -546,53 +627,60 @@ export async function applyApprovedProposal(
           let matchedOldUrl = '';
           const blockMatch = fetchBlockRegex.exec(content);
           fetchBlockRegex.lastIndex = 0;
-          if (blockMatch) {
-            const urlMatch = blockMatch[0].match(/URL\s+([^\s)]+)/);
-            if (urlMatch) {
-              matchedOldUrl = urlMatch[1];
-              if (!newUrl) {
-                newUrl = matchedOldUrl.replaceAll(from, to);
-              }
-            }
-          }
-
-          if (!newSha256 && newUrl) {
-            const res = await fetch(newUrl);
-            if (!res.ok) {
-              throw new Error(
-                `Failed to download ${newUrl}: HTTP ${res.status}`,
-              );
-            }
-            const buf = await res.arrayBuffer();
-            newSha256 = crypto
-              .createHash('sha256')
-              .update(Buffer.from(buf))
-              .digest('hex');
-          }
-          if (!newSha256) {
+          if (!blockMatch) {
             throw new Error(
-              `Could not compute sha256 for ${pkgName} at ${newUrl}`,
+              `Cannot update ${pkgName}: no FetchContent_Declare block in ${manifestRel}`,
+            );
+          }
+          const urlMatch = blockMatch[0].match(/URL\s+([^\s)]+)/);
+          if (!urlMatch) {
+            throw new Error(
+              `Cannot update ${pkgName}: FetchContent block has no URL in ${manifestRel}`,
+            );
+          }
+          matchedOldUrl = urlMatch[1];
+          if (!newUrl) {
+            newUrl = replaceVersionText(matchedOldUrl, from, to);
+          }
+          if (!newUrl || newUrl === matchedOldUrl) {
+            throw new Error(
+              `Cannot update ${pkgName}: URL ${matchedOldUrl} does not contain version ${from}`,
             );
           }
 
-          content = content.replace(fetchBlockRegex, (block) => {
-            let updated = block;
-            if (matchedOldUrl && newUrl) {
-              updated = updated.replace(matchedOldUrl, newUrl);
-            }
-            if (newSha256) {
-              updated = updated.replace(
-                /URL_HASH\s+SHA256=[a-fA-F0-9]{64}/,
-                `URL_HASH SHA256=${newSha256}`,
-              );
-            }
+          const newSha256 = await resolveAssetHash(
+            update.assetIdentity,
+            newUrl,
+            pkgName,
+          );
+
+          const nextContent = content.replace(fetchBlockRegex, (block) => {
+            let updated = block.replace(matchedOldUrl, newUrl);
+            updated = updated.replace(
+              /URL_HASH\s+SHA256=[a-fA-F0-9]{64}/,
+              `URL_HASH SHA256=${newSha256}`,
+            );
             return updated;
           });
-
-          fs.writeFileSync(stagedCMake, content);
+          if (nextContent === content) {
+            throw new Error(
+              `Cannot update ${pkgName}: no changes were applied in ${manifestRel}`,
+            );
+          }
+          fs.writeFileSync(stagedCMake, nextContent);
           touchedFiles.add(manifestRel);
+          appliedIds.add(id);
         }
       }
+    }
+
+    const unhandled = proposal.updates.filter(
+      (update) => !appliedIds.has(update.id),
+    );
+    if (unhandled.length > 0) {
+      throw new Error(
+        `No apply strategy matched: ${unhandled.map((update) => update.id).join(', ')}`,
+      );
     }
 
     // 6. Regenerate staged lockfiles
@@ -653,51 +741,35 @@ export async function applyApprovedProposal(
       const cargoUpdates = proposal.updates.filter((u) =>
         u.id.startsWith('crates:tools/play-metadata/'),
       );
-      for (const u of cargoUpdates) {
-        const pkg = u.id.split('/').at(-1) ?? '';
+      for (const update of cargoUpdates) {
+        const cragment = update.id.split('#')[1] ?? '';
+        const packageName = cragment.split('/')[1] ?? '';
         const res = await runner(
           'cargo',
           [
             'update',
             '--manifest-path',
-            'Cargo.toml',
+            path.basename(project.manifest),
             '--package',
-            pkg,
+            packageName,
             '--precise',
-            u.to,
+            update.to,
           ],
-          playDir,
+          projectDir,
         );
-        if (res.code !== 0)
-          throw new Error(`cargo update failed for ${pkg}: ${res.stderr}`);
+        if (res.code !== 0) {
+          throw new Error(
+            `cargo update failed for ${project.label} ${packageName}: ${res.stderr}`,
+          );
+        }
       }
-      touchedFiles.add('tools/play-metadata/Cargo.lock');
-    }
-
-    if (touchedFiles.has('extensions/nhl-adblock-native/Cargo.toml')) {
-      const nhlDir = path.join(stagingDir, 'extensions/nhl-adblock-native');
-      const cargoUpdates = proposal.updates.filter((u) =>
-        u.id.startsWith('crates:extensions/nhl-adblock-native/'),
-      );
-      for (const u of cargoUpdates) {
-        const pkg = u.id.split('/').at(-1) ?? '';
-        const res = await runner(
-          'cargo',
-          [
-            'update',
-            '--manifest-path',
-            'Cargo.toml',
-            '--package',
-            pkg,
-            '--precise',
-            u.to,
-          ],
-          nhlDir,
+      const lockPath = path.join(stagingDir, project.lockfile);
+      if (!fs.existsSync(lockPath)) {
+        throw new Error(
+          `Lockfile regeneration did not produce ${project.lockfile}`,
         );
-        if (res.code !== 0)
-          throw new Error(`cargo update failed for ${pkg}: ${res.stderr}`);
       }
-      touchedFiles.add('extensions/nhl-adblock-native/Cargo.lock');
+      touchedFiles.add(project.lockfile);
     }
 
     // 7. Atomic publication to repository

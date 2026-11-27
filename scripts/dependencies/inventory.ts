@@ -77,19 +77,10 @@ export function collectInventory(
     if (extraLock) registerInput(extraLock);
 
     const manifestJson = JSON.parse(fs.readFileSync(manifestAbs, 'utf8'));
-    let bunLockPackages: Record<string, unknown> = {};
     const lockAbs = path.resolve(repoRoot, lock);
-    if (fs.existsSync(lockAbs)) {
-      try {
-        const lockText = fs.readFileSync(lockAbs, 'utf8');
-        // Strip trailing commas before closing braces/brackets for Bun text lockfiles
-        const sanitized = lockText.replace(/,\s*([\]}])/g, '$1');
-        bunLockPackages =
-          (JSON.parse(sanitized).packages as Record<string, unknown>) || {};
-      } catch {
-        bunLockPackages = {};
-      }
-    }
+    const bunLockPackages = fs.existsSync(lockAbs)
+      ? parseBunLockPackages(fs.readFileSync(lockAbs, 'utf8'))
+      : {};
 
     const sections = [
       'dependencies',
@@ -300,9 +291,6 @@ export function collectInventory(
     const urlMatch = wrapperContent.match(
       /distributionUrl=.*gradle-([0-9.]+)-(?:bin|all)\.zip/,
     );
-    const shaMatch = wrapperContent.match(
-      /distributionSha256Sum=([a-f0-9]{64})/,
-    );
     const version = urlMatch ? urlMatch[1] : 'unknown';
     items.push({
       id: 'tool:gradle',
@@ -310,9 +298,7 @@ export function collectInventory(
       name: 'gradle-wrapper',
       locations: [wrapperPropsRel],
       declared: version,
-      resolved: shaMatch
-        ? `${version} (${shaMatch[1].slice(0, 8)}...)`
-        : version,
+      resolved: version,
       latest: null,
       status: 'current',
     });
@@ -325,7 +311,15 @@ export function collectInventory(
     registerInput(toolLockRel);
     const toolLockJson = JSON.parse(fs.readFileSync(toolLockAbs, 'utf8'));
     const tools =
-      (toolLockJson.tools as Record<string, { version?: string }>) || {};
+      (toolLockJson.tools as Record<
+        string,
+        {
+          version?: string;
+          url?: string;
+          executablePath?: string;
+          versionProbe?: { expectedPattern?: string };
+        }
+      >) || {};
     for (const [toolName, toolDef] of Object.entries(tools)) {
       if (typeof toolDef === 'object' && toolDef !== null) {
         items.push({
@@ -336,6 +330,9 @@ export function collectInventory(
           declared: String(toolDef.version || ''),
           resolved: String(toolDef.version || ''),
           latest: null,
+          latestUrl: toolDef.url,
+          latestExecutablePath: toolDef.executablePath,
+          latestProbePattern: toolDef.versionProbe?.expectedPattern,
           status: 'current',
         });
       }
@@ -348,13 +345,7 @@ export function collectInventory(
   if (fs.existsSync(auditScriptAbs)) {
     registerInput(auditScriptRel);
     const auditText = fs.readFileSync(auditScriptAbs, 'utf8');
-    const ktlintVersionMatch =
-      auditText.match(/const\s+KTLINT_VERSION\s*=\s*'([^']+)'/) ||
-      auditText.match(/KTLINT_([0-9_]+)_SHA256/) ||
-      auditText.match(/ktlint\/releases\/download\/([0-9.]+)\//);
-    const ktlintVersion = ktlintVersionMatch
-      ? (ktlintVersionMatch[1] || '').replace(/_/g, '.')
-      : '1.5.0';
+    const ktlintVersion = extractKtlintVersion(auditText);
     items.push({
       id: 'tool:ktlint',
       ecosystem: 'tool',

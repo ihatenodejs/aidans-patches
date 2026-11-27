@@ -52,6 +52,23 @@ The updater covers all direct software dependencies and version-sensitive toolch
 | Embedded In-Repo Assets | `OsmMapView.java` (Leaflet CDN)                                                                                                         | Coupled asset URLs                                                  |
 | C++ / Native            | `extensions/adobescan-pdf-native/CMakeLists.txt`                                                                                        | CMake FetchContent archives and integrity hashes                    |
 
+Gradle wrapper, ktlint, APK Lab tools, and NDK updates carry their artifact
+checksum (and, for APK tools, the new URL, executable path, and version probe)
+inside the proposal. `deps:update` writes all coupled fields together; it never
+leaves a new version paired with an old hash or URL.
+
+All four registered Rust projects regenerate their own `Cargo.lock` during
+`deps:update`, including `tools/apk-lab` and `tools/asset-prep`. Floating
+dependency forms such as `@v7` for GitHub Actions and Cargo ranges like `1.0`
+are compared as padded semver, so patch releases are still detected.
+
+Git dependencies that track a branch (for example
+`@MorpheApp/changelog#bundle`) are reported as `moving`, with the branch's
+current commit in the report. They are intentionally excluded from
+`deps:update`; refresh them with the package manager after reviewing the new
+commit. Workflow actions pinned to a floating major tag are updated to the
+latest exact release tag.
+
 The release workflow uses root `package-lock.json` as its lock owner: it
 installs with `npm ci --ignore-scripts` and runs the locked local
 `semantic-release` executable. `bun.lock` remains canonical for Bun CI
@@ -100,11 +117,12 @@ Intentional dependency holds are maintained in root `dependency-policy.json`. Ev
 
 - When a dependency is held in `dependency-policy.json`, `deps:check` marks it as `held` (displaying the reason and the latest available upstream release), but does not include it in actionable update proposals.
 - An update cannot override a held dependency without explicitly removing or updating the hold entry in `dependency-policy.json`.
+- Validated toolchain baselines are held as well: Temurin JDK 21 (`tool:java`), NDK r28c (`tool:ndk`), and Build Tools 36.0.0 (`tool:android-build-tools`). The checker still reports their upstream latest values so an intentional upgrade is visible.
 
 ## Safety & Approval Model
 
-1. **Read-Only Checks**: `deps:check` only fetches upstream metadata over HTTP. It never modifies manifests, runs lifecycle scripts, or downloads binary tools.
-2. **Deterministic Proposals**: Each report containing actionable updates generates a cryptographically signed proposal digest (SHA-256 over canonical JSON of sorted inputs and planned updates).
+1. **Read-Only Checks**: `deps:check` only fetches upstream metadata over HTTP (registries, GitHub release metadata, and the Android SDK repository index). It never modifies manifests, runs lifecycle scripts, or downloads binary tools.
+2. **Deterministic Proposals**: Each report containing actionable updates generates a content-addressed proposal digest (SHA-256 over canonical JSON of sorted inputs and planned updates). The digest binds the exact versions, artifact hashes, URLs, executable paths, and workflow labels that will be written; it is an integrity check, not a signature.
 3. **Interactive Confirmation**: On a TTY terminal, `deps:update` displays all candidate updates, highlights major version bumps, and prompts for confirmation before modifying any file.
 4. **Agent Programmatic Mode**: In non-interactive environments (e.g. CI, subagents), `deps:update` refuses to run without `--plan <file>` and `--approve <digest>`. If any input file has changed since the plan was generated, or if the digest does not match, the transaction is rejected immediately.
-5. **Transactional Staging & Atomic Publish**: Updates are applied and lockfiles regenerated inside an isolated temporary staging directory (`os.tmpdir()`). Only after lock generation and verification succeed are the files published to the repository. If any write fails, all changes are rolled back automatically.
+5. **Transactional Staging & Atomic Publish**: Updates are applied and lockfiles regenerated inside an isolated temporary staging directory (`os.tmpdir()`). Every Rust project updates its own `Cargo.lock`, and Bun/npm lockfiles are regenerated for the manifests that changed. Any proposal entry without a matching apply strategy, or whose target file/content cannot be found, aborts the transaction instead of reporting a successful no-op. Only after lock regeneration succeeds are files published; a write failure rolls back every changed file.
