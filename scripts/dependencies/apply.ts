@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import * as crypto from 'node:crypto';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
@@ -66,31 +66,113 @@ export interface ApplyResult {
   message: string;
 }
 
-export function copyDirRecursive(src: string, dest: string): void {
-  fs.mkdirSync(dest, { recursive: true });
-  const entries = fs.readdirSync(src, { withFileTypes: true });
-  for (const entry of entries) {
-    const srcPath = path.join(src, entry.name);
-    const destPath = path.join(dest, entry.name);
+const STAGING_SKIP_DIRECTORIES: Record<string, true> = {
+  node_modules: true,
+  '.git': true,
+  target: true,
+  build: true,
+  '.gradle': true,
+  dist: true,
+  '.astro': true,
+  '.apk-lab': true,
+  apk: true,
+  analysis: true,
+  '.tools': true,
+  '.wrangler': true,
+  '.venv': true,
+  __pycache__: true,
+};
+
+/**
+ * Staging exists so lockfile regeneration and update commands run against an
+ * isolated tree. Copying the worktree walked local build artifacts too: a
+ * checkout with `.apk-lab` and `apk/` staged gigabytes per update. Prefer Git's
+ * tracked file list, which is bounded, deterministic, and excludes ignored
+ * artifact trees. Fall back to a filtered walk for non-repository inputs such
+ * as the test fixtures.
+ */
+function listTrackedFiles(repoRoot: string): string[] | null {
+  if (!fs.existsSync(path.join(repoRoot, '.git'))) return null;
+  const result = spawnSync(
+    'git',
+    ['-C', repoRoot, 'ls-files', '-z', '--cached'],
+    { encoding: 'buffer', maxBuffer: 256 * 1024 * 1024 },
+  );
+  if (result.error || result.status !== 0 || !result.stdout) return null;
+  return result.stdout.toString('utf8').split('\0').filter(Boolean);
+}
+
+function walkStagingFiles(root: string, relative = ''): string[] {
+  const directory = path.join(root, relative);
+  const files: string[] = [];
+  for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+    const child = relative ? `${relative}/${entry.name}` : entry.name;
     if (entry.isDirectory()) {
-      if (
-        [
-          'node_modules',
-          '.git',
-          'target',
-          'build',
-          '.gradle',
-          'dist',
-          '.astro',
-        ].includes(entry.name)
-      ) {
-        continue;
-      }
-      copyDirRecursive(srcPath, destPath);
+      if (Object.hasOwn(STAGING_SKIP_DIRECTORIES, entry.name)) continue;
+      files.push(...walkStagingFiles(root, child));
     } else {
-      fs.copyFileSync(srcPath, destPath);
+      files.push(child);
     }
   }
+  return files;
+}
+
+function stagingRelativePath(value: string): string {
+  const normalized = value.replaceAll('\\', '/');
+  const parts = normalized.split('/');
+  if (
+    !normalized ||
+    normalized.startsWith('/') ||
+    /^[a-zA-Z]:/.test(normalized) ||
+    parts.includes('..')
+  ) {
+    throw new Error(`Refusing to stage path outside the repository: ${value}`);
+  }
+  return normalized;
+}
+
+export function seedStagingDirectory(
+  repoRoot: string,
+  stagingDir: string,
+  extraPaths: Iterable<string> = [],
+): string[] {
+  const candidates = listTrackedFiles(repoRoot) ?? walkStagingFiles(repoRoot);
+  const relativePaths = new Set<string>();
+  for (const candidate of candidates) {
+    relativePaths.add(stagingRelativePath(candidate));
+  }
+  for (const extra of extraPaths) {
+    relativePaths.add(stagingRelativePath(extra));
+  }
+
+  const rootPrefix = stagingDir.endsWith(path.sep)
+    ? stagingDir
+    : `${stagingDir}${path.sep}`;
+  const copied: string[] = [];
+  for (const relative of relativePaths) {
+    const source = path.resolve(repoRoot, relative);
+    const destination = path.resolve(stagingDir, relative);
+    if (destination !== stagingDir && !destination.startsWith(rootPrefix)) {
+      throw new Error(`Refusing to stage path outside root: ${relative}`);
+    }
+    let stats: fs.Stats;
+    try {
+      stats = fs.lstatSync(source);
+    } catch {
+      // Tracked but deleted from the worktree; there is nothing to copy.
+      continue;
+    }
+    if (stats.isDirectory()) continue; // Submodule gitlink.
+    fs.mkdirSync(path.dirname(destination), { recursive: true });
+    if (stats.isSymbolicLink()) {
+      fs.symlinkSync(fs.readlinkSync(source), destination);
+    } else {
+      fs.copyFileSync(source, destination);
+      fs.chmodSync(destination, stats.mode & 0o777);
+    }
+    copied.push(relative);
+  }
+  return copied;
 }
 
 export async function applyApprovedProposal(
@@ -153,8 +235,13 @@ export async function applyApprovedProposal(
   const touchedFiles = new Set<string>();
 
   try {
-    // Copy necessary input files and projects to staging
-    copyDirRecursive(repoRoot, stagingDir);
+    // Seed staging with tracked sources plus the verified proposal inputs.
+    // Local artifact trees must never be copied.
+    seedStagingDirectory(
+      repoRoot,
+      stagingDir,
+      proposal.inputs.map((input) => input.path),
+    );
 
     // 5. Apply scalar updates to staged files
     for (const update of proposal.updates) {

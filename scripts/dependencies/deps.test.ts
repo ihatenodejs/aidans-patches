@@ -1,8 +1,9 @@
 import { describe, expect, test } from 'bun:test';
+import { spawnSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { applyApprovedProposal } from './apply';
+import { applyApprovedProposal, seedStagingDirectory } from './apply';
 import {
   collectInventory,
   extractKtlintVersion,
@@ -430,6 +431,57 @@ describe('Report Formatting', () => {
     expect(output).toContain('custom-tool');
     expect(output).toContain('unsupported');
     expect(output).toContain('UNSUPPORTED: 1');
+  });
+});
+
+describe('Staging Seed', () => {
+  test('copies tracked sources and explicit inputs without local artifacts', () => {
+    const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'seed-repo-'));
+    const staging = fs.mkdtempSync(path.join(os.tmpdir(), 'seed-staging-'));
+    const inputStaging = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'seed-input-staging-'),
+    );
+    const env = {
+      ...process.env,
+      GIT_CONFIG_GLOBAL: '/dev/null',
+      GIT_CONFIG_NOSYSTEM: '1',
+    };
+    try {
+      fs.writeFileSync(path.join(repo, 'package.json'), '{}');
+      fs.writeFileSync(path.join(repo, 'bun.lock'), '{}');
+      expect(spawnSync('git', ['init', '-q'], { cwd: repo, env }).status).toBe(
+        0,
+      );
+      expect(
+        spawnSync('git', ['add', '--', 'package.json', 'bun.lock'], {
+          cwd: repo,
+          env,
+        }).status,
+      ).toBe(0);
+
+      fs.mkdirSync(path.join(repo, 'apk'));
+      fs.writeFileSync(path.join(repo, 'apk', 'local.apk'), 'artifact');
+      fs.mkdirSync(path.join(repo, '.apk-lab'));
+      fs.writeFileSync(path.join(repo, '.apk-lab', 'state.bin'), 'artifact');
+      fs.writeFileSync(path.join(repo, 'untracked.txt'), 'local input');
+
+      expect(seedStagingDirectory(repo, staging).sort()).toEqual([
+        'bun.lock',
+        'package.json',
+      ]);
+      expect(fs.existsSync(path.join(staging, 'apk'))).toBe(false);
+      expect(fs.existsSync(path.join(staging, '.apk-lab'))).toBe(false);
+      expect(fs.existsSync(path.join(staging, 'untracked.txt'))).toBe(false);
+
+      seedStagingDirectory(repo, inputStaging, ['untracked.txt']);
+      expect(
+        fs.readFileSync(path.join(inputStaging, 'untracked.txt'), 'utf8'),
+      ).toBe('local input');
+    } finally {
+      fs.rmSync(repo, { recursive: true, force: true });
+      fs.rmSync(staging, { recursive: true, force: true });
+      fs.rmSync(inputStaging, { recursive: true, force: true });
+    }
   });
 });
 
