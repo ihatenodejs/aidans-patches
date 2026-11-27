@@ -10,6 +10,6 @@ junit = "4.13.2"
 gson = { module = "com.google.code.gson:gson", version.ref = "gson" }
 junit = { module = "junit:junit", version.ref = "junit" }
 pdfbox-android = { module = "com.tom-roush:pdfbox-android", version.ref = "pdfbox-android" }
-# Gradle plugins adds the dependency during build, this declaration is here only for dependabot to provide updates.
+# Gradle plugins adds the dependency during build; this declaration lets deps.ts track the patcher version.
 #noinspection UnusedVersionCatalogEntry
 morphe-patcher = { module = "app.morphe:morphe-patcher", version.ref = "morphe-patcher" }

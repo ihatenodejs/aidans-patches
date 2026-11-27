@@ -17,6 +17,10 @@ import {
   formatTextReport,
   isMajorUpdate,
 } from './dependencies/report';
+import {
+  formatSecurityReport,
+  runSecurityAudit,
+} from './dependencies/security';
 import { SourceManager, resolveDependencyItem } from './dependencies/sources';
 
 function printHelp(): void {
@@ -26,10 +30,12 @@ Unified Monorepo Dependency Checker and Updater
 USAGE:
   bun scripts/deps.ts check [options]
   bun scripts/deps.ts update [options]
+  bun scripts/deps.ts security [--json]
 
 COMMANDS:
   check     Inspect all dependencies and report freshness against upstream registries
   update    Apply approved dependency updates and regenerate affected lockfiles
+  security  Opt-in transitive vulnerability scan (bun/npm audit, cargo-audit when installed)
 
 OPTIONS:
   --json                  Output report in machine-readable JSON format on stdout
@@ -58,6 +64,9 @@ EXAMPLES:
   # Agent non-interactive approved update
   bun run deps:check --json > /tmp/report.json
   bun run deps:update --plan /tmp/report.json --approve <proposal.digest>
+
+  # Opt-in transitive vulnerability scan
+  bun run deps:security
 `);
 }
 
@@ -153,6 +162,15 @@ async function runCheck(
 
   await Promise.all(lookupTasks);
 
+  // A direct dependency resolved differently by Bun and npm means CI and the
+  // npm-based release install different code. Surface it as an error.
+  for (const item of items) {
+    if (item.lockfileMismatch && item.status !== 'not-checked') {
+      item.status = 'error';
+      item.reason = item.lockfileMismatch;
+    }
+  }
+
   const totalDurationMs = Math.round(performance.now() - startTime);
   const summary = buildSummary(items, totalDurationMs);
 
@@ -225,6 +243,22 @@ async function main() {
     } else {
       process.exit(0);
     }
+  } else if (command === 'security') {
+    if (onlyIds.length > 0 || planFile || approveDigest) {
+      console.error(
+        'Error: security does not accept --only, --plan, or --approve.',
+      );
+      process.exit(1);
+    }
+    const result = await runSecurityAudit(rootDir);
+    if (json) {
+      console.log(JSON.stringify(result, null, 2));
+    } else {
+      console.log(formatSecurityReport(result));
+    }
+    process.exit(
+      result.findings.length > 0 || result.errors.length > 0 ? 1 : 0,
+    );
   } else if (command === 'update') {
     // Agent path: --plan and --approve
     if (planFile || approveDigest) {

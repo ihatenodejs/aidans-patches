@@ -626,6 +626,7 @@ export async function resolveDependencyItem(
   sources: SourceManager,
 ): Promise<void> {
   const start = performance.now();
+  const pinned = item.status === 'pinned';
   try {
     // 1. JavaScript (NPM)
     if (item.ecosystem === 'npm') {
@@ -676,7 +677,9 @@ export async function resolveDependencyItem(
       item.latest = res.latest;
       item.sourceUrl = res.sourceUrl;
       if (item.status !== 'held') {
-        const comp = compareSemver(res.latest, item.declared);
+        const comp = item.resolved
+          ? compareSemver(res.latest, item.resolved)
+          : compareSemver(res.latest, item.declared);
         if (comp > 0) {
           item.status = 'update';
         } else if (comp < 0) {
@@ -865,8 +868,25 @@ export async function resolveDependencyItem(
       }
     }
 
-    // 6. Embedded Leaflet
-    else if (item.ecosystem === 'embedded' && item.name === 'leaflet') {
+    // 6. Embedded assets
+    else if (item.id === 'embedded:apple-color-emoji') {
+      const res = await sources.resolveGitHubReleaseInfo(
+        'samuelngs',
+        'apple-emoji-ttf',
+      );
+      item.latest = res.tag;
+      item.latestDisplay = res.tag;
+      item.sourceUrl = res.sourceUrl;
+    } else if (item.id === 'embedded:tessdata-eng') {
+      const res = await sources.resolveGitBranch(
+        'tesseract-ocr',
+        'tessdata_fast',
+        'main',
+      );
+      item.latest = res.latest;
+      item.latestDisplay = `commit ${res.latest.slice(0, 8)}`;
+      item.sourceUrl = res.sourceUrl;
+    } else if (item.ecosystem === 'embedded' && item.name === 'leaflet') {
       const res = await sources.resolveNpm('leaflet');
       item.latest = res.latest;
       item.sourceUrl = res.sourceUrl;
@@ -879,7 +899,10 @@ export async function resolveDependencyItem(
     // 7. C++ CMake FetchContent
     else if (item.ecosystem === 'cmake') {
       let res: { latest: string; sourceUrl: string } | null = null;
-      if (item.name === 'libjpeg-turbo') {
+      if (
+        item.name === 'libjpeg-turbo' ||
+        item.name === 'libjpeg-turbo-vendored'
+      ) {
         res = await sources.resolveGitHubRelease(
           'libjpeg-turbo',
           'libjpeg-turbo',
@@ -911,6 +934,9 @@ export async function resolveDependencyItem(
           item.status = ord > 0 ? 'update' : ord < 0 ? 'ahead' : 'current';
         }
       }
+    }
+    if (pinned && item.status !== 'error') {
+      item.status = 'pinned';
     }
   } catch (err) {
     item.status = 'error';

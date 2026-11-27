@@ -3,9 +3,14 @@ import { spawnSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { applyApprovedProposal, seedStagingDirectory } from './apply';
+import {
+  applyApprovedProposal,
+  replaceCargoDependencyVersion,
+  seedStagingDirectory,
+} from './apply';
 import {
   collectInventory,
+  compareLockfileResolutions,
   extractKtlintVersion,
   parseBunLock,
   parseBunLockPackages,
@@ -1274,6 +1279,160 @@ describe('Transactional Apply', () => {
           holds: [],
         }),
       ).rejects.toThrow('No apply strategy matched: tool:not-registered');
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('Lockfile and manifest expansion coverage', () => {
+  test('compareLockfileResolutions detects version drift and accepts git prefixes', () => {
+    const lock = {
+      packages: {
+        'node_modules/foo': { version: '2.0.0' },
+        'node_modules/bar': {
+          resolved: 'git+ssh://git@example.com/bar.git#abcdef1234567890',
+        },
+      },
+    };
+    expect(compareLockfileResolutions('foo', '2.0.0', lock)).toBeNull();
+    expect(compareLockfileResolutions('foo', '1.0.0', lock)).toContain(
+      'lockfile mismatch',
+    );
+    expect(compareLockfileResolutions('bar', 'abcdef1', lock)).toBeNull();
+    expect(compareLockfileResolutions('missing', '1.0.0', lock)).toContain(
+      'no resolution',
+    );
+  });
+
+  test('replaceCargoDependencyVersion updates only the requested target section', () => {
+    const manifest = [
+      '[dependencies]',
+      'libc = "0.2"',
+      '',
+      "[target.'cfg(unix)'.dependencies]",
+      'libc = "0.2"',
+      '',
+      "[target.'cfg(windows)'.dependencies]",
+      'libc = "0.2"',
+      '',
+    ].join('\n');
+    const updated = replaceCargoDependencyVersion(
+      manifest,
+      "target.'cfg(unix)'.dependencies",
+      'libc',
+      '0.2.191',
+    );
+    expect(updated).toContain('[dependencies]\nlibc = "0.2"');
+    expect(updated).toContain(
+      '[target.\'cfg(unix)\'.dependencies]\nlibc = "0.2.191"',
+    );
+    expect(updated).toContain(
+      '[target.\'cfg(windows)\'.dependencies]\nlibc = "0.2"',
+    );
+  });
+
+  test('collectInventory parses target-specific Cargo dependencies', () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'inv-target-cargo-'));
+    try {
+      fs.mkdirSync(path.join(tmpDir, 'tools', 'apk-lab'), { recursive: true });
+      fs.writeFileSync(
+        path.join(tmpDir, 'tools', 'apk-lab', 'Cargo.toml'),
+        [
+          '[package]',
+          'name = "apk-lab"',
+          'version = "0.1.0"',
+          '',
+          '[dependencies]',
+          'serde = "1.0.218"',
+          '',
+          "[target.'cfg(unix)'.dependencies]",
+          'libc = "0.2"',
+          '',
+        ].join('\n'),
+      );
+      fs.writeFileSync(
+        path.join(tmpDir, 'tools', 'apk-lab', 'Cargo.lock'),
+        [
+          'version = 4',
+          '',
+          '[[package]]',
+          'name = "serde"',
+          'version = "1.0.229"',
+          '',
+          '[[package]]',
+          'name = "libc"',
+          'version = "0.2.191"',
+          '',
+        ].join('\n'),
+      );
+
+      const policy: DependencyPolicy = { schemaVersion: 1, holds: [] };
+      const { items } = collectInventory(tmpDir, policy);
+      const libc = items.find((item) => item.name === 'libc');
+      expect(libc?.id).toBe(
+        "crates:tools/apk-lab/Cargo.toml#target.'cfg(unix)'.dependencies/libc",
+      );
+      expect(libc?.declared).toBe('0.2');
+      expect(libc?.resolved).toBe('0.2.191');
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  test('collectInventory parses and applies literal Gradle dependencies', async () => {
+    const tmpDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'inv-gradle-literal-'),
+    );
+    try {
+      const buildRel = 'extensions/extension/build.gradle.kts';
+      const buildPath = path.join(tmpDir, buildRel);
+      fs.mkdirSync(path.dirname(buildPath), { recursive: true });
+      fs.writeFileSync(
+        buildPath,
+        [
+          'dependencies {',
+          '    implementation("com.example:widget:1.0.0")',
+          '    compileOnly(libs.gson)',
+          '}',
+          '',
+        ].join('\n'),
+      );
+
+      const policy: DependencyPolicy = { schemaVersion: 1, holds: [] };
+      const { items } = collectInventory(tmpDir, policy);
+      const widget = items.find((item) => item.name === 'com.example:widget');
+      expect(widget?.id).toBe(
+        'gradle:extensions/extension/build.gradle.kts#dependencies/com.example:widget',
+      );
+      expect(widget?.declared).toBe('1.0.0');
+
+      const proposal: Proposal = {
+        schemaVersion: 1,
+        inputs: [
+          {
+            path: buildRel,
+            sha256: Bun.SHA256.hash(fs.readFileSync(buildPath), 'hex'),
+          },
+        ],
+        updates: [
+          {
+            id: 'gradle:extensions/extension/build.gradle.kts#dependencies/com.example:widget',
+            from: '1.0.0',
+            to: '2.0.0',
+          },
+        ],
+        digest: '',
+      };
+      proposal.digest = computeProposalDigest(
+        proposal.inputs,
+        proposal.updates,
+      );
+      const res = await applyApprovedProposal(tmpDir, proposal, policy);
+      expect(res.success).toBe(true);
+      expect(fs.readFileSync(buildPath, 'utf8')).toContain(
+        'implementation("com.example:widget:2.0.0")',
+      );
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }

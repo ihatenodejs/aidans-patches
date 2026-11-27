@@ -1467,7 +1467,7 @@ async function runDeps(): Promise<PhaseResult> {
     const groupSuccess =
       groupUpdates === 0 && groupErrors === 0 && groupUnsupported === 0;
 
-    let summaryStr = `All ${groupItems.length} items up to date or held`;
+    let summaryStr = `All ${groupItems.length} items up to date, held, or pinned`;
     if (groupErrors > 0) {
       const errReasons = groupItems
         .filter((i) => i.status === 'error')

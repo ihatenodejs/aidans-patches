@@ -6,6 +6,7 @@ export type DependencyStatus =
   | 'current'
   | 'update'
   | 'held'
+  | 'pinned'
   | 'moving'
   | 'ahead'
   | 'unused'
@@ -43,6 +44,8 @@ export interface DependencyItem {
   latestProbePattern?: string;
   status: DependencyStatus;
   reason?: string;
+  /** Set when Bun and npm lockfiles disagree for a direct dependency. */
+  lockfileMismatch?: string;
   sourceUrl?: string;
   durationMs?: number;
 }
@@ -81,6 +84,7 @@ export interface DependencySummary {
   current: number;
   update: number;
   held: number;
+  pinned: number;
   moving: number;
   ahead: number;
   unused: number;

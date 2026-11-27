@@ -25,6 +25,9 @@ bun run deps:update --plan /tmp/dependencies.json --approve <proposal.digest>
 # Audit integration (opt-in freshness phase)
 bun scripts/audit.ts deps
 bun run audit --deps
+
+# Opt-in transitive vulnerability scan (not part of the deterministic audit)
+bun run deps:security
 ```
 
 ## Exit Codes
@@ -40,17 +43,23 @@ bun run audit --deps
 
 The updater covers all direct software dependencies and version-sensitive toolchain configurations in the repository:
 
-| Ecosystem               | Manifest / Source                                                                                                                       | Tracked Lockfiles                                                   |
-| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
-| JavaScript / Web        | `package.json`, `worker/package.json`, `site/package.json`                                                                              | `bun.lock`, `worker/bun.lock`, `site/bun.lock`, `package-lock.json` |
-| Rust / Crates           | `tools/apk-lab/Cargo.toml`, `tools/play-metadata/Cargo.toml`, `tools/asset-prep/Cargo.toml`, `extensions/nhl-adblock-native/Cargo.toml` | Corresponding standalone `Cargo.lock` files                         |
-| Gradle Plugins          | `settings.gradle.kts`, `gradle/libs.versions.toml`                                                                                      | Gradle metadata                                                     |
-| External APK Binaries   | `tools/apk-lab/tools.lock.json`                                                                                                         | Download URL, SHA-256, executable path, and version probe           |
-| Code Quality Tooling    | `scripts/audit.ts` (`KTLINT_VERSION`)                                                                                                   | Upstream release asset SHA-256                                      |
-| GitHub Actions          | `.github/workflows/*.yml`                                                                                                               | Release tags                                                        |
-| Toolchain Runtimes      | Workflow setup inputs, `rust-toolchain.toml`, `build.gradle.kts` (NDK), `tools/apk-lab/src/tools.rs` (Build Tools)                      | Pinned versions across coordinated files                            |
-| Embedded In-Repo Assets | `OsmMapView.java` (Leaflet CDN)                                                                                                         | Coupled asset URLs                                                  |
-| C++ / Native            | `extensions/adobescan-pdf-native/CMakeLists.txt`                                                                                        | CMake FetchContent archives and integrity hashes                    |
+| Ecosystem             | Manifest / Source                                                                                                                                                | Tracked Lockfiles                                                   |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| JavaScript / Web      | `package.json`, `worker/package.json`, `site/package.json`                                                                                                       | `bun.lock`, `worker/bun.lock`, `site/bun.lock`, `package-lock.json` |
+| Rust / Crates         | The four registered `Cargo.toml` files, including `[target.'cfg(...)'.dependencies]` tables                                                                      | Corresponding standalone `Cargo.lock` files                         |
+| Gradle Plugins        | `settings.gradle.kts`, `gradle/libs.versions.toml`, literal dependencies in `build.gradle.kts`                                                                   | Gradle metadata                                                     |
+| External APK Binaries | `tools/apk-lab/tools.lock.json`                                                                                                                                  | Download URL, SHA-256, executable path, and version probe           |
+| Code Quality Tooling  | `scripts/audit.ts` (`KTLINT_VERSION`)                                                                                                                            | Upstream release asset SHA-256                                      |
+| GitHub Actions        | `.github/workflows/*.yml`                                                                                                                                        | Release tags                                                        |
+| Toolchain Runtimes    | Workflow setup inputs, `rust-toolchain.toml`, `build.gradle.kts` (NDK), `tools/apk-lab/src/tools.rs` (Build Tools), `worker/wrangler.jsonc` (compatibility date) | Pinned versions across coordinated files                            |
+| Embedded Assets       | `OsmMapView.java` (Leaflet CDN), Apple Color Emoji font, `tessdata_fast` OCR model                                                                               | Coupled asset URLs, hashes, and sizes                               |
+| C++ / Native          | Adobe Scan `CMakeLists.txt` FetchContent, vendored `turbojpeg-sys` libjpeg-turbo pin                                                                             | CMake archives and integrity hashes                                 |
+
+Every manifest class above is registered explicitly, and
+`scripts/dependencies/coverage.test.ts` walks the repository for `package.json`,
+`Cargo.toml`, `CMakeLists.txt`, `build.gradle.kts`, and composite-action files.
+A new manifest that is not registered fails that test instead of being silently
+ignored.
 
 Gradle wrapper, ktlint, APK Lab tools, and NDK updates carry their artifact
 checksum (and, for APK tools, the new URL, executable path, and version probe)
@@ -73,7 +82,16 @@ The release workflow uses root `package-lock.json` as its lock owner: it
 installs with `npm ci --ignore-scripts` and runs the locked local
 `semantic-release` executable. `bun.lock` remains canonical for Bun CI
 commands, so a release dependency change must update both lockfiles and the
-`@semantic-release/*` versions must satisfy `package.json`.
+`@semantic-release/*` versions must satisfy `package.json`. `deps:check`
+parses both lockfiles and reports an error when a direct root dependency
+resolves differently in Bun and npm (git commits are compared by prefix). This
+catches a partial refresh before it reaches the release job.
+
+Dependabot is intentionally not configured. It cannot model
+`dependency-policy.json` holds, peer/engine compatibility, or the coupled
+artifact hashes in `tools/apk-lab/tools.lock.json` and the native CMake pins.
+`scripts/deps.ts` is the only dependency updater; any new automation must
+respect the same policy instead of opening independent upgrade PRs.
 
 Repository hooks use Bun (`scripts/hooks.ts` and `scripts/install-hooks.ts`), not the
 Python pre-commit framework. `toml-eslint-parser` is required for TOML 1.0 syntax
@@ -88,6 +106,33 @@ oracle evidence, not an ordinary build/test dependency of `asset-prep`. ZIP read
 features retain Stored, Deflate, Bzip2 and LZMA; Cargo defaults that add unrelated
 codecs/crypto are disabled. The hash-pinned libjpeg-turbo 3.1.1 wrapper is deliberate
 exact-pixel compatibility, not the separate native PDF engine's codec version.
+
+### Pinned and Review-Only Entries
+
+Some dependencies are content-pinned and cannot be bumped independently. They
+are reported as `pinned`, with the upstream latest when it can be resolved, and
+are never included in a proposal:
+
+- Apple Color Emoji release asset: URL, raw hash, processed size/hash, and the
+  Gradle `fontSourceSha256` input move together.
+- `tessdata_fast` OCR model commit: URL, hash, size, and the Gradle
+  `modelVersion` input move together.
+- Vendored `turbojpeg-sys` libjpeg-turbo (`LJT_VERSION`/`LJT_SHA256`): bundled
+  separately from the Adobe Scan CMake libjpeg-turbo pin. The vendored crate's
+  own Cargo dependencies resolve through `tools/asset-prep/Cargo.lock`.
+- `worker/wrangler.jsonc` `compatibility_date`: a runtime pin, reviewed when
+  wrangler is upgraded.
+- `smali` in the Gradle catalog: consumed by the Morphe patches plugin by alias,
+  so removing it breaks the build even though no catalog library references it.
+
+### Security Auditing
+
+`bun run deps:security` is an opt-in transitive vulnerability scan. It runs
+Bun's audit for root, worker, and site; npm's audit against the release
+lockfile; and `cargo audit` for each registered Rust project when
+`cargo-audit` is installed. It is deliberately not part of `bun run audit` or
+the deterministic freshness check, and it exits non-zero when advisories or
+audit errors are reported.
 
 ### Non-Dependency Exclusions
 

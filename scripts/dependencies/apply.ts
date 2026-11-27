@@ -16,6 +16,52 @@ export function escapeRegex(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+/**
+ * Replaces a dependency version inside one Cargo.toml section. Target-specific
+ * tables use the same `[target.'cfg(...)'.dependencies]` header text as their
+ * inventory section path, so the match stays scoped to the right table.
+ */
+export function replaceCargoDependencyVersion(
+  content: string,
+  section: string,
+  pkgName: string,
+  to: string,
+): string {
+  const headers = [`[${section}]`];
+  if (section.startsWith('target.')) {
+    headers.push(`[${section.replace(".'", '.').replace("'.", '.')}]`);
+  }
+  const header = headers.find((candidate) => content.includes(candidate));
+  if (!header) {
+    throw new Error(
+      `Cannot update Cargo dependency: section ${headers[0]} is missing`,
+    );
+  }
+  const headerIndex = content.indexOf(header);
+  const nextSection = content.indexOf('\n[', headerIndex + header.length);
+  const blockEnd = nextSection === -1 ? content.length : nextSection + 1;
+  const block = content.slice(headerIndex, blockEnd);
+  const safePkgName = escapeRegex(pkgName);
+  const tableRegex = new RegExp(
+    `(${safePkgName}\\s*=\\s*\\{[^}]*version\\s*=\\s*)"([^"]+)"`,
+    'g',
+  );
+  const simpleRegex = new RegExp(`(${safePkgName}\\s*=\\s*)"([^"]+)"`, 'g');
+  const replaceVersion = (match: string, prefix: string, oldVer: string) => {
+    const exact = oldVer.startsWith('=') ? '=' : '';
+    return `${prefix}"${exact}${to}"`;
+  };
+  const updated = tableRegex.test(block)
+    ? block.replace(tableRegex, replaceVersion)
+    : block.replace(simpleRegex, replaceVersion);
+  if (updated === block) {
+    throw new Error(
+      `Cannot update Cargo dependency: ${pkgName} was not found in ${header}`,
+    );
+  }
+  return content.slice(0, headerIndex) + updated + content.slice(blockEnd);
+}
+
 async function resolveAssetHash(
   assetIdentity: string | undefined,
   assetUrl: string | undefined,
@@ -317,33 +363,24 @@ export async function applyApprovedProposal(
       else if (id.startsWith('crates:')) {
         const hashIdx = id.indexOf('#');
         const manifestRel = id.slice(7, hashIdx);
-        const [, pkgName] = id.slice(hashIdx + 1).split('/');
+        const sectionRef = id.slice(hashIdx + 1);
+        const slashIdx = sectionRef.lastIndexOf('/');
+        if (slashIdx === -1) {
+          throw new Error(`Invalid Cargo dependency ID structure: ${id}`);
+        }
+        const section = sectionRef.slice(0, slashIdx);
+        const pkgName = sectionRef.slice(slashIdx + 1);
         const stagedManifest = path.join(stagingDir, manifestRel);
 
         if (fs.existsSync(stagedManifest)) {
-          let content = fs.readFileSync(stagedManifest, 'utf8');
-          // Replace simple string version or table version
-          const safePkgName = escapeRegex(pkgName);
-          const simpleRegex = new RegExp(
-            `(${safePkgName}\\s*=\\s*)"([^"]+)"`,
-            'g',
+          const content = fs.readFileSync(stagedManifest, 'utf8');
+          const updated = replaceCargoDependencyVersion(
+            content,
+            section,
+            pkgName,
+            to,
           );
-          const tableRegex = new RegExp(
-            `(${safePkgName}\\s*=\\s*\\{[^}]*version\\s*=\\s*)"([^"]+)"`,
-            'g',
-          );
-          if (tableRegex.test(content)) {
-            content = content.replace(tableRegex, (match, prefix, oldVer) => {
-              const exact = oldVer.startsWith('=') ? '=' : '';
-              return `${prefix}"${exact}${to}"`;
-            });
-          } else {
-            content = content.replace(simpleRegex, (match, prefix, oldVer) => {
-              const exact = oldVer.startsWith('=') ? '=' : '';
-              return `${prefix}"${exact}${to}"`;
-            });
-          }
-          fs.writeFileSync(stagedManifest, content);
+          fs.writeFileSync(stagedManifest, updated);
           touchedFiles.add(manifestRel);
           appliedIds.add(id);
         }
@@ -362,6 +399,28 @@ export async function applyApprovedProposal(
           touchedFiles.add('settings.gradle.kts');
           appliedIds.add(id);
         }
+      } else if (id.startsWith('gradle:') && id.includes('#dependencies/')) {
+        const hashIdx = id.indexOf('#');
+        const buildRel = id.slice(7, hashIdx);
+        const coordinates = id.slice(hashIdx + '#dependencies/'.length);
+        const stagedBuild = path.join(stagingDir, buildRel);
+        if (!fs.existsSync(stagedBuild)) {
+          throw new Error(
+            `Cannot update Gradle dependency: ${buildRel} is missing`,
+          );
+        }
+        const content = fs.readFileSync(stagedBuild, 'utf8');
+        const escaped = escapeRegex(`${coordinates}:${from}`);
+        const regex = new RegExp(`(["'])${escaped}(?=@|["'])`, 'g');
+        const updated = content.replace(regex, `$1${coordinates}:${to}`);
+        if (updated === content) {
+          throw new Error(
+            `Cannot update Gradle dependency: ${coordinates}:${from} was not found in ${buildRel}`,
+          );
+        }
+        fs.writeFileSync(stagedBuild, updated);
+        touchedFiles.add(buildRel);
+        appliedIds.add(id);
       } else if (id.startsWith('gradle:gradle/libs.versions.toml')) {
         const stagedCatalog = path.join(
           stagingDir,

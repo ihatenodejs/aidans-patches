@@ -12,6 +12,7 @@
     "audit": "bun scripts/audit.ts all",
     "deps:check": "bun scripts/deps.ts check",
     "deps:update": "bun scripts/deps.ts update",
+    "deps:security": "bun scripts/deps.ts security",
     "play-accounts": "cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- play-accounts",
     "sync:fizz-version": "bun scripts/sync-fizz-version.ts",
     "prepare": "bun scripts/install-hooks.ts"
