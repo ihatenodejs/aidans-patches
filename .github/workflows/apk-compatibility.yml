@@ -25,7 +25,7 @@ jobs:
       packages: ${{ steps.set-matrix.outputs.packages }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 0
 
@@ -41,7 +41,7 @@ jobs:
           targets: aarch64-linux-android
 
       - name: Rust cache
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@v2.9.3
         with:
           workspaces: tools/apk-lab -> tools/apk-lab/target
 
@@ -50,7 +50,7 @@ jobs:
 
       - name: Setup Android NDK
         id: setup-ndk
-        uses: nttld/setup-ndk@v1
+        uses: nttld/setup-ndk@v1.6.0
         with:
           ndk-version: r28c
           add-to-path: false
@@ -68,12 +68,13 @@ jobs:
           ./gradlew generatePatchesList --no-daemon
 
       - name: Upload Patch Bundle & Metadata Artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: patches-bundle
           path: |
             patches/build/libs/patches-*.mpp
             patches-list.json
+            tools/apk-lab/target/release/apk-lab
           retention-days: 1
           if-no-files-found: error
 
@@ -107,7 +108,7 @@ jobs:
       COMPATIBILITY_STATUS_SECRET: ${{ secrets.COMPATIBILITY_STATUS_SECRET }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 0
 
@@ -117,7 +118,7 @@ jobs:
           distribution: 'temurin'
           java-version: '21'
       - name: Download Patch Bundle & Metadata Artifact
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@v8.0.2
         with:
           name: patches-bundle
 
@@ -129,21 +130,13 @@ jobs:
             "${ANDROID_HOME:-/usr/local/lib/android/sdk}/cmdline-tools/latest/bin/sdkmanager" "build-tools;36.0.0"
           }
 
-      - name: Setup Rust toolchain
-        uses: dtolnay/rust-toolchain@1.97.1
-
-      - name: Rust cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: tools/apk-lab -> tools/apk-lab/target
-
-      - name: Build native apk-lab
-        run: cargo build --release --locked --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab
+      # The release binary is built once in matrix-setup and shipped with the
+      # bundle artifact; rebuilding it in every matrix job cost ~154s each.
+      - name: Trust downloaded apk-lab
+        run: chmod +x tools/apk-lab/target/release/apk-lab
 
       - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
+        uses: oven-sh/setup-bun@v2.2.0
 
       # `apkmirror_runner.cjs` requires the pinned `apkmirror-downloader`
       # package from the root lockfile. Without this the APKMirror fallback

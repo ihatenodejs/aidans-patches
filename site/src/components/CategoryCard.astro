@@ -17,7 +17,7 @@ const [color1, color2] = category.gradientPair;
   data-category-name={category.name}
   data-category-description={category.shortDescription}
   data-category-count={count}
-  class={`group relative flex h-28 w-44 shrink-0 snap-start flex-col justify-between overflow-hidden border p-3.5 text-left transition-all duration-200 select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40 ${
+  class={`group relative flex h-28 w-44 shrink-0 snap-start flex-col justify-between overflow-hidden border p-3.5 text-left transition-all duration-200 select-none focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-white/40 ${
     isSelected
       ? 'border-white bg-[#101010] shadow-[0_0_24px_rgba(255,255,255,0.08)] ring-1 ring-white/30'
       : 'border-white/[0.08] bg-[#080808] hover:border-white/20 hover:bg-[#0c0c0c]'
@@ -58,7 +58,7 @@ const [color1, color2] = category.gradientPair;
 
   <!-- Top bar: Category icon -->
   <div class="relative z-10 flex items-center justify-between gap-2">
-    <div class="flex h-7 w-7 items-center justify-center rounded-sm border border-white/10 bg-white/[0.04] text-zinc-300 transition-colors group-hover:border-white/25 group-hover:text-white">
+    <div class="flex h-7 w-7 items-center justify-center rounded-xs border border-white/10 bg-white/[0.04] text-zinc-300 transition-colors group-hover:border-white/25 group-hover:text-white">
       {category.icon === 'grid' && (
         <svg
           class="h-3.5 w-3.5"

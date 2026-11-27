@@ -114,7 +114,7 @@ private fun HermesBundleEditor.disableThanksBaseUrl() {
 @Suppress("unused")
 val removeAdsAndTrackingPatch = compositeFeaturePatch(
     name = "Remove Ads and Tracking",
-    description = "Removes all ads (AppLovin MAX, Google Mobile Ads, Rokt, Thanks network, Playtime, InBrain Surveys) and disables analytics and tracking SDKs (AppsFlyer, FullStory, Braze, Firebase Analytics, mParticle, Facebook SDK, AppCenter).",
+    description = "Removes ads (AppLovin MAX, Google Mobile Ads, Thanks network, Playtime, InBrain Surveys) and disables analytics and tracking SDKs (AppsFlyer, FullStory, Braze, Firebase Analytics, mParticle, Facebook SDK, AppCenter).",
     default = true
 ) {
     category("Ads")
@@ -186,31 +186,9 @@ val removeAdsAndTrackingPatch = compositeFeaturePatch(
             "openDebugMenu"
         )
 
-        // 3. Rokt (Embedded / Modal Offers & Placements)
-        disableVoidMethods(
-            "Lcom/mparticle/react/rokt/MPRoktModule;",
-            "selectPlacements",
-            "selectShoppableAds",
-            "purchaseFinalized"
-        )
-        disableVoidMethods(
-            "Lcom/mparticle/react/rokt/MPRoktModuleImpl;",
-            "selectPlacements",
-            "selectShoppableAds",
-            "purchaseFinalized"
-        )
-        disableVoidMethods("Lcom/mparticle/react/rokt/RoktLayoutViewManager;", "setPlaceholderName")
-        disableVoidMethods("Lcom/mparticle/react/rokt/RoktLayoutViewManagerImpl;", "setPlaceholderName")
-        disableVoidMethods(
-            "Lcom/rokt/roktsdk/RoktInternalImplementation;",
-            "execute",
-            "execute\$roktsdk_devRelease",
-            "execute2Step"
-        )
-        disableVoidMethods("Lcom/rokt/roktsdk/Rokt;", "execute", "init")
-        disableVoidMethods("Lcom/rokt/roktsdk/ui/overlay/RoktModalActivity;", "onCreate")
-        disableVoidMethods("Lcom/rokt/roktsdk/internal/overlay/bottomsheet/BottomSheetActivity;", "onCreate")
-        disableVoidMethods("Lcom/rokt/roktux/RoktLayoutView;", "show", "setVisibility")
+        // 3. Rokt is intentionally left enabled. Its React Native bridge is
+        // called from the checkout loan-term flow; stubbing it prevents
+        // set-loan-term from completing and leaves the loan confirmation disabled.
         // 4. Adjoe (Playtime Rewards / Ads)
         disableVoidMethods("Lio/adjoe/sdk/Playtime;", "init")
         disableVoidMethods(

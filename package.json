@@ -2,6 +2,10 @@
   "name": "aidans-patches",
   "private": true,
   "type": "module",
+  "packageManager": "bun@1.4.5",
+  "engines": {
+    "bun": ">=1.4.5"
+  },
   "scripts": {
     "format": "bun scripts/audit.ts format",
     "format:check": "bun scripts/audit.ts format:check",
@@ -12,6 +16,7 @@
     "audit": "bun scripts/audit.ts all",
     "deps:check": "bun scripts/deps.ts check",
     "deps:update": "bun scripts/deps.ts update",
+    "deps:security": "bun scripts/deps.ts security",
     "play-accounts": "cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- play-accounts",
     "sync:fizz-version": "bun scripts/sync-fizz-version.ts",
     "prepare": "bun scripts/install-hooks.ts"
@@ -25,8 +30,8 @@
     "apkmirror-downloader": "^2.0.11",
     "conventional-changelog-conventionalcommits": "^9.3.1",
     "gradle-semantic-release-plugin": "^1.10.3",
-    "markdownlint-cli2": "^0.24.1",
-    "oxlint": "^1.94.0",
+    "markdownlint-cli2": "^0.24.2",
+    "oxlint": "^1.95.0",
     "prettier": "^3.10.1",
     "prettier-plugin-astro": "^1.1.2",
     "semantic-release": "^25.0.9",

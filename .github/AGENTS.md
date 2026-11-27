@@ -4,7 +4,7 @@ Scope: CI workflows, release/deploy automation, issue templates, and Bun/native 
 
 ## Workflow Map
 
-- `workflows/apk-lab-tests.yml`: installs locked root/Worker/site dependencies, runs format/lint/typecheck/tests, then the clean Gradle patch build gate.
+- `workflows/apk-lab-tests.yml`: selects audit scopes from changed paths, runs the checks each group needs (Web, Docs & Config, Android, Rust, Native), and builds the patch bundle as part of the Android audit.
 - `workflows/apk-compatibility.yml`: builds `.mpp`/metadata, computes affected packages, reconciles private fixtures, runs real compatibility checks, and reports terminal status.
 - `workflows/release.yml`: Java/Node release pipeline and semantic-release driven only by pushes to the protected `release/main` (stable) and `release/dev` (prerelease) branches, gated by paths to patch build inputs; site and Worker deploy handoffs trigger only for a published stable release from `release/main`.
 - `workflows/deploy-worker.yml`: Worker typecheck/test and conditional Wrangler deployment; invoked by the `release/main` handoff with the post-release branch tip, or manually from `release/main`, and never from `main`/`dev` pushes.
@@ -14,10 +14,15 @@ Scope: CI workflows, release/deploy automation, issue templates, and Bun/native 
 - `workflows/sync-app-icons.yml`: scheduled/manual icon synchronization in a PR targeting `dev`.
 - `workflows/google-play-metadata.yml`: scheduled or manual authenticated Google Play metadata enrichment via the Rust `play-metadata` tool.
 - `workflows/open_pull_request.yml`: automatic `dev` → `main` PR creation on pushes to `dev`; manual `workflow_dispatch` uses the selected workflow ref as the source branch.
+- `workflows/dependency-freshness.yml`: weekly or manual `bun scripts/deps.ts check --json`; fails the run when exit code 2 reports actionable updates and never mutates or opens PRs.
 
 Use pinned actions and least-privilege `permissions`. Preserve path filters and release handoffs when moving generated inputs; they determine whether metadata reaches Worker/site.
 
-In `workflows/apk-lab-tests.yml`, the `core` filter covers dependency policy, `scripts/**`, `.github/**` (every workflow, template, and Dependabot config), `.agents/**` (skills), `skills-lock.json`, `.editorconfig`, and `.gitattributes`; any core hit forces a full run of every domain job. The `docs` filter covers `docs/**`, root `*.md`, and `.markdownlint-cli2.jsonc` and routes docs-only changes to `Web Verification` (markdown lint and documentation tests). `Test & Build Gate` fails when no domain job executed.
+In `workflows/apk-lab-tests.yml`, filters map changed paths to narrow scopes, not domains: `docs`, `worker`, `site`, `scripts`, `ci`, `icons`, `metadata`, `android`, one scope per Rust crate, and `native`. `scripts/audit.ts all --scope ...` runs only the selected checks. There is deliberately no `core` full-run group: workflow/config changes run Prettier and docs checks, root lock/package changes run scripts checks, and a manual `workflow_dispatch` is the full-suite escape hatch. Reverse dependencies are explicit: `patches-list.json` selects `metadata` (worker and Astro typechecks plus docs structure tests) and `icons`, without running the Worker or site test suites. `Test & Build Gate` fails when no domain job executed, so an unmatched path cannot merge unverified.
+
+The Android audit runs the unit tests and the artifact build as separate Gradle invocations; combining them hung CI for 35 minutes, so do not merge those tasks. Keep that invariant when editing the workflows.
+
+The release pre-gate re-verifies only the promotion delta plus the always-required Android artifact build. Compatibility matrix jobs download the `apk-lab` binary built by the setup job instead of rebuilding it; keep the artifact path and the explicit executable permission when editing that workflow.
 
 ## Generator Scripts
 
@@ -25,21 +30,15 @@ In `workflows/apk-lab-tests.yml`, the `core` filter covers dependency policy, `s
 - `../scripts/asset-prep.ts`: bootstraps the native `tools/asset-prep` host binary for icon checks/synchronization; no Pillow runtime. Preserve offline discovery exit/output semantics and pixel-equal existing-file no-ops.
 - `tools/asset-prep` (`font`, `ocr`, `pdfbox`): Gradle builds the host tool with declared Cargo/source inputs and prepares pinned resources in the original paths/caches. Release font cache identities include Rust sources/lockfile and upstream identity.
 
-## Dependency Automation (Dependabot)
+## Dependency Automation
 
-`.github/dependabot.yml` configures monthly dependency update checks targeting the `dev` branch with empty labels across three ecosystems:
-
-- `github-actions`: workflow actions.
-- `npm`: root and workspace dependencies; intentionally ignores `conventional-changelog-conventionalcommits` to preserve custom changelog release rules.
-- `gradle`: Gradle wrapper and plugin dependencies.
-
-Repository-wide dependency checks via `scripts/deps.ts` enforce the same hold in `dependency-policy.json`. When modifying dependency holds, keep Dependabot ignores and `dependency-policy.json` aligned so external automation does not open PRs for held packages.
+`scripts/deps.ts` is the only dependency updater. Dependabot is intentionally not configured: it cannot model `dependency-policy.json` holds, peer/engine compatibility, or the coupled artifact hashes in `tools/apk-lab/tools.lock.json` and the native CMake pins. Use `bun run deps:check` to inspect and `bun run deps:update` to apply an approved proposal. `bun run deps:security` is the opt-in transitive vulnerability scan; it is not part of the deterministic audit.
 
 Generator and automation code is Bun/TypeScript or native Rust. Validate paths and input shape, fail with actionable errors, and never print secret values. Do not introduce a Python runtime, package manager, hook framework, or interpreter requirement.
 
 ## Required Status Checks
 
-Repository ruleset `Require verification gate` (branch target, active) requires the aggregate `Test & Build Gate` GitHub Actions check on `main` and `dev`; the `Lock main`/`Lock dev` rulesets keep blocking deletions and non-fast-forward pushes. `strict_required_status_checks_policy` is off, so branches need not be up to date before merge. This setting lives in repository settings, not in workflow files: the workflow must keep the exact job name `Test & Build Gate`, or the requirement silently stops matching. The gate fails when a run has no executed domain job (docs-only changes must still run `Web Verification`), so it cannot pass on an unverified change.
+Repository ruleset `Require verification gate` (branch target, active) requires the aggregate `Test & Build Gate` GitHub Actions check on `main` and `dev`; the `Lock main`/`Lock dev` rulesets keep blocking deletions and non-fast-forward pushes. `strict_required_status_checks_policy` is off, so branches need not be up to date before merge. This setting lives in repository settings, not in workflow files: the workflow must keep the exact job name `Test & Build Gate`, or the requirement silently stops matching. The gate fails when a run has no executed domain job; docs, config, metadata, and icon changes must still run `Docs & Config Verification`, so the gate cannot pass on an unverified change.
 
 The release branches are separate long-lived branches with their own protection: rulesets on `refs/heads/release/main` and `refs/heads/release/dev` must block deletion and non-fast-forward updates and permit updates only from the release identity. The release job pushes with a GitHub App installation token (`RELEASE_APP_ID`/`RELEASE_APP_PRIVATE_KEY`), and that app must be a bypass actor on both release-branch rulesets and on `Require verification gate` so the release-driven backmerge push to `dev` is accepted. GitHub also supports a deploy-key bypass, but that bypass applies to deploy keys collectively; using it instead requires changing the workflows. Keep the `main`/`dev` merge rules unchanged for human work; do not solve protection by lowering them.
 
@@ -54,6 +53,8 @@ All release-branch writes must come from `release.yml` or `promote-release.yml` 
 3. The README generated patch block is refreshed.
 4. Semantic release updates/commits `CHANGELOG.md`, `gradle.properties`, `patches-bundle.json`, `patches-list.json`, and `README.md`.
 5. The `.mpp` release asset is published/attested; stable releases from `release/main` hand off site and Worker deployments.
+
+`release: false` suppresses the version bump only; it does not hide the commit from release notes. The conventionalcommits preset keeps any commit whose `(type, scope)` pair has no `presetConfig.types` entry, so every non-application scope needs an explicit `{ "type": …, "scope": …, "hidden": true }` entry for each releasing type (`fix`, `feat`, `bump`, `perf`), declared before the sectioned entry for that type — the preset keeps the first match. `scripts/release-notes.test.ts` enforces that coverage, the ordering, and that `release.dryrun.config.mjs` stays identical to `.releaserc`. Adding a non-application scope means adding it to `releaseRules` and to both `types` lists.
 
 ### Protected release branches
 
@@ -168,7 +169,7 @@ would install a dependency graph npm did not verify. `bun.lock` remains the
 canonical CI graph for Bun commands; update both locks together when a release
 dependency changes.
 
-The release job also points `core.hooksPath` at an empty directory before `semantic-release` runs. Its checkout installs root dependencies only, so the repository pre-push audit cannot execute there; the source commit is already covered by the verification gate, and the generated release commit is not a place to half-run the hook. Do not "fix" this by installing every workspace in the release job.
+The release job also points `core.hooksPath` at an empty directory before `semantic-release` runs. Its checkout installs root dependencies only, so the repository hooks cannot run there; the source commit is already covered by the verification gate, and the generated release commit is not a place to half-run the hook. Do not "fix" this by installing every workspace in the release job.
 
 ### Release state invariant
 

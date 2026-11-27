@@ -63,7 +63,7 @@ const searchText = [
         <h3 class="min-w-0 truncate font-sans text-base font-bold leading-tight tracking-tight text-white group-hover:text-white">
           <a
             href={`/apps/${app.id}`}
-            class="focus:outline-none focus-visible:underline"
+            class="focus:outline-hidden focus-visible:underline"
           >
             <span class="absolute inset-0" aria-hidden="true"></span>
             {app.name}
@@ -80,7 +80,7 @@ const searchText = [
           className="relative z-20 shrink-0"
           alignment="start"
         />
-        <span class="inline-flex items-center gap-1 rounded-sm border border-white/[0.08] bg-white/[0.04] px-1.5 py-0.5 font-mono text-[9px] font-semibold text-zinc-300">
+        <span class="inline-flex items-center gap-1 rounded-xs border border-white/[0.08] bg-white/[0.04] px-1.5 py-0.5 font-mono text-[9px] font-semibold text-zinc-300">
           <span>{app.patchCount}</span>
           <span class="font-normal text-zinc-500">
             {app.patchCount === 1 ? 'patch' : 'patches'}

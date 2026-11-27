@@ -34,6 +34,15 @@ val webAdBlockerPatch = compositeFeaturePatch(
             activity.setAttributeNS("http://schemas.android.com/apk/res/android", "android:exported", "true")
             activity.setAttributeNS("http://schemas.android.com/apk/res/android", "android:theme", "@style/Theme.Nhlandroid")
             appElement.appendChild(activity)
+
+            val updateService = doc.createElement("service")
+            updateService.setAttributeNS("http://schemas.android.com/apk/res/android", "android:name", "app.aidan.extension.nhl.adblock.AdBlockUpdateJobService")
+            updateService.setAttributeNS("http://schemas.android.com/apk/res/android", "android:exported", "false")
+            updateService.setAttributeNS("http://schemas.android.com/apk/res/android", "android:permission", "android.permission.BIND_JOB_SERVICE")
+            appElement.appendChild(updateService)
+
+            ensureUsesPermission(doc, "android.permission.RECEIVE_BOOT_COMPLETED")
+            ensureUsesPermission(doc, "android.permission.ACCESS_NETWORK_STATE")
         }
 
         runCatching {
@@ -120,11 +129,25 @@ val webAdBlockerPatch = compositeFeaturePatch(
     }
 
     bytecode {
+        patchApplicationStartup()
         patchWebViewFactories()
         patchWebViewClient()
         patchArticleLoadUrl()
         patchSettingsSection()
     }
+}
+
+private fun ensureUsesPermission(doc: org.w3c.dom.Document, permission: String) {
+    val existing = doc.getElementsByTagName("uses-permission")
+    for (i in 0 until existing.length) {
+        val element = existing.item(i) as? org.w3c.dom.Element ?: continue
+        if (element.getAttributeNS("http://schemas.android.com/apk/res/android", "name") == permission) {
+            return
+        }
+    }
+    val permissionElement = doc.createElement("uses-permission")
+    permissionElement.setAttributeNS("http://schemas.android.com/apk/res/android", "android:name", permission)
+    doc.documentElement.appendChild(permissionElement)
 }
 
 private fun copyRawResource(context: ResourcePatchContext, resourcePath: String, destPath: String) {
@@ -187,6 +210,37 @@ private fun markUncompressed(destFile: java.io.File, destPath: String) {
         target.parentFile?.mkdirs()
         target.writeText(newContent)
     }
+}
+
+private fun BytecodePatchContext.patchApplicationStartup() {
+    val applicationClass = mutableClassDefByOrNull("Lcom/nhl/mobile/android/core/application/NhlApplication;")
+        ?: throw PatchException("Missing required class NhlApplication (application startup)")
+
+    val onCreate = applicationClass.methods.singleOrNull {
+        it.name == "onCreate" && it.returnType == "V" && it.parameterTypes.isEmpty()
+    } ?: throw PatchException("Missing required NhlApplication.onCreate")
+    if (AccessFlags.STATIC.isSet(onCreate.accessFlags)) {
+        throw PatchException("NhlApplication.onCreate is static; cannot inject instance context")
+    }
+
+    val instructions = onCreate.implementation?.instructions?.toList()
+        ?: throw PatchException("NhlApplication.onCreate has no implementation")
+
+    val superOnCreateIndex = instructions.indexOfFirst { instruction ->
+        val reference = (instruction as? com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction)?.reference
+            as? com.android.tools.smali.dexlib2.iface.reference.MethodReference
+        (
+            instruction.opcode == com.android.tools.smali.dexlib2.Opcode.INVOKE_SUPER ||
+                instruction.opcode == com.android.tools.smali.dexlib2.Opcode.INVOKE_SUPER_RANGE
+            ) &&
+            reference?.name == "onCreate"
+    }
+    onCreate.addInstructions(
+        if (superOnCreateIndex >= 0) superOnCreateIndex + 1 else 0,
+        """
+        invoke-static/range {p0 .. p0}, Lapp/aidan/extension/nhl/adblock/AdBlockAutoUpdateScheduler;->syncFromPreference(Landroid/content/Context;)Z
+        """.trimIndent()
+    )
 }
 
 private fun BytecodePatchContext.patchWebViewFactories() {

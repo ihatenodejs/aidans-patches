@@ -292,3 +292,31 @@ The **Unlock Hidden Features** patch unlocks these surfaces with independent opt
 
 - **Server Feed Availability:** The Draft Mini Tracker visibility gate is unlocked locally, but displayed draft content requires live data feeds from the NHL API.
 - **Web Authentication:** GameZone is a hosted web application (`https://s3.foreverflow.click/...`); session management and external server connectivity remain governed by remote endpoints.
+
+---
+
+## Patch: Web Ad Blocker
+
+- **Name:** Web Ad Blocker
+- **Target Package:** `com.nhl.gc1112.free`
+- **Supported Versions:** `17.2.0`
+- **Default State:** `true` (Enabled by default)
+- **Type:** Composite feature patch (`compositeFeaturePatch`)
+- **Category:** `Ads`
+
+### 1. Runtime & Network Behavior
+
+- Filter rules are compiled natively in `extensions/nhl-adblock-native`; bundled `/assets/aidan/nhl/adblock/nhl-default.txt` rules provide the offline default list.
+- Optional EasyList/EasyPrivacy subscriptions download over HTTPS only. Redirect targets are re-validated as HTTPS and rejected when the host resolves to a loopback, site-local, link-local, or wildcard address. Requests use a 10 s connect timeout, a 30 s read timeout, a maximum of 8 MiB per list, and a maximum of three redirects.
+- Conditional requests send `If-None-Match`/`If-Modified-Since` when metadata exists. An HTTP `304` refreshes the success timestamp without touching list bytes.
+- Downloads are written and `fsync`ed to a same-directory temporary file and published with an atomic replacement. Redirect exhaustion, a missing `Location`, a non-`200`/`304` terminal response, an oversized body, an I/O error, or a failed replacement leaves the previous list bytes and subscription metadata untouched and records `lastError`, which the Rules screen displays as `Update failed: ...`.
+- Downloads and native compilation run on the repository's background executor, never on the UI thread.
+
+### 2. Automatic Updates
+
+- The Settings toggle persists `auto_update` and reconciles a unique `JobScheduler` job (`AdBlockUpdateJobService`, job id `0x4E484C01`, 12-hour period).
+- The job is `setPersisted(true)`, requires `JobInfo.NETWORK_TYPE_ANY`, and is declared in the patch's manifest layer with `android.permission.BIND_JOB_SERVICE`; the patch also ensures `RECEIVE_BOOT_COMPLETED` and `ACCESS_NETWORK_STATE` are requested, so the schedule survives process death and reboot.
+- `NhlApplication.onCreate` reconciles the persisted preference on ordinary app startup, so a previously enabled preference is rescheduled even when the Settings screen is never opened.
+- At execution the service re-checks the persisted preference and active network before delegating to `RuleRepository.updateAllSubscriptionsAsync`. Disabling the toggle cancels the job.
+- Refreshes are single-flight: a second request while one is running reports failure instead of overlapping. The job calls `jobFinished` only after the refresh callback completes, and reports failure (rather than success) when any enabled subscription fails to update or native compilation fails.
+- `JobService.onStopJob` cancels the active refresh: the cancellation disconnects the in-flight HTTP connection, stops the read loop before publication, suppresses further download/compile/publication work, and drops the stale completion callback so the stopped job cannot call `jobFinished`. Publication plus metadata updates and engine-handle installation share one commit gate: cancellation either waits for an in-flight commit to finish or prevents it entirely, so no commit occurs after cancellation returns. The job always marshals completion to the main thread and performs start/stop identity checks there before resetting state and calling `jobFinished`. Native compilation itself has no abort hook, but its result is discarded and reported as failure if cancellation occurs while it runs.

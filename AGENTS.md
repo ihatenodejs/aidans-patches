@@ -93,6 +93,7 @@ bun run format        # mutates supported files
 bun run lint:fix      # mutates supported files
 bun run deps:check    # read-only check across all monorepo dependencies
 bun run deps:update   # interactive update prompt (or --plan / --approve for agents)
+bun run deps:security # opt-in transitive vulnerability scan (not part of audit)
 bun run audit --deps  # format + lint + typecheck + test + dependency freshness
 ```
 
@@ -148,7 +149,7 @@ repository that has no `.releaserc`; a local `.releaserc` takes precedence.
 - Site data modules should remain deterministic build-time transformations over root metadata and fetched release/status inputs. Keep rendering concerns in Astro components/pages.
 - Android extension bridges are static entry points called from injected Smali. Public Java descriptors are an ABI: change the Java method and its Kotlin/Smali caller together.
 - Native APK tooling passes paths/configuration explicitly and uses managed workspaces. Preserve deterministic output and archive/path-safety checks.
-- Monorepo dependency management uses `scripts/deps.ts` (`bun run deps:check`, `bun run deps:update`). Intentional holds require a mandatory reason in `dependency-policy.json`. Normal audit is offline and deterministic; dependency freshness is opt-in via `bun run audit --deps` or `bun scripts/audit.ts deps`. Updates require explicit confirmation (interactive TTY prompt for humans, or `--plan <report> --approve <digest>` for automated agents).
+- Monorepo dependency management uses `scripts/deps.ts` (`bun run deps:check`, `bun run deps:update`). Dependabot is intentionally not configured; `deps.ts` is the only updater and `dependency-policy.json` holds are authoritative. Intentional holds require a mandatory reason. Normal audit is offline and deterministic; dependency freshness is opt-in via `bun run audit --deps` or `bun scripts/audit.ts deps`, and `bun run deps:security` is a separate opt-in transitive vulnerability scan. Updates require explicit confirmation (interactive TTY prompt for humans, or `--plan <report> --approve <digest>` for automated agents).
 
 ### Generated Metadata
 
@@ -182,7 +183,7 @@ Every commit must be scoped. Never author unscoped commits (e.g. `fix: ...`, `ch
 | `test`     | None                          | Hidden                 | Adding or updating tests, fixtures, or test mocks.                                                   |
 | `ci`       | None                          | Hidden                 | CI workflows, GitHub Actions, runner setup, or pipeline scripts.                                     |
 
-Release impacts in `.releaserc` apply strictly to application scopes. Non-application scopes (`site`, `worker`, `apk-lab`, `ci`, etc.) are configured with `release: false` in `.releaserc` and never trigger patch package releases.
+Release impacts in `.releaserc` apply strictly to application scopes. Non-application scopes (`site`, `worker`, `apk-lab`, `ci`, etc.) are configured with `release: false` in `.releaserc` and never trigger patch package releases; the same scopes also carry per-type `hidden: true` notes entries so they never appear in release notes.
 
 #### Scope Taxonomy
 
@@ -208,6 +209,8 @@ All patch definitions and Java extension changes must use the canonical app scop
 | Adobe Reader        | `adobe-reader`        | Alias `adobereader` is legacy.                                                    |
 | Credit Karma        | `credit-karma`        | Alias `creditkarma` is legacy.                                                    |
 | Pro Metronome       | `pro-metronome`       | Alias `prometronome` is legacy.                                                   |
+| Flow Free           | `flow-free`           | Alias `flowfree` is legacy.                                                       |
+| Threes Freeplay     | `threes`              | —                                                                                 |
 
 ##### Non-Application Scopes
 
@@ -292,4 +295,4 @@ Patch compatibility policy:
 4. Deploy through `apk-lab deploy ... --launch`; monitor with `apk-lab monitor`. Verify the actual changed user flow and absence of crash/ANR/main-thread spin.
 5. Clean workspaces only with `apk-lab clean --run ...` or `apk-lab clean --package ...`; never use raw recursive deletion.
 
-Pre-commit runs format/lint checks; pre-push runs typecheck/tests. Install hooks with `bun run prepare` when needed.
+Pre-commit runs format/lint checks; pre-push runs only the whitespace, EOF, and large-file hygiene checks, because typecheck and the test suites already gate the merge through the required verification gate. Install hooks with `bun run prepare` when needed.

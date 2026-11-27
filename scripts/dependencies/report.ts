@@ -20,6 +20,7 @@ const sym = {
   ok: `${c.green}✔${c.reset}`,
   update: `${c.yellow}▲${c.reset}`,
   held: `${c.cyan}🔒${c.reset}`,
+  pinned: `${c.cyan}📌${c.reset}`,
   moving: `${c.gray}↻${c.reset}`,
   ahead: `${c.magenta}★${c.reset}`,
   unused: `${c.gray}∅${c.reset}`,
@@ -54,6 +55,7 @@ export function buildSummary(
     current: 0,
     update: 0,
     held: 0,
+    pinned: 0,
     moving: 0,
     ahead: 0,
     unused: 0,
@@ -67,6 +69,7 @@ export function buildSummary(
     if (item.status === 'current') summary.current++;
     else if (item.status === 'update') summary.update++;
     else if (item.status === 'held') summary.held++;
+    else if (item.status === 'pinned') summary.pinned++;
     else if (item.status === 'moving') summary.moving++;
     else if (item.status === 'ahead') summary.ahead++;
     else if (item.status === 'unused') summary.unused++;
@@ -147,6 +150,9 @@ export function formatTextReport(
       } else if (item.status === 'held') {
         icon = sym.held;
         statusStr = style('held', c.cyan);
+      } else if (item.status === 'pinned') {
+        icon = sym.pinned;
+        statusStr = style('pinned', c.cyan);
       } else if (item.status === 'moving') {
         icon = sym.moving;
         statusStr = style('moving', c.gray);
@@ -168,10 +174,13 @@ export function formatTextReport(
       }
 
       const namePadded = item.name.padEnd(maxNameLen);
-      const curVer = item.resolved
-        ? `${item.declared} (${item.resolved})`
-        : item.declared;
-      const targetVer = item.latest ? ` → ${item.latest}` : '';
+      const curVer =
+        item.resolved && item.resolved !== item.declared
+          ? `${item.declared} (${item.resolved})`
+          : item.declared;
+      const targetVer = item.latest
+        ? ` → ${item.latestDisplay ?? item.latest}`
+        : '';
       const dur =
         item.durationMs !== undefined
           ? style(`[${formatDuration(item.durationMs)}]`, c.gray)
@@ -201,6 +210,7 @@ export function formatTextReport(
   lines.push(
     `  ${style('UPDATES:', c.bold)} ${s.update > 0 ? style(`${s.update} available`, `${c.bold}${c.yellow}`) : '0'}  |  ` +
       `${style('HELD:', c.bold)} ${s.held}  |  ` +
+      `${style('PINNED:', c.bold)} ${s.pinned}  |  ` +
       `${style('MOVING:', c.bold)} ${s.moving}  |  ` +
       `${style('CURRENT:', c.bold)} ${s.current}` +
       (s.notChecked > 0

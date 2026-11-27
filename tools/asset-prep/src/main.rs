@@ -1,7 +1,7 @@
 use asset_prep::{font, icon_sync, ocr, pdfbox, AssetError, Result};
 use std::process::ExitCode;
 
-const USAGE: &str = "Usage: asset-prep <command> [options]\n\nCommands:\n  font    --output PATH --cache-dir PATH [--url URL]\n  ocr     --output PATH --cache-dir PATH\n  pdfbox  --output PATH --gradle-home PATH [--version VERSION] [--aar PATH]\n  icons   (--check-only | --download-missing | --sync-all)\n          [--patches-list PATH] [--icons-dir PATH]\n\nBuild: cargo build --release --locked --manifest-path tools/asset-prep/Cargo.toml";
+const USAGE: &str = "Usage: asset-prep <command> [options]\n\nCommands:\n  font    --output PATH --cache-dir PATH [--url URL]\n  ocr     --output PATH --cache-dir PATH\n  pdfbox  --output PATH --gradle-home PATH [--version VERSION] [--aar PATH]\n  icons   (--check-only [--strict] | --download-missing | --sync-all)\n          [--patches-list PATH] [--icons-dir PATH]\n\nBuild: cargo build --release --locked --manifest-path tools/asset-prep/Cargo.toml";
 
 fn run(args: &[String]) -> Result<()> {
     let Some((command, options)) = args.split_first() else {

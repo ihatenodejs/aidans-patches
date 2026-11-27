@@ -9,7 +9,7 @@ const totalOptions = getPatches().reduce((sum, p) => sum + p.options.length, 0);
 <div class="border border-white/[0.08] bg-[#090909] p-6 relative flex flex-col gap-6">
   <div class="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
     <!-- Option Sample 1: Color Picker (SidelineSwap Change Brand Color) -->
-    <div class="p-4 bg-zinc-950/80 border border-white/[0.06] rounded-sm flex flex-col justify-between">
+    <div class="p-4 bg-zinc-950/80 border border-white/[0.06] rounded-xs flex flex-col justify-between">
       <div class="space-y-2">
         <div class="flex items-center gap-2.5">
           <AppIcon
@@ -39,7 +39,7 @@ const totalOptions = getPatches().reduce((sum, p) => sum + p.options.length, 0);
         </label>
         <div class="flex items-center gap-2" id="color-picker-group">
           <div
-            class="w-6 h-6 rounded-sm border border-white/20 bg-[#1E88E5]"
+            class="w-6 h-6 rounded-xs border border-white/20 bg-[#1E88E5]"
             id="mock-swatch"
             title="Active Color"
           ></div>
@@ -48,30 +48,30 @@ const totalOptions = getPatches().reduce((sum, p) => sum + p.options.length, 0);
             readonly
             value="#1E88E5"
             id="mock-hex-input"
-            class="bg-zinc-900 border border-white/10 px-2.5 py-1 text-xs font-mono text-zinc-200 rounded-sm w-28 focus:outline-none focus:border-white/30"
+            class="bg-zinc-900 border border-white/10 px-2.5 py-1 text-xs font-mono text-zinc-200 rounded-xs w-28 focus:outline-hidden focus:border-white/30"
           />
           <div class="flex gap-1">
             <button
               type="button"
-              class="w-5 h-5 rounded-sm bg-[#1E88E5] border border-white/20 hover:scale-110 transition-transform"
+              class="w-5 h-5 rounded-xs bg-[#1E88E5] border border-white/20 hover:scale-110 transition-transform"
               onclick="document.getElementById('mock-hex-input').value = '#1E88E5'; document.getElementById('mock-swatch').style.backgroundColor = '#1E88E5';"
               title="Material Blue"
             ></button>
             <button
               type="button"
-              class="w-5 h-5 rounded-sm bg-[#02C874] border border-white/20 hover:scale-110 transition-transform"
+              class="w-5 h-5 rounded-xs bg-[#02C874] border border-white/20 hover:scale-110 transition-transform"
               onclick="document.getElementById('mock-hex-input').value = '#02C874'; document.getElementById('mock-swatch').style.backgroundColor = '#02C874';"
               title="Sideline Emerald"
             ></button>
             <button
               type="button"
-              class="w-5 h-5 rounded-sm bg-[#9C27B0] border border-white/20 hover:scale-110 transition-transform"
+              class="w-5 h-5 rounded-xs bg-[#9C27B0] border border-white/20 hover:scale-110 transition-transform"
               onclick="document.getElementById('mock-hex-input').value = '#9C27B0'; document.getElementById('mock-swatch').style.backgroundColor = '#9C27B0';"
               title="Vibrant Purple"
             ></button>
             <button
               type="button"
-              class="w-5 h-5 rounded-sm bg-[#000000] border border-white/20 hover:scale-110 transition-transform"
+              class="w-5 h-5 rounded-xs bg-[#000000] border border-white/20 hover:scale-110 transition-transform"
               onclick="document.getElementById('mock-hex-input').value = '#000000'; document.getElementById('mock-swatch').style.backgroundColor = '#000000';"
               title="Monochrome Black"
             ></button>
@@ -81,7 +81,7 @@ const totalOptions = getPatches().reduce((sum, p) => sum + p.options.length, 0);
     </div>
 
     <!-- Option Sample 2: Multi-Toggle Carousel (Sezzle Configure Shortcuts) -->
-    <div class="p-4 bg-zinc-950/80 border border-white/[0.06] rounded-sm flex flex-col justify-between">
+    <div class="p-4 bg-zinc-950/80 border border-white/[0.06] rounded-xs flex flex-col justify-between">
       <div class="space-y-2">
         <div class="flex items-center gap-2.5">
           <AppIcon
@@ -103,28 +103,28 @@ const totalOptions = getPatches().reduce((sum, p) => sum + p.options.length, 0);
       </div>
 
       <div class="space-y-1.5 pt-4 font-mono text-[11px]">
-        <label class="flex items-center justify-between p-1 hover:bg-white/[0.02] rounded cursor-pointer">
+        <label class="flex items-center justify-between p-1 hover:bg-white/[0.02] rounded-sm cursor-pointer">
           <span class="text-zinc-300">Hide Refer a Friend</span>
           <input
             type="checkbox"
             checked
-            class="accent-purple-500 rounded cursor-pointer"
+            class="accent-purple-500 rounded-sm cursor-pointer"
           />
         </label>
-        <label class="flex items-center justify-between p-1 hover:bg-white/[0.02] rounded cursor-pointer">
+        <label class="flex items-center justify-between p-1 hover:bg-white/[0.02] rounded-sm cursor-pointer">
           <span class="text-zinc-300">Hide Giveaway</span>
           <input
             type="checkbox"
             checked
-            class="accent-purple-500 rounded cursor-pointer"
+            class="accent-purple-500 rounded-sm cursor-pointer"
           />
         </label>
-        <label class="flex items-center justify-between p-1 hover:bg-white/[0.02] rounded cursor-pointer">
+        <label class="flex items-center justify-between p-1 hover:bg-white/[0.02] rounded-sm cursor-pointer">
           <span class="text-zinc-300">Hide Offers &amp; Rewards</span>
           <input
             type="checkbox"
             checked
-            class="accent-purple-500 rounded cursor-pointer"
+            class="accent-purple-500 rounded-sm cursor-pointer"
           />
         </label>
       </div>

@@ -182,7 +182,7 @@ export function renderCompatBadgeHtml(
     ? ` title="${escapeHtml(badge.titleAttr)}"`
     : '';
 
-  const spanContent = `<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-[10px] ${badge.bg} ${badge.text} border ${badge.border}"${titleAttr}><span class="w-1.5 h-1.5 rounded-full ${badge.dot}"></span><span>${escapeHtml(badge.label)}</span></span>`;
+  const spanContent = `<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-xs text-[10px] ${badge.bg} ${badge.text} border ${badge.border}"${titleAttr}><span class="w-1.5 h-1.5 rounded-full ${badge.dot}"></span><span>${escapeHtml(badge.label)}</span></span>`;
 
   if (
     badge.isLinkable &&

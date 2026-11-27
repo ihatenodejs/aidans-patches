@@ -10,17 +10,17 @@
     "astro": "astro",
     "test": "bun test",
     "check": "astro check",
-    "check:icons": "bun ../scripts/asset-prep.ts icons --check-only"
+    "check:icons": "bun ../scripts/asset-prep.ts icons --check-only --strict"
   },
   "dependencies": {
-    "@astrojs/check": "^0.9.4",
-    "@astrojs/tailwind": "^5.1.5",
-    "astro": "^5.4.1",
-    "tailwindcss": "^3.4.17",
+    "@astrojs/check": "^0.9.12",
+    "@tailwindcss/vite": "^4.3.5",
+    "astro": "^7.4.13",
+    "tailwindcss": "^4.3.5",
     "typescript": "^5.7.3"
   },
   "devDependencies": {
-    "@types/node": "^26.6.4",
-    "wrangler": "^3.114.17"
+    "@types/node": "^26.6.11",
+    "wrangler": "^4.168.0"
   }
 }

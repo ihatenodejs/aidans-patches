@@ -85,7 +85,7 @@ const trackerProviders = [
   currentPath="/"
 >
   <!-- 1. Hero Section -->
-  <section class="relative px-6 py-20 md:py-24 bg-gradient-to-b from-[#0a0a0a] via-[#050505] to-[#050505] overflow-hidden">
+  <section class="relative px-6 py-20 md:py-24 bg-linear-to-b from-[#0a0a0a] via-[#050505] to-[#050505] overflow-hidden">
     <!-- Subtle technical grid background -->
     <div class="absolute inset-0 bg-technical-grid opacity-30 pointer-events-none"></div>
 
@@ -189,7 +189,7 @@ const trackerProviders = [
           Keep more of your life to yourself. Cut the trackers and ads that
           follow you around.
         </p>
-        <div class="grid grid-cols-[3fr_2fr] gap-2 p-3 bg-zinc-950/80 border border-white/[0.06] rounded-sm font-mono text-[11px]">
+        <div class="grid grid-cols-[3fr_2fr] gap-2 p-3 bg-zinc-950/80 border border-white/[0.06] rounded-xs font-mono text-[11px]">
           {trackerProviders.map((provider) => (
             <div class="flex min-w-0 items-center gap-2 text-zinc-300">
               <div class="flex shrink-0 items-center pl-0.5">
@@ -249,7 +249,7 @@ const trackerProviders = [
             type="button"
             data-theme-preview
             aria-pressed="true"
-            class="group/theme relative hidden aspect-square min-w-0 flex-col justify-between overflow-hidden rounded-sm border border-violet-400/30 bg-[#120d1f] p-3 text-left shadow-[inset_0_0_24px_rgba(139,92,246,0.12)] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet-300 md:flex"
+            class="group/theme relative hidden aspect-square min-w-0 flex-col justify-between overflow-hidden rounded-xs border border-violet-400/30 bg-[#120d1f] p-3 text-left shadow-[inset_0_0_24px_rgba(139,92,246,0.12)] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-violet-300 md:flex"
           >
             <span
               data-theme-label
@@ -277,12 +277,12 @@ const trackerProviders = [
                 data-theme-switch
                 class="relative inline-flex h-5 w-9 items-center rounded-full bg-violet-400/25 p-0.5 ring-1 ring-inset ring-violet-300/40"
               >
-                <span class="h-4 w-4 translate-x-4 rounded-full bg-violet-100 shadow-sm transition-transform"></span>
+                <span class="h-4 w-4 translate-x-4 rounded-full bg-violet-100 shadow-xs transition-transform"></span>
               </span>
             </span>
           </button>
 
-          <label class="relative flex aspect-square min-w-0 cursor-pointer flex-col justify-between overflow-hidden rounded-sm border border-amber-400/25 bg-amber-950/15 p-3 transition-colors hover:border-amber-300/50 focus-within:outline focus-within:outline-2 focus-within:outline-amber-300">
+          <label class="relative flex aspect-square min-w-0 cursor-pointer flex-col justify-between overflow-hidden rounded-xs border border-amber-400/25 bg-amber-950/15 p-3 transition-colors hover:border-amber-300/50 focus-within:outline focus-within:outline-2 focus-within:outline-amber-300">
             <img
               data-emoji-preview
               src="/feature-previews/grinning-ios.webp"
@@ -295,7 +295,7 @@ const trackerProviders = [
               <span class="sr-only">Emoji style</span>
               <select
                 data-emoji-style
-                class="w-full appearance-none rounded-sm border border-amber-300/25 bg-amber-950/50 px-2 py-1 pr-5 text-[10px] font-medium text-amber-50 outline-none transition-colors focus:border-amber-300"
+                class="w-full appearance-none rounded-xs border border-amber-300/25 bg-amber-950/50 px-2 py-1 pr-5 text-[10px] font-medium text-amber-50 outline-hidden transition-colors focus:border-amber-300"
               >
                 <option value="ios">iOS</option>
                 <option value="google">Google</option>
@@ -319,7 +319,7 @@ const trackerProviders = [
             </span>
           </label>
 
-          <div class="relative flex aspect-square min-w-0 flex-col justify-between overflow-hidden rounded-sm border border-emerald-400/25 bg-emerald-950/15 p-3">
+          <div class="relative flex aspect-square min-w-0 flex-col justify-between overflow-hidden rounded-xs border border-emerald-400/25 bg-emerald-950/15 p-3">
             <div
               data-brand-icon
               class="flex h-10 w-10 items-center justify-center overflow-hidden rounded-[10px] bg-[#05c779] shadow-[0_4px_12px_rgba(5,199,121,0.25)] transition-colors"
@@ -404,49 +404,49 @@ const trackerProviders = [
                   <a
                     href="/apps/sezzle"
                     aria-label="View Sezzle patches"
-                    class="rounded-[7px] focus:outline-none focus-visible:ring-1 focus-visible:ring-white/70"
+                    class="rounded-[7px] focus:outline-hidden focus-visible:ring-1 focus-visible:ring-white/70"
                   >
                     <AppIcon
                       packageName="com.sezzle.sezzlemobile"
                       name="Sezzle"
                       size={28}
-                      className="border border-white/10 rounded-[7px] shadow-sm transition-transform duration-300 group-hover/premium:-translate-y-0.5"
+                      className="border border-white/10 rounded-[7px] shadow-xs transition-transform duration-300 group-hover/premium:-translate-y-0.5"
                     />
                   </a>
                   <a
                     href="/apps/geocaching"
                     aria-label="View Geocaching patches"
-                    class="rounded-[7px] focus:outline-none focus-visible:ring-1 focus-visible:ring-white/70"
+                    class="rounded-[7px] focus:outline-hidden focus-visible:ring-1 focus-visible:ring-white/70"
                   >
                     <AppIcon
                       packageName="com.groundspeak.geocaching.intro"
                       name="Geocaching"
                       size={28}
-                      className="border border-white/10 rounded-[7px] shadow-sm transition-transform duration-300 group-hover/premium:-translate-y-0.5 [transition-delay:50ms]"
+                      className="border border-white/10 rounded-[7px] shadow-xs transition-transform duration-300 group-hover/premium:-translate-y-0.5 [transition-delay:50ms]"
                     />
                   </a>
                   <a
                     href="/apps/fizz"
                     aria-label="View Fizz patches"
-                    class="rounded-[7px] focus:outline-none focus-visible:ring-1 focus-visible:ring-white/70"
+                    class="rounded-[7px] focus:outline-hidden focus-visible:ring-1 focus-visible:ring-white/70"
                   >
                     <AppIcon
                       packageName="com.ashtoncofer.Buzz"
                       name="Fizz"
                       size={28}
-                      className="border border-white/10 rounded-[7px] shadow-sm transition-transform duration-300 group-hover/premium:-translate-y-0.5 [transition-delay:100ms]"
+                      className="border border-white/10 rounded-[7px] shadow-xs transition-transform duration-300 group-hover/premium:-translate-y-0.5 [transition-delay:100ms]"
                     />
                   </a>
                   <a
                     href="/apps/adobe-scan"
                     aria-label="View Adobe Scan patches"
-                    class="rounded-[7px] focus:outline-none focus-visible:ring-1 focus-visible:ring-white/70"
+                    class="rounded-[7px] focus:outline-hidden focus-visible:ring-1 focus-visible:ring-white/70"
                   >
                     <AppIcon
                       packageName="com.adobe.scan.android"
                       name="Adobe Scan"
                       size={28}
-                      className="border border-white/10 rounded-[7px] shadow-sm transition-transform duration-300 group-hover/premium:-translate-y-0.5 [transition-delay:150ms]"
+                      className="border border-white/10 rounded-[7px] shadow-xs transition-transform duration-300 group-hover/premium:-translate-y-0.5 [transition-delay:150ms]"
                     />
                   </a>
                 </div>
@@ -465,11 +465,11 @@ const trackerProviders = [
               </h4>
             </header>
             <ul class="grid content-center gap-1.5 p-2.5 font-mono text-[9px] sm:grid-cols-2 xl:grid-cols-3">
-              <li class="group flex min-w-0 items-center gap-2 border border-white/[0.06] bg-black/20 px-2 py-1.5 text-zinc-200 transition-[background-color,border-color,transform] duration-200 hover:-translate-y-px hover:border-emerald-300/40 hover:bg-emerald-400/[0.07]">
+              <li class="group flex min-w-0 items-center gap-2 border border-white/[0.06] bg-black/20 px-2 py-1.5 text-zinc-200 transition-[background-color,border-color,translate] duration-200 hover:-translate-y-px hover:border-emerald-300/40 hover:bg-emerald-400/[0.07]">
                 <a
                   href="/apps/sezzle"
                   aria-label="View Sezzle patches"
-                  class="rounded-[5px] focus:outline-none focus-visible:ring-1 focus-visible:ring-white/70"
+                  class="rounded-[5px] focus:outline-hidden focus-visible:ring-1 focus-visible:ring-white/70"
                 >
                   <AppIcon
                     packageName="com.sezzle.sezzlemobile"
@@ -480,11 +480,11 @@ const trackerProviders = [
                 </a>
                 <span class="leading-tight">Receipt Scanner</span>
               </li>
-              <li class="group flex min-w-0 items-center gap-2 border border-white/[0.06] bg-black/20 px-2 py-1.5 text-zinc-200 transition-[background-color,border-color,transform] duration-200 hover:-translate-y-px hover:border-emerald-300/40 hover:bg-emerald-400/[0.07]">
+              <li class="group flex min-w-0 items-center gap-2 border border-white/[0.06] bg-black/20 px-2 py-1.5 text-zinc-200 transition-[background-color,border-color,translate] duration-200 hover:-translate-y-px hover:border-emerald-300/40 hover:bg-emerald-400/[0.07]">
                 <a
                   href="/apps/sezzle"
                   aria-label="View Sezzle patches"
-                  class="rounded-[5px] focus:outline-none focus-visible:ring-1 focus-visible:ring-white/70"
+                  class="rounded-[5px] focus:outline-hidden focus-visible:ring-1 focus-visible:ring-white/70"
                 >
                   <AppIcon
                     packageName="com.sezzle.sezzlemobile"
@@ -495,11 +495,11 @@ const trackerProviders = [
                 </a>
                 <span class="leading-tight">Custom App Icons</span>
               </li>
-              <li class="group flex min-w-0 items-center gap-2 border border-white/[0.06] bg-black/20 px-2 py-1.5 text-zinc-200 transition-[background-color,border-color,transform] duration-200 hover:-translate-y-px hover:border-emerald-300/40 hover:bg-emerald-400/[0.07]">
+              <li class="group flex min-w-0 items-center gap-2 border border-white/[0.06] bg-black/20 px-2 py-1.5 text-zinc-200 transition-[background-color,border-color,translate] duration-200 hover:-translate-y-px hover:border-emerald-300/40 hover:bg-emerald-400/[0.07]">
                 <a
                   href="/apps/geocaching"
                   aria-label="View Geocaching patches"
-                  class="rounded-[5px] focus:outline-none focus-visible:ring-1 focus-visible:ring-white/70"
+                  class="rounded-[5px] focus:outline-hidden focus-visible:ring-1 focus-visible:ring-white/70"
                 >
                   <AppIcon
                     packageName="com.groundspeak.geocaching.intro"
@@ -510,11 +510,11 @@ const trackerProviders = [
                 </a>
                 <span class="leading-tight">Experimental Features</span>
               </li>
-              <li class="group flex min-w-0 items-center gap-2 border border-white/[0.06] bg-black/20 px-2 py-1.5 text-zinc-200 transition-[background-color,border-color,transform] duration-200 hover:-translate-y-px hover:border-emerald-300/40 hover:bg-emerald-400/[0.07]">
+              <li class="group flex min-w-0 items-center gap-2 border border-white/[0.06] bg-black/20 px-2 py-1.5 text-zinc-200 transition-[background-color,border-color,translate] duration-200 hover:-translate-y-px hover:border-emerald-300/40 hover:bg-emerald-400/[0.07]">
                 <a
                   href="/apps/geocaching"
                   aria-label="View Geocaching patches"
-                  class="rounded-[5px] focus:outline-none focus-visible:ring-1 focus-visible:ring-white/70"
+                  class="rounded-[5px] focus:outline-hidden focus-visible:ring-1 focus-visible:ring-white/70"
                 >
                   <AppIcon
                     packageName="com.groundspeak.geocaching.intro"
@@ -525,11 +525,11 @@ const trackerProviders = [
                 </a>
                 <span class="leading-tight">10% Projects</span>
               </li>
-              <li class="group flex min-w-0 items-center gap-2 border border-white/[0.06] bg-black/20 px-2 py-1.5 text-zinc-200 transition-[background-color,border-color,transform] duration-200 hover:-translate-y-px hover:border-emerald-300/40 hover:bg-emerald-400/[0.07]">
+              <li class="group flex min-w-0 items-center gap-2 border border-white/[0.06] bg-black/20 px-2 py-1.5 text-zinc-200 transition-[background-color,border-color,translate] duration-200 hover:-translate-y-px hover:border-emerald-300/40 hover:bg-emerald-400/[0.07]">
                 <a
                   href="/apps/fizz"
                   aria-label="View Fizz patches"
-                  class="rounded-[5px] focus:outline-none focus-visible:ring-1 focus-visible:ring-white/70"
+                  class="rounded-[5px] focus:outline-hidden focus-visible:ring-1 focus-visible:ring-white/70"
                 >
                   <AppIcon
                     packageName="com.ashtoncofer.Buzz"
@@ -540,11 +540,11 @@ const trackerProviders = [
                 </a>
                 <span class="leading-tight">Mobile Studio</span>
               </li>
-              <li class="group flex min-w-0 items-center gap-2 border border-white/[0.06] bg-black/20 px-2 py-1.5 text-zinc-200 transition-[background-color,border-color,transform] duration-200 hover:-translate-y-px hover:border-emerald-300/40 hover:bg-emerald-400/[0.07]">
+              <li class="group flex min-w-0 items-center gap-2 border border-white/[0.06] bg-black/20 px-2 py-1.5 text-zinc-200 transition-[background-color,border-color,translate] duration-200 hover:-translate-y-px hover:border-emerald-300/40 hover:bg-emerald-400/[0.07]">
                 <a
                   href="/apps/adobe-scan"
                   aria-label="View Adobe Scan patches"
-                  class="rounded-[5px] focus:outline-none focus-visible:ring-1 focus-visible:ring-white/70"
+                  class="rounded-[5px] focus:outline-hidden focus-visible:ring-1 focus-visible:ring-white/70"
                 >
                   <AppIcon
                     packageName="com.adobe.scan.android"
@@ -555,11 +555,11 @@ const trackerProviders = [
                 </a>
                 <span class="leading-tight">Premium</span>
               </li>
-              <li class="group flex min-w-0 items-center gap-2 border border-white/[0.06] bg-black/20 px-2 py-1.5 text-zinc-200 transition-[background-color,border-color,transform] duration-200 hover:-translate-y-px hover:border-emerald-300/40 hover:bg-emerald-400/[0.07]">
+              <li class="group flex min-w-0 items-center gap-2 border border-white/[0.06] bg-black/20 px-2 py-1.5 text-zinc-200 transition-[background-color,border-color,translate] duration-200 hover:-translate-y-px hover:border-emerald-300/40 hover:bg-emerald-400/[0.07]">
                 <a
                   href="/apps/nhl"
                   aria-label="View NHL patches"
-                  class="rounded-[5px] focus:outline-none focus-visible:ring-1 focus-visible:ring-white/70"
+                  class="rounded-[5px] focus:outline-hidden focus-visible:ring-1 focus-visible:ring-white/70"
                 >
                   <AppIcon
                     packageName="com.nhl.gc1112.free"
@@ -663,8 +663,8 @@ const trackerProviders = [
                       name={item.appName}
                       size={20}
                       loading="lazy"
-                      className="w-5 h-5 rounded-sm border border-white/10 shrink-0"
-                      fallbackClassName="rounded-sm font-mono text-[10px]"
+                      className="w-5 h-5 rounded-xs border border-white/10 shrink-0"
+                      fallbackClassName="rounded-xs font-mono text-[10px]"
                       fallbackColor={item.appIconColor}
                     />
                     <a
@@ -683,26 +683,26 @@ const trackerProviders = [
                 </td>
                 <td class="py-3.5 px-4 text-right status-badge-cell sticky right-0 z-10 bg-[#080808] group-hover/row:bg-[#0c0c0c] shadow-[-1px_0_0_rgba(255,255,255,0.08)] whitespace-nowrap">
                   {item.status === 'up-to-date' ? (
-                    <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-[10px] bg-emerald-950/60 text-emerald-400 border border-emerald-800/40 whitespace-nowrap">
+                    <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-xs text-[10px] bg-emerald-950/60 text-emerald-400 border border-emerald-800/40 whitespace-nowrap">
                       <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0"></span>
                       <span>Up to date</span>
                     </span>
                   ) : item.status === 'newer-available' ? (
-                    <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-[10px] bg-amber-950/60 text-amber-400 border border-amber-800/40 whitespace-nowrap">
+                    <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-xs text-[10px] bg-amber-950/60 text-amber-400 border border-amber-800/40 whitespace-nowrap">
                       <span class="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0"></span>
                       <span>Newer version available</span>
                     </span>
                   ) : item.status === 'check-failed' ? (
-                    <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-[10px] bg-rose-950/60 text-rose-400 border border-rose-800/40 whitespace-nowrap">
+                    <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-xs text-[10px] bg-rose-950/60 text-rose-400 border border-rose-800/40 whitespace-nowrap">
                       <span class="w-1.5 h-1.5 rounded-full bg-rose-400 shrink-0"></span>
                       <span>Check failed</span>
                     </span>
                   ) : item.status === 'not-on-play-store' ? (
-                    <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-[10px] bg-zinc-900 text-zinc-500 border border-white/10 whitespace-nowrap">
+                    <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-xs text-[10px] bg-zinc-900 text-zinc-500 border border-white/10 whitespace-nowrap">
                       <span>Not on Play Store</span>
                     </span>
                   ) : (
-                    <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-[10px] bg-zinc-900 text-zinc-400 border border-white/10 whitespace-nowrap">
+                    <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-xs text-[10px] bg-zinc-900 text-zinc-400 border border-white/10 whitespace-nowrap">
                       <span class="w-1.5 h-1.5 rounded-full bg-zinc-500 shrink-0"></span>
                       <span>Unknown</span>
                     </span>
@@ -848,7 +848,7 @@ const trackerProviders = [
   <GridLine withCrosshairs={true} />
 
   <!-- 9. Final CTA & Legal Notice -->
-  <section class="space-y-6 bg-gradient-to-b from-[#050505] to-[#090909] px-8 py-8 text-center md:px-12 md:py-12">
+  <section class="space-y-6 bg-linear-to-b from-[#050505] to-[#090909] px-8 py-8 text-center md:px-12 md:py-12">
     <div class="max-w-xl mx-auto space-y-3">
       <h2 class="font-sans text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
         Ready to upgrade your apps?
@@ -1011,34 +1011,34 @@ const trackerProviders = [
         if (badgeCell) {
           if (effectiveStatus === 'up-to-date') {
             badgeCell.innerHTML = `
-              <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-[10px] bg-emerald-950/60 text-emerald-400 border border-emerald-800/40 whitespace-nowrap">
+              <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-xs text-[10px] bg-emerald-950/60 text-emerald-400 border border-emerald-800/40 whitespace-nowrap">
                 <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0"></span>
                 <span>Up to date</span>
               </span>
             `;
           } else if (effectiveStatus === 'newer-available') {
             badgeCell.innerHTML = `
-              <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-[10px] bg-amber-950/60 text-amber-400 border border-amber-800/40 whitespace-nowrap">
+              <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-xs text-[10px] bg-amber-950/60 text-amber-400 border border-amber-800/40 whitespace-nowrap">
                 <span class="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0"></span>
                 <span>Newer version available</span>
               </span>
             `;
           } else if (effectiveStatus === 'check-failed') {
             badgeCell.innerHTML = `
-              <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-[10px] bg-rose-950/60 text-rose-400 border border-rose-800/40 whitespace-nowrap">
+              <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-xs text-[10px] bg-rose-950/60 text-rose-400 border border-rose-800/40 whitespace-nowrap">
                 <span class="w-1.5 h-1.5 rounded-full bg-rose-400 shrink-0"></span>
                 <span>Check failed</span>
               </span>
             `;
           } else if (effectiveStatus === 'not-on-play-store') {
             badgeCell.innerHTML = `
-              <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-[10px] bg-zinc-900 text-zinc-500 border border-white/10 whitespace-nowrap">
+              <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-xs text-[10px] bg-zinc-900 text-zinc-500 border border-white/10 whitespace-nowrap">
                 <span>Not on Play Store</span>
               </span>
             `;
           } else {
             badgeCell.innerHTML = `
-              <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-[10px] bg-zinc-900 text-zinc-400 border border-white/10 whitespace-nowrap">
+              <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-xs text-[10px] bg-zinc-900 text-zinc-400 border border-white/10 whitespace-nowrap">
                 <span class="w-1.5 h-1.5 rounded-full bg-zinc-500 shrink-0"></span>
                 <span>Unknown</span>
               </span>

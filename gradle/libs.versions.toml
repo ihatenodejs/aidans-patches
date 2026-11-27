@@ -2,7 +2,7 @@
 morphe-patcher = "1.14.0"
 #noinspection GradleDependency
 smali = "d92701d947"
-gson = "2.14.0"
+gson = "2.15.0"
 pdfbox-android = "2.0.27.0"
 junit = "4.13.2"
 
@@ -10,6 +10,6 @@ junit = "4.13.2"
 gson = { module = "com.google.code.gson:gson", version.ref = "gson" }
 junit = { module = "junit:junit", version.ref = "junit" }
 pdfbox-android = { module = "com.tom-roush:pdfbox-android", version.ref = "pdfbox-android" }
-# Gradle plugins adds the dependency during build, this declaration is here only for dependabot to provide updates.
+# Gradle plugins adds the dependency during build; this declaration lets deps.ts track the patcher version.
 #noinspection UnusedVersionCatalogEntry
 morphe-patcher = { module = "app.morphe:morphe-patcher", version.ref = "morphe-patcher" }

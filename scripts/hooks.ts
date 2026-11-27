@@ -3,11 +3,12 @@
  * Stage-aware Git hooks for the repository.
  *
  * The stage registry below is the single source of truth for both Git hook
- * execution and tests. Git is only ever read in place; audits run against a
- * temporary snapshot of the staged index (pre-commit) or the pushed commit
- * tree (pre-push), so partially staged files and unrelated working-tree edits
- * are never inspected or modified.
+ * execution and tests. Git is only ever read in place; audit stages run against
+ * a temporary snapshot of the staged index, and checks that inspect a pushed
+ * branch read its commit tree, so partially staged files and unrelated
+ * working-tree edits are never inspected or modified.
  */
+import type { ChildProcess } from 'node:child_process';
 import { spawn } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
@@ -16,8 +17,9 @@ import { parseTOML } from 'toml-eslint-parser';
 
 const LARGE_FILE_LIMIT_KB = 2048;
 // Renderer goldens intentionally preserve legacy trailing whitespace/CRLF.
+// Wrangler emits the generated worker types without a trailing newline.
 const HYGIENE_EXCLUDE =
-  /(?:^scripts\/test-fixtures\/generate-patches-readme\/|\.(?:so|mpe|mpp|apk|apkm|ttf|png|svg|lock|pdf)$|patches-(?:list|bundle)\.json)/;
+  /(?:^scripts\/test-fixtures\/generate-patches-readme\/|^worker\/worker-configuration\.d\.ts$|\.(?:so|mpe|mpp|apk|apkm|ttf|png|svg|lock|pdf)$|patches-(?:list|bundle)\.json)/;
 const ZERO_SHA = /^0+$/;
 
 export type HookStage = 'pre-commit' | 'pre-push';
@@ -41,6 +43,8 @@ export interface CommandOptions {
   cwd: string;
   env?: Record<string, string | undefined>;
   stdin?: Buffer;
+  /** Receives child output as it arrives; the buffers are still captured. */
+  onOutput?: (chunk: Buffer, stream: 'stdout' | 'stderr') => void;
 }
 
 export type CommandRunner = (
@@ -53,6 +57,8 @@ export interface AuditContext {
   stage: HookStage;
   snapshotDir: string;
   repoRoot: string;
+  /** Live child output, so a long audit is not a silent hang. */
+  onOutput?: (chunk: Buffer, stream: 'stdout' | 'stderr') => void;
 }
 
 export type AuditInvoker = (
@@ -82,6 +88,12 @@ export interface HookOptions {
   auditInvoker?: AuditInvoker;
   /** Environment for read-only Git commands; audits get a sanitized copy. */
   env?: Record<string, string | undefined>;
+  /**
+   * Progress sink for text produced while checks run. Omitted by tests and any
+   * programmatic caller; the CLI writes it straight to stdout so a slow check
+   * reports what it is doing instead of appearing to hang.
+   */
+  log?: (text: string | Buffer) => void;
 }
 
 export const STAGE_CHECKS: Record<HookStage, readonly CheckName[]> = {
@@ -103,7 +115,12 @@ export const STAGE_CHECKS: Record<HookStage, readonly CheckName[]> = {
 
 export const STAGE_AUDITS: Record<HookStage, readonly AuditPhase[]> = {
   'pre-commit': ['format:check', 'lint'],
-  'pre-push': ['typecheck', 'test'],
+  // Pushes only run the cheap hygiene checks. Typecheck and the test suites run
+  // in the required "Test & Build Gate", which blocks the merge anyway, so a
+  // local copy added no coverage. It also cost minutes per push: audits execute
+  // in a throwaway snapshot that cannot reuse Cargo or CMake build output, so
+  // Rust and C++ rebuilt from scratch every time.
+  'pre-push': [],
 };
 
 export const HYGIENE_EXCLUDE_PATTERN = HYGIENE_EXCLUDE;
@@ -119,8 +136,14 @@ export const spawnCommand: CommandRunner = (cmd, args, options) => {
     shell: false,
     stdio: ['pipe', 'pipe', 'pipe'],
   });
-  child.stdout.on('data', (chunk: Buffer) => stdout.push(chunk));
-  child.stderr.on('data', (chunk: Buffer) => stderr.push(chunk));
+  child.stdout.on('data', (chunk: Buffer) => {
+    stdout.push(chunk);
+    options.onOutput?.(chunk, 'stdout');
+  });
+  child.stderr.on('data', (chunk: Buffer) => {
+    stderr.push(chunk);
+    options.onOutput?.(chunk, 'stderr');
+  });
   child.stdin.on('error', () => {
     // The command may exit before consuming stdin; the exit status wins.
     return undefined;
@@ -160,12 +183,197 @@ class GitError extends Error {
   }
 }
 
+interface CatFileResult {
+  type: string;
+  size: number;
+  content?: Buffer;
+}
+
+interface CatFileRequest {
+  resolve: (value: CatFileResult) => void;
+  reject: (error: Error) => void;
+}
+
+/**
+ * One long-lived `git cat-file` child per repository and mode.
+ *
+ * Launching `git cat-file blob <oid>` per file pays process startup and pipe
+ * teardown for every blob. A pre-commit snapshot reads the whole index, so that
+ * per-file cost dominated hook latency. The batch protocol keeps one process
+ * and frames each response by the byte size git reports.
+ */
+class CatFileReader {
+  private readonly child: ChildProcess;
+  private readonly pending: CatFileRequest[] = [];
+  /** Unconsumed stdout bytes; the first chunk is the current read position. */
+  private chunks: Buffer[] = [];
+  private buffered = 0;
+  private header: { type: string; size: number } | null = null;
+  private stderr = '';
+  private failure: Error | null = null;
+  private disposed = false;
+
+  constructor(
+    cwd: string,
+    env: Record<string, string | undefined> | undefined,
+    private readonly mode: 'content' | 'size',
+  ) {
+    this.child = spawn(
+      'git',
+      ['cat-file', mode === 'content' ? '--batch' : '--batch-check'],
+      {
+        cwd,
+        env: env ?? process.env,
+        shell: false,
+        stdio: ['pipe', 'pipe', 'pipe'],
+      },
+    );
+    this.child.stdout?.on('data', (chunk: Buffer) => {
+      if (chunk.length === 0) return;
+      this.chunks.push(chunk);
+      this.buffered += chunk.length;
+      this.pump();
+    });
+    this.child.stderr?.on('data', (chunk: Buffer) => {
+      this.stderr += chunk.toString('utf8');
+    });
+    this.child.on('error', (error) => this.fail(error));
+    this.child.stdin?.on('error', (error) => this.fail(error));
+    this.child.on('close', (code) => {
+      if (this.disposed) return;
+      const detail = this.stderr.trim();
+      this.fail(
+        new Error(
+          `git cat-file ${mode === 'content' ? '--batch' : '--batch-check'} ` +
+            `exited with ${code ?? 1}${detail ? `: ${detail}` : ''}`,
+        ),
+      );
+    });
+  }
+
+  read(oid: string): Promise<CatFileResult> {
+    if (this.failure) return Promise.reject(this.failure);
+    if (this.disposed) {
+      return Promise.reject(new Error('git cat-file reader is closed'));
+    }
+    const { promise, resolve, reject } = Promise.withResolvers<CatFileResult>();
+    this.pending.push({ resolve, reject });
+    this.child.stdin?.write(`${oid}\n`);
+    return promise;
+  }
+
+  dispose(): void {
+    if (this.disposed) return;
+    this.disposed = true;
+    this.fail(new Error('git cat-file reader is closed'));
+    this.child.stdin?.end();
+    this.child.kill();
+  }
+
+  private pump(): void {
+    while (this.pending.length > 0) {
+      if (!this.header) {
+        const newline = this.findNewline();
+        if (newline === null) return;
+        const line = this.take(newline + 1).toString('utf8', 0, newline);
+        const fields = line.split(' ');
+        if (fields[1] === 'missing') {
+          this.pending
+            .shift()
+            ?.reject(new Error(`git object ${fields[0]} is missing`));
+          continue;
+        }
+        const size = Number(fields[2]);
+        if (!Number.isSafeInteger(size) || size < 0) {
+          this.fail(new Error(`unexpected git cat-file response: ${line}`));
+          return;
+        }
+        if (this.mode === 'size') {
+          this.pending.shift()?.resolve({ type: fields[1], size });
+          continue;
+        }
+        this.header = { type: fields[1], size };
+      }
+      const header = this.header;
+      if (!header) return;
+      const { type, size } = header;
+      if (this.buffered < size + 1) return;
+      const content = this.take(size);
+      this.take(1);
+      this.header = null;
+      this.pending.shift()?.resolve({ type, size, content });
+    }
+  }
+
+  private findNewline(): number | null {
+    let offset = 0;
+    for (const chunk of this.chunks) {
+      const index = chunk.indexOf(0x0a);
+      if (index >= 0) return offset + index;
+      offset += chunk.length;
+    }
+    return null;
+  }
+
+  /** Removes the first `length` buffered bytes without quadratic re-copying. */
+  private take(length: number): Buffer {
+    if (length === 0) return Buffer.alloc(0);
+    const first = this.chunks[0];
+    if (first.length > length) {
+      this.chunks[0] = first.subarray(length);
+      this.buffered -= length;
+      return first.subarray(0, length);
+    }
+    if (first.length === length) {
+      this.chunks.shift();
+      this.buffered -= length;
+      return first;
+    }
+    const merged = Buffer.concat(this.chunks, this.buffered);
+    const head = merged.subarray(0, length);
+    const rest = merged.subarray(length);
+    this.chunks = rest.length === 0 ? [] : [rest];
+    this.buffered -= length;
+    return head;
+  }
+
+  private fail(error: Error): void {
+    if (this.failure) return;
+    this.failure = error;
+    for (const request of this.pending.splice(0)) request.reject(error);
+  }
+}
+
 class GitRepo {
+  private contentReader: CatFileReader | null = null;
+  private sizeReader: CatFileReader | null = null;
+
   constructor(
     readonly cwd: string,
     private readonly runner: CommandRunner,
     private readonly env?: Record<string, string | undefined>,
   ) {}
+
+  async readBlob(oid: string): Promise<Buffer> {
+    this.contentReader ??= new CatFileReader(this.cwd, this.env, 'content');
+    const { type, content } = await this.contentReader.read(oid);
+    if (type !== 'blob' || !content) {
+      throw new Error(`git object ${oid} is not a blob`);
+    }
+    return content;
+  }
+
+  async readBlobSize(oid: string): Promise<number> {
+    this.sizeReader ??= new CatFileReader(this.cwd, this.env, 'size');
+    return (await this.sizeReader.read(oid)).size;
+  }
+
+  dispose(): void {
+    this.contentReader?.dispose();
+    this.sizeReader?.dispose();
+    this.contentReader = null;
+    this.sizeReader = null;
+  }
 
   async exec(args: readonly string[], stdin?: Buffer): Promise<Buffer> {
     const result = await this.runner('git', args, {
@@ -337,15 +545,6 @@ async function readStagedAdditions(git: GitRepo): Promise<Set<string>> {
       .filter((entry) => entry.status === 'A')
       .map((entry) => entry.path),
   );
-}
-
-async function readBlob(git: GitRepo, oid: string): Promise<Buffer> {
-  return git.exec(['cat-file', 'blob', oid]);
-}
-
-async function readBlobSize(git: GitRepo, oid: string): Promise<number> {
-  const raw = await git.exec(['cat-file', '-s', oid]);
-  return Number(raw.toString('utf8').trim());
 }
 
 async function readLfsAttributes(
@@ -707,7 +906,7 @@ function makeReadSource(git: GitRepo): (file: SourceFile) => Promise<Buffer> {
   return async (file) => {
     const cached = cache.get(file.path);
     if (cached) return cached;
-    const content = await readBlob(git, file.oid);
+    const content = await git.readBlob(file.oid);
     cache.set(file.path, content);
     return content;
   };
@@ -728,7 +927,7 @@ async function runCheck(
       for (const file of context.files) {
         if (!context.additions.has(file.path) || lfs.has(file.path)) continue;
         if (file.mode === '120000' || file.mode === '160000') continue;
-        const size = await readBlobSize(context.git, file.oid);
+        const size = await context.git.readBlobSize(file.oid);
         const kb = Math.ceil(size / 1024);
         if (kb > LARGE_FILE_LIMIT_KB) {
           messages.push(
@@ -888,7 +1087,7 @@ async function materializeSnapshot(
         fs.mkdirSync(path.join(root, entry.path), { recursive: true });
         continue;
       }
-      const content = await readBlob(git, entry.oid);
+      const content = await git.readBlob(entry.oid);
       writeSnapshotEntry(root, entry, content);
     }
     return root;
@@ -1075,10 +1274,10 @@ async function initializeSnapshotGit(
 /**
  * Environment for audit children. It must not inherit the caller's Git
  * identity or configuration overrides: `semantic-release` exports
- * `GIT_AUTHOR_NAME=…`/`GIT_COMMITTER_NAME=…` for its own commit, and a
- * pre-push audit started by that process would otherwise author the commits
- * tests create as the release bot. Tests that shell out to Git must only see
- * the identity they set themselves.
+ * `GIT_AUTHOR_NAME=…`/`GIT_COMMITTER_NAME=…` for its own commit, and an audit
+ * started by such a process would otherwise author the commits tests create as
+ * the release bot. Tests that shell out to Git must only see the identity they
+ * set themselves.
  */
 export const AUDIT_ENV_REMOVED = [
   'GIT_INDEX_FILE',
@@ -1150,6 +1349,7 @@ export const defaultAuditInvoker: AuditInvoker = async (phase, context) => {
   return spawnCommand(bun, ['scripts/audit.ts', phase], {
     cwd: context.snapshotDir,
     env: auditEnvironment(context.snapshotDir),
+    onOutput: context.onOutput,
   });
 };
 
@@ -1187,278 +1387,295 @@ export async function runHook(options: HookOptions): Promise<HookResult> {
   if (stage !== 'pre-commit' && stage !== 'pre-push') {
     throw new Error(`Unknown hook stage: ${String(stage)}`);
   }
+  const log = options.log ?? (() => {});
+  log(`hooks: ${stage}: running\n`);
   const cwd = options.cwd ?? process.cwd();
   const runner = options.runner ?? spawnCommand;
   const auditInvoker = options.auditInvoker ?? defaultAuditInvoker;
   const git = new GitRepo(cwd, runner, options.env);
-  const checks: CheckResult[] = [];
-  const jobs: AuditJob[] = [];
-  let canAudit = true;
+  try {
+    const checks: CheckResult[] = [];
+    const jobs: AuditJob[] = [];
+    let canAudit = true;
 
-  if (stage === 'pre-commit') {
-    const index = await readIndex(git);
-    if (index.unmerged.length > 0) {
-      canAudit = false;
-      checks.push({
-        name: 'index',
-        kind: 'check',
-        ok: false,
-        messages: index.unmerged.map(
-          (file) => `${file}: unresolved merge stages; resolve the index entry`,
-        ),
-      });
-    }
-    const changes = await readStagedChanges(git);
-    const changedPaths = changes
-      .filter((entry) => entry.status !== 'D')
-      .map((entry) => entry.path);
-    const files = changedPaths
-      .map((file) => index.entries.get(file))
-      .filter((entry): entry is IndexEntry => Boolean(entry));
-    const additions = await readStagedAdditions(git);
-    const head = await git.tryExec(['rev-parse', '--verify', 'HEAD']);
-    jobs.push({
-      label: '',
-      tip: head.code === 0 ? head.stdout.toString('utf8').trim() : null,
-      files,
-      additions,
-      attributeSource: null,
-      snapshotEntries: [...index.entries.values()],
-    });
-  } else {
-    const stdin = options.stdin ?? Buffer.alloc(0);
-    const args = options.args ?? [];
-    const remoteName = args[0];
-    const updates = stdin.length > 0 ? parsePushUpdates(stdin) : [];
-    const ranges: Array<{ label: string; range: PushRange }> = [];
-    if (updates.length > 0) {
-      const audited = new Set<string>();
-      for (const update of updates) {
-        const range = await resolvePushRange(git, update, remoteName);
-        if (!range) continue;
-        const key = `${range.base ?? ''}\0${range.tip}\0${range.allFiles}`;
-        if (audited.has(key)) continue;
-        audited.add(key);
-        ranges.push({ label: update.localRef, range });
+    if (stage === 'pre-commit') {
+      const index = await readIndex(git);
+      if (index.unmerged.length > 0) {
+        canAudit = false;
+        checks.push({
+          name: 'index',
+          kind: 'check',
+          ok: false,
+          messages: index.unmerged.map(
+            (file) =>
+              `${file}: unresolved merge stages; resolve the index entry`,
+          ),
+        });
       }
-      if (ranges.length === 0) {
-        return { code: 0, stage, checks: [] };
-      }
-    } else {
-      // Manual invocation: audit the current HEAD and the last commit's diff.
-      const head = await git.tryExec(['rev-parse', '--verify', 'HEAD']);
-      if (head.code !== 0) {
-        return { code: 0, stage, checks: [] };
-      }
-      const tip = head.stdout.toString('utf8').trim();
-      const parent = await git.tryExec(['rev-parse', '--verify', `${tip}^`]);
-      ranges.push({
-        label: '',
-        range:
-          parent.code === 0
-            ? {
-                tip,
-                base: parent.stdout.toString('utf8').trim(),
-                allFiles: false,
-              }
-            : { tip, base: null, allFiles: true },
-      });
-    }
-
-    for (const { label, range } of ranges) {
-      const tree = await readTree(git, range.tip);
-      let changed: ChangedPath[];
-      if (range.allFiles) {
-        changed = [...tree.values()].map((entry) => ({
-          path: entry.path,
-          status: 'A',
-        }));
-      } else {
-        const raw = await git.exec([
-          'diff',
-          '--name-status',
-          '-z',
-          '--find-renames',
-          range.base as string,
-          range.tip,
-        ]);
-        changed = parseNameStatus(raw);
-      }
-      const files = changed
+      const changes = await readStagedChanges(git);
+      const changedPaths = changes
         .filter((entry) => entry.status !== 'D')
-        .map((entry) => tree.get(entry.path))
-        .filter((entry): entry is TreeEntry => Boolean(entry));
-      const additions = new Set(
-        changed
-          .filter((entry) => entry.status === 'A')
-          .map((entry) => entry.path)
-          .filter((file) => tree.has(file)),
-      );
+        .map((entry) => entry.path);
+      const files = changedPaths
+        .map((file) => index.entries.get(file))
+        .filter((entry): entry is IndexEntry => Boolean(entry));
+      const additions = await readStagedAdditions(git);
+      const head = await git.tryExec(['rev-parse', '--verify', 'HEAD']);
       jobs.push({
-        label,
-        tip: range.tip,
+        label: '',
+        tip: head.code === 0 ? head.stdout.toString('utf8').trim() : null,
         files,
         additions,
-        attributeSource: range.tip,
-        snapshotEntries: [...tree.values()],
+        attributeSource: null,
+        snapshotEntries: [...index.entries.values()],
       });
-    }
-  }
-
-  const prefixFor = (job: AuditJob): string =>
-    jobs.length > 1 && job.label ? `${job.label}: ` : '';
-  const checkResults = new Map<string, CheckAccumulator>();
-  for (const job of jobs) {
-    const context: CheckContext = {
-      git,
-      stage,
-      files: job.files,
-      additions: job.additions,
-      attributeSource: job.attributeSource,
-      readSource: makeReadSource(git),
-    };
-    for (const name of STAGE_CHECKS[stage]) {
-      let ok = true;
-      let messages: string[];
-      try {
-        messages = await runCheck(name, context);
-        ok = messages.length === 0;
-      } catch (error) {
-        messages = [firstLine((error as Error).message)];
-        ok = false;
-      }
-      const accumulated: CheckAccumulator = checkResults.get(name) ?? {
-        ok: true,
-        messages: [],
-      };
-      accumulated.ok &&= ok;
-      accumulated.messages.push(
-        ...messages.map((message) => `${prefixFor(job)}${message}`),
-      );
-      checkResults.set(name, accumulated);
-    }
-  }
-  for (const name of STAGE_CHECKS[stage]) {
-    const result = checkResults.get(name);
-    if (!result) continue;
-    checks.push({
-      name,
-      kind: 'check',
-      ok: result.ok,
-      messages: result.messages,
-    });
-  }
-
-  const snapshots: PreparedSnapshot[] = [];
-  if (canAudit) {
-    for (const job of jobs) {
-      let directory: string | null = null;
-      try {
-        directory = await materializeSnapshot(git, job.snapshotEntries);
-        linkArtifacts(cwd, directory);
-        await initializeSnapshotGit(
-          git,
-          directory,
-          job.snapshotEntries,
-          job.tip,
-          options.env,
-        );
-        snapshots.push({ job, directory, error: null });
-      } catch (error) {
-        if (directory) {
-          fs.rmSync(directory, { recursive: true, force: true });
+    } else {
+      const stdin = options.stdin ?? Buffer.alloc(0);
+      const args = options.args ?? [];
+      const remoteName = args[0];
+      const updates = stdin.length > 0 ? parsePushUpdates(stdin) : [];
+      const ranges: Array<{ label: string; range: PushRange }> = [];
+      if (updates.length > 0) {
+        const audited = new Set<string>();
+        for (const update of updates) {
+          const range = await resolvePushRange(git, update, remoteName);
+          if (!range) continue;
+          const key = `${range.base ?? ''}\0${range.tip}\0${range.allFiles}`;
+          if (audited.has(key)) continue;
+          audited.add(key);
+          ranges.push({ label: update.localRef, range });
         }
-        snapshots.push({
-          job,
-          directory: null,
-          error: firstLine((error as Error).message),
+        if (ranges.length === 0) {
+          return { code: 0, stage, checks: [] };
+        }
+      } else {
+        // Manual invocation: audit the current HEAD and the last commit's diff.
+        const head = await git.tryExec(['rev-parse', '--verify', 'HEAD']);
+        if (head.code !== 0) {
+          return { code: 0, stage, checks: [] };
+        }
+        const tip = head.stdout.toString('utf8').trim();
+        const parent = await git.tryExec(['rev-parse', '--verify', `${tip}^`]);
+        ranges.push({
+          label: '',
+          range:
+            parent.code === 0
+              ? {
+                  tip,
+                  base: parent.stdout.toString('utf8').trim(),
+                  allFiles: false,
+                }
+              : { tip, base: null, allFiles: true },
+        });
+      }
+
+      for (const { label, range } of ranges) {
+        const tree = await readTree(git, range.tip);
+        let changed: ChangedPath[];
+        if (range.allFiles) {
+          changed = [...tree.values()].map((entry) => ({
+            path: entry.path,
+            status: 'A',
+          }));
+        } else {
+          const raw = await git.exec([
+            'diff',
+            '--name-status',
+            '-z',
+            '--find-renames',
+            range.base as string,
+            range.tip,
+          ]);
+          changed = parseNameStatus(raw);
+        }
+        const files = changed
+          .filter((entry) => entry.status !== 'D')
+          .map((entry) => tree.get(entry.path))
+          .filter((entry): entry is TreeEntry => Boolean(entry));
+        const additions = new Set(
+          changed
+            .filter((entry) => entry.status === 'A')
+            .map((entry) => entry.path)
+            .filter((file) => tree.has(file)),
+        );
+        jobs.push({
+          label,
+          tip: range.tip,
+          files,
+          additions,
+          attributeSource: range.tip,
+          snapshotEntries: [...tree.values()],
         });
       }
     }
-    const preparationErrors = snapshots.filter(
-      (snapshot) => snapshot.error !== null,
-    );
-    if (preparationErrors.length > 0) {
+
+    const prefixFor = (job: AuditJob): string =>
+      jobs.length > 1 && job.label ? `${job.label}: ` : '';
+    const checkResults = new Map<string, CheckAccumulator>();
+    for (const job of jobs) {
+      const context: CheckContext = {
+        git,
+        stage,
+        files: job.files,
+        additions: job.additions,
+        attributeSource: job.attributeSource,
+        readSource: makeReadSource(git),
+      };
+      for (const name of STAGE_CHECKS[stage]) {
+        let ok = true;
+        let messages: string[];
+        try {
+          messages = await runCheck(name, context);
+          ok = messages.length === 0;
+        } catch (error) {
+          messages = [firstLine((error as Error).message)];
+          ok = false;
+        }
+        const accumulated: CheckAccumulator = checkResults.get(name) ?? {
+          ok: true,
+          messages: [],
+        };
+        accumulated.ok &&= ok;
+        accumulated.messages.push(
+          ...messages.map((message) => `${prefixFor(job)}${message}`),
+        );
+        checkResults.set(name, accumulated);
+      }
+    }
+    for (const name of STAGE_CHECKS[stage]) {
+      const result = checkResults.get(name);
+      if (!result) continue;
+      checks.push({
+        name,
+        kind: 'check',
+        ok: result.ok,
+        messages: result.messages,
+      });
+    }
+
+    const auditPhases = STAGE_AUDITS[stage];
+    const snapshots: PreparedSnapshot[] = [];
+    // A stage with no audit phases must not pay for a snapshot tree or report
+    // snapshot failures: there is nothing to run against them.
+    if (auditPhases.length > 0 && !canAudit) {
       checks.push({
         name: 'audit-snapshot',
         kind: 'audit',
         ok: false,
-        messages: preparationErrors.map(
-          (snapshot) =>
-            `${prefixFor(snapshot.job)}Could not prepare isolated audit ` +
-            `snapshot: ${snapshot.error}`,
-        ),
+        messages: ['unresolved index entries; audits were not run'],
       });
     }
-  } else {
-    checks.push({
-      name: 'audit-snapshot',
-      kind: 'audit',
-      ok: false,
-      messages: ['unresolved index entries; audits were not run'],
-    });
-  }
-
-  try {
-    for (const phase of STAGE_AUDITS[stage]) {
-      let ok = true;
-      const messages: string[] = [];
-      if (!canAudit) {
-        ok = false;
-        messages.push('audit snapshot unavailable; audit was not run');
-      } else {
-        for (const snapshot of snapshots) {
-          const prefix = prefixFor(snapshot.job);
-          if (!snapshot.directory) {
-            ok = false;
-            messages.push(
-              `${prefix}audit snapshot unavailable; audit was not run`,
-            );
-            continue;
+    if (auditPhases.length > 0 && canAudit) {
+      log(
+        `hooks: preparing ${auditPhases.join(' + ')} snapshot(s) ` +
+          `for ${jobs.length} ref(s)\n`,
+      );
+      for (const job of jobs) {
+        let directory: string | null = null;
+        try {
+          directory = await materializeSnapshot(git, job.snapshotEntries);
+          linkArtifacts(cwd, directory);
+          await initializeSnapshotGit(
+            git,
+            directory,
+            job.snapshotEntries,
+            job.tip,
+            options.env,
+          );
+          snapshots.push({ job, directory, error: null });
+        } catch (error) {
+          if (directory) {
+            fs.rmSync(directory, { recursive: true, force: true });
           }
-          try {
-            const result = await auditInvoker(phase, {
-              stage,
-              snapshotDir: snapshot.directory,
-              repoRoot: cwd,
-            });
-            if (result.code !== 0) {
-              ok = false;
-              messages.push(
-                ...auditFailureMessages(result.code, result).map(
-                  (message) => `${prefix}${message}`,
-                ),
-              );
-            }
-          } catch (error) {
-            ok = false;
-            messages.push(
-              `${prefix}audit could not be started: ` +
-                `${firstLine((error as Error).message)}`,
-            );
-          }
+          snapshots.push({
+            job,
+            directory: null,
+            error: firstLine((error as Error).message),
+          });
         }
       }
-      checks.push({
-        name: phase,
-        kind: 'audit',
-        ok,
-        messages,
-      });
-    }
-  } finally {
-    for (const snapshot of snapshots) {
-      if (snapshot.directory) {
-        fs.rmSync(snapshot.directory, { recursive: true, force: true });
+      const preparationErrors = snapshots.filter(
+        (snapshot) => snapshot.error !== null,
+      );
+      if (preparationErrors.length > 0) {
+        checks.push({
+          name: 'audit-snapshot',
+          kind: 'audit',
+          ok: false,
+          messages: preparationErrors.map(
+            (snapshot) =>
+              `${prefixFor(snapshot.job)}Could not prepare isolated audit ` +
+              `snapshot: ${snapshot.error}`,
+          ),
+        });
       }
     }
-  }
 
-  return {
-    code: checks.every((check) => check.ok) ? 0 : 1,
-    stage,
-    checks,
-  };
+    try {
+      for (const phase of auditPhases) {
+        let ok = true;
+        const messages: string[] = [];
+        if (!canAudit) {
+          ok = false;
+          messages.push('audit snapshot unavailable; audit was not run');
+        } else {
+          log(`hooks: ${phase}: running\n`);
+          for (const snapshot of snapshots) {
+            const prefix = prefixFor(snapshot.job);
+            if (!snapshot.directory) {
+              ok = false;
+              messages.push(
+                `${prefix}audit snapshot unavailable; audit was not run`,
+              );
+              continue;
+            }
+            try {
+              const result = await auditInvoker(phase, {
+                stage,
+                snapshotDir: snapshot.directory,
+                repoRoot: cwd,
+                onOutput: (chunk) => log(chunk),
+              });
+              if (result.code !== 0) {
+                ok = false;
+                messages.push(
+                  ...auditFailureMessages(result.code, result).map(
+                    (message) => `${prefix}${message}`,
+                  ),
+                );
+              }
+            } catch (error) {
+              ok = false;
+              messages.push(
+                `${prefix}audit could not be started: ` +
+                  `${firstLine((error as Error).message)}`,
+              );
+            }
+          }
+        }
+        checks.push({
+          name: phase,
+          kind: 'audit',
+          ok,
+          messages,
+        });
+      }
+    } finally {
+      for (const snapshot of snapshots) {
+        if (snapshot.directory) {
+          fs.rmSync(snapshot.directory, { recursive: true, force: true });
+        }
+      }
+    }
+
+    return {
+      code: checks.every((check) => check.ok) ? 0 : 1,
+      stage,
+      checks,
+    };
+  } finally {
+    git.dispose();
+  }
 }
 
 function printResult(result: HookResult): void {
@@ -1469,6 +1686,8 @@ function printResult(result: HookResult): void {
   }
   if (result.code !== 0) {
     console.error(`hooks: ${result.stage} checks failed`);
+  } else {
+    console.log(`hooks: ${result.stage}: ok`);
   }
 }
 
@@ -1495,6 +1714,7 @@ async function main(argv: readonly string[]): Promise<number> {
       cwd: process.cwd(),
       stdin,
       args: argv.slice(1),
+      log: (text) => process.stdout.write(text),
     });
     printResult(result);
     return result.code;

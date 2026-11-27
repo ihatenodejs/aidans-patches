@@ -137,7 +137,9 @@ private fun classAttributesFor(tagName: String): List<String> = when (tagName) {
         "android:appComponentFactory",
         "android:manageSpaceActivity"
     )
+
     "activity-alias" -> listOf("android:name", "android:targetActivity")
+
     else -> listOf("android:name")
 }
 

@@ -17,9 +17,6 @@ private val EXPECTED_GIVEAWAY_SCREEN_STATUS_BYTES = byteArrayOf(0x40, 0x01, 0x04
 private val HIDDEN_GIVEAWAY_SCREEN_STATUS_BYTES = byteArrayOf(0x94.toByte(), 0x01, 0x76.toByte(), 0x01)
 
 // 1. Merchant Deal Popovers
-private val EXPECTED_SELECT_POPUP_OFFERS_BYTES = byteArrayOf(0x34, 0x05, 0x00, 0x40)
-private val HIDDEN_SELECT_POPUP_OFFERS_BYTES = byteArrayOf(0x92.toByte(), 0x00, 0x76.toByte(), 0x00)
-
 private val EXPECTED_STORE_OFFER_MODAL_CONFIG_BYTES = byteArrayOf(0x34, 0x02, 0x00, 0x40)
 private val HIDDEN_STORE_OFFER_MODAL_CONFIG_BYTES = byteArrayOf(0x92.toByte(), 0x00, 0x76.toByte(), 0x00)
 
@@ -177,14 +174,6 @@ val removePromosAndGiveawaysPatch = rawResourcePatch(
 
         // 5. Merchant Deal Popovers
         if (blockMerchantDealPopovers.value == true) {
-            val selectPopupOffersOffset = editor.findFunctionOffsetByName("useSelectPopupOffers")
-                ?: throw PatchException("useSelectPopupOffers function not found")
-            editor.patchBytesIfMatches(
-                selectPopupOffersOffset,
-                EXPECTED_SELECT_POPUP_OFFERS_BYTES,
-                HIDDEN_SELECT_POPUP_OFFERS_BYTES
-            )
-
             val storeOfferModalConfigOffset = editor.findFunctionOffsetByName("useStoreOfferModalConfig")
                 ?: throw PatchException("useStoreOfferModalConfig function not found")
             editor.patchBytesIfMatches(

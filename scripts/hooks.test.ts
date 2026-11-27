@@ -873,7 +873,7 @@ describe('staged snapshot isolation', () => {
   });
 });
 
-describe('pre-push range and audit routing', () => {
+describe('pre-push range and hygiene routing', () => {
   function pushLine(
     local: string,
     remote: string,
@@ -883,7 +883,7 @@ describe('pre-push range and audit routing', () => {
     return Buffer.from(`${localRef} ${local} ${remoteRef} ${remote}\n`);
   }
 
-  test('audits a clean-index pushed commit range and ignores unrelated staged files', async () => {
+  test('checks the pushed commit range and ignores unrelated staged files', async () => {
     const repository = initRepository();
     stageFile(repository, 'base.txt', 'base\n');
     const first = commitAll(repository, 'base');
@@ -893,36 +893,21 @@ describe('pre-push range and audit routing', () => {
     stageFile(repository, 'unrelated.txt', 'staged but unrelated  \n');
     const indexBefore = git(repository, ['ls-files', '-s']);
 
-    let observed = false;
-    const { calls, invoker } = auditRecorder({}, (call) => {
-      if (observed) return;
-      observed = true;
-      expect(
-        fs.readFileSync(path.join(call.snapshotDir, 'base.txt'), 'utf8'),
-      ).toBe('second base\n');
-      expect(
-        fs.readFileSync(path.join(call.snapshotDir, 'added.txt'), 'utf8'),
-      ).toBe('added\n');
-      expect(fs.existsSync(path.join(call.snapshotDir, 'unrelated.txt'))).toBe(
-        false,
-      );
-    });
-
     const result = await run(repository, 'pre-push', {
       stdin: pushLine(second, first),
-      audit: invoker,
     });
+
     expect(result.code).toBe(0);
     expect(result.checks.map((check) => check.name)).toEqual([
       ...STAGE_CHECKS['pre-push'],
-      ...STAGE_AUDITS['pre-push'],
     ]);
-    expect(calls.map((call) => call.phase)).toEqual(['typecheck', 'test']);
+    // The staged file is outside the pushed range, so its trailing whitespace is
+    // not reported and the index is left untouched.
     expect(messages(result, 'trailing-whitespace')).toEqual([]);
     expect(git(repository, ['ls-files', '-s'])).toBe(indexBefore);
   });
 
-  test('runs typecheck and test on a clean-index pushed range', async () => {
+  test('runs no audits on a pushed range', async () => {
     const repository = initRepository();
     stageFile(repository, 'one.txt', 'one\n');
     const first = commitAll(repository, 'one');
@@ -930,13 +915,16 @@ describe('pre-push range and audit routing', () => {
     const second = commitAll(repository, 'two');
     expect(git(repository, ['status', '--porcelain'])).toBe('');
 
+    // Typecheck and the test suites belong to the required verification gate; a
+    // push must not pay for a second copy inside a throwaway snapshot.
     const { calls, invoker } = auditRecorder();
     const result = await run(repository, 'pre-push', {
       stdin: pushLine(second, first),
       audit: invoker,
     });
     expect(result.code).toBe(0);
-    expect(calls.map((call) => call.phase)).toEqual(['typecheck', 'test']);
+    expect(calls).toEqual([]);
+    expect(STAGE_AUDITS['pre-push']).toEqual([]);
   });
 
   test('skips deletion-only and no-op pushes', async () => {
@@ -958,7 +946,7 @@ describe('pre-push range and audit routing', () => {
     expect(result).toEqual({ code: 0, stage: 'pre-push', checks: [] });
   });
 
-  test('runs typecheck and test for a new remote/branch without network', async () => {
+  test('resolves a new remote branch without network', async () => {
     const repository = initRepository();
     stageFile(repository, 'base.txt', 'base\n');
     const first = commitAll(repository, 'base');
@@ -974,7 +962,7 @@ describe('pre-push range and audit routing', () => {
       audit: invoker,
     });
     expect(result.code).toBe(0);
-    expect(calls.map((call) => call.phase)).toEqual(['typecheck', 'test']);
+    expect(calls).toEqual([]);
     expect(first).not.toBe(second);
   });
 
@@ -1008,75 +996,36 @@ describe('pre-push range and audit routing', () => {
     expect(messages(result, 'end-of-file-fixer')).toEqual([]);
   });
 
-  test('handles renames and deletions in the pushed range', async () => {
+  test('reports renames under the new path and skips deletions', async () => {
     const repository = initRepository();
-    stageFile(repository, 'keep.txt', 'keep\n');
-    stageFile(repository, 'delete.txt', 'delete\n');
+    stageFile(repository, 'keep.txt', 'keep  \n');
+    stageFile(repository, 'delete.txt', 'delete  \n');
     const first = commitAll(repository, 'base');
     git(repository, ['mv', 'keep.txt', 'renamed.txt']);
     git(repository, ['rm', '-q', 'delete.txt']);
     const second = commitAll(repository, 'rename and delete');
 
-    let observed = false;
-    const { invoker } = auditRecorder({}, (call) => {
-      if (observed) return;
-      observed = true;
-      expect(fs.existsSync(path.join(call.snapshotDir, 'renamed.txt'))).toBe(
-        true,
-      );
-      expect(fs.existsSync(path.join(call.snapshotDir, 'keep.txt'))).toBe(
-        false,
-      );
-      expect(fs.existsSync(path.join(call.snapshotDir, 'delete.txt'))).toBe(
-        false,
-      );
-    });
-
     const result = await run(repository, 'pre-push', {
       stdin: pushLine(second, first),
-      audit: invoker,
     });
-    expect(result.code).toBe(0);
-    expect(observed).toBe(true);
+
+    expect(messages(result, 'trailing-whitespace')).toEqual([
+      'renamed.txt: trailing whitespace found (check-only; file not modified)',
+    ]);
   });
 
-  test('propagates each pre-push audit failure', async () => {
-    for (const failing of STAGE_AUDITS['pre-push']) {
-      const repository = initRepository();
-      stageFile(repository, 'clean.txt', 'clean\n');
-      commitAll(repository, 'base');
-      const { calls, invoker } = auditRecorder({ [failing]: 9 });
-      const result = await run(repository, 'pre-push', {
-        audit: invoker,
-      });
-      expect(result.code).toBe(1);
-      expect(calls.map((call) => call.phase)).toEqual(['typecheck', 'test']);
-      expect(named(result, failing).ok).toBe(false);
-      expect(named(result, failing).messages[0]).toContain('audit exited 9');
-    }
-  });
-
-  test('manual pre-push audits HEAD while ignoring staged content', async () => {
+  test('manual pre-push checks HEAD while ignoring staged content', async () => {
     const repository = initRepository();
     stageFile(repository, 'base.txt', 'base\n');
     commitAll(repository, 'base');
     stageFile(repository, 'staged-only.txt', 'staged only  \n');
-    const { calls, invoker } = auditRecorder({}, (call) => {
-      expect(
-        fs.existsSync(path.join(call.snapshotDir, 'staged-only.txt')),
-      ).toBe(false);
-      expect(
-        fs.readFileSync(path.join(call.snapshotDir, 'base.txt'), 'utf8'),
-      ).toBe('base\n');
-    });
 
-    const result = await run(repository, 'pre-push', { audit: invoker });
+    const result = await run(repository, 'pre-push');
     expect(result.code).toBe(0);
-    expect(calls.map((call) => call.phase)).toEqual(['typecheck', 'test']);
     expect(messages(result, 'trailing-whitespace')).toEqual([]);
   });
 
-  test('checks every pushed ref and propagates later ref failures', async () => {
+  test('labels hygiene findings by pushed ref', async () => {
     const repository = initRepository();
     stageFile(repository, 'base.txt', 'base\n');
     const base = commitAll(repository, 'base');
@@ -1094,47 +1043,16 @@ describe('pre-push range and audit routing', () => {
     stageFile(repository, 'second-clean.txt', 'clean\n');
     const secondTip = commitAll(repository, 'second');
 
-    const calls: Array<{ phase: AuditPhase; second: boolean }> = [];
-    const invoker: AuditInvoker = async (phase, context) => {
-      const second = fs.existsSync(
-        path.join(context.snapshotDir, 'second-clean.txt'),
-      );
-      calls.push({ phase, second });
-      if (phase === 'test' && second) {
-        return {
-          code: 5,
-          stdout: Buffer.from('detail for the failing ref\nsecond stdout line'),
-          stderr: Buffer.from('stderr tail'),
-        };
-      }
-      return { code: 0, stdout: Buffer.alloc(0), stderr: Buffer.alloc(0) };
-    };
-
     const result = await run(repository, 'pre-push', {
       stdin: Buffer.concat([
         pushLine(firstTip, base, 'refs/heads/first'),
         pushLine(secondTip, base, 'refs/heads/second'),
       ]),
-      audit: invoker,
     });
 
     expect(result.code).toBe(1);
     expect(messages(result, 'check-added-large-files')).toEqual([
       'refs/heads/second: second-big.bin (2049 KB) exceeds 2048 KB.',
-    ]);
-    expect(calls).toEqual([
-      { phase: 'typecheck', second: false },
-      { phase: 'typecheck', second: true },
-      { phase: 'test', second: false },
-      { phase: 'test', second: true },
-    ]);
-    expect(named(result, 'typecheck').ok).toBe(true);
-    expect(named(result, 'test').ok).toBe(false);
-    expect(messages(result, 'test')).toEqual([
-      'refs/heads/second: audit exited 5',
-      'refs/heads/second: detail for the failing ref',
-      'refs/heads/second: second stdout line',
-      'refs/heads/second: stderr tail',
     ]);
   });
 
@@ -1145,20 +1063,16 @@ describe('pre-push range and audit routing', () => {
     stageFile(repository, 'next.txt', 'next\n');
     const tip = commitAll(repository, 'next');
 
-    const { calls, invoker } = auditRecorder();
     const result = await run(repository, 'pre-push', {
       stdin: Buffer.concat([
         pushLine(tip, base, 'refs/heads/one', 'refs/heads/one'),
         pushLine(tip, base, 'refs/heads/two', 'refs/heads/two'),
       ]),
-      audit: invoker,
     });
 
     expect(result.code).toBe(0);
-    expect(calls.map((call) => call.phase)).toEqual(['typecheck', 'test']);
     expect(result.checks.map((check) => check.name)).toEqual([
       ...STAGE_CHECKS['pre-push'],
-      ...STAGE_AUDITS['pre-push'],
     ]);
   });
 });

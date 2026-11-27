@@ -32,7 +32,7 @@ tools/apk-lab/target/release/apk-lab <subcommand>
 Tools are pinned in `tools/apk-lab/tools.lock.json` with official download URLs and immutable SHA-256 digests. Only `apk-lab setup` downloads external tools.
 
 ```bash
-# Install pinned analysis tools (Morphe Desktop 1.18.0, JADX 1.5.6, Apktool 3.0.3, baksmali 3.0.10, smali 3.0.10)
+# Install pinned analysis tools (Morphe Desktop 1.18.0, JADX 1.5.7, Apktool 3.0.3, baksmali 3.0.10, smali 3.0.10)
 cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- setup --profile analysis
 # Install CI profile (includes apkeep on Linux x86-64)
 cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- setup --profile ci
@@ -378,6 +378,7 @@ cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-la
 **Method Selector Rules & Limitations:**
 
 - Multi-DEX localization searches `classes*.dex` across all splits using `dexdump` and identifies the containing location (`split:classesN.dex`).
+- Extraction inside the managed temporary directory uses opaque positional filenames; split names from manifest metadata and DEX member names never become filesystem path components. Reported split and DEX identities are unchanged.
 - Disassembles Smali using pinned baksmali (`--classes`, `--code-offsets`); decompiles Java using pinned JADX (`--single-class`, `--show-bad-code`, `--no-res`).
 - Method slicing: Smali extracts `.method` to `.end method`. Java uses a lexical brace-balancing scanner that skips string/char literals and comments.
 - Dalvik descriptors (e.g. `foo(I)V`) are accepted only with `--format smali`. Passing descriptors with `--format java` fails fast with exit code `2` (`USAGE_OR_TOOL_ERROR`).

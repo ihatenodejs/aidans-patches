@@ -44,6 +44,130 @@ export function extractKtlintVersion(auditText: string): string {
     : '1.5.0';
 }
 
+export interface JavaScriptManifest {
+  manifest: string;
+  lock: string;
+  extraLock?: string;
+}
+
+export const JAVASCRIPT_MANIFESTS: readonly JavaScriptManifest[] = [
+  {
+    manifest: 'package.json',
+    lock: 'bun.lock',
+    extraLock: 'package-lock.json',
+  },
+  { manifest: 'worker/package.json', lock: 'worker/bun.lock' },
+  { manifest: 'site/package.json', lock: 'site/bun.lock' },
+] as const;
+
+const BUN_PACKAGE_MANAGER_PATTERN = /^bun@(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)$/;
+
+/**
+ * Reads the root `packageManager` Bun pin. A non-Bun or malformed pin is a
+ * configuration error so the runtime cannot silently fall out of tracking.
+ */
+export function parseBunPackageManager(packageJson: unknown): string | null {
+  if (typeof packageJson !== 'object' || packageJson === null) return null;
+  if (!('packageManager' in packageJson)) return null;
+  const value = packageJson.packageManager;
+  if (typeof value !== 'string') {
+    throw new Error(
+      'package.json packageManager must be a string Bun pin such as "bun@1.4.5"',
+    );
+  }
+  const match = value.match(BUN_PACKAGE_MANAGER_PATTERN);
+  if (!match) {
+    throw new Error(
+      `package.json packageManager '${value}' must pin Bun as "bun@<major>.<minor>.<patch>"`,
+    );
+  }
+  return match[1];
+}
+
+export const VENDORED_CARGO_MANIFEST =
+  'tools/asset-prep/vendor/turbojpeg-sys/Cargo.toml';
+export const VENDORED_CMAKE_MANIFEST =
+  'tools/asset-prep/vendor/turbojpeg-sys/CMakeLists.txt';
+export const ADOBE_SCAN_CMAKE_MANIFEST =
+  'extensions/adobescan-pdf-native/CMakeLists.txt';
+export const GRADLE_BUILD_FILES: readonly string[] = [
+  'patches/build.gradle.kts',
+  'extensions/extension/build.gradle.kts',
+] as const;
+
+export const REGISTERED_CARGO_MANIFESTS: readonly string[] = [
+  ...RUST_PROJECTS.map((project) => project.manifest),
+  VENDORED_CARGO_MANIFEST,
+];
+
+export const REGISTERED_CMAKE_MANIFESTS: readonly string[] = [
+  ADOBE_SCAN_CMAKE_MANIFEST,
+  VENDORED_CMAKE_MANIFEST,
+];
+
+interface NpmLockEntry {
+  version?: string;
+  resolved?: string;
+}
+
+export function parsePackageLock(lockText: string): {
+  packages?: Record<string, NpmLockEntry>;
+} {
+  try {
+    const parsed = JSON.parse(lockText) as {
+      packages?: Record<string, NpmLockEntry>;
+    };
+    return parsed;
+  } catch {
+    return {};
+  }
+}
+
+/** Returns the package-lock resolution for a direct dependency, if present. */
+export function npmLockResolution(
+  lock: { packages?: Record<string, NpmLockEntry> },
+  name: string,
+): string | null {
+  const entry = lock.packages?.[`node_modules/${name}`];
+  if (!entry) return null;
+  if (entry.resolved?.startsWith('git')) {
+    const commit = entry.resolved.match(/#([a-f0-9]{7,40})$/)?.[1];
+    if (commit) return commit;
+  }
+  return entry.version ?? null;
+}
+
+/**
+ * Compares the Bun and npm resolutions for one direct dependency. The release
+ * workflow installs package-lock.json, so a divergence means CI and the
+ * released tooling can resolve different code.
+ */
+export function compareLockfileResolutions(
+  name: string,
+  bunResolved: string | null,
+  npmLock: { packages?: Record<string, NpmLockEntry> },
+): string | null {
+  const npmResolved = npmLockResolution(npmLock, name);
+  if (!npmResolved) {
+    return `package-lock.json has no resolution for '${name}'; refresh it with 'npm install --package-lock-only'`;
+  }
+  if (!bunResolved) {
+    return `bun.lock has no resolution for '${name}'`;
+  }
+  if (npmResolved !== bunResolved) {
+    const hex = /^[a-f0-9]{7,40}$/;
+    const gitPrefix =
+      hex.test(npmResolved) &&
+      hex.test(bunResolved) &&
+      (npmResolved.startsWith(bunResolved) ||
+        bunResolved.startsWith(npmResolved));
+    if (!gitPrefix) {
+      return `lockfile mismatch for '${name}': bun.lock resolves ${bunResolved}, package-lock.json resolves ${npmResolved}; refresh both lockfiles`;
+    }
+  }
+  return null;
+}
+
 export function collectInventory(
   repoRoot: string,
   policy: DependencyPolicy,
@@ -59,17 +183,8 @@ export function collectInventory(
   }
 
   // 1. JavaScript manifests (package.json, worker/package.json, site/package.json)
-  const jsManifests = [
-    {
-      manifest: 'package.json',
-      lock: 'bun.lock',
-      extraLock: 'package-lock.json',
-    },
-    { manifest: 'worker/package.json', lock: 'worker/bun.lock' },
-    { manifest: 'site/package.json', lock: 'site/bun.lock' },
-  ];
-
-  for (const { manifest, lock, extraLock } of jsManifests) {
+  let bunPin: string | null = null;
+  for (const { manifest, lock, extraLock } of JAVASCRIPT_MANIFESTS) {
     const manifestAbs = path.resolve(repoRoot, manifest);
     if (!fs.existsSync(manifestAbs)) continue;
     registerInput(manifest);
@@ -77,19 +192,18 @@ export function collectInventory(
     if (extraLock) registerInput(extraLock);
 
     const manifestJson = JSON.parse(fs.readFileSync(manifestAbs, 'utf8'));
-    let bunLockPackages: Record<string, unknown> = {};
-    const lockAbs = path.resolve(repoRoot, lock);
-    if (fs.existsSync(lockAbs)) {
-      try {
-        const lockText = fs.readFileSync(lockAbs, 'utf8');
-        // Strip trailing commas before closing braces/brackets for Bun text lockfiles
-        const sanitized = lockText.replace(/,\s*([\]}])/g, '$1');
-        bunLockPackages =
-          (JSON.parse(sanitized).packages as Record<string, unknown>) || {};
-      } catch {
-        bunLockPackages = {};
-      }
+    if (manifest === 'package.json') {
+      bunPin = parseBunPackageManager(manifestJson);
     }
+    const lockAbs = path.resolve(repoRoot, lock);
+    const bunLockPackages = fs.existsSync(lockAbs)
+      ? parseBunLockPackages(fs.readFileSync(lockAbs, 'utf8'))
+      : {};
+    const extraLockAbs = extraLock ? path.resolve(repoRoot, extraLock) : null;
+    const npmLock =
+      extraLockAbs && fs.existsSync(extraLockAbs)
+        ? parsePackageLock(fs.readFileSync(extraLockAbs, 'utf8'))
+        : null;
 
     const sections = [
       'dependencies',
@@ -120,6 +234,9 @@ export function collectInventory(
         }
 
         const id = `npm:${manifest}#${section}/${name}`;
+        const lockfileMismatch = npmLock
+          ? compareLockfileResolutions(name, resolved, npmLock)
+          : null;
         items.push({
           id,
           ecosystem: 'npm',
@@ -129,6 +246,7 @@ export function collectInventory(
           resolved,
           latest: null,
           status: 'current',
+          ...(lockfileMismatch ? { lockfileMismatch } : {}),
         });
       }
     }
@@ -164,11 +282,42 @@ export function collectInventory(
       }
     }
 
-    const sections = ['dependencies', 'dev-dependencies', 'build-dependencies'];
-    for (const section of sections) {
+    const dependencySections: Array<{
+      path: string;
+      deps: Record<string, unknown>;
+    }> = [];
+    const topLevelSections = [
+      'dependencies',
+      'dev-dependencies',
+      'build-dependencies',
+    ];
+    for (const section of topLevelSections) {
       const deps = cargoToml[section] as Record<string, unknown> | undefined;
-      if (!deps || typeof deps !== 'object') continue;
+      if (deps && typeof deps === 'object') {
+        dependencySections.push({ path: section, deps });
+      }
+    }
+    const targets = cargoToml.target as
+      Record<string, Record<string, unknown>> | undefined;
+    if (targets && typeof targets === 'object') {
+      for (const [targetName, targetValue] of Object.entries(targets)) {
+        if (!targetValue || typeof targetValue !== 'object') continue;
+        for (const section of topLevelSections) {
+          const deps = targetValue[section] as
+            Record<string, unknown> | undefined;
+          if (deps && typeof deps === 'object') {
+            dependencySections.push({
+              // Quote the target key so the section path matches the TOML
+              // header text used by the apply step.
+              path: `target.'${targetName}'.${section}`,
+              deps,
+            });
+          }
+        }
+      }
+    }
 
+    for (const { path: sectionPath, deps } of dependencySections) {
       for (const [name, val] of Object.entries(deps)) {
         let declared = '';
         if (typeof val === 'string') {
@@ -185,10 +334,10 @@ export function collectInventory(
 
         const resolved = lockPackages[name] || null;
         items.push({
-          id: `crates:${manifest}#${section}/${name}`,
+          id: `crates:${manifest}#${sectionPath}/${name}`,
           ecosystem: 'crates',
           name,
-          locations: [`${manifest} ([${section}])`],
+          locations: [`${manifest} ([${sectionPath}])`],
           declared,
           resolved,
           latest: null,
@@ -270,9 +419,25 @@ export function collectInventory(
       }
     }
 
-    // Check for unused version catalog entries
+    // The Morphe patches plugin resolves this alias by name at build time, so
+    // there is no catalog library entry to consume it.
+    const pluginConsumedVersions = new Set(['smali']);
     for (const [vKey, vVal] of Object.entries(versions)) {
-      if (typeof vVal === 'string' && !usedVersions.has(vKey)) {
+      if (typeof vVal !== 'string' || usedVersions.has(vKey)) continue;
+      if (pluginConsumedVersions.has(vKey)) {
+        items.push({
+          id: `gradle:${catalogRel}#versions/${vKey}`,
+          ecosystem: 'gradle',
+          name: vKey,
+          locations: [`${catalogRel} (versions.${vKey})`],
+          declared: vVal,
+          resolved: vVal,
+          latest: null,
+          status: 'pinned',
+          reason:
+            'Consumed by the Morphe patches Gradle plugin; update it with the plugin',
+        });
+      } else {
         items.push({
           id: `gradle:${catalogRel}#versions/${vKey}`,
           ecosystem: 'gradle',
@@ -288,6 +453,47 @@ export function collectInventory(
     }
   }
 
+  // 3b. Literal Gradle dependency notations (outside the version catalog)
+  const gradleDependencyRegex = new RegExp(
+    `\\b(${[
+      'implementation',
+      'compileOnly',
+      'testImplementation',
+      'testCompileOnly',
+      'runtimeOnly',
+      'api',
+      'kapt',
+      'annotationProcessor',
+    ].join('|')})\\s*\\(\\s*["']([^"']+)["']\\s*\\)`,
+    'g',
+  );
+  for (const buildRel of GRADLE_BUILD_FILES) {
+    const buildAbs = path.resolve(repoRoot, buildRel);
+    if (!fs.existsSync(buildAbs)) continue;
+    registerInput(buildRel);
+    const buildContent = fs.readFileSync(buildAbs, 'utf8');
+    for (const match of buildContent.matchAll(gradleDependencyRegex)) {
+      const notation = match[2];
+      if (notation.includes('$')) continue;
+      const parts = notation.split(':');
+      if (parts.length < 3) continue;
+      const [group, artifact, versionWithClassifier] = parts;
+      const version = versionWithClassifier.split('@')[0];
+      if (!group || !artifact || !version) continue;
+      const line = buildContent.slice(0, match.index).split('\n').length;
+      items.push({
+        id: `gradle:${buildRel}#dependencies/${group}:${artifact}`,
+        ecosystem: 'gradle',
+        name: `${group}:${artifact}`,
+        locations: [`${buildRel}:${line}`],
+        declared: version,
+        resolved: version,
+        latest: null,
+        status: 'current',
+      });
+    }
+  }
+
   // 4. Gradle wrapper
   const wrapperPropsRel = 'gradle/wrapper/gradle-wrapper.properties';
   const wrapperPropsAbs = path.resolve(repoRoot, wrapperPropsRel);
@@ -300,9 +506,6 @@ export function collectInventory(
     const urlMatch = wrapperContent.match(
       /distributionUrl=.*gradle-([0-9.]+)-(?:bin|all)\.zip/,
     );
-    const shaMatch = wrapperContent.match(
-      /distributionSha256Sum=([a-f0-9]{64})/,
-    );
     const version = urlMatch ? urlMatch[1] : 'unknown';
     items.push({
       id: 'tool:gradle',
@@ -310,9 +513,7 @@ export function collectInventory(
       name: 'gradle-wrapper',
       locations: [wrapperPropsRel],
       declared: version,
-      resolved: shaMatch
-        ? `${version} (${shaMatch[1].slice(0, 8)}...)`
-        : version,
+      resolved: version,
       latest: null,
       status: 'current',
     });
@@ -325,7 +526,15 @@ export function collectInventory(
     registerInput(toolLockRel);
     const toolLockJson = JSON.parse(fs.readFileSync(toolLockAbs, 'utf8'));
     const tools =
-      (toolLockJson.tools as Record<string, { version?: string }>) || {};
+      (toolLockJson.tools as Record<
+        string,
+        {
+          version?: string;
+          url?: string;
+          executablePath?: string;
+          versionProbe?: { expectedPattern?: string };
+        }
+      >) || {};
     for (const [toolName, toolDef] of Object.entries(tools)) {
       if (typeof toolDef === 'object' && toolDef !== null) {
         items.push({
@@ -336,6 +545,9 @@ export function collectInventory(
           declared: String(toolDef.version || ''),
           resolved: String(toolDef.version || ''),
           latest: null,
+          latestUrl: toolDef.url,
+          latestExecutablePath: toolDef.executablePath,
+          latestProbePattern: toolDef.versionProbe?.expectedPattern,
           status: 'current',
         });
       }
@@ -348,13 +560,7 @@ export function collectInventory(
   if (fs.existsSync(auditScriptAbs)) {
     registerInput(auditScriptRel);
     const auditText = fs.readFileSync(auditScriptAbs, 'utf8');
-    const ktlintVersionMatch =
-      auditText.match(/const\s+KTLINT_VERSION\s*=\s*'([^']+)'/) ||
-      auditText.match(/KTLINT_([0-9_]+)_SHA256/) ||
-      auditText.match(/ktlint\/releases\/download\/([0-9.]+)\//);
-    const ktlintVersion = ktlintVersionMatch
-      ? (ktlintVersionMatch[1] || '').replace(/_/g, '.')
-      : '1.5.0';
+    const ktlintVersion = extractKtlintVersion(auditText);
     items.push({
       id: 'tool:ktlint',
       ecosystem: 'tool',
@@ -421,7 +627,7 @@ export function collectInventory(
           });
         }
         const bunMatch = line.match(
-          /bun-version:\s*['"]?([a-zA-Z0-9_-]+)['"]?/,
+          /bun-version:\s*['"]?([a-zA-Z0-9_.-]+)['"]?/,
         );
         if (bunMatch) {
           if (!workflowInputs['tool:bun']) workflowInputs['tool:bun'] = [];
@@ -584,17 +790,35 @@ export function collectInventory(
       status: 'current',
     });
   }
-  if (workflowInputs['tool:bun']?.length) {
+  const bunWorkflowInputs = workflowInputs['tool:bun'] ?? [];
+  if (bunPin || bunWorkflowInputs.length > 0) {
+    const mismatches = bunWorkflowInputs.filter((line) => line.val !== bunPin);
     items.push({
       id: 'tool:bun',
       ecosystem: 'tool',
       name: 'bun-cli',
-      locations: workflowInputs['tool:bun'].map((l) => `${l.file}:${l.line}`),
-      declared: 'latest',
-      resolved: 'latest',
+      locations: [
+        ...(bunPin ? ['package.json (packageManager)'] : []),
+        ...bunWorkflowInputs.map((l) => `${l.file}:${l.line}`),
+      ],
+      declared: bunPin ?? 'latest',
+      resolved: bunPin ?? 'latest',
       latest: null,
-      status: 'moving',
-      reason: 'Channel follows Bun latest releases in CI',
+      ...(bunPin
+        ? mismatches.length > 0
+          ? {
+              status: 'error' as const,
+              reason:
+                `Workflow bun-version input does not match package.json packageManager 'bun@${bunPin}': ` +
+                mismatches
+                  .map((line) => `${line.file}:${line.line} '${line.val}'`)
+                  .join(', '),
+            }
+          : { status: 'current' as const }
+        : {
+            status: 'moving' as const,
+            reason: 'Channel follows Bun latest releases in CI',
+          }),
     });
   }
   if (workflowInputs['tool:node']?.length) {
@@ -638,7 +862,7 @@ export function collectInventory(
   }
 
   // 10. C++ Native CMake FetchContent
-  const cmakeListsRel = 'extensions/adobescan-pdf-native/CMakeLists.txt';
+  const cmakeListsRel = ADOBE_SCAN_CMAKE_MANIFEST;
   const cmakeListsAbs = path.resolve(repoRoot, cmakeListsRel);
   if (fs.existsSync(cmakeListsAbs)) {
     registerInput(cmakeListsRel);
@@ -669,6 +893,101 @@ export function collectInventory(
           sourceUrl: url,
         });
       }
+    }
+  }
+
+  // 11. Pinned remote assets that are not package-manager dependencies
+  const fontRel = 'tools/asset-prep/src/font.rs';
+  const fontAbs = path.resolve(repoRoot, fontRel);
+  if (fs.existsSync(fontAbs)) {
+    registerInput(fontRel);
+    const fontText = fs.readFileSync(fontAbs, 'utf8');
+    const tag = fontText.match(
+      /releases\/download\/([^/"']+)\/AppleColorEmoji/,
+    )?.[1];
+    if (tag) {
+      items.push({
+        id: 'embedded:apple-color-emoji',
+        ecosystem: 'embedded',
+        name: 'apple-color-emoji',
+        locations: [`${fontRel} (DEFAULT_URL)`],
+        declared: tag,
+        resolved: tag,
+        latest: null,
+        status: 'pinned',
+        reason:
+          'Pinned release asset; update the URL, raw hash, processed size/hash, and patches/build.gradle.kts fontSourceSha256 together',
+      });
+    }
+  }
+
+  const ocrRel = 'tools/asset-prep/src/ocr.rs';
+  const ocrAbs = path.resolve(repoRoot, ocrRel);
+  if (fs.existsSync(ocrAbs)) {
+    registerInput(ocrRel);
+    const ocrText = fs.readFileSync(ocrAbs, 'utf8');
+    const commit = ocrText.match(/tessdata_fast\/([a-f0-9]{7,40})\//)?.[1];
+    if (commit) {
+      items.push({
+        id: 'embedded:tessdata-eng',
+        ecosystem: 'embedded',
+        name: 'tessdata-eng',
+        locations: [`${ocrRel} (DEFAULT_URL)`],
+        declared: commit.slice(0, 8),
+        resolved: commit,
+        latest: null,
+        status: 'pinned',
+        reason:
+          'Pinned tessdata_fast commit; update the URL, hash, size, and patches/build.gradle.kts modelVersion together',
+      });
+    }
+  }
+
+  const vendoredCmakeRel = VENDORED_CMAKE_MANIFEST;
+  const vendoredCmakeAbs = path.resolve(repoRoot, vendoredCmakeRel);
+  if (fs.existsSync(vendoredCmakeAbs)) {
+    registerInput(vendoredCmakeRel);
+    const vendoredCmakeText = fs.readFileSync(vendoredCmakeAbs, 'utf8');
+    const ljtVersion = vendoredCmakeText.match(
+      /set\(LJT_VERSION\s+"([^"]+)"\)/,
+    )?.[1];
+    if (ljtVersion) {
+      items.push({
+        id: `cmake:${vendoredCmakeRel}#vendor/libjpeg-turbo`,
+        ecosystem: 'cmake',
+        name: 'libjpeg-turbo-vendored',
+        locations: [`${vendoredCmakeRel} (LJT_VERSION)`],
+        declared: ljtVersion,
+        resolved: ljtVersion,
+        latest: null,
+        status: 'pinned',
+        reason:
+          'Vendored turbojpeg-sys build; update LJT_VERSION, LJT_SHA256, and NOTICE.md together',
+      });
+    }
+  }
+
+  const wranglerRel = 'worker/wrangler.jsonc';
+  const wranglerAbs = path.resolve(repoRoot, wranglerRel);
+  if (fs.existsSync(wranglerAbs)) {
+    registerInput(wranglerRel);
+    const wranglerText = fs.readFileSync(wranglerAbs, 'utf8');
+    const compatibilityDate = wranglerText.match(
+      /"compatibility_date"\s*:\s*"([^"]+)"/,
+    )?.[1];
+    if (compatibilityDate) {
+      items.push({
+        id: 'tool:wrangler-compat',
+        ecosystem: 'tool',
+        name: 'wrangler-compatibility-date',
+        locations: [`${wranglerRel} (compatibility_date)`],
+        declared: compatibilityDate,
+        resolved: compatibilityDate,
+        latest: null,
+        status: 'pinned',
+        reason:
+          'Worker runtime compatibility pin; review against the Wrangler compatibility table when upgrading wrangler',
+      });
     }
   }
 

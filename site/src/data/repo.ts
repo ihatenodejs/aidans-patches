@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { resolveRepositoryRoot } from './repo-root';
 import type {
   App,
   AppTarget,
@@ -237,16 +237,10 @@ function buildRepositoryEntities(rawList: RawPatchesList) {
 }
 
 function readLocalFiles() {
-  const currentDir = path.dirname(fileURLToPath(import.meta.url));
-  const patchesListPath = path.resolve(
-    currentDir,
-    '../../../patches-list.json',
-  );
-  const bundleListPath = path.resolve(
-    currentDir,
-    '../../../patches-bundle.json',
-  );
-  const changelogPath = path.resolve(currentDir, '../../../CHANGELOG.md');
+  const repositoryRoot = resolveRepositoryRoot();
+  const patchesListPath = path.join(repositoryRoot, 'patches-list.json');
+  const bundleListPath = path.join(repositoryRoot, 'patches-bundle.json');
+  const changelogPath = path.join(repositoryRoot, 'CHANGELOG.md');
 
   const rawList: RawPatchesList = JSON.parse(
     fs.readFileSync(patchesListPath, 'utf-8'),
