@@ -34,8 +34,6 @@ jobs:
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2.2.0
-        with:
-          bun-version: latest
 
       - name: Install Worker Dependencies
         working-directory: worker

@@ -60,6 +60,30 @@ export const JAVASCRIPT_MANIFESTS: readonly JavaScriptManifest[] = [
   { manifest: 'site/package.json', lock: 'site/bun.lock' },
 ] as const;
 
+const BUN_PACKAGE_MANAGER_PATTERN = /^bun@(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)$/;
+
+/**
+ * Reads the root `packageManager` Bun pin. A non-Bun or malformed pin is a
+ * configuration error so the runtime cannot silently fall out of tracking.
+ */
+export function parseBunPackageManager(packageJson: unknown): string | null {
+  if (typeof packageJson !== 'object' || packageJson === null) return null;
+  if (!('packageManager' in packageJson)) return null;
+  const value = packageJson.packageManager;
+  if (typeof value !== 'string') {
+    throw new Error(
+      'package.json packageManager must be a string Bun pin such as "bun@1.4.5"',
+    );
+  }
+  const match = value.match(BUN_PACKAGE_MANAGER_PATTERN);
+  if (!match) {
+    throw new Error(
+      `package.json packageManager '${value}' must pin Bun as "bun@<major>.<minor>.<patch>"`,
+    );
+  }
+  return match[1];
+}
+
 export const VENDORED_CARGO_MANIFEST =
   'tools/asset-prep/vendor/turbojpeg-sys/Cargo.toml';
 export const VENDORED_CMAKE_MANIFEST =
@@ -159,6 +183,7 @@ export function collectInventory(
   }
 
   // 1. JavaScript manifests (package.json, worker/package.json, site/package.json)
+  let bunPin: string | null = null;
   for (const { manifest, lock, extraLock } of JAVASCRIPT_MANIFESTS) {
     const manifestAbs = path.resolve(repoRoot, manifest);
     if (!fs.existsSync(manifestAbs)) continue;
@@ -167,6 +192,9 @@ export function collectInventory(
     if (extraLock) registerInput(extraLock);
 
     const manifestJson = JSON.parse(fs.readFileSync(manifestAbs, 'utf8'));
+    if (manifest === 'package.json') {
+      bunPin = parseBunPackageManager(manifestJson);
+    }
     const lockAbs = path.resolve(repoRoot, lock);
     const bunLockPackages = fs.existsSync(lockAbs)
       ? parseBunLockPackages(fs.readFileSync(lockAbs, 'utf8'))
@@ -599,7 +627,7 @@ export function collectInventory(
           });
         }
         const bunMatch = line.match(
-          /bun-version:\s*['"]?([a-zA-Z0-9_-]+)['"]?/,
+          /bun-version:\s*['"]?([a-zA-Z0-9_.-]+)['"]?/,
         );
         if (bunMatch) {
           if (!workflowInputs['tool:bun']) workflowInputs['tool:bun'] = [];
@@ -762,17 +790,35 @@ export function collectInventory(
       status: 'current',
     });
   }
-  if (workflowInputs['tool:bun']?.length) {
+  const bunWorkflowInputs = workflowInputs['tool:bun'] ?? [];
+  if (bunPin || bunWorkflowInputs.length > 0) {
+    const mismatches = bunWorkflowInputs.filter((line) => line.val !== bunPin);
     items.push({
       id: 'tool:bun',
       ecosystem: 'tool',
       name: 'bun-cli',
-      locations: workflowInputs['tool:bun'].map((l) => `${l.file}:${l.line}`),
-      declared: 'latest',
-      resolved: 'latest',
+      locations: [
+        ...(bunPin ? ['package.json (packageManager)'] : []),
+        ...bunWorkflowInputs.map((l) => `${l.file}:${l.line}`),
+      ],
+      declared: bunPin ?? 'latest',
+      resolved: bunPin ?? 'latest',
       latest: null,
-      status: 'moving',
-      reason: 'Channel follows Bun latest releases in CI',
+      ...(bunPin
+        ? mismatches.length > 0
+          ? {
+              status: 'error' as const,
+              reason:
+                `Workflow bun-version input does not match package.json packageManager 'bun@${bunPin}': ` +
+                mismatches
+                  .map((line) => `${line.file}:${line.line} '${line.val}'`)
+                  .join(', '),
+            }
+          : { status: 'current' as const }
+        : {
+            status: 'moving' as const,
+            reason: 'Channel follows Bun latest releases in CI',
+          }),
     });
   }
   if (workflowInputs['tool:node']?.length) {

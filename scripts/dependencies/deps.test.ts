@@ -118,6 +118,56 @@ describe('Sources & Version Logic', () => {
     expect(compareSemver('=9.8.2', '9.8.1')).toBe(1);
   });
 
+  test('resolves the pinned Bun runtime as an actionable update', async () => {
+    const mockFetch = async (url: string) => {
+      if (url.includes('api.github.com/repos/oven-sh/bun/releases')) {
+        return new Response(
+          JSON.stringify([
+            { tag_name: 'bun-v1.5.0', draft: false, prerelease: false },
+          ]),
+        );
+      }
+      return new Response('Not Found', { status: 404 });
+    };
+    const sources = new SourceManager({ fetch: mockFetch });
+    const makeItem = (
+      declared: string,
+      status: DependencyItem['status'] = 'current',
+    ): DependencyItem => ({
+      id: 'tool:bun',
+      ecosystem: 'tool',
+      name: 'bun-cli',
+      locations: ['package.json (packageManager)'],
+      declared,
+      resolved: declared,
+      latest: null,
+      status,
+    });
+
+    const update = makeItem('1.4.5');
+    await resolveDependencyItem(update, sources);
+    expect(update.status).toBe('update');
+    expect(update.latest).toBe('1.5.0');
+    expect(update.latestDisplay).toBe('1.5.0');
+
+    const current = makeItem('1.5.0');
+    await resolveDependencyItem(current, sources);
+    expect(current.status).toBe('current');
+
+    const ahead = makeItem('1.6.0');
+    await resolveDependencyItem(ahead, sources);
+    expect(ahead.status).toBe('ahead');
+
+    const channel = makeItem('latest', 'moving');
+    await resolveDependencyItem(channel, sources);
+    expect(channel.status).toBe('moving');
+    expect(channel.latestDisplay).toBe('latest (1.5.0)');
+
+    const mismatch = makeItem('1.4.5', 'error');
+    await resolveDependencyItem(mismatch, sources);
+    expect(mismatch.status).toBe('error');
+  });
+
   test('isMajorUpdate detects major version changes', () => {
     expect(isMajorUpdate('^9.3.1', '10.0.0')).toBe(true);
     expect(isMajorUpdate('1.5.0', '1.6.0')).toBe(false);
@@ -445,6 +495,61 @@ pdfbox-android = { module = "com.tom-roush:pdfbox-android", version.ref = "pdfbo
       expect(inputs.some((i) => i.path === 'gradle/libs.versions.toml')).toBe(
         true,
       );
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  test('tracks the root packageManager Bun pin and flags workflow drift', () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'inv-bun-test-'));
+    try {
+      const write = (rel: string, body: string) => {
+        const target = path.join(tmpDir, rel);
+        fs.mkdirSync(path.dirname(target), { recursive: true });
+        fs.writeFileSync(target, body);
+      };
+      write(
+        'package.json',
+        JSON.stringify(
+          { name: 'test-root', packageManager: 'bun@1.4.5' },
+          null,
+          2,
+        ) + '\n',
+      );
+      write(
+        '.github/workflows/ci.yml',
+        'steps:\n  - uses: oven-sh/setup-bun@v2.2.0\n    with:\n      bun-version: 1.4.5\n',
+      );
+
+      const policy: DependencyPolicy = { schemaVersion: 1, holds: [] };
+      const bun = collectInventory(tmpDir, policy).items.find(
+        (item) => item.id === 'tool:bun',
+      );
+      expect(bun?.declared).toBe('1.4.5');
+      expect(bun?.resolved).toBe('1.4.5');
+      expect(bun?.status).toBe('current');
+      expect(bun?.locations).toContain('package.json (packageManager)');
+
+      write(
+        '.github/workflows/ci.yml',
+        'steps:\n  - uses: oven-sh/setup-bun@v2.2.0\n    with:\n      bun-version: latest\n',
+      );
+      const drifted = collectInventory(tmpDir, policy).items.find(
+        (item) => item.id === 'tool:bun',
+      );
+      expect(drifted?.status).toBe('error');
+      expect(drifted?.reason).toContain('bun-version');
+      expect(drifted?.reason).toContain('latest');
+
+      write(
+        'package.json',
+        JSON.stringify(
+          { name: 'test-root', packageManager: 'npm@10.0.0' },
+          null,
+          2,
+        ) + '\n',
+      );
+      expect(() => collectInventory(tmpDir, policy)).toThrow('must pin Bun');
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }
@@ -963,6 +1068,72 @@ describe('Transactional Apply', () => {
       const updatedJson = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
       expect(updatedJson.devDependencies['@semantic-release/github']).toBe(
         '^10.1.0',
+      );
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  test('applies a Bun runtime pin and keeps workflow pins aligned', async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'apply-bun-'));
+    try {
+      const pkgPath = path.join(tmpDir, 'package.json');
+      const workflowPath = path.join(tmpDir, '.github/workflows/ci.yml');
+      fs.mkdirSync(path.dirname(workflowPath), { recursive: true });
+      fs.writeFileSync(
+        pkgPath,
+        JSON.stringify(
+          {
+            name: 'test-root',
+            packageManager: 'bun@1.4.5',
+            devDependencies: { prettier: '^3.10.1' },
+          },
+          null,
+          2,
+        ) + '\n',
+      );
+      fs.writeFileSync(
+        workflowPath,
+        'steps:\n  - uses: oven-sh/setup-bun@v2.2.0\n    with:\n      bun-version: 1.4.5\n',
+      );
+
+      const inputs = [pkgPath, workflowPath].map((absolute) => ({
+        path: path.relative(tmpDir, absolute).split(path.sep).join('/'),
+        sha256: Bun.SHA256.hash(fs.readFileSync(absolute), 'hex'),
+      }));
+      const proposal: Proposal = {
+        schemaVersion: 1,
+        inputs,
+        updates: [{ id: 'tool:bun', from: '1.4.5', to: '1.5.0' }],
+        digest: '',
+      };
+      proposal.digest = computeProposalDigest(
+        proposal.inputs,
+        proposal.updates,
+      );
+
+      const runnerCalls: string[] = [];
+      const res = await applyApprovedProposal(
+        tmpDir,
+        proposal,
+        { schemaVersion: 1, holds: [] },
+        {
+          runner: async (cmd, args) => {
+            runnerCalls.push([cmd, ...args].join(' '));
+            return { code: 0, stdout: '', stderr: '' };
+          },
+        },
+      );
+
+      expect(res.success).toBe(true);
+      expect(res.changedFiles).toContain('package.json');
+      expect(res.changedFiles).toContain('.github/workflows/ci.yml');
+      expect(runnerCalls).toEqual([]);
+      expect(fs.readFileSync(pkgPath, 'utf8')).toContain(
+        '"packageManager": "bun@1.5.0"',
+      );
+      expect(fs.readFileSync(workflowPath, 'utf8')).toContain(
+        'bun-version: 1.5.0',
       );
     } finally {
       fs.rmSync(tmpDir, { recursive: true, force: true });

@@ -303,6 +303,9 @@ export async function applyApprovedProposal(
   );
   const touchedFiles = new Set<string>();
   const appliedIds = new Set<string>();
+  // A Bun runtime pin alone does not change dependency resolution, so only an
+  // actual npm manifest edit should regenerate the root lockfiles.
+  let rootManifestDependenciesChanged = false;
 
   try {
     // Seed staging with tracked sources plus the verified proposal inputs.
@@ -354,6 +357,9 @@ export async function applyApprovedProposal(
               JSON.stringify(json, null, 2) + '\n',
             );
             touchedFiles.add(manifestRel);
+            if (manifestRel === 'package.json') {
+              rootManifestDependenciesChanged = true;
+            }
             appliedIds.add(id);
           }
         }
@@ -736,6 +742,57 @@ export async function applyApprovedProposal(
         appliedIds.add(id);
       }
 
+      // --- Bun CLI ---
+      else if (id === 'tool:bun') {
+        if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(to)) {
+          throw new Error(`Cannot update Bun: invalid version '${to}'`);
+        }
+        const packageJsonRel = 'package.json';
+        const stagedPackage = path.join(stagingDir, packageJsonRel);
+        if (!fs.existsSync(stagedPackage)) {
+          throw new Error(`Cannot update Bun: ${packageJsonRel} is missing`);
+        }
+        const content = fs.readFileSync(stagedPackage, 'utf8');
+        const pinMatch = content.match(/"packageManager"\s*:\s*"bun@([^"]+)"/);
+        if (!pinMatch) {
+          throw new Error(
+            `Cannot update Bun: no bun packageManager pin in ${packageJsonRel}`,
+          );
+        }
+        if (pinMatch[1] !== from) {
+          throw new Error(
+            `Cannot update Bun: ${packageJsonRel} pins '${pinMatch[1]}', proposal expects '${from}'`,
+          );
+        }
+        fs.writeFileSync(
+          stagedPackage,
+          content.replace(
+            /("packageManager"\s*:\s*"bun@)[^"]+(")/,
+            `$1${to}$2`,
+          ),
+        );
+        touchedFiles.add(packageJsonRel);
+
+        // Keep any explicit workflow pin aligned with packageManager.
+        const workflowsDir = path.join(stagingDir, '.github/workflows');
+        if (fs.existsSync(workflowsDir)) {
+          for (const file of fs.readdirSync(workflowsDir)) {
+            if (!file.endsWith('.yml') && !file.endsWith('.yaml')) continue;
+            const workflowPath = path.join(workflowsDir, file);
+            const workflow = fs.readFileSync(workflowPath, 'utf8');
+            const next = workflow.replace(
+              /(bun-version:\s*['"]?)[^'"\s]+/g,
+              `$1${to}`,
+            );
+            if (next !== workflow) {
+              fs.writeFileSync(workflowPath, next);
+              touchedFiles.add(`.github/workflows/${file}`);
+            }
+          }
+        }
+        appliedIds.add(id);
+      }
+
       // --- Embedded Leaflet ---
       else if (id === 'embedded:leaflet') {
         const osmRel =
@@ -846,7 +903,7 @@ export async function applyApprovedProposal(
     }
 
     // 6. Regenerate staged lockfiles
-    if (touchedFiles.has('package.json')) {
+    if (rootManifestDependenciesChanged) {
       const bunRes = await runner(
         'bun',
         ['install', '--lockfile-only', '--ignore-scripts'],

@@ -58,6 +58,9 @@ EXAMPLES:
   # Check wrangler only
   bun run deps:check --only 'npm:worker/package.json#devDependencies/wrangler'
 
+  # Check the pinned Bun runtime only
+  bun run deps:check --only tool:bun
+
   # Interactive update
   bun run deps:update
 
