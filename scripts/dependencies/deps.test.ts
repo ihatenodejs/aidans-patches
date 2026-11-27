@@ -999,4 +999,283 @@ describe('Transactional Apply', () => {
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }
   });
+
+  test('applies artifact and toolchain updates with coordinated metadata', async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'apply-tools-'));
+    try {
+      const write = (rel: string, body: string) => {
+        const target = path.join(tmpDir, rel);
+        fs.mkdirSync(path.dirname(target), { recursive: true });
+        fs.writeFileSync(target, body);
+      };
+      write(
+        'gradle/wrapper/gradle-wrapper.properties',
+        'distributionSha256Sum=acd53f1edaf02f1a8ff99879f8a34b302661a057d9b063ae9e35b552f804d20a\n' +
+          'distributionUrl=https\\://services.gradle.org/distributions/gradle-9.7.1-bin.zip\n',
+      );
+      write(
+        'scripts/audit.ts',
+        "const KTLINT_VERSION = '1.5.0';\nconst KTLINT_SHA256 =\n  'a16be01dcc480aab2f55f444b620142152f66e31564b3b9376506d624c28a2ad';\n",
+      );
+      write(
+        'tools/apk-lab/tools.lock.json',
+        JSON.stringify(
+          {
+            tools: {
+              jadx: {
+                version: '1.5.6',
+                url: 'https://github.com/skylot/jadx/releases/download/v1.5.6/jadx-1.5.6.zip',
+                sha256: 'old',
+                executablePath: 'bin/jadx',
+                versionProbe: { expectedPattern: '1\\.5\\.6' },
+              },
+            },
+          },
+          null,
+          2,
+        ) + '\n',
+      );
+      write(
+        'patches/build.gradle.kts',
+        'val REQUIRED_NDK_VERSION = "28.2.13676358"\n',
+      );
+      write(
+        'tools/apk-lab/src/tools.rs',
+        'let x = build_tools.join("36.0.0").join(bin_name);\n',
+      );
+      write(
+        '.github/workflows/ci.yml',
+        "jobs:\n  x:\n    steps:\n      - uses: actions/setup-java@v6.3.0\n        with:\n          java-version: '21'\n      - uses: nttld/setup-ndk@v1\n        with:\n          ndk-version: r28c\n      - uses: dtolnay/rust-toolchain@1.97.1\n",
+      );
+      write(
+        'extensions/nhl-adblock-native/rust-toolchain.toml',
+        '[toolchain]\nchannel = "1.97.1"\n',
+      );
+      write(
+        'extensions/extension/src/main/java/app/aidan/extension/aftership/OsmMapView.java',
+        '// unpkg.com/leaflet@1.9.4/dist/leaflet.js\n',
+      );
+      write(
+        'tools/apk-lab/Cargo.toml',
+        '[package]\nname = "apk-lab"\nversion = "0.1.0"\n\n[dependencies]\nzip = "=9.8.1"\n',
+      );
+      write(
+        'tools/apk-lab/Cargo.lock',
+        'version = 4\n\n[[package]]\nname = "zip"\nversion = "9.8.1"\n',
+      );
+
+      const inputs = [
+        'gradle/wrapper/gradle-wrapper.properties',
+        'scripts/audit.ts',
+        'tools/apk-lab/tools.lock.json',
+        'patches/build.gradle.kts',
+        'tools/apk-lab/src/tools.rs',
+        '.github/workflows/ci.yml',
+        'extensions/nhl-adblock-native/rust-toolchain.toml',
+        'extensions/extension/src/main/java/app/aidan/extension/aftership/OsmMapView.java',
+        'tools/apk-lab/Cargo.toml',
+        'tools/apk-lab/Cargo.lock',
+      ].map((rel) => ({
+        path: rel,
+        sha256: Bun.SHA256.hash(fs.readFileSync(path.join(tmpDir, rel)), 'hex'),
+      }));
+      const updates = [
+        {
+          id: 'tool:gradle',
+          from: '9.7.1',
+          to: '9.9.2',
+          assetIdentity:
+            '971fcd7150ca4ba04852c0b2ca0d2d0ab9468e14b03473eab19528809914c76b',
+        },
+        {
+          id: 'tool:ktlint',
+          from: '1.5.0',
+          to: '1.8.0',
+          assetIdentity:
+            'a3fd620207d5c40da6ca789b95e7f823c54e854b7fade7f613e91096a3706d75',
+        },
+        {
+          id: 'tool:apk-lab/jadx',
+          from: '1.5.6',
+          to: '1.5.7',
+          assetIdentity:
+            '1755e4242ade71a077438723689f404079592ec7764a3a0572f98fef94ebcbf3',
+          assetUrl:
+            'https://github.com/skylot/jadx/releases/download/v1.5.7/jadx-1.5.7.zip',
+          executablePath: 'bin/jadx',
+          versionProbePattern: '1\\.5\\.7',
+        },
+        {
+          id: 'action:actions/setup-java',
+          from: 'v6.3.0',
+          to: '6.4.0',
+        },
+        { id: 'tool:java', from: '21', to: '25' },
+        { id: 'tool:rust-native', from: '1.97.1', to: '1.98.0' },
+        {
+          id: 'tool:ndk',
+          from: 'r28c (28.2.13676358)',
+          to: '30.0.16248370',
+          label: 'r30',
+        },
+        {
+          id: 'tool:android-build-tools',
+          from: '36.0.0',
+          to: '37.0.0',
+        },
+        { id: 'embedded:leaflet', from: '1.9.4', to: '1.9.5' },
+        {
+          id: 'crates:tools/apk-lab/Cargo.toml#dependencies/zip',
+          from: '=9.8.1',
+          to: '9.8.2',
+        },
+      ];
+      const proposal: Proposal = {
+        schemaVersion: 1,
+        inputs,
+        updates,
+        digest: '',
+      };
+      proposal.digest = computeProposalDigest(
+        proposal.inputs,
+        proposal.updates,
+      );
+
+      const cargoCalls: string[][] = [];
+      const res = await applyApprovedProposal(
+        tmpDir,
+        proposal,
+        { schemaVersion: 1, holds: [] },
+        {
+          runner: async (cmd, args) => {
+            if (cmd === 'cargo') cargoCalls.push(args);
+            return { code: 0, stdout: '', stderr: '' };
+          },
+        },
+      );
+
+      expect(res.success).toBe(true);
+      expect(res.changedFiles).toContain('tools/apk-lab/Cargo.lock');
+      expect(cargoCalls).toHaveLength(1);
+      expect(cargoCalls[0]).toContain('--precise');
+      expect(cargoCalls[0]).toContain('9.8.2');
+
+      const wrapper = fs.readFileSync(
+        path.join(tmpDir, 'gradle/wrapper/gradle-wrapper.properties'),
+        'utf8',
+      );
+      expect(wrapper).toContain(
+        'distributionUrl=https\\://services.gradle.org/distributions/gradle-9.9.2-bin.zip',
+      );
+      expect(wrapper).toContain(
+        'distributionSha256Sum=971fcd7150ca4ba04852c0b2ca0d2d0ab9468e14b03473eab19528809914c76b',
+      );
+
+      const audit = fs.readFileSync(
+        path.join(tmpDir, 'scripts/audit.ts'),
+        'utf8',
+      );
+      expect(audit).toContain("const KTLINT_VERSION = '1.8.0';");
+      expect(audit).toContain(
+        "KTLINT_SHA256 = 'a3fd620207d5c40da6ca789b95e7f823c54e854b7fade7f613e91096a3706d75'",
+      );
+
+      const toolLock = JSON.parse(
+        fs.readFileSync(
+          path.join(tmpDir, 'tools/apk-lab/tools.lock.json'),
+          'utf8',
+        ),
+      );
+      expect(toolLock.tools.jadx.version).toBe('1.5.7');
+      expect(toolLock.tools.jadx.url).toContain('v1.5.7/jadx-1.5.7.zip');
+      expect(toolLock.tools.jadx.sha256).toBe(
+        '1755e4242ade71a077438723689f404079592ec7764a3a0572f98fef94ebcbf3',
+      );
+      expect(toolLock.tools.jadx.executablePath).toBe('bin/jadx');
+      expect(toolLock.tools.jadx.versionProbe.expectedPattern).toBe(
+        '1\\.5\\.7',
+      );
+
+      expect(
+        fs.readFileSync(path.join(tmpDir, 'patches/build.gradle.kts'), 'utf8'),
+      ).toContain('REQUIRED_NDK_VERSION = "30.0.16248370"');
+      expect(
+        fs.readFileSync(
+          path.join(tmpDir, 'tools/apk-lab/src/tools.rs'),
+          'utf8',
+        ),
+      ).toContain('build_tools.join("37.0.0")');
+
+      const workflow = fs.readFileSync(
+        path.join(tmpDir, '.github/workflows/ci.yml'),
+        'utf8',
+      );
+      expect(workflow).toContain('actions/setup-java@v6.4.0');
+      expect(workflow).toContain("java-version: '25'");
+      expect(workflow).toContain('ndk-version: r30');
+      expect(workflow).toContain('dtolnay/rust-toolchain@1.98.0');
+
+      expect(
+        fs.readFileSync(
+          path.join(
+            tmpDir,
+            'extensions/nhl-adblock-native/rust-toolchain.toml',
+          ),
+          'utf8',
+        ),
+      ).toContain('channel = "1.98.0"');
+      expect(
+        fs.readFileSync(
+          path.join(
+            tmpDir,
+            'extensions/extension/src/main/java/app/aidan/extension/aftership/OsmMapView.java',
+          ),
+          'utf8',
+        ),
+      ).toContain('unpkg.com/leaflet@1.9.5/');
+      expect(
+        fs.readFileSync(path.join(tmpDir, 'tools/apk-lab/Cargo.toml'), 'utf8'),
+      ).toContain('zip = "=9.8.2"');
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  test('rejects proposals with no matching apply strategy', async () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'apply-unhandled-'));
+    try {
+      fs.writeFileSync(
+        path.join(tmpDir, 'dependency-policy.json'),
+        JSON.stringify({ schemaVersion: 1, holds: [] }),
+      );
+      const inputs = [
+        {
+          path: 'dependency-policy.json',
+          sha256: Bun.SHA256.hash(
+            fs.readFileSync(path.join(tmpDir, 'dependency-policy.json')),
+            'hex',
+          ),
+        },
+      ];
+      const proposal: Proposal = {
+        schemaVersion: 1,
+        inputs,
+        updates: [{ id: 'tool:not-registered', from: '1', to: '2' }],
+        digest: '',
+      };
+      proposal.digest = computeProposalDigest(
+        proposal.inputs,
+        proposal.updates,
+      );
+
+      await expect(
+        applyApprovedProposal(tmpDir, proposal, {
+          schemaVersion: 1,
+          holds: [],
+        }),
+      ).rejects.toThrow('No apply strategy matched: tool:not-registered');
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
 });

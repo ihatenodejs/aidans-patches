@@ -12,6 +12,75 @@ export interface SourceResolverOptions {
   npmRegistry?: string;
 }
 
+export interface GitHubReleaseAsset {
+  name: string;
+  url: string;
+  sha256?: string;
+}
+
+export interface GitHubReleaseInfo {
+  version: string;
+  tag: string;
+  sourceUrl: string;
+  assets: GitHubReleaseAsset[];
+}
+
+/** Maps an Android NDK revision to its rXXx release label. */
+export function ndkLabelFromRevision(revision: string): string {
+  const [major, minor] = revision.split('.').map((part) => Number(part));
+  if (!Number.isInteger(major) || major <= 0) return '';
+  if (!Number.isInteger(minor) || minor <= 0) return `r${major}`;
+  // NDK labels skip the "a" suffix: 26.1 -> r26b, 28.2 -> r28c.
+  return `r${major}${String.fromCharCode(97 + minor)}`;
+}
+
+/** Replaces both a raw and regex-escaped version string in text. */
+export function replaceVersionText(
+  text: string,
+  from: string,
+  to: string,
+): string {
+  if (!from) return text;
+  const escape = (value: string) =>
+    value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return text.split(escape(from)).join(escape(to)).split(from).join(to);
+}
+
+function sha256FromDigest(digest: string | undefined): string | undefined {
+  if (!digest) return undefined;
+  const match = digest.match(/(?:sha256:)?([a-f0-9]{64})/i);
+  return match?.[1];
+}
+
+const APK_TOOL_SOURCES: Record<
+  string,
+  { owner: string; repo: string; tagPrefix?: string }
+> = {
+  morphe: { owner: 'MorpheApp', repo: 'morphe-desktop', tagPrefix: 'v' },
+  jadx: { owner: 'skylot', repo: 'jadx', tagPrefix: 'v' },
+  apktool: { owner: 'iBotPeaches', repo: 'Apktool', tagPrefix: 'v' },
+  baksmali: { owner: 'baksmali', repo: 'smali' },
+  smali: { owner: 'baksmali', repo: 'smali' },
+  apkeep: { owner: 'EFForg', repo: 'apkeep' },
+};
+
+/**
+ * Normalizes package-manager version strings to a full semver triple.
+ *
+ * `semver.order('7.0.1', '7')` treats `7` as greater than `7.0.1`, which made
+ * floating major action pins and Cargo declarations such as `1.0` look
+ * up-to-date or ahead. Pad omitted components before comparing instead.
+ */
+export function normalizeSemver(value: string): string | null {
+  const clean = value.replace(/^[v^~=><\s]+/, '').trim();
+  const match = clean.match(
+    /^(\d+)(?:\.(\d+))?(?:\.(\d+))?(?:-([0-9A-Za-z.-]+))?/,
+  );
+  if (!match) return null;
+  const [, major, minor = '0', patch = '0', prerelease] = match;
+  return `${major}.${minor}.${patch}${prerelease ? `-${prerelease}` : ''}`;
+}
+
 export function compareSemver(vA: string, vB: string): number {
   const cleanA = vA.replace(/^[v^~=>< ]+/, '').trim();
   const cleanB = vB.replace(/^[v^~=>< ]+/, '').trim();
@@ -460,13 +529,70 @@ export class SourceManager {
     return { latest: rel.latest, sourceUrl: rel.sourceUrl };
   }
 
+  // --- ktlint ---
+  async resolveKtlint(): Promise<{
+    latest: string;
+    sha256?: string;
+    assetUrl?: string;
+    sourceUrl: string;
+  }> {
+    const release = await this.resolveGitHubReleaseInfo('pinterest', 'ktlint');
+    const asset = release.assets.find(
+      (candidate) => candidate.name === 'ktlint',
+    );
+    if (!asset) {
+      throw new Error(
+        `ktlint release ${release.tag} does not publish the expected 'ktlint' asset`,
+      );
+    }
+    return {
+      latest: release.version,
+      sha256: asset.sha256,
+      assetUrl: asset.url,
+      sourceUrl: release.sourceUrl,
+    };
+  }
+
+  private async resolveAndroidRepositoryPackages(): Promise<
+    Array<{ path: string; revision: string }>
+  > {
+    const xml = await this.fetchText(
+      'https://dl.google.com/android/repository/repository2-3.xml',
+    );
+    const packages: Array<{ path: string; revision: string }> = [];
+    const packageRegex =
+      /<remotePackage path="([^"]+)">([\s\S]*?)<\/remotePackage>/g;
+    for (const match of xml.matchAll(packageRegex)) {
+      const [, packagePath, body] = match;
+      // channel-0 is the stable channel; previews live in later channels.
+      if (!body.includes('channelRef ref="channel-0"')) continue;
+      const revision = body.match(
+        /<revision>\s*<major>(\d+)<\/major>\s*<minor>(\d+)<\/minor>\s*<micro>(\d+)<\/micro>/,
+      );
+      if (!revision) continue;
+      packages.push({
+        path: packagePath,
+        revision: `${revision[1]}.${revision[2]}.${revision[3]}`,
+      });
+    }
+    return packages;
+  }
+
   // --- NDK Latest ---
   async resolveNdk(): Promise<{
     label: string;
     revision: string;
     sourceUrl: string;
   }> {
-    // Current stable LTS NDK is r28c (28.2.13676358)
+    const packages = (await this.resolveAndroidRepositoryPackages())
+      .filter((entry) => entry.path.startsWith('ndk;'))
+      .sort((a, b) => compareSemver(a.revision, b.revision));
+    const latest = packages.at(-1);
+    if (!latest) {
+      throw new Error(
+        'Could not find a stable NDK release in the SDK repository',
+      );
+    }
     return {
       label: ndkLabelFromRevision(latest.revision),
       revision: latest.revision,

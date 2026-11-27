@@ -3,6 +3,8 @@ import * as crypto from 'node:crypto';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import { ndkLabelFromRevision, replaceVersionText } from './sources';
+import { RUST_PROJECTS } from '../rust-projects';
 import {
   type DependencyPolicy,
   type Proposal,
@@ -336,7 +338,10 @@ export async function applyApprovedProposal(
               return `${prefix}"${exact}${to}"`;
             });
           } else {
-            content = content.replace(simpleRegex, `$1"${to}"`);
+            content = content.replace(simpleRegex, (match, prefix, oldVer) => {
+              const exact = oldVer.startsWith('=') ? '=' : '';
+              return `${prefix}"${exact}${to}"`;
+            });
           }
           fs.writeFileSync(stagedManifest, content);
           touchedFiles.add(manifestRel);
@@ -377,9 +382,17 @@ export async function applyApprovedProposal(
 
       // --- Tool: Gradle Wrapper ---
       else if (id === 'tool:gradle') {
-        const stagedProps = path.join(
-          stagingDir,
-          'gradle/wrapper/gradle-wrapper.properties',
+        const wrapperRel = 'gradle/wrapper/gradle-wrapper.properties';
+        const stagedProps = path.join(stagingDir, wrapperRel);
+        if (!fs.existsSync(stagedProps)) {
+          throw new Error(
+            `Cannot update Gradle wrapper: ${wrapperRel} is missing`,
+          );
+        }
+        let content = fs.readFileSync(stagedProps, 'utf8');
+        const updatedUrl = content.replace(
+          /gradle-([0-9.]+)-(bin|all)\.zip/,
+          `gradle-${to}-$2.zip`,
         );
         if (updatedUrl === content) {
           throw new Error(
@@ -413,14 +426,66 @@ export async function applyApprovedProposal(
         if (!fs.existsSync(stagedAudit)) {
           throw new Error(`Cannot update ktlint: ${auditRel} is missing`);
         }
+        const sha256 = await resolveAssetHash(
+          update.assetIdentity,
+          update.assetUrl ??
+            `https://github.com/pinterest/ktlint/releases/download/${to}/ktlint`,
+          'ktlint',
+        );
+        let content = fs.readFileSync(stagedAudit, 'utf8');
+        const updatedVersion = content.replace(
+          /KTLINT_VERSION\s*=\s*["'][^"']+["']/,
+          `KTLINT_VERSION = '${to}'`,
+        );
+        if (updatedVersion === content) {
+          throw new Error(
+            `Cannot update ktlint: no KTLINT_VERSION in ${auditRel}`,
+          );
+        }
+        const withSha = updatedVersion.replace(
+          /KTLINT_SHA256\s*=\s*["'][a-f0-9]{64}["']/,
+          `KTLINT_SHA256 = '${sha256}'`,
+        );
+        if (withSha === updatedVersion) {
+          throw new Error(
+            `Cannot update ktlint: no KTLINT_SHA256 in ${auditRel}`,
+          );
+        }
+        content = withSha;
+        fs.writeFileSync(stagedAudit, content);
+        touchedFiles.add(auditRel);
+        appliedIds.add(id);
       }
 
       // --- Tool: APK Lab tools ---
       else if (id.startsWith('tool:apk-lab/')) {
         const toolName = id.slice(13);
-        const stagedToolLock = path.join(
-          stagingDir,
-          'tools/apk-lab/tools.lock.json',
+        const toolLockRel = 'tools/apk-lab/tools.lock.json';
+        const stagedToolLock = path.join(stagingDir, toolLockRel);
+        if (!fs.existsSync(stagedToolLock)) {
+          throw new Error(
+            `Cannot update ${toolName}: ${toolLockRel} is missing`,
+          );
+        }
+        const json = JSON.parse(fs.readFileSync(stagedToolLock, 'utf8'));
+        const tool = json.tools?.[toolName];
+        if (!tool) {
+          throw new Error(
+            `Cannot update ${toolName}: entry is missing from ${toolLockRel}`,
+          );
+        }
+        const assetUrl = update.assetUrl
+          ? update.assetUrl
+          : replaceVersionText(String(tool.url ?? ''), from, to);
+        if (!assetUrl) {
+          throw new Error(
+            `Cannot update ${toolName}: no download URL is available`,
+          );
+        }
+        const sha256 = await resolveAssetHash(
+          update.assetIdentity,
+          assetUrl,
+          toolName,
         );
         tool.version = to;
         tool.sha256 = sha256;
@@ -473,15 +538,23 @@ export async function applyApprovedProposal(
 
       // --- Rust Toolchain Native ---
       else if (id === 'tool:rust-native') {
-        const stagedTc = path.join(
-          stagingDir,
-          'extensions/nhl-adblock-native/rust-toolchain.toml',
+        const toolchainRel =
+          'extensions/nhl-adblock-native/rust-toolchain.toml';
+        const stagedTc = path.join(stagingDir, toolchainRel);
+        if (!fs.existsSync(stagedTc)) {
+          throw new Error(
+            `Cannot update Rust toolchain: ${toolchainRel} is missing`,
+          );
+        }
+        let content = fs.readFileSync(stagedTc, 'utf8');
+        const updated = content.replace(
+          /(channel\s*=\s*")([^"]+)(")/,
+          `$1${to}$3`,
         );
-        if (fs.existsSync(stagedTc)) {
-          let content = fs.readFileSync(stagedTc, 'utf8');
-          content = content.replace(/(channel\s*=\s*")([^"]+)(")/, `$1${to}$3`);
-          fs.writeFileSync(stagedTc, content);
-          touchedFiles.add('extensions/nhl-adblock-native/rust-toolchain.toml');
+        if (updated === content) {
+          throw new Error(
+            `Cannot update Rust toolchain: no channel in ${toolchainRel}`,
+          );
         }
         fs.writeFileSync(stagedTc, updated);
         touchedFiles.add(toolchainRel);
@@ -526,6 +599,12 @@ export async function applyApprovedProposal(
             }
           }
         }
+        if (!matched) {
+          throw new Error(
+            'Cannot update Java: no java-version input in workflows',
+          );
+        }
+        appliedIds.add(id);
       }
 
       // --- Android NDK ---
@@ -540,11 +619,17 @@ export async function applyApprovedProposal(
           /REQUIRED_NDK_VERSION\s*=\s*"[^"]+"/,
           `REQUIRED_NDK_VERSION = "${to}"`,
         );
-        if (fs.existsSync(stagedPatchBuild)) {
-          let content = fs.readFileSync(stagedPatchBuild, 'utf8');
-          content = content.replace(
-            /REQUIRED_NDK_VERSION\s*=\s*"[^"]+"/,
-            `REQUIRED_NDK_VERSION = "${to}"`,
+        if (updated === content) {
+          throw new Error(
+            `Cannot update NDK: no REQUIRED_NDK_VERSION in ${patchBuildRel}`,
+          );
+        }
+        fs.writeFileSync(stagedPatchBuild, updated);
+        touchedFiles.add(patchBuildRel);
+        const label = update.label || ndkLabelFromRevision(to);
+        if (!label) {
+          throw new Error(
+            `Cannot update NDK: no release label for revision ${to}`,
           );
         }
         const workflowsDir = path.join(stagingDir, '.github/workflows');
@@ -568,6 +653,30 @@ export async function applyApprovedProposal(
         appliedIds.add(id);
       }
 
+      // --- Android build-tools ---
+      else if (id === 'tool:android-build-tools') {
+        const locatorRel = 'tools/apk-lab/src/tools.rs';
+        const stagedLocator = path.join(stagingDir, locatorRel);
+        if (!fs.existsSync(stagedLocator)) {
+          throw new Error(
+            `Cannot update Android build-tools: ${locatorRel} is missing`,
+          );
+        }
+        const content = fs.readFileSync(stagedLocator, 'utf8');
+        const updated = content.replace(
+          /(build_tools\.join\(")([0-9.]+)("\)\.join\(bin_name\))/,
+          `$1${to}$3`,
+        );
+        if (updated === content) {
+          throw new Error(
+            `Cannot update Android build-tools: no pinned version in ${locatorRel}`,
+          );
+        }
+        fs.writeFileSync(stagedLocator, updated);
+        touchedFiles.add(locatorRel);
+        appliedIds.add(id);
+      }
+
       // --- Embedded Leaflet ---
       else if (id === 'embedded:leaflet') {
         const osmRel =
@@ -581,15 +690,9 @@ export async function applyApprovedProposal(
           /unpkg\.com\/leaflet@[0-9.]+\//g,
           `unpkg.com/leaflet@${to}/`,
         );
-        if (fs.existsSync(stagedOsm)) {
-          let content = fs.readFileSync(stagedOsm, 'utf8');
-          content = content.replace(
-            /unpkg\.com\/leaflet@[0-9.]+\//g,
-            `unpkg.com/leaflet@${to}/`,
-          );
-          fs.writeFileSync(stagedOsm, content);
-          touchedFiles.add(
-            'extensions/extension/src/main/java/app/aidan/extension/aftership/OsmMapView.java',
+        if (updated === content) {
+          throw new Error(
+            `Cannot update Leaflet: no unpkg asset URL in ${osmRel}`,
           );
         }
         fs.writeFileSync(stagedOsm, updated);
@@ -736,10 +839,11 @@ export async function applyApprovedProposal(
       touchedFiles.add('site/bun.lock');
     }
 
-    if (touchedFiles.has('tools/play-metadata/Cargo.toml')) {
-      const playDir = path.join(stagingDir, 'tools/play-metadata');
-      const cargoUpdates = proposal.updates.filter((u) =>
-        u.id.startsWith('crates:tools/play-metadata/'),
+    for (const project of RUST_PROJECTS) {
+      if (!touchedFiles.has(project.manifest)) continue;
+      const projectDir = path.dirname(path.join(stagingDir, project.manifest));
+      const cargoUpdates = proposal.updates.filter((update) =>
+        update.id.startsWith(`crates:${project.manifest}#`),
       );
       for (const update of cargoUpdates) {
         const cragment = update.id.split('#')[1] ?? '';
