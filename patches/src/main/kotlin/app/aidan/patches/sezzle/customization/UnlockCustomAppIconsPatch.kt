@@ -32,11 +32,13 @@ private fun HermesBundleEditor.hideShouldShowLockButton(functionName: String) {
                     ((bytes[offset + 7].toInt() and 0xFF) shl 24)
                 id == propertyId
             }
+
             opcode == 0x45.toByte() && propertyId <= 0xFFFF -> {
                 val id = (bytes[offset + 4].toInt() and 0xFF) or
                     ((bytes[offset + 5].toInt() and 0xFF) shl 8)
                 id == propertyId
             }
+
             else -> false
         }
         if (!match) continue

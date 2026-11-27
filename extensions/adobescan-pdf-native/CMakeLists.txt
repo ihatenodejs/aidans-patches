@@ -21,7 +21,7 @@ option(AIDAN_SCAN_PDF_HOST_TESTS "Build native host test runner" OFF)
 include(FetchContent)
 
 # -----------------------------------------------------------------------------
-# libjpeg-turbo 3.2.0
+# libjpeg-turbo 3.2.1
 # -----------------------------------------------------------------------------
 set(ENABLE_SHARED OFF CACHE BOOL "" FORCE)
 set(ENABLE_STATIC ON CACHE BOOL "" FORCE)
@@ -32,8 +32,8 @@ set(WITH_TESTS OFF CACHE BOOL "" FORCE)
 
 FetchContent_Declare(
     libjpeg-turbo
-    URL https://github.com/libjpeg-turbo/libjpeg-turbo/releases/download/3.2.0/libjpeg-turbo-3.2.0.tar.gz
-    URL_HASH SHA256=6f30092cef9fb839779646608f4ee14ae3cbac989c47fa05e841b0841f09878e
+    URL https://github.com/libjpeg-turbo/libjpeg-turbo/releases/download/3.2.1/libjpeg-turbo-3.2.1.tar.gz
+    URL_HASH SHA256=c27ad72a68da151177929aa969ae773a2da5ac2af9ce946079314fdac8cece7f
     DOWNLOAD_EXTRACT_TIMESTAMP TRUE
     PATCH_COMMAND ${CMAKE_COMMAND} -DSRC_DIR=<SOURCE_DIR> -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/patch_libjpeg.cmake"
 )
@@ -106,7 +106,7 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(leptonica)
 
 # -----------------------------------------------------------------------------
-# tesseract 5.5.1
+# tesseract 5.5.5
 # -----------------------------------------------------------------------------
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 set(BUILD_TRAINING_TOOLS OFF CACHE BOOL "" FORCE)
@@ -123,8 +123,8 @@ set(SW_BUILD OFF CACHE BOOL "" FORCE)
 
 FetchContent_Declare(
     tesseract
-    URL https://github.com/tesseract-ocr/tesseract/archive/refs/tags/5.5.1.tar.gz
-    URL_HASH SHA256=a7a3f2a7420cb6a6a94d80c24163e183cf1d2f1bed2df3bbc397c81808a57237
+    URL https://github.com/tesseract-ocr/tesseract/archive/refs/tags/5.5.5.tar.gz
+    URL_HASH SHA256=b02cf6f37cfc95be5bf7e4b2d39e51997b1ac41f7beb4e2bd16777bb67561c79
     DOWNLOAD_EXTRACT_TIMESTAMP TRUE
     PATCH_COMMAND ${CMAKE_COMMAND} -DSRC_DIR=<SOURCE_DIR> -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/patch_tesseract.cmake"
 )

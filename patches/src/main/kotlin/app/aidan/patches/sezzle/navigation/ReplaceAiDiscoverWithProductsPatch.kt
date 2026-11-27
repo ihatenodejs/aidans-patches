@@ -31,10 +31,12 @@ private fun referencesString(
     val actual = when (instructionLength) {
         6 -> (bytes[offset + 4].toInt() and 0xFF) or
             ((bytes[offset + 5].toInt() and 0xFF) shl 8)
+
         8 -> (bytes[offset + 4].toInt() and 0xFF) or
             ((bytes[offset + 5].toInt() and 0xFF) shl 8) or
             ((bytes[offset + 6].toInt() and 0xFF) shl 16) or
             ((bytes[offset + 7].toInt() and 0xFF) shl 24)
+
         else -> return false
     }
     return actual == stringId

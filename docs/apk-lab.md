@@ -32,7 +32,7 @@ tools/apk-lab/target/release/apk-lab <subcommand>
 Tools are pinned in `tools/apk-lab/tools.lock.json` with official download URLs and immutable SHA-256 digests. Only `apk-lab setup` downloads external tools.
 
 ```bash
-# Install pinned analysis tools (Morphe Desktop 1.18.0, JADX 1.5.6, Apktool 3.0.3, baksmali 3.0.10, smali 3.0.10)
+# Install pinned analysis tools (Morphe Desktop 1.18.0, JADX 1.5.7, Apktool 3.0.3, baksmali 3.0.10, smali 3.0.10)
 cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- setup --profile analysis
 # Install CI profile (includes apkeep on Linux x86-64)
 cargo run --locked --quiet --manifest-path tools/apk-lab/Cargo.toml --bin apk-lab -- setup --profile ci

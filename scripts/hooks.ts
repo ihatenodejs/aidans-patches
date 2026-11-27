@@ -17,8 +17,9 @@ import { parseTOML } from 'toml-eslint-parser';
 
 const LARGE_FILE_LIMIT_KB = 2048;
 // Renderer goldens intentionally preserve legacy trailing whitespace/CRLF.
+// Wrangler emits the generated worker types without a trailing newline.
 const HYGIENE_EXCLUDE =
-  /(?:^scripts\/test-fixtures\/generate-patches-readme\/|\.(?:so|mpe|mpp|apk|apkm|ttf|png|svg|lock|pdf)$|patches-(?:list|bundle)\.json)/;
+  /(?:^scripts\/test-fixtures\/generate-patches-readme\/|^worker\/worker-configuration\.d\.ts$|\.(?:so|mpe|mpp|apk|apkm|ttf|png|svg|lock|pdf)$|patches-(?:list|bundle)\.json)/;
 const ZERO_SHA = /^0+$/;
 
 export type HookStage = 'pre-commit' | 'pre-push';

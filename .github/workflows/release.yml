@@ -46,7 +46,7 @@ jobs:
       is_full_run: ${{ steps.run-type.outputs.is_full_run }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@v7.0.1
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
@@ -55,7 +55,7 @@ jobs:
       # set of changes since the previous release tip. Android is not in this
       # list: the published artifact must always build.
       - name: Filter Release Delta
-        uses: dorny/paths-filter@v4
+        uses: dorny/paths-filter@v4.0.3
         id: filter
         with:
           filters: |
@@ -101,7 +101,7 @@ jobs:
       GITHUB_ACTOR: ${{ github.actor }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@v7.0.1
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
@@ -113,7 +113,7 @@ jobs:
           java-version: '21'
 
       - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@v2.2.0
         with:
           bun-version: latest
 
@@ -133,7 +133,7 @@ jobs:
 
       - name: Setup Android NDK
         id: setup-ndk
-        uses: nttld/setup-ndk@v1
+        uses: nttld/setup-ndk@v1.6.0
         with:
           ndk-version: r28c
           add-to-path: false
@@ -156,7 +156,7 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Setup Node.js
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@v7.1.0
         with:
           node-version: '24'
 
@@ -171,7 +171,7 @@ jobs:
           npm ci --ignore-scripts --no-audit --no-fund
 
       - name: Rust cache
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@v2.9.3
         with:
           workspaces: |
             tools/play-metadata -> tools/play-metadata/target
@@ -242,7 +242,7 @@ jobs:
       # the release-driven backmerge to dev is accepted.
       - name: Create release identity token
         id: release-token
-        uses: actions/create-github-app-token@v3
+        uses: actions/create-github-app-token@v3.4.0
         with:
           app-id: ${{ secrets.RELEASE_APP_ID }}
           private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
@@ -250,7 +250,7 @@ jobs:
           permission-workflows: write
 
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@v7.0.1
         with:
           ref: ${{ github.sha }}
           fetch-depth: 0
@@ -277,7 +277,7 @@ jobs:
 
       - name: Setup Android NDK
         id: setup-ndk
-        uses: nttld/setup-ndk@v1
+        uses: nttld/setup-ndk@v1.6.0
         with:
           ndk-version: r28c
           add-to-path: false
@@ -290,7 +290,7 @@ jobs:
           echo "ANDROID_NDK=${{ steps.setup-ndk.outputs.ndk-path }}" >> "$GITHUB_ENV"
 
       - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@v2.2.0
         with:
           bun-version: latest
 
@@ -315,7 +315,7 @@ jobs:
             --remote origin
 
       - name: Setup Node.js
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@v7.1.0
         with:
           node-version: '24'
           cache: 'npm'
@@ -343,7 +343,7 @@ jobs:
 
       - name: Attest
         if: steps.release.outputs.new_release_published == 'true'
-        uses: actions/attest-build-provenance@v4
+        uses: actions/attest-build-provenance@v4.2.2
         with:
           subject-name: 'Morphe Patches ${{ steps.release.outputs.new_release_git_tag }}'
           subject-path: patches/build/libs/patches-*.mpp

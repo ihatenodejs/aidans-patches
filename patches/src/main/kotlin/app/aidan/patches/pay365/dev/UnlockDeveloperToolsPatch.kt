@@ -111,6 +111,7 @@ private fun unlockSingleTapDeveloperSettings(editor: HermesBundleEditor, data: B
 
     when (val threshold = data.u8(tapOffset + 2)) {
         SINGLE_TAP_THRESHOLD -> return
+
         DEFAULT_TAP_THRESHOLD -> editor.patchBytes(
             tapOffset + 2,
             byteArrayOf(SINGLE_TAP_THRESHOLD.toByte())

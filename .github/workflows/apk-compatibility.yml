@@ -25,7 +25,7 @@ jobs:
       packages: ${{ steps.set-matrix.outputs.packages }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 0
 
@@ -41,7 +41,7 @@ jobs:
           targets: aarch64-linux-android
 
       - name: Rust cache
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@v2.9.3
         with:
           workspaces: tools/apk-lab -> tools/apk-lab/target
 
@@ -50,7 +50,7 @@ jobs:
 
       - name: Setup Android NDK
         id: setup-ndk
-        uses: nttld/setup-ndk@v1
+        uses: nttld/setup-ndk@v1.6.0
         with:
           ndk-version: r28c
           add-to-path: false
@@ -68,7 +68,7 @@ jobs:
           ./gradlew generatePatchesList --no-daemon
 
       - name: Upload Patch Bundle & Metadata Artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: patches-bundle
           path: |
@@ -108,7 +108,7 @@ jobs:
       COMPATIBILITY_STATUS_SECRET: ${{ secrets.COMPATIBILITY_STATUS_SECRET }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 0
 
@@ -118,7 +118,7 @@ jobs:
           distribution: 'temurin'
           java-version: '21'
       - name: Download Patch Bundle & Metadata Artifact
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@v8.0.2
         with:
           name: patches-bundle
 
@@ -136,7 +136,7 @@ jobs:
         run: chmod +x tools/apk-lab/target/release/apk-lab
 
       - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@v2.2.0
         with:
           bun-version: latest
 
