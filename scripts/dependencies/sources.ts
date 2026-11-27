@@ -12,14 +12,88 @@ export interface SourceResolverOptions {
   npmRegistry?: string;
 }
 
+export interface GitHubReleaseAsset {
+  name: string;
+  url: string;
+  sha256?: string;
+}
+
+export interface GitHubReleaseInfo {
+  version: string;
+  tag: string;
+  sourceUrl: string;
+  assets: GitHubReleaseAsset[];
+}
+
+/** Maps an Android NDK revision to its rXXx release label. */
+export function ndkLabelFromRevision(revision: string): string {
+  const [major, minor] = revision.split('.').map((part) => Number(part));
+  if (!Number.isInteger(major) || major <= 0) return '';
+  if (!Number.isInteger(minor) || minor <= 0) return `r${major}`;
+  // NDK labels skip the "a" suffix: 26.1 -> r26b, 28.2 -> r28c.
+  return `r${major}${String.fromCharCode(97 + minor)}`;
+}
+
+/** Replaces both a raw and regex-escaped version string in text. */
+export function replaceVersionText(
+  text: string,
+  from: string,
+  to: string,
+): string {
+  if (!from) return text;
+  const escape = (value: string) =>
+    value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return text.split(escape(from)).join(escape(to)).split(from).join(to);
+}
+
+function sha256FromDigest(digest: string | undefined): string | undefined {
+  if (!digest) return undefined;
+  const match = digest.match(/(?:sha256:)?([a-f0-9]{64})/i);
+  return match?.[1];
+}
+
+const APK_TOOL_SOURCES: Record<
+  string,
+  { owner: string; repo: string; tagPrefix?: string }
+> = {
+  morphe: { owner: 'MorpheApp', repo: 'morphe-desktop', tagPrefix: 'v' },
+  jadx: { owner: 'skylot', repo: 'jadx', tagPrefix: 'v' },
+  apktool: { owner: 'iBotPeaches', repo: 'Apktool', tagPrefix: 'v' },
+  baksmali: { owner: 'baksmali', repo: 'smali' },
+  smali: { owner: 'baksmali', repo: 'smali' },
+  apkeep: { owner: 'EFForg', repo: 'apkeep' },
+};
+
+/**
+ * Normalizes package-manager version strings to a full semver triple.
+ *
+ * `semver.order('7.0.1', '7')` treats `7` as greater than `7.0.1`, which made
+ * floating major action pins and Cargo declarations such as `1.0` look
+ * up-to-date or ahead. Pad omitted components before comparing instead.
+ */
+export function normalizeSemver(value: string): string | null {
+  const clean = value.replace(/^[v^~=><\s]+/, '').trim();
+  const match = clean.match(
+    /^(\d+)(?:\.(\d+))?(?:\.(\d+))?(?:-([0-9A-Za-z.-]+))?/,
+  );
+  if (!match) return null;
+  const [, major, minor = '0', patch = '0', prerelease] = match;
+  return `${major}.${minor}.${patch}${prerelease ? `-${prerelease}` : ''}`;
+}
+
 export function compareSemver(vA: string, vB: string): number {
   const cleanA = vA.replace(/^[v^~=>< ]+/, '').trim();
   const cleanB = vB.replace(/^[v^~=>< ]+/, '').trim();
-  try {
-    return semver.order(cleanA, cleanB);
-  } catch {
-    return cleanA.localeCompare(cleanB, undefined, { numeric: true });
+  const normalizedA = normalizeSemver(cleanA);
+  const normalizedB = normalizeSemver(cleanB);
+  if (normalizedA && normalizedB) {
+    try {
+      return semver.order(normalizedA, normalizedB);
+    } catch {
+      // Fall through to a numeric-aware string comparison.
+    }
   }
+  return cleanA.localeCompare(cleanB, undefined, { numeric: true });
 }
 
 export function loadGradleCredentials(): { user?: string; key?: string } {
@@ -339,6 +413,55 @@ export class SourceManager {
     };
   }
 
+  /** Stable GitHub release including downloadable assets and digests. */
+  async resolveGitHubReleaseInfo(
+    owner: string,
+    repo: string,
+    tagPrefix = '',
+  ): Promise<GitHubReleaseInfo> {
+    const url = `https://api.github.com/repos/${owner}/${repo}/releases`;
+    const headers: Record<string, string> = {
+      Accept: 'application/vnd.github.v3+json',
+    };
+    if (this.githubToken) headers.Authorization = `Bearer ${this.githubToken}`;
+    const releases = await this.fetchJson<
+      Array<{
+        tag_name: string;
+        draft: boolean;
+        prerelease: boolean;
+        assets?: Array<{
+          name: string;
+          browser_download_url: string;
+          digest?: string | null;
+        }>;
+      }>
+    >(url, headers);
+    const release = releases.find(
+      (r) =>
+        !r.draft &&
+        !r.prerelease &&
+        (!tagPrefix || r.tag_name.startsWith(tagPrefix)),
+    );
+    if (!release) {
+      throw new Error(
+        `No stable GitHub release found for ${owner}/${repo} with prefix '${tagPrefix}'`,
+      );
+    }
+    const version = release.tag_name
+      .replace(new RegExp(`^${tagPrefix}`), '')
+      .replace(/^v/, '');
+    return {
+      version,
+      tag: release.tag_name,
+      sourceUrl: `https://github.com/${owner}/${repo}/releases/tag/${release.tag_name}`,
+      assets: (release.assets ?? []).map((asset) => ({
+        name: asset.name,
+        url: asset.browser_download_url,
+        sha256: sha256FromDigest(asset.digest ?? undefined),
+      })),
+    };
+  }
+
   // --- Gradle Wrapper ---
   async resolveGradleWrapper(): Promise<{
     latest: string;
@@ -395,7 +518,7 @@ export class SourceManager {
     const ltsReleases = releases.filter((r) => Boolean(r.lts));
     const latestLts = ltsReleases[0]?.version?.replace(/^v/, '') || '22.14.0';
     return {
-      latest: `lts/* (${latestLts})`,
+      latest: latestLts,
       sourceUrl: 'https://nodejs.org/en/about/previous-releases',
     };
   }
@@ -403,7 +526,56 @@ export class SourceManager {
   // --- Bun Latest ---
   async resolveBunLatest(): Promise<{ latest: string; sourceUrl: string }> {
     const rel = await this.resolveGitHubRelease('oven-sh', 'bun', 'bun-v');
-    return { latest: `latest (${rel.latest})`, sourceUrl: rel.sourceUrl };
+    return { latest: rel.latest, sourceUrl: rel.sourceUrl };
+  }
+
+  // --- ktlint ---
+  async resolveKtlint(): Promise<{
+    latest: string;
+    sha256?: string;
+    assetUrl?: string;
+    sourceUrl: string;
+  }> {
+    const release = await this.resolveGitHubReleaseInfo('pinterest', 'ktlint');
+    const asset = release.assets.find(
+      (candidate) => candidate.name === 'ktlint',
+    );
+    if (!asset) {
+      throw new Error(
+        `ktlint release ${release.tag} does not publish the expected 'ktlint' asset`,
+      );
+    }
+    return {
+      latest: release.version,
+      sha256: asset.sha256,
+      assetUrl: asset.url,
+      sourceUrl: release.sourceUrl,
+    };
+  }
+
+  private async resolveAndroidRepositoryPackages(): Promise<
+    Array<{ path: string; revision: string }>
+  > {
+    const xml = await this.fetchText(
+      'https://dl.google.com/android/repository/repository2-3.xml',
+    );
+    const packages: Array<{ path: string; revision: string }> = [];
+    const packageRegex =
+      /<remotePackage path="([^"]+)">([\s\S]*?)<\/remotePackage>/g;
+    for (const match of xml.matchAll(packageRegex)) {
+      const [, packagePath, body] = match;
+      // channel-0 is the stable channel; previews live in later channels.
+      if (!body.includes('channelRef ref="channel-0"')) continue;
+      const revision = body.match(
+        /<revision>\s*<major>(\d+)<\/major>\s*<minor>(\d+)<\/minor>\s*<micro>(\d+)<\/micro>/,
+      );
+      if (!revision) continue;
+      packages.push({
+        path: packagePath,
+        revision: `${revision[1]}.${revision[2]}.${revision[3]}`,
+      });
+    }
+    return packages;
   }
 
   // --- NDK Latest ---
@@ -412,10 +584,18 @@ export class SourceManager {
     revision: string;
     sourceUrl: string;
   }> {
-    // Current stable LTS NDK is r28c (28.2.13676358)
+    const packages = (await this.resolveAndroidRepositoryPackages())
+      .filter((entry) => entry.path.startsWith('ndk;'))
+      .sort((a, b) => compareSemver(a.revision, b.revision));
+    const latest = packages.at(-1);
+    if (!latest) {
+      throw new Error(
+        'Could not find a stable NDK release in the SDK repository',
+      );
+    }
     return {
-      label: 'r28c',
-      revision: '28.2.13676358',
+      label: ndkLabelFromRevision(latest.revision),
+      revision: latest.revision,
       sourceUrl: 'https://developer.android.com/ndk/downloads',
     };
   }
@@ -425,8 +605,17 @@ export class SourceManager {
     latest: string;
     sourceUrl: string;
   }> {
+    const packages = (await this.resolveAndroidRepositoryPackages())
+      .filter((entry) => entry.path.startsWith('build-tools;'))
+      .sort((a, b) => compareSemver(a.revision, b.revision));
+    const latest = packages.at(-1);
+    if (!latest) {
+      throw new Error(
+        'Could not find a stable Android build-tools release in the SDK repository',
+      );
+    }
     return {
-      latest: '36.0.0',
+      latest: latest.revision,
       sourceUrl: 'https://developer.android.com/tools/releases/build-tools',
     };
   }
@@ -437,6 +626,7 @@ export async function resolveDependencyItem(
   sources: SourceManager,
 ): Promise<void> {
   const start = performance.now();
+  const pinned = item.status === 'pinned';
   try {
     // 1. JavaScript (NPM)
     if (item.ecosystem === 'npm') {
@@ -449,17 +639,16 @@ export async function resolveDependencyItem(
           branch,
         );
         item.latest = res.latest;
+        item.latestDisplay = `commit ${res.latest.slice(0, 8)}`;
         item.sourceUrl = res.sourceUrl;
         if (item.status !== 'held') {
-          if (item.resolved && item.resolved !== res.latest) {
-            item.status = 'update';
-          } else {
-            item.status = 'current';
-          }
+          item.status = 'moving';
+          item.reason = `Tracks branch '${branch}'; refresh the lockfile with the package manager after reviewing the new commit`;
         }
       } else if (item.declared === 'latest') {
         const res = await sources.resolveNpm(item.name);
-        item.latest = `latest (${res.latest})`;
+        item.latest = res.latest;
+        item.latestDisplay = `latest (${res.latest})`;
         item.sourceUrl = res.sourceUrl;
         if (item.status !== 'held') item.status = 'moving';
       } else {
@@ -488,7 +677,9 @@ export async function resolveDependencyItem(
       item.latest = res.latest;
       item.sourceUrl = res.sourceUrl;
       if (item.status !== 'held') {
-        const comp = compareSemver(res.latest, item.declared);
+        const comp = item.resolved
+          ? compareSemver(res.latest, item.resolved)
+          : compareSemver(res.latest, item.declared);
         if (comp > 0) {
           item.status = 'update';
         } else if (comp < 0) {
@@ -549,16 +740,19 @@ export async function resolveDependencyItem(
     else if (item.ecosystem === 'tool') {
       if (item.id === 'tool:gradle') {
         const res = await sources.resolveGradleWrapper();
-        item.latest = `${res.latest} (${res.sha256.slice(0, 8)}...)`;
+        item.latest = res.latest;
+        item.latestDisplay = `${res.latest} (${res.sha256.slice(0, 8)}...)`;
+        item.latestAsset = res.sha256;
         item.sourceUrl = res.sourceUrl;
         if (item.status !== 'held') {
-          const curVer = item.declared.split(' ')[0];
           item.status =
-            compareSemver(res.latest, curVer) > 0 ? 'update' : 'current';
+            compareSemver(res.latest, item.declared) > 0 ? 'update' : 'current';
         }
       } else if (item.id === 'tool:ktlint') {
-        const res = await sources.resolveGitHubRelease('pinterest', 'ktlint');
+        const res = await sources.resolveKtlint();
         item.latest = res.latest;
+        item.latestAsset = res.sha256;
+        item.latestUrl = res.assetUrl;
         item.sourceUrl = res.sourceUrl;
         if (item.status !== 'held') {
           item.status =
@@ -566,24 +760,50 @@ export async function resolveDependencyItem(
         }
       } else if (item.id.startsWith('tool:apk-lab/')) {
         const toolName = item.name;
-        let ghTarget = '';
-        if (toolName === 'morphe') ghTarget = 'MorpheApp/morphe-desktop';
-        else if (toolName === 'jadx') ghTarget = 'skylot/jadx';
-        else if (toolName === 'apktool') ghTarget = 'iBotPeaches/Apktool';
-        else if (toolName === 'baksmali' || toolName === 'smali')
-          ghTarget = 'baksmali/smali';
-        else if (toolName === 'apkeep') ghTarget = 'EFForg/apkeep';
-
-        if (ghTarget) {
-          const [owner, repo] = ghTarget.split('/');
-          const res = await sources.resolveGitHubRelease(owner, repo);
-          item.latest = res.latest;
-          item.sourceUrl = res.sourceUrl;
-          if (item.status !== 'held') {
-            item.status =
-              compareSemver(res.latest, item.declared) > 0
-                ? 'update'
-                : 'current';
+        const target = APK_TOOL_SOURCES[toolName];
+        if (!target) {
+          throw new Error(
+            `No GitHub release source registered for APK Lab tool '${toolName}'`,
+          );
+        }
+        const res = await sources.resolveGitHubReleaseInfo(
+          target.owner,
+          target.repo,
+          target.tagPrefix ?? '',
+        );
+        item.latest = res.version;
+        item.sourceUrl = res.sourceUrl;
+        if (item.status !== 'held') {
+          if (compareSemver(res.version, item.declared) > 0) {
+            const candidateUrl = replaceVersionText(
+              item.latestUrl ?? '',
+              item.declared,
+              res.version,
+            );
+            const candidateName = candidateUrl.split('/').pop() ?? '';
+            const asset =
+              res.assets.find((entry) => entry.url === candidateUrl) ??
+              res.assets.find((entry) => entry.name === candidateName);
+            if (!asset) {
+              throw new Error(
+                `Release ${res.tag} for ${toolName} has no asset matching '${candidateName || candidateUrl}'`,
+              );
+            }
+            item.latestUrl = asset.url;
+            item.latestAsset = asset.sha256;
+            item.latestExecutablePath = replaceVersionText(
+              item.latestExecutablePath ?? '',
+              item.declared,
+              res.version,
+            );
+            item.latestProbePattern = replaceVersionText(
+              item.latestProbePattern ?? '',
+              item.declared,
+              res.version,
+            );
+            item.status = 'update';
+          } else {
+            item.status = 'current';
           }
         }
       } else if (item.id === 'tool:rust-native') {
@@ -607,11 +827,15 @@ export async function resolveDependencyItem(
       } else if (item.id === 'tool:bun') {
         const res = await sources.resolveBunLatest();
         item.latest = res.latest;
+        item.latestDisplay = `latest (${res.latest})`;
         item.sourceUrl = res.sourceUrl;
         item.status = 'moving';
       } else if (item.id === 'tool:node') {
         const res = await sources.resolveNodeLts();
-        item.latest = res.latest;
+        item.latest = res.latest.replace(/^lts\/\* \(([^)]+)\)$/, '$1');
+        item.latestDisplay = res.latest.startsWith('lts/*')
+          ? res.latest
+          : `lts/* (${res.latest})`;
         item.sourceUrl = res.sourceUrl;
         item.status =
           res.latest === item.declared ||
@@ -620,12 +844,18 @@ export async function resolveDependencyItem(
             : 'moving';
       } else if (item.id === 'tool:ndk') {
         const res = await sources.resolveNdk();
-        item.latest = `${res.label} (${res.revision})`;
+        item.latest = res.revision;
+        item.latestDisplay = `${res.label} (${res.revision})`;
+        item.latestLabel = res.label;
         item.sourceUrl = res.sourceUrl;
         if (item.status !== 'held') {
-          item.status = item.declared.includes(res.label)
-            ? 'current'
-            : 'update';
+          const declaredRevision =
+            item.declared.match(/(\d+\.\d+\.\d+)/)?.[1] ?? item.declared;
+          const declaredLabel = item.declared.match(/r\d+[a-z]?/)?.[0];
+          item.status =
+            declaredRevision === res.revision && declaredLabel === res.label
+              ? 'current'
+              : 'update';
         }
       } else if (item.id === 'tool:android-build-tools') {
         const res = await sources.resolveAndroidBuildTools();
@@ -638,8 +868,25 @@ export async function resolveDependencyItem(
       }
     }
 
-    // 6. Embedded Leaflet
-    else if (item.ecosystem === 'embedded' && item.name === 'leaflet') {
+    // 6. Embedded assets
+    else if (item.id === 'embedded:apple-color-emoji') {
+      const res = await sources.resolveGitHubReleaseInfo(
+        'samuelngs',
+        'apple-emoji-ttf',
+      );
+      item.latest = res.tag;
+      item.latestDisplay = res.tag;
+      item.sourceUrl = res.sourceUrl;
+    } else if (item.id === 'embedded:tessdata-eng') {
+      const res = await sources.resolveGitBranch(
+        'tesseract-ocr',
+        'tessdata_fast',
+        'main',
+      );
+      item.latest = res.latest;
+      item.latestDisplay = `commit ${res.latest.slice(0, 8)}`;
+      item.sourceUrl = res.sourceUrl;
+    } else if (item.ecosystem === 'embedded' && item.name === 'leaflet') {
       const res = await sources.resolveNpm('leaflet');
       item.latest = res.latest;
       item.sourceUrl = res.sourceUrl;
@@ -652,7 +899,10 @@ export async function resolveDependencyItem(
     // 7. C++ CMake FetchContent
     else if (item.ecosystem === 'cmake') {
       let res: { latest: string; sourceUrl: string } | null = null;
-      if (item.name === 'libjpeg-turbo') {
+      if (
+        item.name === 'libjpeg-turbo' ||
+        item.name === 'libjpeg-turbo-vendored'
+      ) {
         res = await sources.resolveGitHubRelease(
           'libjpeg-turbo',
           'libjpeg-turbo',
@@ -684,6 +934,9 @@ export async function resolveDependencyItem(
           item.status = ord > 0 ? 'update' : ord < 0 ? 'ahead' : 'current';
         }
       }
+    }
+    if (pinned && item.status !== 'error') {
+      item.status = 'pinned';
     }
   } catch (err) {
     item.status = 'error';

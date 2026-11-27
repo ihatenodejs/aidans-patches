@@ -5,9 +5,9 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { RUST_PROJECTS, cargoArgs } from './rust-projects';
 
-const KTLINT_VERSION = '1.5.0';
+const KTLINT_VERSION = '1.8.0';
 const KTLINT_SHA256 =
-  'a16be01dcc480aab2f55f444b620142152f66e31564b3b9376506d624c28a2ad';
+  'a3fd620207d5c40da6ca789b95e7f823c54e854b7fade7f613e91096a3706d75';
 // --- ANSI Styling ---
 const c = {
   reset: '\x1b[0m',
@@ -1467,7 +1467,7 @@ async function runDeps(): Promise<PhaseResult> {
     const groupSuccess =
       groupUpdates === 0 && groupErrors === 0 && groupUnsupported === 0;
 
-    let summaryStr = `All ${groupItems.length} items up to date or held`;
+    let summaryStr = `All ${groupItems.length} items up to date, held, or pinned`;
     if (groupErrors > 0) {
       const errReasons = groupItems
         .filter((i) => i.status === 'error')

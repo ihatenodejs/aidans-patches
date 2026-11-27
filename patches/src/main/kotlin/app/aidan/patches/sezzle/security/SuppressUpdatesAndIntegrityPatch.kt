@@ -94,7 +94,9 @@ internal fun patchUpdateFamilies(
         for (offset in family.offsets) {
             when (classifyUpdateBytecode(data, offset, family.expectedPrefixes, replacement)) {
                 UpdateBytecodeMatch.EXPECTED_PREFIX -> pendingOffsets.add(offset)
+
                 UpdateBytecodeMatch.ALREADY_PATCHED -> Unit
+
                 UpdateBytecodeMatch.UNKNOWN -> throw PatchException(
                     "Unexpected ${family.name} bytecode at offset $offset (0x${offset.toString(16)}): " +
                         "found ${data.hexAt(offset, family.expectedPrefixes.maxOf { it.size })}; " +

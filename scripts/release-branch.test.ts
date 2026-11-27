@@ -141,8 +141,8 @@ describe('release branches', () => {
 
       const job = deploy.jobs['build-and-deploy'];
       expect(job.if).toContain("github.ref == 'refs/heads/release/main'");
-      const checkout = job.steps.find(
-        (step) => step.uses === 'actions/checkout@v7',
+      const checkout = job.steps.find((step) =>
+        step.uses?.startsWith('actions/checkout@'),
       );
       expect(checkout?.with?.ref).toBe('${{ inputs.ref || github.sha }}');
     }
@@ -175,7 +175,9 @@ describe('release branches', () => {
     expect(token).toBeDefined();
     expect(token?.with?.['permission-contents']).toBe('write');
 
-    const checkout = steps.find((step) => step.uses === 'actions/checkout@v7');
+    const checkout = steps.find((step) =>
+      step.uses?.startsWith('actions/checkout@'),
+    );
     expect(checkout?.with?.['fetch-depth']).toBe(0);
 
     const merge = steps.find((step) => step.run?.includes('git merge'));

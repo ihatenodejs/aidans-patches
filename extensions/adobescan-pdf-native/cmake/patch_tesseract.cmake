@@ -1,28 +1,27 @@
 file(READ "${SRC_DIR}/CMakeLists.txt" CONTENT)
 
-# 1. Replace Leptonica find_package and tiff check
-set(LEPT_FIND "find_package(PkgConfig)
-  # Check for required library. option -DLeptonica_DIR=path => cmake hint where
-  # to find leptonica
-  find_package(Leptonica \${MINIMUM_LEPTONICA_VERSION} CONFIG)
-  if(NOT Leptonica_FOUND AND PKG_CONFIG_EXECUTABLE)
-    pkg_check_modules(Leptonica lept>=\${MINIMUM_LEPTONICA_VERSION})
-    link_directories(\${Leptonica_LIBRARY_DIRS})
-  endif()
-  if(NOT Leptonica_FOUND)
-    message(FATAL_ERROR \"Cannot find required library Leptonica. Quitting!\")
-  else()
-    message(STATUS \"Found leptonica version: \${Leptonica_VERSION}\")
-  endif(NOT Leptonica_FOUND)
-  include_directories(\${Leptonica_INCLUDE_DIRS})
+# 1. Replace Leptonica find_package and tiff check with the in-tree target.
+set(LEPT_FIND "# Check for required library. option -DLeptonica_DIR=path => cmake hint where
+# to find leptonica
+find_package(Leptonica \${MINIMUM_LEPTONICA_VERSION} CONFIG)
+if(NOT Leptonica_FOUND AND PKG_CONFIG_EXECUTABLE)
+  pkg_check_modules(Leptonica lept>=\${MINIMUM_LEPTONICA_VERSION})
+  link_directories(\${Leptonica_LIBRARY_DIRS})
+endif()
+if(NOT Leptonica_FOUND)
+  message(FATAL_ERROR \"Cannot find required library Leptonica. Quitting!\")
+else()
+  message(STATUS \"Found leptonica version: \${Leptonica_VERSION}\")
+endif(NOT Leptonica_FOUND)
+include_directories(\${Leptonica_INCLUDE_DIRS})
 
-  check_leptonica_tiff_support()
-  if ((NOT LEPT_TIFF_RESULT EQUAL 0) AND LEPT_TIFF_COMPILE_SUCCESS)
-    message(NOTICE \"Leptonica was build without TIFF support! Disabling TIFF support...\")
-    set(DISABLE_TIFF ON)
-  elseif(NOT \${CMAKE_VERSION} VERSION_LESS \"3.25\")
-    message(STATUS \"Leptonica was build with TIFF support.\")
-  endif()")
+check_leptonica_tiff_support()
+if ((NOT LEPT_TIFF_RESULT EQUAL 0) AND LEPT_TIFF_COMPILE_SUCCESS)
+  message(NOTICE \"Leptonica was build without TIFF support! Disabling TIFF support...\")
+  set(DISABLE_TIFF ON)
+elseif(NOT \${CMAKE_VERSION} VERSION_LESS \"3.25\")
+  message(STATUS \"Leptonica was build with TIFF support.\")
+endif()")
 
 set(LEPT_REPLACE "set(Leptonica_FOUND TRUE)
   set(Leptonica_VERSION \"1.85.0\")
@@ -30,6 +29,10 @@ set(LEPT_REPLACE "set(Leptonica_FOUND TRUE)
   set(DISABLE_TIFF ON)")
 
 string(REPLACE "${LEPT_FIND}" "${LEPT_REPLACE}" CONTENT "${CONTENT}")
+string(FIND "${CONTENT}" "Cannot find required library Leptonica" LEPT_REMAINING)
+if(NOT LEPT_REMAINING EQUAL -1)
+  message(FATAL_ERROR "patch_tesseract: Leptonica detection block did not match ${SRC_DIR}/CMakeLists.txt")
+endif()
 
 # 2. Disable Android CpuFeaturesNdkCompat requirement
 set(ANDROID_CPU_FIND "if(ANDROID)

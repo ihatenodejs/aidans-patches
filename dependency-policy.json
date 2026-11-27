@@ -5,6 +5,76 @@
       "id": "npm:package.json#devDependencies/conventional-changelog-conventionalcommits",
       "value": "^9.3.1",
       "reason": "Preserve release-note generation compatibility; see https://github.com/conventional-changelog/conventional-changelog/issues/1495"
+    },
+    {
+      "id": "tool:java",
+      "value": "21",
+      "reason": "Temurin JDK 21 is the CI-supported baseline; upgrading requires Gradle, Android plugin, and release-tooling validation"
+    },
+    {
+      "id": "tool:ndk",
+      "value": "r28c (28.2.13676358)",
+      "reason": "NDK 28.2.13676358 (r28c) is the validated native toolchain required by patches/build.gradle.kts; upgrade only with device and APK Lab verification"
+    },
+    {
+      "id": "tool:android-build-tools",
+      "value": "36.0.0",
+      "reason": "Build Tools 36.0.0 is the APK verification, signing, and alignment baseline used by APK Lab"
+    },
+    {
+      "id": "npm:package.json#devDependencies/semantic-release",
+      "value": "^25.0.9",
+      "reason": "26 requires Node >=26.13 (release workflow uses 24) and depends on beta @semantic-release core, commit-analyzer, and release-notes-generator packages; resolve the conventionalcommits hold first"
+    },
+    {
+      "id": "npm:worker/package.json#devDependencies/typescript",
+      "value": "^5.7.3",
+      "reason": "TypeScript 7 native line is outside @astrojs/check's ^5||^6 peer range; keep worker and site on one compiler"
+    },
+    {
+      "id": "npm:site/package.json#dependencies/typescript",
+      "value": "^5.7.3",
+      "reason": "Astro check 0.9.x peers typescript ^5||^6 and TypeScript 7 is the native compiler line"
+    },
+    {
+      "id": "npm:worker/package.json#devDependencies/vitest",
+      "value": "^4.1.0",
+      "reason": "@cloudflare/vitest-pool-workers 0.23 peers vitest ^4.1.0"
+    },
+    {
+      "id": "npm:site/package.json#dependencies/astro",
+      "value": "^5.4.1",
+      "reason": "@astrojs/tailwind 6.0.2 peers astro ^3||^4||^5; Astro 6/7 requires the @tailwindcss/vite migration"
+    },
+    {
+      "id": "npm:site/package.json#dependencies/tailwindcss",
+      "value": "^3.4.17",
+      "reason": "Tailwind 4 CSS-first migration is coupled to the Astro integration replacement; 3.4.19 remains the v3-lts release"
+    },
+    {
+      "id": "crates:tools/apk-lab/Cargo.toml#dependencies/sha2",
+      "value": "0.10.8",
+      "reason": "sha2 0.11 moves to digest 0.11 with breaking API changes; no functional need"
+    },
+    {
+      "id": "crates:tools/asset-prep/Cargo.toml#dependencies/sha2",
+      "value": "0.10.8",
+      "reason": "sha2 0.11 moves to digest 0.11 with breaking API changes; no functional need"
+    },
+    {
+      "id": "crates:extensions/nhl-adblock-native/Cargo.toml#dependencies/jni",
+      "value": "=0.21.1",
+      "reason": "JNI 0.22 is a breaking 0.x API change in the NHL bridge; upgrade only with a code port and device verification"
+    },
+    {
+      "id": "cmake:extensions/adobescan-pdf-native/CMakeLists.txt#fetch/leptonica",
+      "value": "1.85.0",
+      "reason": "patch_leptonica.cmake silently rewrites upstream CMake text; 1.87 needs host and NDK builds plus OCR device verification"
+    },
+    {
+      "id": "tool:gradle",
+      "value": "9.7.1",
+      "reason": "Morphe patches plugin 1.3.4 fails on Gradle 9.9 with a null Provider fallback; upgrade together with the Morphe 2 migration"
     }
   ]
 }

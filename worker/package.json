@@ -6,15 +6,15 @@
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
-    "types": "wrangler types",
+    "types": "wrangler types --include-runtime=false",
     "test": "vitest run",
     "check": "tsc --noEmit"
   },
   "devDependencies": {
-    "@cloudflare/vitest-pool-workers": "^0.22.0",
-    "@cloudflare/workers-types": "^4.20250214.0",
+    "@cloudflare/vitest-pool-workers": "^0.23.0",
+    "@cloudflare/workers-types": "^5.20261127.1",
     "typescript": "^5.7.3",
     "vitest": "^4.1.0",
-    "wrangler": "^3.111.0"
+    "wrangler": "^4.168.0"
   }
 }

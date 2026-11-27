@@ -1,8 +1,10 @@
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import * as crypto from 'node:crypto';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import { ndkLabelFromRevision, replaceVersionText } from './sources';
+import { RUST_PROJECTS } from '../rust-projects';
 import {
   type DependencyPolicy,
   type Proposal,
@@ -12,6 +14,73 @@ import {
 
 export function escapeRegex(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Replaces a dependency version inside one Cargo.toml section. Target-specific
+ * tables use the same `[target.'cfg(...)'.dependencies]` header text as their
+ * inventory section path, so the match stays scoped to the right table.
+ */
+export function replaceCargoDependencyVersion(
+  content: string,
+  section: string,
+  pkgName: string,
+  to: string,
+): string {
+  const headers = [`[${section}]`];
+  if (section.startsWith('target.')) {
+    headers.push(`[${section.replace(".'", '.').replace("'.", '.')}]`);
+  }
+  const header = headers.find((candidate) => content.includes(candidate));
+  if (!header) {
+    throw new Error(
+      `Cannot update Cargo dependency: section ${headers[0]} is missing`,
+    );
+  }
+  const headerIndex = content.indexOf(header);
+  const nextSection = content.indexOf('\n[', headerIndex + header.length);
+  const blockEnd = nextSection === -1 ? content.length : nextSection + 1;
+  const block = content.slice(headerIndex, blockEnd);
+  const safePkgName = escapeRegex(pkgName);
+  const tableRegex = new RegExp(
+    `(${safePkgName}\\s*=\\s*\\{[^}]*version\\s*=\\s*)"([^"]+)"`,
+    'g',
+  );
+  const simpleRegex = new RegExp(`(${safePkgName}\\s*=\\s*)"([^"]+)"`, 'g');
+  const replaceVersion = (match: string, prefix: string, oldVer: string) => {
+    const exact = oldVer.startsWith('=') ? '=' : '';
+    return `${prefix}"${exact}${to}"`;
+  };
+  const updated = tableRegex.test(block)
+    ? block.replace(tableRegex, replaceVersion)
+    : block.replace(simpleRegex, replaceVersion);
+  if (updated === block) {
+    throw new Error(
+      `Cannot update Cargo dependency: ${pkgName} was not found in ${header}`,
+    );
+  }
+  return content.slice(0, headerIndex) + updated + content.slice(blockEnd);
+}
+
+async function resolveAssetHash(
+  assetIdentity: string | undefined,
+  assetUrl: string | undefined,
+  label: string,
+): Promise<string> {
+  if (assetIdentity) return assetIdentity;
+  if (!assetUrl) {
+    throw new Error(
+      `${label} update is missing both an asset checksum and a download URL`,
+    );
+  }
+  const res = await fetch(assetUrl);
+  if (!res.ok) {
+    throw new Error(`Failed to download ${assetUrl}: HTTP ${res.status}`);
+  }
+  return crypto
+    .createHash('sha256')
+    .update(Buffer.from(await res.arrayBuffer()))
+    .digest('hex');
 }
 
 export type CommandRunner = (
@@ -66,31 +135,113 @@ export interface ApplyResult {
   message: string;
 }
 
-export function copyDirRecursive(src: string, dest: string): void {
-  fs.mkdirSync(dest, { recursive: true });
-  const entries = fs.readdirSync(src, { withFileTypes: true });
-  for (const entry of entries) {
-    const srcPath = path.join(src, entry.name);
-    const destPath = path.join(dest, entry.name);
+const STAGING_SKIP_DIRECTORIES: Record<string, true> = {
+  node_modules: true,
+  '.git': true,
+  target: true,
+  build: true,
+  '.gradle': true,
+  dist: true,
+  '.astro': true,
+  '.apk-lab': true,
+  apk: true,
+  analysis: true,
+  '.tools': true,
+  '.wrangler': true,
+  '.venv': true,
+  __pycache__: true,
+};
+
+/**
+ * Staging exists so lockfile regeneration and update commands run against an
+ * isolated tree. Copying the worktree walked local build artifacts too: a
+ * checkout with `.apk-lab` and `apk/` staged gigabytes per update. Prefer Git's
+ * tracked file list, which is bounded, deterministic, and excludes ignored
+ * artifact trees. Fall back to a filtered walk for non-repository inputs such
+ * as the test fixtures.
+ */
+function listTrackedFiles(repoRoot: string): string[] | null {
+  if (!fs.existsSync(path.join(repoRoot, '.git'))) return null;
+  const result = spawnSync(
+    'git',
+    ['-C', repoRoot, 'ls-files', '-z', '--cached'],
+    { encoding: 'buffer', maxBuffer: 256 * 1024 * 1024 },
+  );
+  if (result.error || result.status !== 0 || !result.stdout) return null;
+  return result.stdout.toString('utf8').split('\0').filter(Boolean);
+}
+
+function walkStagingFiles(root: string, relative = ''): string[] {
+  const directory = path.join(root, relative);
+  const files: string[] = [];
+  for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+    const child = relative ? `${relative}/${entry.name}` : entry.name;
     if (entry.isDirectory()) {
-      if (
-        [
-          'node_modules',
-          '.git',
-          'target',
-          'build',
-          '.gradle',
-          'dist',
-          '.astro',
-        ].includes(entry.name)
-      ) {
-        continue;
-      }
-      copyDirRecursive(srcPath, destPath);
+      if (Object.hasOwn(STAGING_SKIP_DIRECTORIES, entry.name)) continue;
+      files.push(...walkStagingFiles(root, child));
     } else {
-      fs.copyFileSync(srcPath, destPath);
+      files.push(child);
     }
   }
+  return files;
+}
+
+function stagingRelativePath(value: string): string {
+  const normalized = value.replaceAll('\\', '/');
+  const parts = normalized.split('/');
+  if (
+    !normalized ||
+    normalized.startsWith('/') ||
+    /^[a-zA-Z]:/.test(normalized) ||
+    parts.includes('..')
+  ) {
+    throw new Error(`Refusing to stage path outside the repository: ${value}`);
+  }
+  return normalized;
+}
+
+export function seedStagingDirectory(
+  repoRoot: string,
+  stagingDir: string,
+  extraPaths: Iterable<string> = [],
+): string[] {
+  const candidates = listTrackedFiles(repoRoot) ?? walkStagingFiles(repoRoot);
+  const relativePaths = new Set<string>();
+  for (const candidate of candidates) {
+    relativePaths.add(stagingRelativePath(candidate));
+  }
+  for (const extra of extraPaths) {
+    relativePaths.add(stagingRelativePath(extra));
+  }
+
+  const rootPrefix = stagingDir.endsWith(path.sep)
+    ? stagingDir
+    : `${stagingDir}${path.sep}`;
+  const copied: string[] = [];
+  for (const relative of relativePaths) {
+    const source = path.resolve(repoRoot, relative);
+    const destination = path.resolve(stagingDir, relative);
+    if (destination !== stagingDir && !destination.startsWith(rootPrefix)) {
+      throw new Error(`Refusing to stage path outside root: ${relative}`);
+    }
+    let stats: fs.Stats;
+    try {
+      stats = fs.lstatSync(source);
+    } catch {
+      // Tracked but deleted from the worktree; there is nothing to copy.
+      continue;
+    }
+    if (stats.isDirectory()) continue; // Submodule gitlink.
+    fs.mkdirSync(path.dirname(destination), { recursive: true });
+    if (stats.isSymbolicLink()) {
+      fs.symlinkSync(fs.readlinkSync(source), destination);
+    } else {
+      fs.copyFileSync(source, destination);
+      fs.chmodSync(destination, stats.mode & 0o777);
+    }
+    copied.push(relative);
+  }
+  return copied;
 }
 
 export async function applyApprovedProposal(
@@ -151,10 +302,16 @@ export async function applyApprovedProposal(
     path.join(os.tmpdir(), 'aidans-patches-deps-'),
   );
   const touchedFiles = new Set<string>();
+  const appliedIds = new Set<string>();
 
   try {
-    // Copy necessary input files and projects to staging
-    copyDirRecursive(repoRoot, stagingDir);
+    // Seed staging with tracked sources plus the verified proposal inputs.
+    // Local artifact trees must never be copied.
+    seedStagingDirectory(
+      repoRoot,
+      stagingDir,
+      proposal.inputs.map((input) => input.path),
+    );
 
     // 5. Apply scalar updates to staged files
     for (const update of proposal.updates) {
@@ -186,7 +343,9 @@ export async function applyApprovedProposal(
             } else if (currentVal.startsWith('~')) {
               json[section][pkgName] = `~${to}`;
             } else if (currentVal.startsWith('git+')) {
-              // Git branch dependency stays on git branch
+              throw new Error(
+                `Cannot update git branch dependency '${pkgName}' with deps:update; refresh the lockfile with the package manager instead`,
+              );
             } else {
               json[section][pkgName] = to;
             }
@@ -195,6 +354,7 @@ export async function applyApprovedProposal(
               JSON.stringify(json, null, 2) + '\n',
             );
             touchedFiles.add(manifestRel);
+            appliedIds.add(id);
           }
         }
       }
@@ -203,31 +363,26 @@ export async function applyApprovedProposal(
       else if (id.startsWith('crates:')) {
         const hashIdx = id.indexOf('#');
         const manifestRel = id.slice(7, hashIdx);
-        const [, pkgName] = id.slice(hashIdx + 1).split('/');
+        const sectionRef = id.slice(hashIdx + 1);
+        const slashIdx = sectionRef.lastIndexOf('/');
+        if (slashIdx === -1) {
+          throw new Error(`Invalid Cargo dependency ID structure: ${id}`);
+        }
+        const section = sectionRef.slice(0, slashIdx);
+        const pkgName = sectionRef.slice(slashIdx + 1);
         const stagedManifest = path.join(stagingDir, manifestRel);
 
         if (fs.existsSync(stagedManifest)) {
-          let content = fs.readFileSync(stagedManifest, 'utf8');
-          // Replace simple string version or table version
-          const safePkgName = escapeRegex(pkgName);
-          const simpleRegex = new RegExp(
-            `(${safePkgName}\\s*=\\s*)"([^"]+)"`,
-            'g',
+          const content = fs.readFileSync(stagedManifest, 'utf8');
+          const updated = replaceCargoDependencyVersion(
+            content,
+            section,
+            pkgName,
+            to,
           );
-          const tableRegex = new RegExp(
-            `(${safePkgName}\\s*=\\s*\\{[^}]*version\\s*=\\s*)"([^"]+)"`,
-            'g',
-          );
-          if (tableRegex.test(content)) {
-            content = content.replace(tableRegex, (match, prefix, oldVer) => {
-              const exact = oldVer.startsWith('=') ? '=' : '';
-              return `${prefix}"${exact}${to}"`;
-            });
-          } else {
-            content = content.replace(simpleRegex, `$1"${to}"`);
-          }
-          fs.writeFileSync(stagedManifest, content);
+          fs.writeFileSync(stagedManifest, updated);
           touchedFiles.add(manifestRel);
+          appliedIds.add(id);
         }
       }
 
@@ -242,7 +397,30 @@ export async function applyApprovedProposal(
           );
           fs.writeFileSync(stagedSettings, content);
           touchedFiles.add('settings.gradle.kts');
+          appliedIds.add(id);
         }
+      } else if (id.startsWith('gradle:') && id.includes('#dependencies/')) {
+        const hashIdx = id.indexOf('#');
+        const buildRel = id.slice(7, hashIdx);
+        const coordinates = id.slice(hashIdx + '#dependencies/'.length);
+        const stagedBuild = path.join(stagingDir, buildRel);
+        if (!fs.existsSync(stagedBuild)) {
+          throw new Error(
+            `Cannot update Gradle dependency: ${buildRel} is missing`,
+          );
+        }
+        const content = fs.readFileSync(stagedBuild, 'utf8');
+        const escaped = escapeRegex(`${coordinates}:${from}`);
+        const regex = new RegExp(`(["'])${escaped}(?=@|["'])`, 'g');
+        const updated = content.replace(regex, `$1${coordinates}:${to}`);
+        if (updated === content) {
+          throw new Error(
+            `Cannot update Gradle dependency: ${coordinates}:${from} was not found in ${buildRel}`,
+          );
+        }
+        fs.writeFileSync(stagedBuild, updated);
+        touchedFiles.add(buildRel);
+        appliedIds.add(id);
       } else if (id.startsWith('gradle:gradle/libs.versions.toml')) {
         const stagedCatalog = path.join(
           stagingDir,
@@ -257,80 +435,144 @@ export async function applyApprovedProposal(
           content = content.replace(vRegex, `$1"${to}"`);
           fs.writeFileSync(stagedCatalog, content);
           touchedFiles.add('gradle/libs.versions.toml');
+          appliedIds.add(id);
         }
       }
 
       // --- Tool: Gradle Wrapper ---
       else if (id === 'tool:gradle') {
-        const stagedProps = path.join(
-          stagingDir,
-          'gradle/wrapper/gradle-wrapper.properties',
-        );
-        if (fs.existsSync(stagedProps)) {
-          let content = fs.readFileSync(stagedProps, 'utf8');
-          content = content.replace(
-            /gradle-([0-9.]+)-(bin|all)\.zip/,
-            `gradle-${to}-$2.zip`,
+        const wrapperRel = 'gradle/wrapper/gradle-wrapper.properties';
+        const stagedProps = path.join(stagingDir, wrapperRel);
+        if (!fs.existsSync(stagedProps)) {
+          throw new Error(
+            `Cannot update Gradle wrapper: ${wrapperRel} is missing`,
           );
-          if (update.assetIdentity) {
-            content = content.replace(
-              /distributionSha256Sum=[a-f0-9]{64}/,
-              `distributionSha256Sum=${update.assetIdentity}`,
-            );
-          }
-          fs.writeFileSync(stagedProps, content);
-          touchedFiles.add('gradle/wrapper/gradle-wrapper.properties');
         }
+        let content = fs.readFileSync(stagedProps, 'utf8');
+        const updatedUrl = content.replace(
+          /gradle-([0-9.]+)-(bin|all)\.zip/,
+          `gradle-${to}-$2.zip`,
+        );
+        if (updatedUrl === content) {
+          throw new Error(
+            `Cannot update Gradle wrapper: no distributionUrl matching ${from} in ${wrapperRel}`,
+          );
+        }
+        const sha256 = await resolveAssetHash(
+          update.assetIdentity,
+          undefined,
+          'Gradle wrapper',
+        );
+        const withSha = updatedUrl.replace(
+          /distributionSha256Sum=[a-f0-9]{64}/,
+          `distributionSha256Sum=${sha256}`,
+        );
+        if (withSha === updatedUrl) {
+          throw new Error(
+            `Cannot update Gradle wrapper: ${wrapperRel} has no distributionSha256Sum`,
+          );
+        }
+        content = withSha;
+        fs.writeFileSync(stagedProps, content);
+        touchedFiles.add(wrapperRel);
+        appliedIds.add(id);
       }
 
       // --- Tool: ktlint ---
       else if (id === 'tool:ktlint') {
-        const stagedAudit = path.join(stagingDir, 'scripts/audit.ts');
-        if (fs.existsSync(stagedAudit)) {
-          let content = fs.readFileSync(stagedAudit, 'utf8');
-          content = content.replace(
-            /KTLINT_VERSION\s*=\s*["'][^"']+["']/,
-            `KTLINT_VERSION = '${to}'`,
-          );
-          if (update.assetIdentity) {
-            content = content.replace(
-              /KTLINT_SHA256\s*=\s*["'][a-f0-9]{64}["']/,
-              `KTLINT_SHA256 = '${update.assetIdentity}'`,
-            );
-          }
-          fs.writeFileSync(stagedAudit, content);
-          touchedFiles.add('scripts/audit.ts');
+        const auditRel = 'scripts/audit.ts';
+        const stagedAudit = path.join(stagingDir, auditRel);
+        if (!fs.existsSync(stagedAudit)) {
+          throw new Error(`Cannot update ktlint: ${auditRel} is missing`);
         }
+        const sha256 = await resolveAssetHash(
+          update.assetIdentity,
+          update.assetUrl ??
+            `https://github.com/pinterest/ktlint/releases/download/${to}/ktlint`,
+          'ktlint',
+        );
+        let content = fs.readFileSync(stagedAudit, 'utf8');
+        const updatedVersion = content.replace(
+          /KTLINT_VERSION\s*=\s*["'][^"']+["']/,
+          `KTLINT_VERSION = '${to}'`,
+        );
+        if (updatedVersion === content) {
+          throw new Error(
+            `Cannot update ktlint: no KTLINT_VERSION in ${auditRel}`,
+          );
+        }
+        const withSha = updatedVersion.replace(
+          /KTLINT_SHA256\s*=\s*["'][a-f0-9]{64}["']/,
+          `KTLINT_SHA256 = '${sha256}'`,
+        );
+        if (withSha === updatedVersion) {
+          throw new Error(
+            `Cannot update ktlint: no KTLINT_SHA256 in ${auditRel}`,
+          );
+        }
+        content = withSha;
+        fs.writeFileSync(stagedAudit, content);
+        touchedFiles.add(auditRel);
+        appliedIds.add(id);
       }
 
       // --- Tool: APK Lab tools ---
       else if (id.startsWith('tool:apk-lab/')) {
         const toolName = id.slice(13);
-        const stagedToolLock = path.join(
-          stagingDir,
-          'tools/apk-lab/tools.lock.json',
-        );
-        if (fs.existsSync(stagedToolLock)) {
-          const jsonText = fs.readFileSync(stagedToolLock, 'utf8');
-          const json = JSON.parse(jsonText);
-          if (json.tools && json.tools[toolName]) {
-            json.tools[toolName].version = to;
-            if (update.assetIdentity) {
-              json.tools[toolName].sha256 = update.assetIdentity;
-            }
-            fs.writeFileSync(
-              stagedToolLock,
-              JSON.stringify(json, null, 2) + '\n',
-            );
-            touchedFiles.add('tools/apk-lab/tools.lock.json');
-          }
+        const toolLockRel = 'tools/apk-lab/tools.lock.json';
+        const stagedToolLock = path.join(stagingDir, toolLockRel);
+        if (!fs.existsSync(stagedToolLock)) {
+          throw new Error(
+            `Cannot update ${toolName}: ${toolLockRel} is missing`,
+          );
         }
+        const json = JSON.parse(fs.readFileSync(stagedToolLock, 'utf8'));
+        const tool = json.tools?.[toolName];
+        if (!tool) {
+          throw new Error(
+            `Cannot update ${toolName}: entry is missing from ${toolLockRel}`,
+          );
+        }
+        const assetUrl = update.assetUrl
+          ? update.assetUrl
+          : replaceVersionText(String(tool.url ?? ''), from, to);
+        if (!assetUrl) {
+          throw new Error(
+            `Cannot update ${toolName}: no download URL is available`,
+          );
+        }
+        const sha256 = await resolveAssetHash(
+          update.assetIdentity,
+          assetUrl,
+          toolName,
+        );
+        tool.version = to;
+        tool.sha256 = sha256;
+        tool.url = assetUrl;
+        if (typeof tool.executablePath === 'string') {
+          tool.executablePath =
+            update.executablePath ||
+            replaceVersionText(tool.executablePath, from, to);
+        }
+        if (tool.versionProbe && typeof tool.versionProbe === 'object') {
+          tool.versionProbe.expectedPattern =
+            update.versionProbePattern ||
+            replaceVersionText(
+              String(tool.versionProbe.expectedPattern ?? ''),
+              from,
+              to,
+            );
+        }
+        fs.writeFileSync(stagedToolLock, JSON.stringify(json, null, 2) + '\n');
+        touchedFiles.add(toolLockRel);
+        appliedIds.add(id);
       }
 
       // --- GitHub Actions ---
       else if (id.startsWith('action:')) {
         const actionName = id.slice(7);
         const workflowsDir = path.join(stagingDir, '.github/workflows');
+        let matched = false;
         if (fs.existsSync(workflowsDir)) {
           for (const file of fs.readdirSync(workflowsDir)) {
             if (!file.endsWith('.yml') && !file.endsWith('.yaml')) continue;
@@ -341,91 +583,180 @@ export async function applyApprovedProposal(
               content = content.replace(regex, `$1v${to.replace(/^v/, '')}`);
               fs.writeFileSync(wPath, content);
               touchedFiles.add(`.github/workflows/${file}`);
+              matched = true;
             }
           }
         }
+        if (!matched) {
+          throw new Error(
+            `Cannot update action ${actionName}: no workflow references it`,
+          );
+        }
+        appliedIds.add(id);
       }
 
       // --- Rust Toolchain Native ---
       else if (id === 'tool:rust-native') {
-        const stagedTc = path.join(
-          stagingDir,
-          'extensions/nhl-adblock-native/rust-toolchain.toml',
-        );
-        if (fs.existsSync(stagedTc)) {
-          let content = fs.readFileSync(stagedTc, 'utf8');
-          content = content.replace(/(channel\s*=\s*")([^"]+)(")/, `$1${to}$3`);
-          fs.writeFileSync(stagedTc, content);
-          touchedFiles.add('extensions/nhl-adblock-native/rust-toolchain.toml');
+        const toolchainRel =
+          'extensions/nhl-adblock-native/rust-toolchain.toml';
+        const stagedTc = path.join(stagingDir, toolchainRel);
+        if (!fs.existsSync(stagedTc)) {
+          throw new Error(
+            `Cannot update Rust toolchain: ${toolchainRel} is missing`,
+          );
         }
+        let content = fs.readFileSync(stagedTc, 'utf8');
+        const updated = content.replace(
+          /(channel\s*=\s*")([^"]+)(")/,
+          `$1${to}$3`,
+        );
+        if (updated === content) {
+          throw new Error(
+            `Cannot update Rust toolchain: no channel in ${toolchainRel}`,
+          );
+        }
+        fs.writeFileSync(stagedTc, updated);
+        touchedFiles.add(toolchainRel);
         const workflowsDir = path.join(stagingDir, '.github/workflows');
         if (fs.existsSync(workflowsDir)) {
           for (const file of fs.readdirSync(workflowsDir)) {
             if (!file.endsWith('.yml')) continue;
             const wPath = path.join(workflowsDir, file);
-            let content = fs.readFileSync(wPath, 'utf8');
-            if (content.includes('dtolnay/rust-toolchain@')) {
-              content = content.replace(
+            const workflow = fs.readFileSync(wPath, 'utf8');
+            if (workflow.includes('dtolnay/rust-toolchain@')) {
+              const next = workflow.replace(
                 /(dtolnay\/rust-toolchain@)[0-9.]+/,
                 `$1${to}`,
               );
-              fs.writeFileSync(wPath, content);
-              touchedFiles.add(`.github/workflows/${file}`);
+              if (next !== workflow) {
+                fs.writeFileSync(wPath, next);
+                touchedFiles.add(`.github/workflows/${file}`);
+              }
             }
           }
         }
+        appliedIds.add(id);
+      }
+
+      // --- Tool: Java ---
+      else if (id === 'tool:java') {
+        const workflowsDir = path.join(stagingDir, '.github/workflows');
+        let matched = false;
+        if (fs.existsSync(workflowsDir)) {
+          for (const file of fs.readdirSync(workflowsDir)) {
+            if (!file.endsWith('.yml')) continue;
+            const wPath = path.join(workflowsDir, file);
+            const workflow = fs.readFileSync(wPath, 'utf8');
+            const next = workflow.replace(
+              /(java-version:\s*['"]?)[0-9]+(['"]?)/g,
+              `$1${to}$2`,
+            );
+            if (next !== workflow) {
+              fs.writeFileSync(wPath, next);
+              touchedFiles.add(`.github/workflows/${file}`);
+              matched = true;
+            }
+          }
+        }
+        if (!matched) {
+          throw new Error(
+            'Cannot update Java: no java-version input in workflows',
+          );
+        }
+        appliedIds.add(id);
       }
 
       // --- Android NDK ---
       else if (id === 'tool:ndk') {
-        const stagedPatchBuild = path.join(
-          stagingDir,
-          'patches/build.gradle.kts',
+        const patchBuildRel = 'patches/build.gradle.kts';
+        const stagedPatchBuild = path.join(stagingDir, patchBuildRel);
+        if (!fs.existsSync(stagedPatchBuild)) {
+          throw new Error(`Cannot update NDK: ${patchBuildRel} is missing`);
+        }
+        let content = fs.readFileSync(stagedPatchBuild, 'utf8');
+        const updated = content.replace(
+          /REQUIRED_NDK_VERSION\s*=\s*"[^"]+"/,
+          `REQUIRED_NDK_VERSION = "${to}"`,
         );
-        if (fs.existsSync(stagedPatchBuild)) {
-          let content = fs.readFileSync(stagedPatchBuild, 'utf8');
-          content = content.replace(
-            /REQUIRED_NDK_VERSION\s*=\s*"[^"]+"/,
-            `REQUIRED_NDK_VERSION = "${to}"`,
+        if (updated === content) {
+          throw new Error(
+            `Cannot update NDK: no REQUIRED_NDK_VERSION in ${patchBuildRel}`,
           );
-          fs.writeFileSync(stagedPatchBuild, content);
-          touchedFiles.add('patches/build.gradle.kts');
+        }
+        fs.writeFileSync(stagedPatchBuild, updated);
+        touchedFiles.add(patchBuildRel);
+        const label = update.label || ndkLabelFromRevision(to);
+        if (!label) {
+          throw new Error(
+            `Cannot update NDK: no release label for revision ${to}`,
+          );
         }
         const workflowsDir = path.join(stagingDir, '.github/workflows');
         if (fs.existsSync(workflowsDir)) {
           for (const file of fs.readdirSync(workflowsDir)) {
             if (!file.endsWith('.yml')) continue;
             const wPath = path.join(workflowsDir, file);
-            let content = fs.readFileSync(wPath, 'utf8');
-            if (content.includes('ndk-version:')) {
-              content = content.replace(
+            const workflow = fs.readFileSync(wPath, 'utf8');
+            if (workflow.includes('ndk-version:')) {
+              const next = workflow.replace(
                 /(ndk-version:\s*)[^\s\n]+/,
-                `$1${update.assetIdentity || 'r28c'}`,
+                `$1${label}`,
               );
-              fs.writeFileSync(wPath, content);
-              touchedFiles.add(`.github/workflows/${file}`);
+              if (next !== workflow) {
+                fs.writeFileSync(wPath, next);
+                touchedFiles.add(`.github/workflows/${file}`);
+              }
             }
           }
         }
+        appliedIds.add(id);
+      }
+
+      // --- Android build-tools ---
+      else if (id === 'tool:android-build-tools') {
+        const locatorRel = 'tools/apk-lab/src/tools.rs';
+        const stagedLocator = path.join(stagingDir, locatorRel);
+        if (!fs.existsSync(stagedLocator)) {
+          throw new Error(
+            `Cannot update Android build-tools: ${locatorRel} is missing`,
+          );
+        }
+        const content = fs.readFileSync(stagedLocator, 'utf8');
+        const updated = content.replace(
+          /(build_tools\.join\(")([0-9.]+)("\)\.join\(bin_name\))/,
+          `$1${to}$3`,
+        );
+        if (updated === content) {
+          throw new Error(
+            `Cannot update Android build-tools: no pinned version in ${locatorRel}`,
+          );
+        }
+        fs.writeFileSync(stagedLocator, updated);
+        touchedFiles.add(locatorRel);
+        appliedIds.add(id);
       }
 
       // --- Embedded Leaflet ---
       else if (id === 'embedded:leaflet') {
-        const stagedOsm = path.join(
-          stagingDir,
-          'extensions/extension/src/main/java/app/aidan/extension/aftership/OsmMapView.java',
+        const osmRel =
+          'extensions/extension/src/main/java/app/aidan/extension/aftership/OsmMapView.java';
+        const stagedOsm = path.join(stagingDir, osmRel);
+        if (!fs.existsSync(stagedOsm)) {
+          throw new Error(`Cannot update Leaflet: ${osmRel} is missing`);
+        }
+        const content = fs.readFileSync(stagedOsm, 'utf8');
+        const updated = content.replace(
+          /unpkg\.com\/leaflet@[0-9.]+\//g,
+          `unpkg.com/leaflet@${to}/`,
         );
-        if (fs.existsSync(stagedOsm)) {
-          let content = fs.readFileSync(stagedOsm, 'utf8');
-          content = content.replace(
-            /unpkg\.com\/leaflet@[0-9.]+\//g,
-            `unpkg.com/leaflet@${to}/`,
-          );
-          fs.writeFileSync(stagedOsm, content);
-          touchedFiles.add(
-            'extensions/extension/src/main/java/app/aidan/extension/aftership/OsmMapView.java',
+        if (updated === content) {
+          throw new Error(
+            `Cannot update Leaflet: no unpkg asset URL in ${osmRel}`,
           );
         }
+        fs.writeFileSync(stagedOsm, updated);
+        touchedFiles.add(osmRel);
+        appliedIds.add(id);
       }
 
       // --- CMake FetchContent ---
@@ -444,7 +775,6 @@ export async function applyApprovedProposal(
             'g',
           );
 
-          let newSha256 = update.assetIdentity || '';
           let newUrl = '';
           if (pkgName === 'qpdf') {
             newUrl = `https://github.com/qpdf/qpdf/releases/download/v${to}/qpdf-${to}.tar.gz`;
@@ -459,53 +789,60 @@ export async function applyApprovedProposal(
           let matchedOldUrl = '';
           const blockMatch = fetchBlockRegex.exec(content);
           fetchBlockRegex.lastIndex = 0;
-          if (blockMatch) {
-            const urlMatch = blockMatch[0].match(/URL\s+([^\s)]+)/);
-            if (urlMatch) {
-              matchedOldUrl = urlMatch[1];
-              if (!newUrl) {
-                newUrl = matchedOldUrl.replaceAll(from, to);
-              }
-            }
-          }
-
-          if (!newSha256 && newUrl) {
-            const res = await fetch(newUrl);
-            if (!res.ok) {
-              throw new Error(
-                `Failed to download ${newUrl}: HTTP ${res.status}`,
-              );
-            }
-            const buf = await res.arrayBuffer();
-            newSha256 = crypto
-              .createHash('sha256')
-              .update(Buffer.from(buf))
-              .digest('hex');
-          }
-          if (!newSha256) {
+          if (!blockMatch) {
             throw new Error(
-              `Could not compute sha256 for ${pkgName} at ${newUrl}`,
+              `Cannot update ${pkgName}: no FetchContent_Declare block in ${manifestRel}`,
+            );
+          }
+          const urlMatch = blockMatch[0].match(/URL\s+([^\s)]+)/);
+          if (!urlMatch) {
+            throw new Error(
+              `Cannot update ${pkgName}: FetchContent block has no URL in ${manifestRel}`,
+            );
+          }
+          matchedOldUrl = urlMatch[1];
+          if (!newUrl) {
+            newUrl = replaceVersionText(matchedOldUrl, from, to);
+          }
+          if (!newUrl || newUrl === matchedOldUrl) {
+            throw new Error(
+              `Cannot update ${pkgName}: URL ${matchedOldUrl} does not contain version ${from}`,
             );
           }
 
-          content = content.replace(fetchBlockRegex, (block) => {
-            let updated = block;
-            if (matchedOldUrl && newUrl) {
-              updated = updated.replace(matchedOldUrl, newUrl);
-            }
-            if (newSha256) {
-              updated = updated.replace(
-                /URL_HASH\s+SHA256=[a-fA-F0-9]{64}/,
-                `URL_HASH SHA256=${newSha256}`,
-              );
-            }
+          const newSha256 = await resolveAssetHash(
+            update.assetIdentity,
+            newUrl,
+            pkgName,
+          );
+
+          const nextContent = content.replace(fetchBlockRegex, (block) => {
+            let updated = block.replace(matchedOldUrl, newUrl);
+            updated = updated.replace(
+              /URL_HASH\s+SHA256=[a-fA-F0-9]{64}/,
+              `URL_HASH SHA256=${newSha256}`,
+            );
             return updated;
           });
-
-          fs.writeFileSync(stagedCMake, content);
+          if (nextContent === content) {
+            throw new Error(
+              `Cannot update ${pkgName}: no changes were applied in ${manifestRel}`,
+            );
+          }
+          fs.writeFileSync(stagedCMake, nextContent);
           touchedFiles.add(manifestRel);
+          appliedIds.add(id);
         }
       }
+    }
+
+    const unhandled = proposal.updates.filter(
+      (update) => !appliedIds.has(update.id),
+    );
+    if (unhandled.length > 0) {
+      throw new Error(
+        `No apply strategy matched: ${unhandled.map((update) => update.id).join(', ')}`,
+      );
     }
 
     // 6. Regenerate staged lockfiles
@@ -561,56 +898,41 @@ export async function applyApprovedProposal(
       touchedFiles.add('site/bun.lock');
     }
 
-    if (touchedFiles.has('tools/play-metadata/Cargo.toml')) {
-      const playDir = path.join(stagingDir, 'tools/play-metadata');
-      const cargoUpdates = proposal.updates.filter((u) =>
-        u.id.startsWith('crates:tools/play-metadata/'),
+    for (const project of RUST_PROJECTS) {
+      if (!touchedFiles.has(project.manifest)) continue;
+      const projectDir = path.dirname(path.join(stagingDir, project.manifest));
+      const cargoUpdates = proposal.updates.filter((update) =>
+        update.id.startsWith(`crates:${project.manifest}#`),
       );
-      for (const u of cargoUpdates) {
-        const pkg = u.id.split('/').at(-1) ?? '';
+      for (const update of cargoUpdates) {
+        const cragment = update.id.split('#')[1] ?? '';
+        const packageName = cragment.split('/')[1] ?? '';
         const res = await runner(
           'cargo',
           [
             'update',
             '--manifest-path',
-            'Cargo.toml',
+            path.basename(project.manifest),
             '--package',
-            pkg,
+            packageName,
             '--precise',
-            u.to,
+            update.to,
           ],
-          playDir,
+          projectDir,
         );
-        if (res.code !== 0)
-          throw new Error(`cargo update failed for ${pkg}: ${res.stderr}`);
+        if (res.code !== 0) {
+          throw new Error(
+            `cargo update failed for ${project.label} ${packageName}: ${res.stderr}`,
+          );
+        }
       }
-      touchedFiles.add('tools/play-metadata/Cargo.lock');
-    }
-
-    if (touchedFiles.has('extensions/nhl-adblock-native/Cargo.toml')) {
-      const nhlDir = path.join(stagingDir, 'extensions/nhl-adblock-native');
-      const cargoUpdates = proposal.updates.filter((u) =>
-        u.id.startsWith('crates:extensions/nhl-adblock-native/'),
-      );
-      for (const u of cargoUpdates) {
-        const pkg = u.id.split('/').at(-1) ?? '';
-        const res = await runner(
-          'cargo',
-          [
-            'update',
-            '--manifest-path',
-            'Cargo.toml',
-            '--package',
-            pkg,
-            '--precise',
-            u.to,
-          ],
-          nhlDir,
+      const lockPath = path.join(stagingDir, project.lockfile);
+      if (!fs.existsSync(lockPath)) {
+        throw new Error(
+          `Lockfile regeneration did not produce ${project.lockfile}`,
         );
-        if (res.code !== 0)
-          throw new Error(`cargo update failed for ${pkg}: ${res.stderr}`);
       }
-      touchedFiles.add('extensions/nhl-adblock-native/Cargo.lock');
+      touchedFiles.add(project.lockfile);
     }
 
     // 7. Atomic publication to repository

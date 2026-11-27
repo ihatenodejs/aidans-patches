@@ -14,21 +14,21 @@ name = "apk-lab"
 path = "src/bin/apk-lab.rs"
 
 [dependencies]
-async-trait = "0.1.83"
-chrono = { version = "0.4.39", default-features = false, features = ["clock"] }
+async-trait = "0.1.92"
+chrono = { version = "0.4.45", default-features = false, features = ["clock"] }
 dialoguer = { version = "=0.12.0", default-features = false, features = ["password"] }
 gpapi = "=6.1.0"
 regex = "=1.13.2"
 ring = "0.17.14"
 rust-s3 = { version = "=0.38.0", default-features = false, features = ["tokio-rustls-tls-ring"] }
-serde = { version = "1.0.218", features = ["derive"] }
-serde_json = { version = "1.0.139", features = ["raw_value"] }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = { version = "1.0.154", features = ["raw_value"] }
 sha2 = "0.10.8"
-tempfile = "3.15.0"
-tokio = { version = "1.43.0", features = ["full"] }
+tempfile = "3.27.0"
+tokio = { version = "1.54.1", features = ["full"] }
 ureq = { version = "=3.5.2", default-features = false, features = ["rustls", "gzip"] }
 wait-timeout = "0.2.1"
-zip = { version = "=9.8.1", default-features = false, features = ["deflate-flate2-zlib-rs", "bzip2", "lzma"] }
+zip = { version = "=9.8.2", default-features = false, features = ["deflate-flate2-zlib-rs", "bzip2", "lzma"] }
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

@@ -20,5 +20,6 @@ bun.lock
 tools.lock.json
 patches-list.json
 patches-bundle.json
+worker/worker-configuration.d.ts
 CHANGELOG.md
 scripts/test-fixtures/

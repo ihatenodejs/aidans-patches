@@ -9,14 +9,14 @@ description = "Native host preparation of pinned build resources and application
 [dependencies]
 image = { version = "0.25.10", default-features = false, features = ["webp"] }
 png = "0.18.1"
-regex = "1.12.2"
-serde = { version = "1.0.218", features = ["derive"] }
-serde_json = "1.0.139"
+regex = "1.13.2"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
 sha2 = "0.10.8"
-tempfile = "3.15.0"
+tempfile = "3.27.0"
 turbojpeg = { version = "=1.5.1", default-features = false, features = ["cmake"] }
 ureq = { version = "=3.5.2", default-features = false, features = ["rustls", "gzip"] }
-zip = { version = "=9.8.1", default-features = false, features = ["deflate-flate2-zlib-rs", "bzip2", "lzma"] }
+zip = { version = "=9.8.2", default-features = false, features = ["deflate-flate2-zlib-rs", "bzip2", "lzma"] }
 
 [patch.crates-io]
 turbojpeg-sys = { path = "vendor/turbojpeg-sys" }

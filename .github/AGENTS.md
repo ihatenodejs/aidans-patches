@@ -29,15 +29,9 @@ The release pre-gate re-verifies only the promotion delta plus the always-requir
 - `../scripts/asset-prep.ts`: bootstraps the native `tools/asset-prep` host binary for icon checks/synchronization; no Pillow runtime. Preserve offline discovery exit/output semantics and pixel-equal existing-file no-ops.
 - `tools/asset-prep` (`font`, `ocr`, `pdfbox`): Gradle builds the host tool with declared Cargo/source inputs and prepares pinned resources in the original paths/caches. Release font cache identities include Rust sources/lockfile and upstream identity.
 
-## Dependency Automation (Dependabot)
+## Dependency Automation
 
-`.github/dependabot.yml` configures monthly dependency update checks targeting the `dev` branch with empty labels across three ecosystems:
-
-- `github-actions`: workflow actions.
-- `npm`: root and workspace dependencies; intentionally ignores `conventional-changelog-conventionalcommits` to preserve custom changelog release rules.
-- `gradle`: Gradle wrapper and plugin dependencies.
-
-Repository-wide dependency checks via `scripts/deps.ts` enforce the same hold in `dependency-policy.json`. When modifying dependency holds, keep Dependabot ignores and `dependency-policy.json` aligned so external automation does not open PRs for held packages.
+`scripts/deps.ts` is the only dependency updater. Dependabot is intentionally not configured: it cannot model `dependency-policy.json` holds, peer/engine compatibility, or the coupled artifact hashes in `tools/apk-lab/tools.lock.json` and the native CMake pins. Use `bun run deps:check` to inspect and `bun run deps:update` to apply an approved proposal. `bun run deps:security` is the opt-in transitive vulnerability scan; it is not part of the deterministic audit.
 
 Generator and automation code is Bun/TypeScript or native Rust. Validate paths and input shape, fail with actionable errors, and never print secret values. Do not introduce a Python runtime, package manager, hook framework, or interpreter requirement.
 
