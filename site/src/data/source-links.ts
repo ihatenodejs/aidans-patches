@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { resolveRepositoryRoot } from './repo-root';
 
 export const GITHUB_REPO = 'https://github.com/ihatenodejs/aidans-patches';
 export const GITHUB_BLOB_BASE = `${GITHUB_REPO}/blob/main`;
@@ -47,8 +47,7 @@ let cachedSourceMap: Record<string, string> | null = null;
 export function getPatchSourceMap(): Record<string, string> {
   if (cachedSourceMap) return cachedSourceMap;
 
-  const currentDir = path.dirname(fileURLToPath(import.meta.url));
-  const repoRoot = path.resolve(currentDir, '../../../');
+  const repoRoot = resolveRepositoryRoot();
   const patchesDir = path.join(
     repoRoot,
     'patches/src/main/kotlin/app/aidan/patches',

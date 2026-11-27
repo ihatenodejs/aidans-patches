@@ -179,7 +179,7 @@ const scopeStyle = !isApp && scope ? getScopeStyle(normalizedKey) : null;
 {isApp && appPackageName ? (
   <a
     href={appId ? `/apps/${appId}` : undefined}
-    class="inline-flex rounded-[4px] focus:outline-none focus-visible:ring-1 focus-visible:ring-white/70"
+    class="inline-flex rounded-[4px] focus:outline-hidden focus-visible:ring-1 focus-visible:ring-white/70"
   >
     <span class="inline-flex items-center h-5 rounded-[4px] border border-white/10 bg-white/[0.04] text-zinc-300 font-mono text-[10px] overflow-hidden shrink-0 transition-colors hover:border-white/20 hover:text-white">
       <AppIcon
