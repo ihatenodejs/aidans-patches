@@ -827,9 +827,19 @@ export async function resolveDependencyItem(
       } else if (item.id === 'tool:bun') {
         const res = await sources.resolveBunLatest();
         item.latest = res.latest;
-        item.latestDisplay = `latest (${res.latest})`;
         item.sourceUrl = res.sourceUrl;
-        item.status = 'moving';
+        if (item.declared === 'latest') {
+          item.latestDisplay = `latest (${res.latest})`;
+          if (item.status !== 'held' && item.status !== 'error') {
+            item.status = 'moving';
+          }
+        } else {
+          item.latestDisplay = res.latest;
+          if (item.status !== 'held' && item.status !== 'error') {
+            const ord = compareSemver(res.latest, item.declared);
+            item.status = ord > 0 ? 'update' : ord < 0 ? 'ahead' : 'current';
+          }
+        }
       } else if (item.id === 'tool:node') {
         const res = await sources.resolveNodeLts();
         item.latest = res.latest.replace(/^lts\/\* \(([^)]+)\)$/, '$1');

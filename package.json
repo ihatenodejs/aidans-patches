@@ -2,6 +2,10 @@
   "name": "aidans-patches",
   "private": true,
   "type": "module",
+  "packageManager": "bun@1.4.5",
+  "engines": {
+    "bun": ">=1.4.5"
+  },
   "scripts": {
     "format": "bun scripts/audit.ts format",
     "format:check": "bun scripts/audit.ts format:check",

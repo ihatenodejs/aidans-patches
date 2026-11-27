@@ -124,6 +124,7 @@ describe('Dependency manifest coverage', () => {
       'embedded:tessdata-eng',
       'cmake:tools/asset-prep/vendor/turbojpeg-sys/CMakeLists.txt#vendor/libjpeg-turbo',
       'tool:wrangler-compat',
+      'tool:bun',
       "crates:tools/apk-lab/Cargo.toml#target.'cfg(unix)'.dependencies/libc",
     ]) {
       expect(ids.has(id)).toBe(true);

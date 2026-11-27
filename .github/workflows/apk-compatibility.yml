@@ -137,8 +137,6 @@ jobs:
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2.2.0
-        with:
-          bun-version: latest
 
       # `apkmirror_runner.cjs` requires the pinned `apkmirror-downloader`
       # package from the root lockfile. Without this the APKMirror fallback

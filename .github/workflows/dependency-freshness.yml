@@ -1,0 +1,48 @@
+name: Dependency Freshness
+
+on:
+  schedule:
+    # Weekly on Monday at 06:00 UTC.
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2.2.0
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Check dependency freshness
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set +e
+          bun scripts/deps.ts check --json > "$RUNNER_TEMP/dependency-report.json"
+          status=$?
+          set -e
+          case "$status" in
+            0)
+              echo "All dependencies are current or intentionally held."
+              ;;
+            2)
+              echo "::warning::Dependency updates are available."
+              jq -r '.items[] | select(.status == "update") | "\(.id): \(.declared) -> \(.latest)"' "$RUNNER_TEMP/dependency-report.json"
+              exit 1
+              ;;
+            *)
+              echo "::error::Dependency freshness check failed with exit code $status."
+              cat "$RUNNER_TEMP/dependency-report.json"
+              exit 1
+              ;;
+          esac
