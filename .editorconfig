@@ -1,4 +1,27 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 2
+
+[*.{java,rs,cpp,cc,c,h,hpp}]
+indent_size = 4
+
+[*.{md,markdown}]
+trim_trailing_whitespace = false
+
+# Renderer goldens intentionally preserve legacy trailing whitespace and CRLF.
+[scripts/test-fixtures/**]
+trim_trailing_whitespace = false
+insert_final_newline = false
+end_of_line = unset
+
 [*.{kt,kts}]
+indent_size = 4
 ktlint_code_style = intellij_idea
 ktlint_standard_no-wildcard-imports = disabled
 ktlint_standard_trailing-comma-on-call-site = disabled

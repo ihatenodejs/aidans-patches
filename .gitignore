@@ -58,6 +58,7 @@ nbdist/
 # IDE / Build Output
 bin/
 out/
+.kotlin/
 
 # Track the apk-lab binary source despite the build-output `bin/` rule
 !tools/apk-lab/src/bin/
@@ -90,6 +91,8 @@ patches/src/main/resources/fonts/
 # APK Lab workspaces and local environments
 .apk-lab/
 .apk-lab-migration/
+/apk/
+/analysis/
 docs/benchmarks/apk-lab/*.local.json
 .dev.vars*
 .venv/
@@ -104,6 +107,17 @@ target/
 google-play-accounts.json
 *google-play-accounts*.json
 *.ini
+
+# Local environment and signing secrets
+.env
+.env.*
+!.env.example
+*.jks
+*.keystore
+*.p12
+*.pfx
+keystore.properties
+signing.properties
 
 # C/C++ & CMake
 compile_commands.json
