@@ -1,8 +1,42 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import 'tailwindcss';
+
+@theme {
+  --color-background: #050505;
+  --color-surface: #0a0a0a;
+  --color-surface-elevated: #111111;
+  --color-grid: rgba(255, 255, 255, 0.08);
+  --color-grid-bright: rgba(255, 255, 255, 0.16);
+
+  --font-sans:
+    Geist, Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+    sans-serif;
+  --font-mono:
+    GeistMono, 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco,
+    Consolas, monospace;
+}
+
+@utility bg-technical-grid {
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+}
 
 @layer base {
+  /* Preserve the Tailwind v3 default border color. */
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentColor);
+  }
+
+  /* Preserve pointer cursors on buttons after the v4 Preflight change. */
+  button:not(:disabled),
+  [role='button']:not(:disabled) {
+    cursor: pointer;
+  }
+
   :root {
     --bg-main: #050505;
     --border-grid: rgba(255, 255, 255, 0.08);
@@ -30,6 +64,11 @@
   ::selection {
     background-color: rgba(255, 255, 255, 0.15);
     color: #ffffff;
+  }
+
+  :focus-visible {
+    outline: 2px solid rgba(255, 255, 255, 0.4);
+    outline-offset: 2px;
   }
 }
 
@@ -72,12 +111,6 @@
 .bg-blueprint-fine {
   background-image: radial-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px);
   background-size: 16px 16px;
-}
-
-/* Focus styles for keyboard accessibility */
-:focus-visible {
-  outline: 2px solid rgba(255, 255, 255, 0.4);
-  outline-offset: 2px;
 }
 
 /* Custom thin scrollbar for code/panel containers */

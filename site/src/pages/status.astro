@@ -114,8 +114,8 @@ function formatRelativeTime(dateStr: string): string {
             name={latestReleaseApp?.appName ?? ''}
             size={24}
             loading="eager"
-            className="w-6 h-6 rounded-sm border border-white/10 shrink-0"
-            fallbackClassName="rounded-sm font-mono text-[10px]"
+            className="w-6 h-6 rounded-xs border border-white/10 shrink-0"
+            fallbackClassName="rounded-xs font-mono text-[10px]"
             fallbackColor={latestReleaseApp?.appIconColor}
           />
           <div class="flex items-baseline gap-2 min-w-0">
@@ -147,7 +147,7 @@ function formatRelativeTime(dateStr: string): string {
     </div>
 
     <!-- Status Table with Pinned Columns on Mobile -->
-    <div class="border border-white/[0.08] bg-[#080808] rounded-sm overflow-hidden">
+    <div class="border border-white/[0.08] bg-[#080808] rounded-xs overflow-hidden">
       <!-- Search Bar Header -->
       <div class="p-3 bg-zinc-950 border-b border-white/[0.08] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div class="relative w-full max-w-sm">
@@ -155,7 +155,7 @@ function formatRelativeTime(dateStr: string): string {
             type="search"
             id="status-search-input"
             placeholder="Search applications..."
-            class="w-full bg-zinc-900 border border-white/10 px-3 py-1.5 pl-8 text-xs font-mono text-white placeholder-zinc-500 rounded-sm focus:outline-none focus:border-white/30"
+            class="w-full bg-zinc-900 border border-white/10 px-3 py-1.5 pl-8 text-xs font-mono text-white placeholder-zinc-500 rounded-xs focus:outline-hidden focus:border-white/30"
           />
           <svg
             class="w-3.5 h-3.5 text-zinc-500 absolute left-2.5 top-2.5"
@@ -218,8 +218,8 @@ function formatRelativeTime(dateStr: string): string {
                       name={item.appName}
                       size={20}
                       loading="eager"
-                      className="w-5 h-5 rounded-sm border border-white/10 shrink-0"
-                      fallbackClassName="rounded-sm font-mono text-[10px]"
+                      className="w-5 h-5 rounded-xs border border-white/10 shrink-0"
+                      fallbackClassName="rounded-xs font-mono text-[10px]"
                       fallbackColor={item.appIconColor}
                     />
                     <a
@@ -240,7 +240,7 @@ function formatRelativeTime(dateStr: string): string {
 
                 <!-- Tests Passed Column -->
                 <td class="py-3.5 px-4 target-compat-cell whitespace-nowrap">
-                  <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-[10px] bg-zinc-900 text-zinc-400 border border-white/10">
+                  <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-xs text-[10px] bg-zinc-900 text-zinc-400 border border-white/10">
                     <span class="w-1.5 h-1.5 rounded-full bg-zinc-500"></span>
                     <span>Checking...</span>
                   </span>
@@ -248,7 +248,7 @@ function formatRelativeTime(dateStr: string): string {
 
                 <!-- Update Status Column (Pinned on mobile) -->
                 <td class="py-3.5 px-4 text-right play-freshness-cell sticky right-0 z-10 bg-[#080808] group-hover/row:bg-[#0c0c0c] shadow-[-1px_0_0_rgba(255,255,255,0.08)] whitespace-nowrap">
-                  <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-[10px] bg-zinc-900 text-zinc-400 border border-white/10">
+                  <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-xs text-[10px] bg-zinc-900 text-zinc-400 border border-white/10">
                     <span class="w-1.5 h-1.5 rounded-full bg-zinc-500"></span>
                     <span>Checking...</span>
                   </span>
@@ -269,7 +269,7 @@ function formatRelativeTime(dateStr: string): string {
     </div>
 
     <!-- Refactored Explanatory Box (Icons, Clarity, Status Definitions & Update Context) -->
-    <div class="p-6 border border-white/[0.08] bg-[#070707] rounded-sm space-y-6 text-xs text-zinc-300">
+    <div class="p-6 border border-white/[0.08] bg-[#070707] rounded-xs space-y-6 text-xs text-zinc-300">
       <div class="flex items-center gap-2 text-white font-mono text-xs uppercase tracking-wider font-semibold">
         <svg
           class="w-4 h-4 text-blue-400 shrink-0"
@@ -286,7 +286,7 @@ function formatRelativeTime(dateStr: string): string {
       </div>
 
       <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pt-1">
-        <div class="space-y-2 p-4 bg-zinc-950/60 border border-white/[0.06] rounded-sm">
+        <div class="space-y-2 p-4 bg-zinc-950/60 border border-white/[0.06] rounded-xs">
           <div class="font-sans font-semibold text-white flex items-center gap-2">
             <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
             <span>Update Status</span>
@@ -298,7 +298,7 @@ function formatRelativeTime(dateStr: string): string {
           </p>
         </div>
 
-        <div class="space-y-2 p-4 bg-zinc-950/60 border border-white/[0.06] rounded-sm">
+        <div class="space-y-2 p-4 bg-zinc-950/60 border border-white/[0.06] rounded-xs">
           <div class="font-sans font-semibold text-white flex items-center gap-2">
             <span class="w-2 h-2 rounded-full bg-blue-400"></span>
             <span>Tests Passed</span>
@@ -311,7 +311,7 @@ function formatRelativeTime(dateStr: string): string {
         </div>
       </div>
 
-      <div class="p-3 bg-zinc-900/40 border border-white/[0.06] rounded-sm text-[11px] text-zinc-400 font-sans leading-relaxed">
+      <div class="p-3 bg-zinc-900/40 border border-white/[0.06] rounded-xs text-[11px] text-zinc-400 font-sans leading-relaxed">
         <strong class="text-zinc-200">Note on Compatibility:</strong>{' '}
         &ldquo;Compatible&rdquo; indicates automated verification passed (Morphe
         bytecode/resource transformations, package integrity, and DEX structural
@@ -509,19 +509,19 @@ function formatRelativeTime(dateStr: string): string {
 
           if (effectiveStatus === 'up-to-date') {
             playFreshnessCell.innerHTML =
-              '<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-[10px] bg-emerald-950/60 text-emerald-400 border border-emerald-800/40"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span><span>Up to date</span></span>';
+              '<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-xs text-[10px] bg-emerald-950/60 text-emerald-400 border border-emerald-800/40"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span><span>Up to date</span></span>';
           } else if (effectiveStatus === 'newer-available') {
             playFreshnessCell.innerHTML =
-              '<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-[10px] bg-amber-950/60 text-amber-400 border border-amber-800/40"><span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span><span>Newer available</span></span>';
+              '<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-xs text-[10px] bg-amber-950/60 text-amber-400 border border-amber-800/40"><span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span><span>Newer available</span></span>';
           } else if (effectiveStatus === 'not-on-play-store') {
             playFreshnessCell.innerHTML =
-              '<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-[10px] bg-zinc-900 text-zinc-500 border border-white/10"><span>Not on Play Store</span></span>';
+              '<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-xs text-[10px] bg-zinc-900 text-zinc-500 border border-white/10"><span>Not on Play Store</span></span>';
           } else if (effectiveStatus === 'check-failed') {
             playFreshnessCell.innerHTML =
-              '<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-[10px] bg-rose-950/60 text-rose-400 border border-rose-800/40"><span class="w-1.5 h-1.5 rounded-full bg-rose-400"></span><span>Check failed</span></span>';
+              '<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-xs text-[10px] bg-rose-950/60 text-rose-400 border border-rose-800/40"><span class="w-1.5 h-1.5 rounded-full bg-rose-400"></span><span>Check failed</span></span>';
           } else {
             playFreshnessCell.innerHTML =
-              '<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-sm text-[10px] bg-zinc-900 text-zinc-400 border border-white/10"><span class="w-1.5 h-1.5 rounded-full bg-zinc-500"></span><span>Unknown</span></span>';
+              '<span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-xs text-[10px] bg-zinc-900 text-zinc-400 border border-white/10"><span class="w-1.5 h-1.5 rounded-full bg-zinc-500"></span><span>Unknown</span></span>';
           }
         }
 

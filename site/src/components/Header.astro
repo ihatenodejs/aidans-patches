@@ -32,7 +32,7 @@ const stats = getRepositoryStats();
         href="https://github.com/ihatenodejs/aidans-patches/releases"
         target="_blank"
         rel="noopener noreferrer"
-        class="hidden sm:inline-flex items-center px-1.5 py-0.5 text-[11px] font-mono tracking-tight text-zinc-400 bg-zinc-900/80 border border-white/10 rounded-sm hover:border-white/30 hover:text-zinc-200 transition-colors"
+        class="hidden sm:inline-flex items-center px-1.5 py-0.5 text-[11px] font-mono tracking-tight text-zinc-400 bg-zinc-900/80 border border-white/10 rounded-xs hover:border-white/30 hover:text-zinc-200 transition-colors"
       >
         v{stats.bundleVersion}
       </a>
@@ -42,7 +42,7 @@ const stats = getRepositoryStats();
     <nav class="flex items-center gap-1 sm:gap-2">
       <a
         href="/apps"
-        class={`px-3 py-1 text-xs font-medium rounded-sm transition-colors ${
+        class={`px-3 py-1 text-xs font-medium rounded-xs transition-colors ${
           currentPath.startsWith('/apps')
             ? 'text-white bg-white/[0.06] border border-white/[0.12]'
             : 'text-zinc-400 hover:text-white hover:bg-white/[0.03]'
@@ -52,7 +52,7 @@ const stats = getRepositoryStats();
       </a>
       <a
         href="/status"
-        class={`px-3 py-1 text-xs font-medium rounded-sm transition-colors ${
+        class={`px-3 py-1 text-xs font-medium rounded-xs transition-colors ${
           currentPath.startsWith('/status')
             ? 'text-white bg-white/[0.06] border border-white/[0.12]'
             : 'text-zinc-400 hover:text-white hover:bg-white/[0.03]'
@@ -64,7 +64,7 @@ const stats = getRepositoryStats();
         href="https://github.com/ihatenodejs/aidans-patches"
         target="_blank"
         rel="noopener noreferrer"
-        class="px-3 py-1 text-xs font-medium text-zinc-400 hover:text-white hover:bg-white/[0.03] rounded-sm transition-colors flex items-center gap-1"
+        class="px-3 py-1 text-xs font-medium text-zinc-400 hover:text-white hover:bg-white/[0.03] rounded-xs transition-colors flex items-center gap-1"
       >
         <span>GitHub</span>
         <svg

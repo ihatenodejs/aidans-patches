@@ -56,14 +56,14 @@ const initialPatch = initialApp.patches[0];
           </span>
         </div>
         <div
-          class="overflow-y-auto flex-grow p-1.5 space-y-0.5 custom-scrollbar overscroll-none"
+          class="overflow-y-auto grow p-1.5 space-y-0.5 custom-scrollbar overscroll-none"
           id="code-viewer-app-list"
         >
           {viewerData.map((app, index) => (
             <button
               type="button"
               data-app-id={app.id}
-              class={`w-full text-left px-3 py-2 rounded-sm text-xs font-mono flex items-center justify-between transition-colors ${
+              class={`w-full text-left px-3 py-2 rounded-xs text-xs font-mono flex items-center justify-between transition-colors ${
                 index === initialAppIndex
                   ? 'bg-white/[0.08] text-white font-semibold'
                   : 'text-zinc-400 hover:text-white hover:bg-white/[0.03]'
@@ -75,8 +75,8 @@ const initialPatch = initialApp.patches[0];
                   name={app.name}
                   size={16}
                   loading="lazy"
-                  className="w-4 h-4 rounded-sm border border-white/10 shrink-0"
-                  fallbackClassName="rounded-sm text-[10px]"
+                  className="w-4 h-4 rounded-xs border border-white/10 shrink-0"
+                  fallbackClassName="rounded-xs text-[10px]"
                   fallbackColor={app.appIconColor}
                 />
                 <span class="truncate">{app.name}</span>
@@ -103,14 +103,14 @@ const initialPatch = initialApp.patches[0];
           </span>
         </div>
         <div
-          class="overflow-y-auto flex-grow p-1.5 space-y-0.5 custom-scrollbar overscroll-none"
+          class="overflow-y-auto grow p-1.5 space-y-0.5 custom-scrollbar overscroll-none"
           id="code-viewer-patch-list"
         >
           {initialApp.patches.map((patch, index) => (
             <button
               type="button"
               data-patch-id={patch.id}
-              class={`w-full text-left px-3 py-2 rounded-sm text-xs font-mono truncate transition-colors ${
+              class={`w-full text-left px-3 py-2 rounded-xs text-xs font-mono truncate transition-colors ${
                 index === 0
                   ? 'bg-white/[0.08] text-white font-semibold'
                   : 'text-zinc-400 hover:text-white hover:bg-white/[0.03]'
@@ -146,7 +146,7 @@ const initialPatch = initialApp.patches[0];
           <button
             type="button"
             id="viewer-copy-btn"
-            class="px-2.5 py-1 rounded-sm bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.1] hover:border-white/20 text-zinc-300 hover:text-white transition-colors flex items-center gap-1.5 font-mono text-[11px]"
+            class="px-2.5 py-1 rounded-xs bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.1] hover:border-white/20 text-zinc-300 hover:text-white transition-colors flex items-center gap-1.5 font-mono text-[11px]"
           >
             <svg
               id="viewer-copy-icon"
@@ -169,7 +169,7 @@ const initialPatch = initialApp.patches[0];
             target="_blank"
             rel="noreferrer"
             id="viewer-github-link"
-            class="px-2.5 py-1 rounded-sm bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.1] hover:border-white/20 text-zinc-300 hover:text-white transition-colors flex items-center gap-1.5 font-mono text-[11px]"
+            class="px-2.5 py-1 rounded-xs bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.1] hover:border-white/20 text-zinc-300 hover:text-white transition-colors flex items-center gap-1.5 font-mono text-[11px]"
           >
             <svg
               class="w-3.5 h-3.5 fill-current shrink-0 text-zinc-400"
@@ -189,7 +189,7 @@ const initialPatch = initialApp.patches[0];
 
       <!-- Code Area with Line Numbers -->
       <div
-        class="flex-grow overflow-auto max-h-[500px] bg-[#050505] relative custom-scrollbar overscroll-none"
+        class="grow overflow-auto max-h-[500px] bg-[#050505] relative custom-scrollbar overscroll-none"
         id="code-container"
       >
         <div class="flex min-w-full w-max">
@@ -206,7 +206,7 @@ const initialPatch = initialApp.patches[0];
                   ))
               : null}
           </div>
-          <pre class="flex-grow font-mono text-[12px] leading-[22px] text-zinc-300 pt-2 pb-4 pl-0 pr-6 m-0 whitespace-pre overflow-visible"><code id="viewer-code-body" class="font-mono text-[12px] leading-[22px]">{initialPatch ? initialPatch.code : ''}</code></pre>
+          <pre class="grow font-mono text-[12px] leading-[22px] text-zinc-300 pt-2 pb-4 pl-0 pr-6 m-0 whitespace-pre overflow-visible"><code id="viewer-code-body" class="font-mono text-[12px] leading-[22px]">{initialPatch ? initialPatch.code : ''}</code></pre>
         </div>
       </div>
     </div>
@@ -326,7 +326,7 @@ const initialPatch = initialApp.patches[0];
           <button
             type="button"
             data-patch-idx="${idx}"
-            class="w-full text-left px-3 py-2 rounded-sm text-xs font-mono truncate transition-colors ${
+            class="w-full text-left px-3 py-2 rounded-xs text-xs font-mono truncate transition-colors ${
               isActive
                 ? 'bg-white/[0.08] text-white font-semibold'
                 : 'text-zinc-400 hover:text-white hover:bg-white/[0.03]'

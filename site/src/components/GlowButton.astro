@@ -36,66 +36,63 @@ const variantConfigs: Record<
 > = {
   morphe: {
     glowClasses:
-      'bg-gradient-to-r from-[#1E5AA8] via-[#0284c7] to-[#00AFAE] opacity-50 blur-md group-hover:opacity-85 group-hover:blur-lg',
+      'bg-linear-to-r from-[#1E5AA8] via-[#0284c7] to-[#00AFAE] opacity-50 blur-md group-hover:opacity-85 group-hover:blur-lg',
     baseBgClasses: 'bg-[#070b16] group-hover:bg-[#0a0f20]',
     innerGlowStyle:
       'radial-gradient(85% 95% at 20% 0%, rgba(30, 90, 168, 0.45) 0%, transparent 75%), radial-gradient(85% 95% at 80% 0%, rgba(0, 175, 174, 0.35) 0%, transparent 75%)',
     rimGradientStyle:
       'linear-gradient(90deg, #3b82f6 0%, #1E5AA8 20%, #00AFAE 70%, #38bdf8 100%)',
     glintClasses:
-      'bg-gradient-to-r from-transparent via-cyan-100/70 to-transparent',
+      'bg-linear-to-r from-transparent via-cyan-100/70 to-transparent',
     focusRingClass: 'focus-visible:ring-[#00AFAE]',
     textClasses: 'text-white',
   },
   github: {
     glowClasses:
-      'bg-gradient-to-r from-zinc-500 via-white to-zinc-400 opacity-25 blur-md group-hover:opacity-50 group-hover:blur-lg',
+      'bg-linear-to-r from-zinc-500 via-white to-zinc-400 opacity-25 blur-md group-hover:opacity-50 group-hover:blur-lg',
     baseBgClasses: 'bg-[#0a0a0c] group-hover:bg-[#121216]',
     innerGlowStyle:
       'radial-gradient(100% 85% at 50% 0%, rgba(255, 255, 255, 0.18) 0%, rgba(255, 255, 255, 0.05) 35%, transparent 75%)',
     rimGradientStyle:
       'linear-gradient(90deg, rgba(255, 255, 255, 0.3) 0%, rgba(255, 255, 255, 0.95) 50%, rgba(255, 255, 255, 0.3) 100%)',
-    glintClasses:
-      'bg-gradient-to-r from-transparent via-white/80 to-transparent',
+    glintClasses: 'bg-linear-to-r from-transparent via-white/80 to-transparent',
     focusRingClass: 'focus-visible:ring-white/80',
     textClasses: 'text-zinc-200 group-hover:text-white',
   },
   'google-play': {
     glowClasses:
-      'bg-gradient-to-r from-[#4285F4] via-[#34A853] via-[#FBBC04] to-[#EA4335] opacity-40 blur-md group-hover:opacity-75 group-hover:blur-lg',
+      'bg-linear-to-r from-[#4285F4] via-[#34A853] via-[#FBBC04] to-[#EA4335] opacity-40 blur-md group-hover:opacity-75 group-hover:blur-lg',
     baseBgClasses: 'bg-[#080b12] group-hover:bg-[#0c101a]',
     innerGlowStyle:
       'radial-gradient(70% 85% at 15% 0%, rgba(66, 133, 244, 0.35) 0%, transparent 70%), radial-gradient(70% 85% at 50% 0%, rgba(52, 168, 83, 0.25) 0%, transparent 70%), radial-gradient(70% 85% at 85% 0%, rgba(234, 67, 53, 0.3) 0%, transparent 70%)',
     rimGradientStyle:
       'linear-gradient(90deg, #4285F4 0%, #34A853 35%, #FBBC04 70%, #EA4335 100%)',
-    glintClasses:
-      'bg-gradient-to-r from-transparent via-white/70 to-transparent',
+    glintClasses: 'bg-linear-to-r from-transparent via-white/70 to-transparent',
     focusRingClass: 'focus-visible:ring-[#34A853]',
     textClasses: 'text-zinc-200 group-hover:text-white',
   },
   download: {
     glowClasses:
-      'bg-gradient-to-r from-[#d946ef] via-[#a855f7] to-[#6366f1] opacity-45 blur-md group-hover:opacity-80 group-hover:blur-lg',
+      'bg-linear-to-r from-[#d946ef] via-[#a855f7] to-[#6366f1] opacity-45 blur-md group-hover:opacity-80 group-hover:blur-lg',
     baseBgClasses: 'bg-[#0c0814] group-hover:bg-[#140e22]',
     innerGlowStyle:
       'radial-gradient(85% 95% at 20% 0%, rgba(217, 70, 239, 0.4) 0%, transparent 75%), radial-gradient(85% 95% at 80% 0%, rgba(99, 102, 241, 0.35) 0%, transparent 75%)',
     rimGradientStyle:
       'linear-gradient(90deg, #f472b6 0%, #d946ef 25%, #a855f7 65%, #6366f1 100%)',
     glintClasses:
-      'bg-gradient-to-r from-transparent via-pink-100/70 to-transparent',
+      'bg-linear-to-r from-transparent via-pink-100/70 to-transparent',
     focusRingClass: 'focus-visible:ring-[#a855f7]',
     textClasses: 'text-zinc-100 group-hover:text-white',
   },
   neutral: {
     glowClasses:
-      'bg-gradient-to-r from-zinc-600 via-zinc-400 to-zinc-600 opacity-20 blur-md group-hover:opacity-40 group-hover:blur-lg',
+      'bg-linear-to-r from-zinc-600 via-zinc-400 to-zinc-600 opacity-20 blur-md group-hover:opacity-40 group-hover:blur-lg',
     baseBgClasses: 'bg-[#0a0a0c] group-hover:bg-[#121216]',
     innerGlowStyle:
       'radial-gradient(100% 85% at 50% 0%, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.03) 35%, transparent 75%)',
     rimGradientStyle:
       'linear-gradient(90deg, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0.7) 50%, rgba(255, 255, 255, 0.2) 100%)',
-    glintClasses:
-      'bg-gradient-to-r from-transparent via-white/60 to-transparent',
+    glintClasses: 'bg-linear-to-r from-transparent via-white/60 to-transparent',
     focusRingClass: 'focus-visible:ring-zinc-400',
     textClasses: 'text-zinc-300 group-hover:text-white',
   },
@@ -108,7 +105,7 @@ const current = variantConfigs[variant];
   href={href}
   target={target}
   rel={rel}
-  class={`group relative inline-flex items-center justify-center rounded-xl font-mono font-semibold select-none transition-all duration-300 active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-black ${current.focusRingClass} ${current.textClasses} ${sizeClasses} ${className}`}
+  class={`group relative inline-flex items-center justify-center rounded-xl font-mono font-semibold select-none transition-all duration-300 active:scale-[0.98] focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-black ${current.focusRingClass} ${current.textClasses} ${sizeClasses} ${className}`}
 >
   <!-- Ambient outer glow along the top rim -->
   <span

@@ -42,16 +42,6 @@
       "reason": "@cloudflare/vitest-pool-workers 0.23 peers vitest ^4.1.0"
     },
     {
-      "id": "npm:site/package.json#dependencies/astro",
-      "value": "^5.4.1",
-      "reason": "@astrojs/tailwind 6.0.2 peers astro ^3||^4||^5; Astro 6/7 requires the @tailwindcss/vite migration"
-    },
-    {
-      "id": "npm:site/package.json#dependencies/tailwindcss",
-      "value": "^3.4.17",
-      "reason": "Tailwind 4 CSS-first migration is coupled to the Astro integration replacement; 3.4.19 remains the v3-lts release"
-    },
-    {
       "id": "crates:tools/apk-lab/Cargo.toml#dependencies/sha2",
       "value": "0.10.8",
       "reason": "sha2 0.11 moves to digest 0.11 with breaking API changes; no functional need"

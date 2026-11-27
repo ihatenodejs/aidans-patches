@@ -9,7 +9,7 @@ const { appName } = Astro.props;
 <dialog
   id="about-app-dialog"
   aria-labelledby="about-dialog-title"
-  class="fixed inset-0 m-auto w-full max-w-2xl bg-transparent p-4 backdrop:bg-black/80 backdrop:backdrop-blur-sm z-50 text-white"
+  class="fixed inset-0 m-auto w-full max-w-2xl bg-transparent p-4 backdrop:bg-black/80 backdrop:backdrop-blur-xs z-50 text-white"
 >
   <div class="relative flex max-h-[85vh] flex-col rounded-lg border border-white/10 bg-[#0c0c0c] p-6 shadow-2xl custom-scrollbar overflow-y-auto">
     <div class="flex items-center justify-between border-b border-white/[0.08] pb-4">
@@ -23,7 +23,7 @@ const { appName } = Astro.props;
         type="button"
         data-close-dialog
         aria-label="Close dialog"
-        class="flex h-8 w-8 items-center justify-center rounded-sm border border-white/10 text-zinc-400 hover:border-white/25 hover:text-white transition-colors"
+        class="flex h-8 w-8 items-center justify-center rounded-xs border border-white/10 text-zinc-400 hover:border-white/25 hover:text-white transition-colors"
       >
         <svg
           class="h-4 w-4"
@@ -63,7 +63,7 @@ const { appName } = Astro.props;
       >
         <div
           data-fact="developer"
-          class="hidden flex-col border border-white/[0.06] bg-black/30 p-2.5 rounded-sm"
+          class="hidden flex-col border border-white/[0.06] bg-black/30 p-2.5 rounded-xs"
         >
           <dt class="text-[10px] uppercase text-zinc-500">Offered by</dt>
           <dd
@@ -73,7 +73,7 @@ const { appName } = Astro.props;
         </div>
         <div
           data-fact="updated"
-          class="hidden flex-col border border-white/[0.06] bg-black/30 p-2.5 rounded-sm"
+          class="hidden flex-col border border-white/[0.06] bg-black/30 p-2.5 rounded-xs"
         >
           <dt class="text-[10px] uppercase text-zinc-500">Updated on</dt>
           <dd
@@ -83,7 +83,7 @@ const { appName } = Astro.props;
         </div>
         <div
           data-fact="downloads"
-          class="hidden flex-col border border-white/[0.06] bg-black/30 p-2.5 rounded-sm"
+          class="hidden flex-col border border-white/[0.06] bg-black/30 p-2.5 rounded-xs"
         >
           <dt class="text-[10px] uppercase text-zinc-500">Downloads</dt>
           <dd
@@ -93,7 +93,7 @@ const { appName } = Astro.props;
         </div>
         <div
           data-fact="content-rating"
-          class="hidden flex-col border border-white/[0.06] bg-black/30 p-2.5 rounded-sm"
+          class="hidden flex-col border border-white/[0.06] bg-black/30 p-2.5 rounded-xs"
         >
           <dt class="text-[10px] uppercase text-zinc-500">Content rating</dt>
           <dd
@@ -103,7 +103,7 @@ const { appName } = Astro.props;
         </div>
         <div
           data-fact="released"
-          class="hidden flex-col border border-white/[0.06] bg-black/30 p-2.5 rounded-sm"
+          class="hidden flex-col border border-white/[0.06] bg-black/30 p-2.5 rounded-xs"
         >
           <dt class="text-[10px] uppercase text-zinc-500">Released on</dt>
           <dd
@@ -113,7 +113,7 @@ const { appName } = Astro.props;
         </div>
         <div
           data-fact="min-android"
-          class="hidden flex-col border border-white/[0.06] bg-black/30 p-2.5 rounded-sm"
+          class="hidden flex-col border border-white/[0.06] bg-black/30 p-2.5 rounded-xs"
         >
           <dt class="text-[10px] uppercase text-zinc-500">Requires Android</dt>
           <dd
@@ -123,7 +123,7 @@ const { appName } = Astro.props;
         </div>
         <div
           data-fact="iap"
-          class="hidden flex-col border border-white/[0.06] bg-black/30 p-2.5 rounded-sm"
+          class="hidden flex-col border border-white/[0.06] bg-black/30 p-2.5 rounded-xs"
         >
           <dt class="text-[10px] uppercase text-zinc-500">In-app purchases</dt>
           <dd
@@ -133,7 +133,7 @@ const { appName } = Astro.props;
         </div>
         <div
           data-fact="permissions"
-          class="hidden col-span-1 sm:col-span-2 flex-col border border-white/[0.06] bg-black/30 p-2.5 rounded-sm"
+          class="hidden col-span-1 sm:col-span-2 flex-col border border-white/[0.06] bg-black/30 p-2.5 rounded-xs"
         >
           <dt class="text-[10px] uppercase text-zinc-500">Permissions</dt>
           <dd data-fact-val class="mt-1 font-sans text-xs text-zinc-300"></dd>

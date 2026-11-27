@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { resolveRepositoryRoot } from './repo-root';
 import { getPatchSourceMap } from './source-links';
 
 export interface PatchCodeEntry {
@@ -15,8 +15,7 @@ let cachedCodeMap: Record<string, PatchCodeEntry> | null = null;
 export function getPatchCodeMap(): Record<string, PatchCodeEntry> {
   if (cachedCodeMap) return cachedCodeMap;
 
-  const currentDir = path.dirname(fileURLToPath(import.meta.url));
-  const repoRoot = path.resolve(currentDir, '../../../');
+  const repoRoot = resolveRepositoryRoot();
   const sourceMap = getPatchSourceMap();
 
   const result: Record<string, PatchCodeEntry> = {};
